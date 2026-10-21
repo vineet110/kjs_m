@@ -1,0 +1,22 @@
+{
+  "home": {
+    "title": "KJS India Digital Platform",
+    "trustedPartner": "TRUSTED CO-MANUFACTURING PARTNER",
+    "heroHeading": "Coffee, tea & confectionery, made and packed by KJS",
+    "bestSellers": "Best Sellers",
+    "categories": "Categories",
+    "employeeLogin": "Employee Login"
+  },
+  "gate": {
+    "title": "Unlock Products",
+    "subtitle": "Tell us who you are. You'll only need to do this once.",
+    "name": "Full Name",
+    "contact": "Phone (E.164) or Email",
+    "consent": "I agree to receive communications in accordance with DPDP Act 2023",
+    "submit": "Unlock Catalog"
+  },
+  "koko": {
+    "askPlaceholder": "Ask Koko about products, packaging...",
+    "enquiryPrompt": "Would you like me to connect you with our sales team?"
+  }
+}

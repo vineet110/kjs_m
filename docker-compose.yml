@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: kjs_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kjs_db}
+      POSTGRES_USER: ${POSTGRES_USER:-kjs_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kjs_secret_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/alembic/init_roles.sql:/docker-entrypoint-initdb.d/init_roles.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kjs_admin} -d ${POSTGRES_DB:-kjs_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kjs_api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - file_storage:/srv/kjs_files
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kjs_worker
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - file_storage:/srv/kjs_files
+    command: python -m app.worker.job_queue
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kjs_scheduler
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    command: python -m app.scheduler.scheduler_setup
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kjs_nextjs
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  superset:
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    container_name: kjs_superset
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  file_storage:

@@ -1,0 +1,88 @@
+# ==============================================================================
+# KJS India Digital Platform - Backend & System Requirements
+# Companion to Implementation Plan v1.0 & Hi-fi Wireframes v2 (15 Screens)
+# ==============================================================================
+
+# --- 1. CORE WEB FRAMEWORK & API ---
+fastapi==0.111.0
+    # High-performance async REST API framework handling:
+    # - Public product & category endpoints (Screens 01-03)
+    # - Employee portal endpoints (Screens 04-08)
+    # - Admin control endpoints (Screens 09-15)
+uvicorn[standard]==0.30.1
+    # Production-grade ASGI server to run FastAPI with hot reload & worker support
+pydantic==2.7.4
+    # High-speed data validation and schemas (V2) for all models and API payloads
+pydantic-settings==2.3.4
+    # Parses and validates environment variables from .env (Database, API keys, secrets)
+
+# --- 2. DATABASE, ORM & VECTOR SEARCH ---
+sqlalchemy[asyncio]==2.0.31
+    # Modern async ORM for database modeling, session management, and relationships
+asyncpg==0.29.0
+    # High-performance async PostgreSQL driver for fast non-blocking DB queries
+psycopg2-binary==2.9.9
+    # Synchronous PostgreSQL driver used for database migrations and maintenance scripts
+alembic==1.13.1
+    # Database migration tool to track schema versions, pgvector setup, and triggers
+pgvector==0.3.1
+    # PostgreSQL vector extension library for Koko AI RAG embeddings (384 dimensions)
+
+# --- 3. BACKGROUND JOBS & SCHEDULING ---
+apscheduler==3.10.4
+    # In-process cron scheduler:
+    # - Daily auto-task assignment (09:00 IST, Mon-Sat)
+    # - Order board deadline threshold checking (every 15 minutes)
+    # - Nightly attendance session auto-close at shift end
+
+# --- 4. AI & SEMANTIC SEARCH (KOKO ASSISTANT) ---
+anthropic==0.28.0
+    # Official Claude API client (Haiku-class model) for Koko AI assistant with:
+    # - Low-latency streaming responses
+    # - Strict prompt guardrails (context-only answers, no price speculation)
+    # - Monthly spend limit controls ($20-$50/month)
+sentence-transformers==3.0.1
+    # Local embedding generator using 'multilingual-e5-small' model (384 dimensions)
+    # for vector indexing of products, categories, FAQs, and packaging policies
+torch>=2.0.0
+    # PyTorch engine required by sentence-transformers to compute vector embeddings
+numpy>=1.26.0
+    # Numerical operations for vector normalization and similarity scoring
+
+# --- 5. EXTERNAL NOTIFICATIONS & ALERTS ---
+httpx==0.27.0
+    # Asynchronous HTTP client to interface with:
+    # - Meta WhatsApp Business Platform (Cloud API / BSP) for 50%, 85%, 100% alerts
+    # - Resend or Brevo transactional email REST API
+    # - Apache Superset guest token authentication endpoints
+
+# --- 6. AUTHENTICATION & SECURITY ---
+python-jose[cryptography]==3.3.0
+    # JSON Web Token (JWT) encoding, decoding, and signature verification for user sessions
+passlib[bcrypt]==1.7.4
+    # Argon2 / Bcrypt secure password hashing for employee and admin sign-in
+python-multipart==0.0.9
+    # Parses multipart form data for file uploads (Order board requirement files up to 25MB)
+
+# --- 7. DATA VALIDATION & EXPORT UTILITIES ---
+phonenumbers==8.13.38
+    # Google's libphonenumber port to validate E.164 phone numbers in the Category Gate
+openpyxl==3.1.5
+    # Reads requirement sheets and exports monthly attendance to Excel for HR/payroll
+python-magic-bin==0.4.14
+    # Server-side MIME type detection to ensure uploaded files match PDF, Excel, or Word
+
+# --- 8. STRUCTURED LOGGING & AUDITING ---
+structlog==24.2.0
+    # Structured JSON logger producing request-id correlated logs for debugging and audit
+
+# --- 9. TESTING & DETERMINISTIC QA ---
+pytest==8.2.2
+    # Test runner for unit, integration, and RBAC endpoint verification
+pytest-asyncio==0.23.7
+    # Async support for Pytest testing FastAPI async routes and database sessions
+freezegun==1.5.1
+    # Deterministic clock freezing to accurately test:
+    # - 50%, 85%, 100% deadline alerts
+    # - Working days logic (Mon-Sat, holidays, Sundays off)
+    # - Nightly auto-closing of attendance sessions
