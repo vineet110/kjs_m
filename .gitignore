@@ -31,3 +31,12 @@ Thumbs.db
 # Storage volume
 /srv/
 kjs_files/
+
+# Downloaded from kjsindia.com by scripts/fetch_kjs_assets.py (13 MB of video; moves to Cloudflare R2 later)
+frontend/public/images/kjs/video/
+# Local file storage (dev)
+storage/
+backend/storage/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
