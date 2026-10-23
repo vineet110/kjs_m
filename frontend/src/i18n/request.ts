@@ -1,15 +1,8 @@
 import { getRequestConfig } from 'next-intl/server';
 import en from '../../messages/en.json';
-import hi from '../../messages/hi.json';
 
-const messages = { en, hi };
-
-export default getRequestConfig(async ({ requestLocale }) => {
-  const requestedLocale = await requestLocale;
-  const locale = requestedLocale === 'hi' ? 'hi' : 'en';
-
-  return {
-    locale,
-    messages: messages[locale],
-  };
-});
+// English only at launch (backlog D2). To add a language: messages/<code>.json + middleware locales.
+export default getRequestConfig(async () => ({
+  locale: 'en',
+  messages: en,
+}));

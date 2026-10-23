@@ -20,6 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # Throwaway database for automated tests (pytest). Start: docker compose up -d test-db
+  test-db:
+    image: pgvector/pgvector:pg16
+    container_name: kjs_test_db
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: kjs_test
+      POSTGRES_USER: kjs_test
+      POSTGRES_PASSWORD: kjs_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data  # in memory: fast, wiped on stop
+
   backend:
     build:
       context: ./backend

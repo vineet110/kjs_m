@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KJS India · Koko Platform Wireframes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--ink:#16232F;--brand:#0F4C81;--brand2:#0B3A63;--accent:#E07A1F;--ok:#1F8A4C;--bad:#C0392B;--warn:#D99A00;--bg:#F4F6F9;--card:#fff;--line:#E1E6EC;--mute:#66727F;
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Inter,Arial,sans-serif;background:#E6EAF0;color:var(--ink);font-size:14px;line-height:1.45}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1280px;margin:0 auto;padding:30px 20px 70px}
+.cover{background:linear-gradient(135deg,var(--brand2),var(--brand));color:#fff;border-radius:14px;padding:44px;margin-bottom:22px}
+.cover h1{font-size:36px;margin-bottom:6px}.cover p{opacity:.85;font-size:15.5px}
+.cover .meta{margin-top:18px;display:flex;gap:26px;font-size:12.5px;opacity:.9;flex-wrap:wrap}
+.toc{background:#fff;border-radius:12px;padding:18px 24px;margin-bottom:34px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px 24px;font-size:13px}
+.toc b{grid-column:1/-1;font-size:12px;letter-spacing:1px;color:var(--mute);margin-top:6px}
+.toc a:hover{color:var(--brand);text-decoration:underline}
+.part{font-size:13px;letter-spacing:2px;color:var(--brand);font-weight:800;margin:46px 0 14px;border-bottom:2px solid var(--brand);padding-bottom:6px}
+.screen{margin-bottom:44px}
+.shead{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.snum{background:var(--accent);color:#fff;border-radius:6px;padding:2px 9px;font-weight:700;font-size:13px}
+.shead h2{font-size:19px}.who{margin-left:auto;font-size:12px;color:var(--mute);border:1px solid var(--line);background:#fff;border-radius:20px;padding:2px 10px;white-space:nowrap}
+.cap{color:var(--mute);margin:0 0 12px;font-size:13.5px;max-width:920px}
+.browser{background:var(--card);border-radius:10px;overflow:hidden;box-shadow:0 6px 24px rgba(20,40,60,.10);position:relative}
+.bar{background:#EEF1F5;padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:#cfd6de}
+.url{flex:1;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;color:var(--mute);margin-left:8px}
+/* ticker */
+.ticker{background:var(--accent);color:#fff;overflow:hidden;white-space:nowrap;font-size:13px;font-weight:600;height:34px;display:flex;align-items:center}
+.ticker .track{display:inline-flex;gap:60px;animation:ltr 26s linear infinite;padding-left:40px}
+.ticker:hover .track{animation-play-state:paused}
+@keyframes ltr{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+.ticker span::before{content:"★ ";opacity:.8}
+/* header */
+.top{display:flex;align-items:center;gap:22px;padding:12px 28px;border-bottom:1px solid var(--line);background:#fff}
+.logo{font-weight:900;font-size:22px;color:var(--brand);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.logo span{color:var(--accent)}.logo small{font-size:10px;font-weight:600;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:1px 5px;letter-spacing:0}
+.logo:hover{opacity:.85}
+.nav{display:flex;gap:18px;font-size:13.5px}.nav b{color:var(--brand)}
+.top .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.lang{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12.5px;font-weight:600;cursor:pointer;position:relative}
+.btn{display:inline-block;border-radius:6px;padding:8px 16px;font-weight:600;font-size:13px;border:1px solid transparent;white-space:nowrap;cursor:pointer}
+.bp{background:var(--accent);color:#fff}.bb{background:var(--brand);color:#fff}.bg{background:var(--ok);color:#fff}
+.bo{border-color:var(--brand);color:var(--brand);background:#fff}.br{border-color:var(--bad);color:var(--bad);background:#fff}.bgh{border-color:var(--line);background:#fff;color:var(--ink)}
+.sm{padding:4px 10px;font-size:12px}
+.ph{background:repeating-linear-gradient(45deg,#dfe5ec,#dfe5ec 10px,#e8edf2 10px,#e8edf2 20px);color:#7a8794;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border-radius:8px;text-align:center}
+.hero{display:grid;grid-template-columns:1fr 1.25fr;gap:26px;padding:26px 28px;background:linear-gradient(180deg,#F7F9FC,#fff);align-items:center}
+.hero h3{font-size:32px;line-height:1.15;margin-bottom:10px;color:var(--brand)}
+.hero p{color:var(--mute);margin-bottom:16px}
+.tag{display:inline-block;font-size:11px;font-weight:800;color:var(--accent);letter-spacing:1.2px;margin-bottom:8px}
+.sec{padding:22px 28px}.sec h4{font-size:19px;margin-bottom:4px}.sec .sub{color:var(--mute);font-size:13px;margin-bottom:14px}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}.g6{grid-template-columns:repeat(6,1fr)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;position:relative}
+.card h5{font-size:14px;margin:8px 0 2px}.card p{font-size:12px;color:var(--mute)}
+.ribbon{position:absolute;top:18px;left:18px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px}
+.cat{border-radius:12px;overflow:hidden;border:1px solid var(--line);cursor:pointer;background:#fff;transition:transform .15s}
+.cat:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.08)}
+.cat .ph{border-radius:0;height:110px}.cat div.t{padding:10px 12px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.cat div.t small{font-weight:500;color:var(--mute);font-size:11.5px}
+.lock{font-size:11px;color:var(--mute)}
+.foot{background:var(--ink);color:#c9d3dd;padding:16px 28px;font-size:12px;display:flex;gap:30px}.foot b{color:#fff}
+.koko-fab{position:absolute;right:22px;bottom:22px;background:var(--brand);color:#fff;border-radius:28px;padding:10px 16px 10px 10px;font-weight:700;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;align-items:center;gap:8px;cursor:pointer}
+.koko-av{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff}
+/* modal */
+.overlay{position:absolute;inset:0;background:rgba(15,25,40,.55);display:flex;align-items:center;justify-content:center;z-index:5}
+.modal{background:#fff;border-radius:14px;width:440px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal h3{font-size:20px;margin-bottom:4px}.modal .sub{color:var(--mute);font-size:13px;margin-bottom:8px}
+.f label{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px;font-weight:600}
+.in{border:1px solid var(--line);border-radius:6px;padding:8px 10px;color:#9aa5b1;background:#fff;font-size:13px}
+.in.v{color:var(--ink)}
+.chk{font-size:12px;margin-top:10px;color:var(--mute)}
+.or{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:11.5px;margin:8px 0 0}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+#gate{display:none}#gate.on{display:flex}
+/* chat */
+.chat{position:absolute;right:22px;bottom:22px;width:350px;background:#fff;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.25);overflow:hidden;z-index:4}
+.chat .ch{background:var(--brand);color:#fff;padding:10px 14px;font-weight:700;display:flex;gap:10px;align-items:center}.chat .ch small{display:block;font-weight:400;opacity:.8;font-size:11px}
+.msgs{padding:12px;display:flex;flex-direction:column;gap:8px;background:#F7F9FC}
+.m{max-width:86%;padding:8px 11px;border-radius:10px;font-size:12.5px}
+.m.b{background:#fff;border:1px solid var(--line)}.m.u{background:var(--brand);color:#fff;align-self:flex-end}
+.chip{display:inline-block;border:1px solid var(--brand);color:var(--brand);border-radius:14px;padding:2px 10px;font-size:11.5px;margin:4px 4px 0 0;background:#fff}
+.chat .ci{display:flex;gap:6px;padding:10px;border-top:1px solid var(--line)}.chat .ci .in{flex:1}
+/* portal */
+.portal{display:grid;grid-template-columns:215px 1fr;min-height:560px}
+.side{background:var(--ink);color:#c9d3dd;padding:14px 0;font-size:13px}
+.side .lg{color:#fff;font-weight:900;padding:0 18px 12px;font-size:16px}.side .lg small{display:block;font-weight:500;font-size:10px;opacity:.6;letter-spacing:1.2px}
+.side div.i{padding:8px 18px}.side div.i.a{background:rgba(255,255,255,.1);color:#fff;border-left:3px solid var(--accent)}
+.side .grp{font-size:10px;letter-spacing:1.2px;opacity:.5;padding:12px 18px 3px}
+.badge{float:right;background:var(--accent);color:#fff;border-radius:10px;padding:0 7px;font-size:11px}
+.main{background:var(--bg);padding:16px 20px}
+.mh{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}.mh h3{font-size:19px}.mh .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.user{display:flex;align-items:center;gap:8px;font-size:12.5px}.av{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex:none}
+.av.b{background:var(--brand)}.av.g{background:var(--ok)}.av.p{background:#7d5bbe}
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+th{text-align:left;color:var(--mute);font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.pill{display:inline-block;border-radius:10px;padding:1px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.pn{background:#FDEBD7;color:#A85A10}.pg{background:#DDF1E5;color:#1F6B41}.pr{background:#F8DEDA;color:#9B2C20}.pb{background:#DCE8F5;color:var(--brand)}.py{background:#FFF4CC;color:#8A6D00}.pgr{background:#ECEFF2;color:#56616D}
+.c-coffee{background:#EFE3D6;color:#6B3E1E}.c-tea{background:#DDF1E5;color:#1F6B41}.c-conf{background:#FBE1EC;color:#9C2F5C}.c-prem{background:#E3E8FB;color:#3446A3}.c-spice{background:#FDEBD7;color:#A85A10}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;border-top:3px solid var(--brand)}
+.stat b{font-size:24px;display:block}.stat span{font-size:12px;color:var(--mute)}.stat small{font-size:11px;color:var(--mute);display:block;margin-top:2px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}
+.panel h6{font-size:13.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}.panel h6 .r{margin-left:auto;font-weight:500}
+/* toggle */
+.tg{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;font-weight:600;user-select:none}
+.tg i{width:40px;height:22px;border-radius:12px;background:#C5CDD6;position:relative;transition:.2s;flex:none}
+.tg i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}
+.tg.on i{background:var(--ok)}.tg.on i::after{left:21px}
+.avail{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:5px 12px}
+/* attendance */
+.ckin{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.ckin .sh{font-weight:600;white-space:nowrap;padding-right:14px;border-right:1px solid var(--line)}
+.ckin .in{flex:1}
+.ckbtn{background:var(--bad);color:#fff;border-radius:8px;padding:8px 16px;font-weight:600;line-height:1.25;text-align:center}
+.day{display:grid;grid-template-columns:52px 100px 1fr 70px 100px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin-bottom:7px}
+.day .d{font-weight:600}.day .d small{display:block;color:var(--mute);font-weight:400}
+.tl{position:relative;height:18px}.tl .ln{position:absolute;top:8px;left:0;right:0;height:2px;background:#e3e7ec}
+.tl .seg{position:absolute;top:7px;height:4px;border-radius:2px;background:var(--ok)}
+.tl .lb{position:absolute;left:50%;top:-2px;transform:translateX(-50%);background:#fff;border:1px solid;border-radius:6px;padding:0 8px;font-size:11px}
+.hrs{text-align:right}.hrs b{display:block;font-size:15px}.hrs small{color:var(--mute)}
+.sum{display:flex;background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:8px;flex-wrap:wrap}
+.sum div{padding:6px 14px;border-left:3px solid;margin:8px 0;font-size:12px}.sum b{display:block;font-size:14px}
+/* tasks */
+.task{display:grid;grid-template-columns:18px 1fr auto auto auto;gap:12px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:12.5px}
+.task .bx{width:16px;height:16px;border:2px solid #b8c2cc;border-radius:4px}.task .bx.done{background:var(--ok);border-color:var(--ok)}
+.task small{color:var(--mute);display:block}
+.src{font-size:10.5px;color:var(--mute);border:1px dashed #c4ccd5;border-radius:4px;padding:0 5px}
+/* segmented */
+.seg-ctl{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg-ctl span{white-space:nowrap;padding:7px 14px;font-size:12.5px;border-right:1px solid var(--line);cursor:pointer}.seg-ctl span:last-child{border-right:0}
+.seg-ctl span.a{background:var(--brand);color:#fff;font-weight:600}
+.days{display:flex;gap:6px}.days span{width:40px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--brand);color:#fff}
+.days span.off{background:#ECEFF2;color:#9aa5b1;text-decoration:line-through}
+.map td .pill{margin:1px 2px}
+.addc{display:inline-block;border:1px dashed #b8c2cc;border-radius:10px;padding:0 8px;font-size:11px;color:var(--mute)}
+/* order board */
+.ob-head{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:14px;align-items:center;margin-bottom:12px}
+.ob-head .k{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.6px}.ob-head .v{font-weight:700;font-size:15px}
+.idtag{font-family:Consolas,monospace;background:#EEF3F9;color:var(--brand);border-radius:4px;padding:1px 6px;font-size:12px;font-weight:700}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-bottom:12px;position:relative}
+.step{background:#fff;border:1px solid var(--line);padding:12px;position:relative}
+.step:first-child{border-radius:10px 0 0 10px}.step:last-child{border-radius:0 10px 10px 0}
+.step .n{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;background:#ECEFF2;color:var(--mute);margin-bottom:6px}
+.step.done .n{background:var(--ok);color:#fff}.step.cur{background:#F2F7FD;border:2px solid var(--brand)}.step.cur .n{background:var(--brand);color:#fff}
+.step h5{font-size:13.5px}.step .meta{font-size:11.5px;color:var(--mute);margin:3px 0 8px}
+.prog{height:7px;background:#ECEFF2;border-radius:4px;overflow:hidden;position:relative}
+.prog i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.ticks{position:relative;height:12px;font-size:9.5px;color:var(--mute)}.ticks span{position:absolute;transform:translateX(-50%)}
+.people{display:flex;gap:4px;margin-top:8px;align-items:center}.people .av{width:24px;height:24px;font-size:10px}
+.pct{font-size:11px;font-weight:700;background:#EEF3F9;color:var(--brand);border-radius:4px;padding:0 5px}
+.doc{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.doc .ic{width:30px;height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#fff;flex:none}
+.doc .ic.x{background:#1F7244}.doc .ic.p{background:#C0392B}.doc .ic.w{background:#2B5797}
+.doc small{color:var(--mute);display:block}
+.alert-row{display:grid;grid-template-columns:70px 1fr auto auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.audit td{font-size:12px}
+.note{background:#FFF8EC;border:1px solid #F3D9AE;border-radius:8px;padding:9px 12px;font-size:12.5px;margin-top:10px}
+.note.b{background:#F2F7FD;border-color:#CFE0F2}
+/* charts */
+.ss-bar{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;flex-wrap:wrap}
+.ss-badge{font-size:10.5px;font-weight:700;background:#EAF2EF;color:#1F6B41;border-radius:4px;padding:2px 7px}
+.hm{display:grid;grid-template-columns:82px repeat(12,1fr);gap:2px;font-size:10.5px;align-items:center}
+.hm .c{height:24px;border-radius:3px;cursor:default}
+.hm .lbl{color:var(--mute);text-align:right;padding-right:6px}.hm .hd{color:var(--mute);text-align:center}
+.legend{display:flex;gap:14px;font-size:11.5px;color:#52514e;flex-wrap:wrap;margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.hbar{display:grid;grid-template-columns:110px 1fr 46px;gap:8px;align-items:center;font-size:12px;margin-bottom:7px}
+.hbar .t{height:14px;background:transparent;position:relative}.hbar .t i{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;background:var(--s1)}
+.hbar b{font-weight:600;text-align:right}
+.stack{display:flex;height:16px;gap:2px}.stack i{display:block;height:100%}
+.stack i:first-child{border-radius:4px 0 0 4px}.stack i:last-child{border-radius:0 4px 4px 0}
+.tip{position:fixed;pointer-events:none;background:#0b0b0b;color:#fff;font-size:12px;padding:5px 9px;border-radius:6px;z-index:99;display:none;white-space:nowrap}
+.end{background:#fff;border-radius:12px;padding:26px 30px;margin-top:20px}
+.end h2{color:var(--brand);margin-bottom:10px;font-size:20px}.end ol{padding-left:20px}.end li{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="tip" id="tip"></div>
+<div class="wrap">
+
+<div class="cover">
+  <div style="font-size:12px;letter-spacing:2px;opacity:.75;margin-bottom:8px">WIREFRAMES v2 · CLOSE TO FINAL</div>
+  <h1>KJS India: Digital Platform</h1>
+  <p>Website with Koko AI assistant · Employee portal · Admin console · Order Boards · Insights &amp; Analytics</p>
+  <div class="meta"><span>Version 2.0 · 14 Oct 2026</span><span>15 screens</span><span>Interactive: click a category, the toggles and the duration buttons</span><span>Colours, logo and photos are placeholders until KJS shares brand assets</span></div>
+</div>
+
+<div class="toc">
+  <b>WEBSITE (PUBLIC)</b>
+  <a href="#s1">01 Home page</a><a href="#s2">02 Category access form</a><a href="#s3">03 Category page + Koko</a>
+  <b>EMPLOYEE PORTAL</b>
+  <a href="#s4">04 Employee login</a><a href="#s5">05 Employee dashboard</a><a href="#s6">06 Attendance</a>
+  <a href="#s7">07 My tasks</a><a href="#s8">08 My order board steps</a><span></span>
+  <b>ADMIN CONSOLE</b>
+  <a href="#s9">09 Admin dashboard</a><a href="#s10">10 Auto task assign</a><a href="#s11">11 Order boards + New order board</a>
+  <a href="#s12">12 Order board detail</a><a href="#s13">13 Approvals &amp; audit log</a><a href="#s14">14 Team &amp; attendance</a>
+  <a href="#s15">15 Insights &amp; Analytics</a>
+</div>
+
+<!-- ============ WEBSITE ============ -->
+<div class="part">PART A · WEBSITE (PUBLIC)</div>
+
+<div class="screen" id="s1">
+  <div class="shead"><span class="snum">01</span><h2>Home page</h2><span class="who">Public · no login</span></div>
+  <p class="cap">Three parts: <b>header</b> (moving offers, KJS INDIA link to kjsindia.com, language, Employee Login), <b>best sellers</b> in the middle, <b>categories</b> below. Click any category to see the access form. Koko sits bottom-right on every page.</p>
+  <div class="browser" style="height:auto">
+    <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com</div></div>
+    <div class="ticker"><div class="track">
+      <span>Festive offer: 10% off on bulk coffee premix orders</span><span>Free samples for new brands, this month only</span><span>New: Masala chai premix in 2 g stick packs</span><span>15 days free warehousing on every order</span><span>Chocolate &amp; cocoa bases now in stock</span>
+      <span>Festive offer: 10% off on bulk coffee premix orders</span><span>Free samples for new brands, this month only</span><span>New: Masala chai premix in 2 g stick packs</span><span>15 days free warehousing on every order</span><span>Chocolate &amp; cocoa bases now in stock</span>
+    </div></div>
+    <div class="top">
+      <a class="logo" href="https://www.kjsindia.com/" target="_blank" title="Opens kjsindia.com">KJS<span>INDIA</span><small>kjsindia.com ↗</small></a>
+      <div class="nav"><b>Home</b><span>Best Sellers</span><span>Categories</span><span>About</span><span>Contact</span></div>
+      <div class="r"><span class="in" style="width:220px">🔍 Search products…</span><span class="lang">🌐 English ▾</span><span class="btn bb sm">👤 Employee Login</span></div>
+    </div>
+    <div class="hero">
+      <div><div class="tag">TRUSTED CO-MANUFACTURING PARTNER</div><h3>Coffee, tea &amp; confectionery,<br>made and packed by KJS</h3>
+        <p>Browse our best sellers or pick a category. Koko, our assistant, can answer your questions any time.</p>
+        <span class="btn bp">See best sellers ↓</span>&nbsp; <span class="btn bo">💬 Chat with Koko</span></div>
+      <div class="ph" style="height:200px">Rotating banner: offers / factory photos</div>
+    </div>
+    <div class="sec" style="background:#fff">
+      <div style="display:flex;align-items:baseline"><div><h4>🔥 Best sellers</h4><div class="sub">Most ordered this month, open to everyone, no form needed</div></div><span style="margin-left:auto;color:var(--brand);font-weight:600;font-size:13px">View all →</span></div>
+      <div class="grid g5">
+        <div class="card"><div class="ph" style="height:110px">Product photo</div><span class="ribbon">#1 Best seller</span><h5>3-in-1 Coffee Premix</h5><p>Coffee · 2 g stick packs</p><span class="btn bo sm" style="margin-top:8px">View details</span></div>
+        <div class="card"><div class="ph" style="height:110px">Product photo</div><span class="ribbon">#2</span><h5>Masala Chai Premix</h5><p>Tea · pouch / stick</p><span class="btn bo sm" style="margin-top:8px">View details</span></div>
+        <div class="card"><div class="ph" style="height:110px">Product photo</div><span class="ribbon">#3</span><h5>Instant Coffee Powder</h5><p>Coffee · bulk / carton</p><span class="btn bo sm" style="margin-top:8px">View details</span></div>
+        <div class="card"><div class="ph" style="height:110px">Product photo</div><span class="ribbon">#4</span><h5>Drinking Chocolate</h5><p>Confectionery · pouch</p><span class="btn bo sm" style="margin-top:8px">View details</span></div>
+        <div class="card"><div class="ph" style="height:110px">Product photo</div><span class="ribbon">#5</span><h5>Lemon Iced Tea Mix</h5><p>Tea · bag in box</p><span class="btn bo sm" style="margin-top:8px">View details</span></div>
+      </div>
+    </div>
+    <div class="sec" style="background:#F7F9FC">
+      <h4>Shop by category</h4><div class="sub">🔒 Share your name and phone or email once to open any category</div>
+      <div class="grid g5">
+        <div class="cat" onclick="gate('Coffee')"><div class="ph">Coffee image</div><div class="t">Coffee <small>24 products</small></div></div>
+        <div class="cat" onclick="gate('Tea')"><div class="ph">Tea image</div><div class="t">Tea <small>18 products</small></div></div>
+        <div class="cat" onclick="gate('Confectionery')"><div class="ph">Confectionery image</div><div class="t">Confectionery <small>15 products</small></div></div>
+        <div class="cat" onclick="gate('Premixes & Nutrition')"><div class="ph">Premix image</div><div class="t">Premixes &amp; Nutrition <small>12</small></div></div>
+        <div class="cat" onclick="gate('Seasonings')"><div class="ph">Seasoning image</div><div class="t">Seasonings <small>9 products</small></div></div>
+      </div>
+    </div>
+    <div class="foot"><span><b>KJS India</b><br>Plot No 1 &amp; 2, Phase-III, IDA Pashamylaram, Patancheru, Hyderabad, TS 502307</span><span><b>Contact</b><br>+91 97037 35666 · contact@kjsindia.com</span><span><b>Certified</b><br>ISO 9001 · ISO 14001 · FSSC</span><span style="margin-left:auto"><b>Corporate site</b><br><a href="https://www.kjsindia.com/" target="_blank">www.kjsindia.com ↗</a></span></div>
+    <div class="koko-fab" onclick="document.getElementById('s3').scrollIntoView({behavior:'smooth'})"><div class="koko-av">K</div>Ask Koko</div>
+    <div class="overlay" id="gate"><div class="modal f">
+      <div style="display:flex;align-items:center;gap:10px"><div class="koko-av" style="background:var(--brand)">🔒</div><div><h3>Open <span id="gcat">Coffee</span> products</h3><div class="sub" style="margin:0">Tell us who you are. You'll only need to do this once.</div></div></div>
+      <label>Full name *</label><div class="in">e.g. Arjun Mehta</div>
+      <label>Mobile number</label><div style="display:flex;gap:6px"><div class="in v" style="width:70px">+91 ▾</div><div class="in" style="flex:1">98xxx xxxxx</div></div>
+      <div class="or">or</div>
+      <label style="margin-top:4px">Email</label><div class="in">you@company.com</div>
+      <div class="chk">☑ I agree that KJS India may contact me about my enquiry. <u>Privacy policy</u></div>
+      <div style="display:flex;gap:8px;margin-top:14px"><span class="btn bp" style="flex:1;text-align:center">Continue →</span><span class="btn bgh" onclick="ungate()">Cancel</span></div>
+      <p style="font-size:11px;color:var(--mute);margin-top:8px">You need a name plus either a phone number or an email.</p>
+    </div></div>
+  </div>
+</div>
+
+<div class="screen" id="s2">
+  <div class="shead"><span class="snum">02</span><h2>Category access form (what the visitor sees)</h2><span class="who">Public</span></div>
+  <p class="cap">Opening a category asks for <b>name + phone or email</b>. The details become a lead in the admin panel, tagged with the category. Returning visitors are remembered and skip the form.</p>
+  <div class="grid g3">
+    <div class="panel"><h6>1 · Visitor clicks "Coffee"</h6><div class="ph" style="height:120px">Category tile</div><p style="font-size:12px;color:var(--mute);margin-top:8px">Best sellers stay open to everyone. Only the full category catalogue needs the form.</p></div>
+    <div class="panel f"><h6>2 · Short form</h6><label>Full name *</label><div class="in v">Arjun Mehta</div><label>Mobile</label><div class="in v">+91 98200 12345</div><div class="or">or</div><label>Email</label><div class="in">you@company.com</div><span class="btn bp sm" style="margin-top:10px">Continue →</span></div>
+    <div class="panel"><h6>3 · What happens next</h6><table>
+      <tr><td>✅</td><td>Category opens immediately</td></tr>
+      <tr><td>🗂</td><td>Lead saved: name, contact, category, date</td></tr>
+      <tr><td>👤</td><td>Auto-assigned to an available employee who handles <span class="pill c-coffee">Coffee</span></td></tr>
+      <tr><td>🍪</td><td>Visitor remembered, so no form next time</td></tr></table></div>
+  </div>
+</div>
+
+<div class="screen" id="s3">
+  <div class="shead"><span class="snum">03</span><h2>Category page (after the form) with Koko open</h2><span class="who">Public · identified visitor</span></div>
+  <p class="cap">Products in the category, with filters. Koko answers questions in the visitor's language and can take an enquiry for the sales team.</p>
+  <div class="browser" style="height:560px">
+    <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/category/coffee</div></div>
+    <div class="ticker"><div class="track"><span>Festive offer: 10% off on bulk coffee premix orders</span><span>Free samples for new brands</span><span>15 days free warehousing</span><span>Festive offer: 10% off on bulk coffee premix orders</span><span>Free samples for new brands</span><span>15 days free warehousing</span></div></div>
+    <div class="top"><a class="logo" href="https://www.kjsindia.com/" target="_blank">KJS<span>INDIA</span></a><div class="nav"><span>Home</span><span>Best Sellers</span><b>Categories</b></div><div class="r"><span class="lang">🌐 हिन्दी ▾</span><span class="btn bb sm">👤 Employee Login</span></div></div>
+    <div class="sec" style="display:grid;grid-template-columns:180px 1fr;gap:18px">
+      <div style="font-size:12.5px"><b>Filters</b><p style="margin-top:8px;color:var(--mute)">Pack format</p>☑ Stick pack<br>☐ Pouch<br>☐ Carton<br>☐ Bulk<p style="margin-top:8px;color:var(--mute)">Type</p>☑ Premix<br>☐ Instant<br>☐ Filter blend</div>
+      <div><div style="font-size:12px;color:var(--mute);margin-bottom:8px">Home / Categories / Coffee · 24 products</div>
+        <div class="grid g3" style="max-width:62%">
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>3-in-1 Coffee Premix</h5><p>2 g stick</p></div>
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>2-in-1 Sugar-free</h5><p>1.5 g stick</p></div>
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>Hazelnut Cappuccino</h5><p>Pouch 500 g</p></div>
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>Instant Coffee Powder</h5><p>Bulk 25 kg</p></div>
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>Filter Coffee Blend</h5><p>Carton</p></div>
+          <div class="card"><div class="ph" style="height:80px">Photo</div><h5>Cold Coffee Mix</h5><p>Bag in box</p></div>
+        </div></div>
+    </div>
+    <div class="chat">
+      <div class="ch"><div class="koko-av">K</div><div>Koko · KJS Assistant<small>● online · replies in your language</small></div><span style="margin-left:auto">✕</span></div>
+      <div class="msgs">
+        <div class="m b">Namaste Arjun! 👋 I'm Koko. Looking for something in Coffee?</div>
+        <div class="m u">2 g wale 3-in-1 premix sticks chahiye, 5 lakh per month.</div>
+        <div class="m b">Hamara <b>3-in-1 Coffee Premix</b> 2 g sticks mein available hai. 5 lakh/month ke liye hamari team aapko quote bhejegi.<div><span class="chip">3-in-1 Coffee Premix →</span></div></div>
+        <div class="m b">Should I send your request to our sales team?<br><span class="btn bp sm" style="margin-top:6px">Yes, send enquiry</span></div>
+      </div>
+      <div class="ci"><span class="in">Ask Koko anything…</span><span class="btn bb sm">➤</span></div>
+      <div style="font-size:10.5px;color:var(--mute);padding:0 10px 8px">Koko answers from KJS information only. Our team confirms all quotes.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EMPLOYEE ============ -->
+<div class="part">PART B · EMPLOYEE PORTAL</div>
+
+<div class="screen" id="s4">
+  <div class="shead"><span class="snum">04</span><h2>Employee login</h2><span class="who">Staff</span></div>
+  <p class="cap">Opened from "Employee Login" at the top right of the website. Only staff the admin has approved can log in.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/employee/login</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;min-height:330px">
+      <div style="background:linear-gradient(135deg,var(--brand2),var(--brand));color:#fff;padding:40px"><div class="logo" style="color:#fff">KJS<span>INDIA</span></div><h3 style="font-size:26px;margin-top:40px">Employee Portal</h3><p style="opacity:.8">Attendance · Tasks · Order Boards · Enquiries</p></div>
+      <div class="f" style="padding:40px 60px"><h3 style="font-size:20px">Sign in</h3><label>Employee ID or work email</label><div class="in">KJS-EMP-014 / name@kjsindia.com</div><label>Password</label><div class="in">••••••••</div>
+        <div style="text-align:right;font-size:12px;color:var(--brand);margin-top:6px">Forgot password?</div><div class="btn bb" style="width:100%;text-align:center;margin-top:12px">Sign in</div>
+        <p style="font-size:12px;margin-top:12px;text-align:center;color:var(--mute)">New employee? <b style="color:var(--brand)">Request access</b> (the admin approves)</p></div>
+    </div></div>
+</div>
+
+<div class="screen" id="s5">
+  <div class="shead"><span class="snum">05</span><h2>Employee dashboard</h2><span class="who">Employee</span></div>
+  <p class="cap">The header shows the employee's own numbers. The <b>Available</b> toggle controls auto-assignment: when it is ON and the employee has nothing open, the next batch of records arrives automatically. Employees can also <b>add their own tasks</b>. Check-in and check-out are on the Attendance page.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/portal</div></div>
+    <div class="portal">
+      <div class="side" data-side="emp" data-active="Dashboard"></div>
+      <div class="main">
+        <div class="mh"><h3>Good afternoon, Priya</h3><span class="pill c-coffee">Coffee</span><span class="pill c-tea">Tea</span>
+          <div class="r"><div class="avail"><span class="tg on" onclick="tgl(this,'av1')"><i></i><span id="av1">Available: receiving tasks</span></span></div><div class="user"><div class="av">PS</div>Priya Sharma</div></div></div>
+        <div class="grid g5" style="margin-bottom:12px">
+          <div class="stat"><b>24</b><span>Total tasks</span><small>this week</small></div>
+          <div class="stat" style="border-top-color:var(--ok)"><b>15</b><span>Completed</span><small>62%</small></div>
+          <div class="stat" style="border-top-color:var(--warn)"><b>9</b><span>Pending</span><small>2 due today</small></div>
+          <div class="stat" style="border-top-color:var(--s1)"><b>4</b><span>Ongoing client queries</span><small>oldest 2 days</small></div>
+          <div class="stat" style="border-top-color:#7d5bbe"><b>11</b><span>Successfully closed</span><small>this month</small></div>
+        </div>
+        <div class="grid" style="grid-template-columns:1.45fr 1fr">
+          <div class="panel"><h6>Today's tasks <span class="r"><span class="btn bp sm">＋ Add task</span></span></h6>
+            <div class="task"><span class="bx"></span><div><b>Tea records batch #B-2210</b> · 30 records<small>Auto-assigned 10:15 · 12 of 30 done</small><div class="prog" style="margin-top:4px;width:180px"><i style="width:40%;background:var(--ok)"></i></div></div><span class="pill c-tea">Tea</span><span class="pill pb">In progress</span><span></span></div>
+            <div class="task"><span class="bx"></span><div>Send quote to Gulf Snacks<small>Client query #Q-311</small></div><span class="pill c-coffee">Coffee</span><span class="pill py">Due 15:00</span><span></span></div>
+            <div class="task"><span class="bx"></span><div>Prepare sample list for tasting session<small>Added by me · personal task</small></div><span class="pill pgr">My task</span><span class="pill pn">Pending</span><span></span></div>
+            <div class="task"><span class="bx"></span><div>Upload packaging spec for ABC117-0042<small>Order board step</small></div><span class="pill pb">Order board</span><span class="pill pr">Due today</span><span></span></div>
+            <div class="task"><span class="bx done"></span><div>Call 5 new Coffee leads from website<small>Lead batch #L-2204</small></div><span class="pill c-coffee">Coffee</span><span class="pill pg">Done</span><span></span></div>
+            <div class="note b" style="margin-top:8px">You are working on a batch, so the next batch will arrive when this one is finished (and you are still Available).</div></div>
+          <div>
+            <div class="panel f" style="margin-bottom:12px;border-color:var(--accent)"><h6>＋ Add my own task</h6>
+              <label style="margin-top:0">Task *</label><div class="in v">Prepare sample list for tasting session</div>
+              <div class="grid g2" style="gap:8px"><div><label>Category</label><div class="in v">Tea ▾</div></div><div><label>Due</label><div class="in v">Thu 15 Oct, 17:00</div></div></div>
+              <div class="grid g2" style="gap:8px"><div><label>Priority</label><div class="in v">Normal ▾</div></div><div><label>Link to (optional)</label><div class="in">Client / board…</div></div></div>
+              <label>Notes</label><div class="in">Anything to remember…</div>
+              <div style="margin-top:10px;display:flex;gap:8px"><span class="btn bb sm">Save task</span><span class="btn bgh sm">Cancel</span></div></div>
+            <div class="panel"><h6>My order board steps</h6>
+              <div style="font-size:12.5px;margin-bottom:10px"><span class="idtag">ABC117-0042</span> PENDINGGGGGGGGGGGGGGGGGGGG<br><b>Step 2 · Packaging</b><div class="prog" style="margin:6px 0 2px"><i style="width:88%;background:var(--bad)"></i></div><small style="color:var(--mute)">88% of time used · 5 h left · due today 18:30</small></div>
+              <div style="font-size:12.5px"><span class="idtag">ABC117-0045</span> Gulf Snacks chai<br><b>Step 1 · Procurement</b><div class="prog" style="margin:6px 0 2px"><i style="width:28%;background:var(--ok)"></i></div><small style="color:var(--mute)">28% of time used · 5 of 7 days left · due 22 Oct</small></div></div>
+          </div>
+        </div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s6">
+  <div class="shead"><span class="snum">06</span><h2>Attendance</h2><span class="who">Employee</span></div>
+  <p class="cap">Check in and check out like Zoho. Hours are calculated automatically. <b>Sunday is the weekly off; Monday to Saturday are working days.</b> If someone forgets to check out, they send a regularization request.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/portal/attendance</div></div>
+    <div class="portal">
+      <div class="side" data-side="emp" data-active="Attendance"></div>
+      <div class="main">
+        <div class="mh"><div class="seg-ctl"><span class="a">Attendance summary</span><span>Regularization</span></div><div class="r"><span class="btn bgh sm">‹</span><b style="font-size:13px">11 Oct – 17 Oct 2026</b><span class="btn bgh sm">›</span><span class="btn bb sm">Request regularization</span></div></div>
+        <div class="ckin" style="margin-bottom:10px"><div class="sh">General shift [ 09:30 – 18:30 ]</div><div class="in">Add notes for check-in</div><div class="ckbtn" style="background:var(--ok)">Check-in<br><span style="font-size:14px">00:00:00 Hrs</span></div></div>
+        <div class="day"><div class="d">Sun<small>11</small></div><div></div><div class="tl"><div class="ln" style="background:#F2D27A"></div><span class="lb" style="border-color:#E4B93A;color:#8A6D00">Weekly off</span></div><div></div><div class="hrs"><b>00:00</b><small>Hrs worked</small></div></div>
+        <div class="day"><div class="d">Mon<small>12</small></div><div><span style="color:var(--ok);font-size:12px">In</span> <b>09:31</b></div><div class="tl"><div class="ln"></div><div class="seg" style="left:0;width:45%"></div><div class="seg" style="left:52%;width:46%"></div></div><div><b>18:40</b></div><div class="hrs"><b>08:29</b><small>Hrs worked</small></div></div>
+        <div class="day"><div class="d">Tue<small>13</small></div><div></div><div class="tl"><div class="ln" style="background:#E8A39A"></div><span class="lb" style="border-color:var(--bad);color:var(--bad)">Absent</span></div><div></div><div class="hrs"><b>00:00</b><small>Hrs worked</small></div></div>
+        <div class="day"><div class="d">Wed<small>14</small></div><div><span style="color:var(--ok);font-size:12px">In</span> <b>09:34</b></div><div class="tl"><div class="ln"></div><div class="seg" style="left:0;width:58%"></div></div><div><span class="pill py">Working</span></div><div class="hrs"><b>05:12</b><small>Hrs so far</small></div></div>
+        <div class="day" style="opacity:.55"><div class="d">Thu–Sat<small>15–17</small></div><div></div><div class="tl"><div class="ln"></div></div><div></div><div class="hrs"><b>--:--</b><small>Upcoming</small></div></div>
+        <div class="sum"><div style="border-color:#E4B93A">Payable days<b>3</b></div><div style="border-color:var(--ok)">Present<b>2</b></div><div style="border-color:var(--bad)">Absent<b>1</b></div><div style="border-color:#7d5bbe">On duty<b>0</b></div><div style="border-color:var(--accent)">Paid leave<b>0</b></div><div style="border-color:var(--s1)">Holidays<b>0</b></div><div style="border-color:#C5CDD6">Weekly off<b>1 (Sun)</b></div></div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s7">
+  <div class="shead"><span class="snum">07</span><h2>My tasks (with notes)</h2><span class="who">Employee</span></div>
+  <p class="cap">Tasks come as <b>record batches</b> from auto-assign (only for the employee's categories), from order boards, or are added by the employee or admin. Every task has <b>notes</b>: click a task to read and add notes, which have a timestamp and are kept in the task history.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/portal/tasks</div></div>
+    <div class="portal">
+      <div class="side" data-side="emp" data-active="My tasks"></div>
+      <div class="main">
+        <div class="mh"><div class="seg-ctl"><span class="a">Today (6)</span><span>This week (24)</span><span>Overdue (1)</span><span>Completed</span></div><div class="r"><span class="in v">Category: All ▾</span><span class="in v">Source: All ▾</span><span class="btn bp sm">＋ Add task</span></div></div>
+        <div class="grid" style="grid-template-columns:1.55fr 1fr">
+          <table><tr><th>Task</th><th>Category</th><th>Source</th><th>Due</th><th>Status</th><th>Notes</th></tr>
+            <tr style="background:#F1F6FB;outline:2px solid var(--brand);outline-offset:-2px"><td><b>Tea records batch #B-2210</b><br><small style="color:var(--mute)">30 records · 12 done</small></td><td><span class="pill c-tea">Tea</span></td><td><span class="src">Auto batch</span></td><td>Today</td><td><span class="pill pb">In progress</span></td><td>📝 3</td></tr>
+            <tr><td><b>Send quote to Gulf Snacks</b><br><small style="color:var(--mute)">Client query #Q-311</small></td><td><span class="pill c-coffee">Coffee</span></td><td><span class="src">Koko lead</span></td><td>Today 15:00</td><td><span class="pill py">Query open</span></td><td>📝 1</td></tr>
+            <tr><td><b>Prepare sample list for tasting</b><br><small style="color:var(--mute)">Personal task</small></td><td><span class="pill c-tea">Tea</span></td><td><span class="src">Added by me</span></td><td>Thu 15 Oct</td><td><span class="pill pn">Pending</span></td><td><span style="color:var(--mute)">＋</span></td></tr>
+            <tr><td><b>Upload packaging spec</b><br><small style="color:var(--mute)">ABC117-0042 · Step 2</small></td><td><span class="pill pb">Order board</span></td><td><span class="src">Order board</span></td><td>Today 18:30</td><td><span class="pill pr">Due today</span></td><td>📝 2</td></tr>
+            <tr><td><b>Reply to website enquiry: chai premix</b><br><small style="color:var(--mute)">Lead from Tea category form</small></td><td><span class="pill c-tea">Tea</span></td><td><span class="src">Website form</span></td><td>Yesterday</td><td><span class="pill pr">Overdue</span></td><td><span style="color:var(--mute)">＋</span></td></tr>
+            <tr><td><b>Call 5 new Coffee leads</b><br><small style="color:var(--mute)">Lead batch #L-2204</small></td><td><span class="pill c-coffee">Coffee</span></td><td><span class="src">Auto batch</span></td><td>Today</td><td><span class="pill pg">Completed</span></td><td>📝 1</td></tr></table>
+          <div class="panel"><h6>Tea records batch #B-2210 <span class="r"><span class="pill pb">In progress</span></span></h6>
+            <div style="font-size:12px;color:var(--mute);margin-bottom:6px">Auto-assigned 14 Oct 10:15 · 30 Tea records · 12 done</div>
+            <div class="prog" style="margin-bottom:10px"><i style="width:40%;background:var(--ok)"></i></div>
+            <div style="display:flex;gap:6px;margin-bottom:10px"><span class="btn bo sm">Open records</span><span class="btn bgh sm">Status ▾</span><span class="btn bg sm">Mark completed</span></div>
+            <b style="font-size:12.5px">Notes</b>
+            <div style="border-left:3px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;font-size:12px"><b>Priya S.</b> <span style="color:var(--mute)">· 14 Oct 13:05</span><br>Rows 1–12 done. 4 numbers were wrong, so I marked them invalid.</div>
+            <div style="border-left:3px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;font-size:12px"><b>Priya S.</b> <span style="color:var(--mute)">· 14 Oct 11:40</span><br>Darjeeling Traders wants a call back on Friday.</div>
+            <div style="border-left:3px solid var(--accent);padding:4px 0 4px 10px;margin:6px 0;font-size:12px"><b>Admin</b> <span style="color:var(--mute)">· 14 Oct 10:20</span><br>Do the Assam buyers in this batch first.</div>
+            <div class="in" style="height:54px;margin-top:8px">Add a note…</div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><span class="btn bb sm">Add note</span><span style="font-size:11px;color:var(--mute)">Notes are visible to you and the admin</span></div></div>
+        </div>
+        <div class="note b">Each task can be marked <b>Completed</b>, <b>In progress</b> or <b>Client query open</b>. When a query is resolved, the employee closes it as <b>Successful</b> or <b>Lost</b>. These feed the numbers at the top of the dashboard.</div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s8">
+  <div class="shead"><span class="snum">08</span><h2>My order board steps (employee view)</h2><span class="who">Employees in the loop</span></div>
+  <p class="cap">Employees only see boards they have been added to. Each step has a <b>task checklist</b> loaded from a template (it can differ by client or product) and shows which tasks are done. Members can <b>add a colleague</b> to the step. Deleting a file needs admin approval.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/portal/order-boards/ABC117-0042</div></div>
+    <div class="portal">
+      <div class="side" data-side="emp" data-active="Order boards"></div>
+      <div class="main">
+        <div class="mh"><h3><span class="idtag" style="font-size:14px">ABC117-0042</span> PENDINGGGGGGGGGGGGGGGGGGGG</h3><div class="r"><span class="pill py">Your step: Packaging</span></div></div>
+        <div class="panel" style="margin-bottom:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
+          <div><div style="font-size:11px;color:var(--mute)">MY STEP DEADLINE</div><b style="font-size:19px">Today 18:30</b></div>
+          <div><div style="font-size:11px;color:var(--mute)">TIME LEFT</div><b style="font-size:19px;color:var(--bad)">5 h</b></div>
+          <div><div style="font-size:11px;color:var(--mute)">TIME USED</div><b style="font-size:19px">88%</b></div>
+          <div><div style="font-size:11px;color:var(--mute)">TASKS COMPLETED</div><b style="font-size:19px;color:var(--ok)">3 of 5</b></div>
+          <div><div style="font-size:11px;color:var(--mute)">NEXT STEP</div><b style="font-size:19px">Production</b></div></div>
+        <div class="grid" style="grid-template-columns:1.25fr 1fr">
+          <div class="panel"><h6>Step 2 · Packaging tasks <span class="r"><span class="src">Template: Coffee premix · Standard v2</span></span></h6>
+            <div class="prog" style="margin-bottom:10px"><i style="width:60%;background:var(--ok)"></i></div>
+            <div class="task"><span class="bx done"></span><div style="text-decoration:line-through;color:var(--mute)">Confirm laminate material<small>Completed by Priya S. · 12 Oct 15:10</small></div><span></span><span class="pill pg">Completed</span><span></span></div>
+            <div class="task"><span class="bx done"></span><div style="text-decoration:line-through;color:var(--mute)">Approve print artwork with client<small>Completed by Meena P. · 13 Oct 12:30</small></div><span></span><span class="pill pg">Completed</span><span></span></div>
+            <div class="task"><span class="bx done"></span><div style="text-decoration:line-through;color:var(--mute)">Order pouch film rolls<small>Completed by Priya S. · 13 Oct 17:45</small></div><span></span><span class="pill pg">Completed</span><span></span></div>
+            <div class="task"><span class="bx"></span><div>Upload final packaging spec (PDF)<small>Assigned: Priya S. · needs a file</small></div><span></span><span class="pill pn">Pending</span><span></span></div>
+            <div class="task"><span class="bx"></span><div>Client sign-off on pack sample<small>Assigned: Meena P. · needs approval</small></div><span></span><span class="pill pn">Pending</span><span></span></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><span class="btn bgh sm">＋ Add extra task</span><span class="btn bg sm" style="margin-left:auto;opacity:.55">Mark step complete (all tasks needed)</span></div></div>
+          <div>
+            <div class="panel" style="margin-bottom:12px"><h6>Step team <span class="r"><span class="btn bo sm">＋ Add employee</span></span></h6>
+              <div class="user" style="margin-bottom:6px"><div class="av">PS</div>Priya Sharma <span class="pill pgr" style="margin-left:6px">Step owner</span></div>
+              <div class="user" style="margin-bottom:6px"><div class="av g">MP</div>Meena Pillai</div>
+              <div style="border:1px solid var(--line);border-radius:8px;margin-top:8px;font-size:12.5px;box-shadow:0 6px 16px rgba(0,0,0,.08)">
+                <div class="in" style="border:0;border-bottom:1px solid var(--line);border-radius:8px 8px 0 0">🔍 Search employee…</div>
+                <div style="padding:6px 10px;display:flex;align-items:center;gap:8px"><div class="av b" style="width:22px;height:22px;font-size:9px">RS</div>Rahul Singh <span class="pill c-conf" style="margin-left:auto">Confect.</span></div>
+                <div style="padding:6px 10px;display:flex;align-items:center;gap:8px;background:#F1F6FB"><div class="av p" style="width:22px;height:22px;font-size:9px">KV</div>Karan Verma <span class="pill c-coffee" style="margin-left:auto">Coffee</span></div>
+                <div style="padding:6px 10px;display:flex;align-items:center;gap:8px"><div class="av" style="width:22px;height:22px;font-size:9px">AR</div>Anil Rao <span class="pill pgr" style="margin-left:auto">On leave</span></div></div>
+              <p style="font-size:11px;color:var(--mute);margin-top:6px">Members can add colleagues. Only the admin can remove someone. Both are recorded in the audit log.</p></div>
+            <div class="panel"><h6>Files <span class="r"><span class="btn bo sm">⬆ Upload</span></span></h6>
+              <div class="doc"><span class="ic x">XLS</span><div>Requirement.xlsx<small>Admin · 5 Oct · original requirement</small></div></div>
+              <div class="doc"><span class="ic p">PDF</span><div>Procurement_PO_signed.pdf<small>Rahul S. · 7 Oct · Procurement</small></div></div>
+              <div class="doc"><span class="ic w">DOC</span><div>Artwork_notes_v2.docx<small>Priya S. · 13 Oct · Packaging</small></div><span style="margin-left:auto" class="btn br sm">Request delete</span></div>
+              <p style="font-size:11.5px;color:var(--mute);margin-top:8px">🔒 Deleting a file needs admin approval.</p></div>
+          </div>
+        </div>
+      </div></div></div>
+</div>
+
+<!-- ============ ADMIN ============ -->
+<div class="part">PART C · ADMIN CONSOLE</div>
+
+<div class="screen" id="s9">
+  <div class="shead"><span class="snum">09</span><h2>Admin dashboard</h2><span class="who">Admin</span></div>
+  <p class="cap">The same numbers employees see, added up for <b>all employees</b>, plus attendance today, who is available, and order boards at risk.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Dashboard"></div>
+      <div class="main">
+        <div class="mh"><h3>Good morning, Admin</h3><div class="r"><span class="in v">This week ▾</span></div></div>
+        <div class="grid g5" style="margin-bottom:10px">
+          <div class="stat"><b>186</b><span>Total tasks (all staff)</span></div>
+          <div class="stat" style="border-top-color:var(--ok)"><b>121</b><span>Completed</span><small>65%</small></div>
+          <div class="stat" style="border-top-color:var(--warn)"><b>65</b><span>Pending</span><small>8 overdue</small></div>
+          <div class="stat" style="border-top-color:var(--s1)"><b>23</b><span>Ongoing client queries</span></div>
+          <div class="stat" style="border-top-color:#7d5bbe"><b>41</b><span>Successfully closed</span><small>this month</small></div></div>
+        <div class="grid g4" style="margin-bottom:12px">
+          <div class="stat" style="border-top-color:var(--ok)"><b>12 / 15</b><span>Checked in now</span></div>
+          <div class="stat" style="border-top-color:var(--ok)"><b>10</b><span>Available for auto-assign</span></div>
+          <div class="stat" style="border-top-color:var(--bad)"><b>2</b><span>Order boards at risk (&gt;85%)</span></div>
+          <div class="stat" style="border-top-color:var(--accent)"><b>37</b><span>New website leads</span><small>from category forms + Koko</small></div></div>
+        <div class="grid" style="grid-template-columns:1.5fr 1fr">
+          <div class="panel"><h6>Employee performance <span class="r"><span class="btn bgh sm">Export</span></span></h6><table>
+            <tr><th>Employee</th><th>Categories</th><th>Available</th><th>Today</th><th>Tasks done</th><th>Queries</th><th>Closed</th></tr>
+            <tr><td>Priya Sharma</td><td><span class="pill c-coffee">Coffee</span><span class="pill c-tea">Tea</span></td><td><span class="pill pg">● On</span></td><td>In 09:34</td><td>15/24</td><td>4</td><td>11</td></tr>
+            <tr><td>Rahul Singh</td><td><span class="pill c-conf">Confect.</span></td><td><span class="pill pg">● On</span></td><td>In 09:41 <span class="pill py">Late</span></td><td>12/18</td><td>3</td><td>7</td></tr>
+            <tr><td>Meena Pillai</td><td><span class="pill c-tea">Tea</span></td><td><span class="pill pgr">○ Off</span></td><td><span class="pill pr">Absent</span></td><td>6/14</td><td>2</td><td>5</td></tr>
+            <tr><td>Karan Verma</td><td><span class="pill c-coffee">Coffee</span><span class="pill c-prem">Premix</span></td><td><span class="pill pg">● On</span></td><td>In 09:28</td><td>19/22</td><td>5</td><td>9</td></tr></table></div>
+          <div class="panel"><h6>Order boards needing attention</h6><table>
+            <tr><td><span class="idtag">ABC117-0039</span><br><small>Placement · 100% used</small></td><td><span class="pill pr">Overdue 1 d</span></td></tr>
+            <tr><td><span class="idtag">ABC117-0042</span><br><small>Packaging · 88% used</small></td><td><span class="pill py">At risk</span></td></tr>
+            <tr><td><span class="idtag">ABC117-0045</span><br><small>Procurement · 28% used</small></td><td><span class="pill pg">On track</span></td></tr></table>
+            <h6 style="margin-top:12px">Approvals waiting</h6><table><tr><td>2 file deletion requests</td><td><span class="btn bo sm">Review</span></td></tr><tr><td>2 regularization requests</td><td><span class="btn bo sm">Review</span></td></tr></table></div>
+        </div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s10">
+  <div class="shead"><span class="snum">10</span><h2>Auto task assign: record batches</h2><span class="who">Admin</span></div>
+  <p class="cap">Records are picked from the database and sent in <b>batches</b> (for example 20, 30 or 50 records). A batch goes to an employee who is <b>Available</b>, has <b>no open batch</b>, and handles that <b>category</b>. Example: Priya handles Tea, so she only receives Tea records. When she finishes her batch, the next one arrives automatically. Monday to Saturday only.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/auto-assign</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Auto task assign"></div>
+      <div class="main">
+        <div class="mh"><h3>Auto task assign</h3><div class="r"><div class="avail" style="border-color:var(--ok)"><span class="tg on" onclick="tgl(this,'aa1','Auto assign: ON','Auto assign: OFF')"><i></i><b id="aa1">Auto assign: ON</b></span></div></div></div>
+        <div class="grid" style="grid-template-columns:1.25fr 0.95fr 1.1fr;margin-bottom:12px">
+          <div class="panel f"><h6>1 · How long should it run?</h6>
+            <div class="seg-ctl" id="dur"><span onclick="dur(this)">Weekly</span><span onclick="dur(this)">Monthly</span><span class="a" onclick="dur(this)">Until I turn off</span><span onclick="dur(this)">Custom</span></div>
+            <div class="grid g2" style="margin-top:6px;gap:8px"><div><label>Start</label><div class="in v">Mon 19 Oct 2026</div></div><div><label>End (custom)</label><div class="in">dd-mm-yyyy</div></div></div>
+            <label>Working hours</label><div class="in v">09:30 – 18:30</div></div>
+          <div class="panel f"><h6>2 · Working days</h6>
+            <div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span class="off">Sun</span></div>
+            <p style="font-size:12px;color:var(--mute);margin-top:8px">Sunday is off: no batches are sent and deadlines skip it. Company holidays are skipped too.</p>
+            <label>Check for free employees every</label><div class="in v" style="width:120px">15 minutes ▾</div></div>
+          <div class="panel f" style="border-color:var(--accent)"><h6>3 · Batch size</h6>
+            <label style="margin-top:0">Records per batch (max per employee)</label>
+            <div class="seg-ctl"><span>20</span><span class="a">30</span><span>50</span><span>Custom</span></div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><div class="in v" style="width:80px;text-align:center"><b>30</b></div><span style="font-size:12px;color:var(--mute)">records · any number allowed</span></div>
+            <label>Send the next batch when</label><div class="in v">The current batch is completed ▾</div>
+            <label>Maximum batches per person per day</label><div class="in v" style="width:90px">3</div>
+            <label>Record order</label><div class="in v">Oldest first ▾</div></div>
+        </div>
+        <div class="grid" style="grid-template-columns:1.7fr 1fr">
+          <div class="panel"><h6>4 · Who handles which category <span class="r"><span class="btn bo sm">+ Add employee</span></span></h6>
+            <table class="map"><tr><th>Employee</th><th>Categories (one or more)</th><th>Available</th><th>Current work</th><th>Batch size</th><th>Include</th></tr>
+              <tr><td><div class="user"><div class="av">PS</div>Priya Sharma</div></td><td><span class="pill c-tea">Tea ✕</span> <span class="addc">+ add</span></td><td><span class="pill pg">● On</span></td><td><span class="pill pg">Free</span></td><td>Default (30)</td><td><span class="tg on" onclick="tgl(this)"><i></i></span></td></tr>
+              <tr><td><div class="user"><div class="av b">RS</div>Rahul Singh</div></td><td><span class="pill c-conf">Confectionery ✕</span> <span class="addc">+ add</span></td><td><span class="pill pg">● On</span></td><td><span class="pill pb">Batch #B-2208 · 18 left</span></td><td>Default (30)</td><td><span class="tg on" onclick="tgl(this)"><i></i></span></td></tr>
+              <tr><td><div class="user"><div class="av g">MP</div>Meena Pillai</div></td><td><span class="pill c-tea">Tea ✕</span> <span class="addc">+ add</span></td><td><span class="pill pgr">○ Off</span></td><td><span class="pill pgr">Unavailable</span></td><td>20</td><td><span class="tg on" onclick="tgl(this)"><i></i></span></td></tr>
+              <tr><td><div class="user"><div class="av p">KV</div>Karan Verma</div></td><td><span class="pill c-coffee">Coffee ✕</span><span class="pill c-prem">Premixes ✕</span> <span class="addc">+ add</span></td><td><span class="pill pg">● On</span></td><td><span class="pill pg">Free</span></td><td>50</td><td><span class="tg on" onclick="tgl(this)"><i></i></span></td></tr>
+              <tr><td><div class="user"><div class="av">AR</div>Anil Rao</div></td><td><span class="addc">+ add category</span></td><td><span class="pill pgr">○ Off</span></td><td>—</td><td>—</td><td><span class="tg" onclick="tgl(this)"><i></i></span></td></tr></table>
+            <p style="font-size:11.5px;color:var(--mute);margin-top:6px">Batch size can be set per employee. If it is left blank, the default from step 3 is used.</p></div>
+          <div>
+            <div class="panel" style="margin-bottom:12px"><h6>Records waiting (from database)</h6><table>
+              <tr><td><span class="pill c-tea">Tea</span></td><td style="text-align:right"><b>412</b></td></tr>
+              <tr><td><span class="pill c-coffee">Coffee</span></td><td style="text-align:right"><b>1,086</b></td></tr>
+              <tr><td><span class="pill c-conf">Confectionery</span></td><td style="text-align:right"><b>238</b></td></tr>
+              <tr><td><span class="pill c-prem">Premixes</span></td><td style="text-align:right"><b>96</b></td></tr>
+              <tr><td><span class="pill c-spice">Seasonings</span></td><td style="text-align:right"><b>57</b> <span class="pill pr">no one assigned</span></td></tr></table></div>
+            <div class="panel"><h6>Next check · 10:30</h6><table>
+              <tr><td>Priya</td><td>Free, Tea → <b>gets 30 Tea records</b></td></tr>
+              <tr><td>Karan</td><td>Free, Coffee/Premixes → <b>gets 50 Coffee records</b></td></tr>
+              <tr><td>Rahul</td><td>Busy (18 left) → waits</td></tr>
+              <tr><td>Meena</td><td>Unavailable → skipped</td></tr></table></div>
+          </div>
+        </div>
+        <div class="note">If no available employee handles a category (Seasonings above), its records wait in the pool and the admin gets an alert.</div>
+        <div style="margin-top:10px;display:flex;gap:8px"><span class="btn bb">Save rules</span><span class="btn bo">Run now</span><span class="btn bgh">View batch history</span></div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s11">
+  <div class="shead"><span class="snum">11</span><h2>Order boards + "New order board"</h2><span class="who">Admin</span></div>
+  <p class="cap">When a client sends a requirement (Excel, PDF or Word), the admin clicks <b>New order board</b>, gives it a name and an ID (<b>ABC117</b> + their own number) and uploads the file. The board holds everything for that order from start to finish.</p>
+  <div class="browser" style="min-height:560px"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/order-boards</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Order boards"></div>
+      <div class="main" style="position:relative">
+        <div class="mh"><h3>Order boards</h3><div class="seg-ctl"><span class="a">Active (7)</span><span>Completed (23)</span><span>All</span></div><div class="r"><span class="in" style="width:200px">Search ID or name…</span><span class="btn bp">＋ New order board</span></div></div>
+        <table><tr><th>ID</th><th>Name / client</th><th>Current step</th><th>Overall progress</th><th>Deadline</th><th>Team</th><th>Status</th></tr>
+          <tr><td><span class="idtag">ABC117-0039</span></td><td>Gulf Snacks · Lemon tea BIB</td><td>4 · Placement</td><td><div class="prog" style="width:120px"><i style="width:78%;background:var(--bad)"></i></div></td><td>13 Oct</td><td>4</td><td><span class="pill pr">Overdue</span></td></tr>
+          <tr><td><span class="idtag">ABC117-0042</span></td><td>PENDINGGGGGGGGGGGGGGGGGGGG</td><td>2 · Packaging</td><td><div class="prog" style="width:120px"><i style="width:34%;background:var(--warn)"></i></div></td><td>24 Oct</td><td>3</td><td><span class="pill py">At risk</span></td></tr>
+          <tr><td><span class="idtag">ABC117-0045</span></td><td>Gulf Snacks · Masala chai</td><td>1 · Procurement</td><td><div class="prog" style="width:120px"><i style="width:8%;background:var(--ok)"></i></div></td><td>14 Nov</td><td>2</td><td><span class="pill pg">On track</span></td></tr></table>
+        <div class="overlay" style="position:absolute;border-radius:0"><div class="modal f" style="width:480px">
+          <h3>New order board</h3><div class="sub">Creates a folder for this order with all 5 steps</div>
+          <label>Board name *</label><div class="in v">PENDINGGGGGGGGGGGGGGGGGGGG</div>
+          <label>Board ID *</label><div style="display:flex;align-items:center;gap:6px"><div class="in v" style="background:#EEF3F9;font-family:Consolas,monospace;font-weight:700;color:var(--brand)">ABC117-</div><div class="in v" style="flex:1;font-family:Consolas,monospace">0042</div></div><small style="color:var(--mute);font-size:11px">Must be unique. Example: ABC117-0042</small>
+          <div class="grid g2"><div><label>Final deadline *</label><div class="in v">Sat 24 Oct 2026</div></div><div><label>Priority</label><div class="in v">High ▾</div></div></div>
+          <label>Requirement files (Excel / PDF / Word)</label><div class="in" style="border-style:dashed;text-align:center;padding:14px">⬆ Drop files here or browse · <b style="color:var(--ink)">Requirement.xlsx</b> ✓</div>
+          <label>Step 1 owner (Procurement)</label><div class="in v">Rahul Singh ▾</div>
+          <div style="display:flex;gap:8px;margin-top:14px"><span class="btn bp" style="flex:1;text-align:center">Create board</span><span class="btn bgh">Cancel</span></div></div></div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s12">
+  <div class="shead"><span class="snum">12</span><h2>Order board detail: 5 checkpoints with time tracking</h2><span class="who">Admin (employees see their part)</span></div>
+  <p class="cap">The total time is split across the five steps by <b>percentage or by days</b> (editable). Each step shows its people (add or remove at any time), its countdown and its status. Alerts go out by <b>email and WhatsApp</b> at 50%, 85% and 100% of the time.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/order-boards/ABC117-0042</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Order boards"></div>
+      <div class="main">
+        <div class="ob-head">
+          <div><div class="k">Order board</div><div class="v"><span class="idtag">ABC117-0042</span> PENDINGGGGGGGGGGGGGGGGGGGG</div></div>
+          <div><div class="k">Started</div><div class="v">Mon 5 Oct</div></div>
+          <div><div class="k">Final deadline</div><div class="v">Sat 24 Oct</div></div>
+          <div><div class="k">Working days left</div><div class="v" style="color:var(--warn)">9 of 17</div></div>
+          <div><div class="k">Status</div><div class="v"><span class="pill py">At risk · Packaging</span></div></div></div>
+        <div class="panel" style="margin-bottom:12px;padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:12.5px">
+          <b>Split time by:</b><div class="seg-ctl"><span class="a">Percentage</span><span>Days (manual)</span></div>
+          <span>Procurement <span class="pct">25%</span></span><span>Packaging <span class="pct">19%</span></span><span>Production <span class="pct">30%</span></span><span>Placement <span class="pct">16%</span></span><span>Tracking <span class="pct">10%</span></span>
+          <span style="margin-left:auto;color:var(--ok);font-weight:600">= 100% ✓</span><span class="btn bo sm">Edit split</span></div>
+        <div class="steps">
+          <div class="step done"><div class="n">✓</div><h5>1 · Procurement</h5><div class="meta">25% · 4.5 days · 5–9 Oct</div><div class="prog"><i style="width:100%;background:var(--ok)"></i></div><div class="meta" style="margin-top:4px;color:var(--ok)">Completed on 8 Oct (1 day early)</div><div class="people"><div class="av b">RS</div><span class="addc">+</span></div></div>
+          <div class="step cur"><div class="n">2</div><h5>2 · Packaging</h5><div class="meta">19% · 3.5 days · 9–14 Oct</div><div class="prog"><i style="width:88%;background:var(--bad)"></i></div><div class="ticks"><span style="left:50%">50%</span><span style="left:85%">85%</span><span style="left:100%">100</span></div><div class="meta" style="color:var(--bad)">88% used · 5 h left · alerts sent at 50% and 85%</div><div class="people"><div class="av">PS</div><div class="av g">MP</div><span class="addc">+ add</span></div></div>
+          <div class="step"><div class="n">3</div><h5>3 · Production</h5><div class="meta">30% · 5 days · 15–20 Oct</div><div class="prog"><i style="width:0"></i></div><div class="meta" style="margin-top:4px">Not started</div><div class="people"><div class="av p">KV</div><span class="addc">+ add</span></div></div>
+          <div class="step"><div class="n">4</div><h5>4 · Placement</h5><div class="meta">16% · 3 days · 21–23 Oct</div><div class="prog"><i style="width:0"></i></div><div class="meta" style="margin-top:4px">Not started</div><div class="people"><span class="addc">+ assign</span></div></div>
+          <div class="step"><div class="n">5</div><h5>5 · Track</h5><div class="meta">10% · 1.5 days · 23–24 Oct</div><div class="prog"><i style="width:0"></i></div><div class="meta" style="margin-top:4px">Final: Delivered / Returned / Cancelled</div><div class="people"><span class="addc">+ assign</span></div></div>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="panel"><h6>Files (4) <span class="r"><span class="btn bo sm">⬆ Upload</span></span></h6>
+            <div class="doc"><span class="ic x">XLS</span><div>Requirement.xlsx<small>Admin · 5 Oct · Board created</small></div></div>
+            <div class="doc"><span class="ic p">PDF</span><div>Procurement_PO_signed.pdf<small>Rahul S. · 7 Oct · Step 1</small></div></div>
+            <div class="doc"><span class="ic w">DOC</span><div>Artwork_notes_v2.docx<small>Priya S. · 13 Oct · Step 2</small></div><span class="pill pr" style="margin-left:auto">Delete requested</span></div>
+            <div class="doc"><span class="ic p">PDF</span><div>Client_revised_qty.pdf<small>Admin · 14 Oct · Step 2</small></div></div></div>
+          <div class="panel"><h6>Deadline alerts <span class="r"><span class="tg on" onclick="tgl(this)"><i></i></span></span></h6>
+            <div class="alert-row"><b>50%</b><span>Half the time used, half left</span><span>✉ Mail</span><span>🟢 WhatsApp</span></div>
+            <div class="alert-row"><b>85%</b><span>Deadline is close</span><span>✉ Mail</span><span>🟢 WhatsApp</span></div>
+            <div class="alert-row"><b>100%</b><span>Deadline passed</span><span>✉ Mail</span><span>🟢 WhatsApp</span></div>
+            <p style="font-size:11.5px;color:var(--mute);margin-top:8px">Sent to: the people on the step + admin. Each alert goes out only once and is logged.</p><span class="btn bgh sm" style="margin-top:6px">+ Add threshold</span></div>
+          <div class="panel"><h6>History</h6><table class="audit">
+            <tr><td>14 Oct 16:05</td><td>🟢 85% alert sent to Priya, Meena</td></tr>
+            <tr><td>14 Oct 11:20</td><td>Priya requested delete: Artwork_notes_v2.docx</td></tr>
+            <tr><td>13 Oct 10:02</td><td>Admin added Meena P. to Packaging</td></tr>
+            <tr><td>8 Oct 18:10</td><td>Rahul completed Procurement</td></tr>
+            <tr><td>7 Oct 15:30</td><td>Rahul uploaded Procurement_PO_signed.pdf</td></tr>
+            <tr><td>5 Oct 09:15</td><td>Admin created board ABC117-0042</td></tr></table><span class="btn bgh sm" style="margin-top:8px">View full audit log →</span></div>
+        </div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s13">
+  <div class="shead"><span class="snum">13</span><h2>Approvals &amp; audit log</h2><span class="who">Admin</span></div>
+  <p class="cap">Anyone on a board can upload, but <b>only the admin can approve a deletion</b>. The audit log records <b>who did what, and when</b>, across the whole system, and it can't be edited.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/approvals</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Approvals"></div>
+      <div class="main">
+        <div class="panel" style="margin-bottom:12px"><h6>Pending approvals (4)</h6><table>
+          <tr><th>Type</th><th>Requested by</th><th>Details</th><th>When</th><th></th></tr>
+          <tr><td><span class="pill pr">File delete</span></td><td>Priya S.</td><td>Artwork_notes_v2.docx · ABC117-0042 · "Uploaded wrong version"</td><td>14 Oct 11:20</td><td><span class="btn bg sm">Approve</span> <span class="btn br sm">Reject</span></td></tr>
+          <tr><td><span class="pill pr">File delete</span></td><td>Karan V.</td><td>old_quote.pdf · ABC117-0039</td><td>13 Oct 17:02</td><td><span class="btn bg sm">Approve</span> <span class="btn br sm">Reject</span></td></tr>
+          <tr><td><span class="pill pb">Regularization</span></td><td>Rahul S.</td><td>12 Oct · forgot check-out, left 18:10</td><td>13 Oct 09:45</td><td><span class="btn bg sm">Approve</span> <span class="btn br sm">Reject</span></td></tr>
+          <tr><td><span class="pill pn">New staff</span></td><td>Neha D.</td><td>neha@kjsindia.com · Employee</td><td>12 Oct 18:20</td><td><span class="btn bg sm">Approve</span> <span class="btn br sm">Reject</span></td></tr></table></div>
+        <div class="panel"><h6>Audit log <span class="r" style="display:flex;gap:6px"><span class="in v">User: All ▾</span><span class="in v">Area: All ▾</span><span class="in v">Last 7 days ▾</span><span class="btn bgh sm">Export</span></span></h6><table class="audit">
+          <tr><th>When</th><th>Who</th><th>Action</th><th>Item</th><th>Details</th></tr>
+          <tr><td>14 Oct 16:05</td><td>System</td><td>Alert sent</td><td>ABC117-0042 · Packaging</td><td>85% · Mail + WhatsApp → Priya, Meena</td></tr>
+          <tr><td>14 Oct 11:20</td><td>Priya S.</td><td>Delete requested</td><td>Artwork_notes_v2.docx</td><td>Reason: wrong version</td></tr>
+          <tr><td>14 Oct 09:34</td><td>Priya S.</td><td>Checked in</td><td>Attendance</td><td>IP 10.0.x.x · office</td></tr>
+          <tr><td>14 Oct 10:15</td><td>Scheduler</td><td>Batch assigned</td><td>#B-2210</td><td>30 Tea records → Priya S.</td></tr>
+          <tr><td>14 Oct 08:55</td><td>Admin</td><td>Settings changed</td><td>Auto assign</td><td>Karan V. batch size 30 → 50</td></tr>
+          <tr><td>13 Oct 10:02</td><td>Admin</td><td>Member added</td><td>ABC117-0042 · Packaging</td><td>Meena P.</td></tr></table></div>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s14">
+  <div class="shead"><span class="snum">14</span><h2>Team &amp; attendance</h2><span class="who">Admin</span></div>
+  <p class="cap">Everyone's attendance for any day, with late arrivals, absences and whether they're available. Export to Excel for payroll.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/attendance</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Team & attendance"></div>
+      <div class="main">
+        <div class="mh"><h3>Team attendance · Wed 14 Oct 2026</h3><div class="r"><span class="seg-ctl"><span class="a">Day</span><span>Week</span><span>Month</span></span><span class="btn bgh sm">Shifts &amp; holidays</span><span class="btn bo sm">Export to Excel</span></div></div>
+        <table><tr><th>Employee</th><th>Shift</th><th>Check-in</th><th>Check-out</th><th>Hours</th><th>Available</th><th>Status</th></tr>
+          <tr><td>Priya Sharma</td><td>09:30–18:30</td><td>09:34</td><td>—</td><td>05:12</td><td><span class="pill pg">● On</span></td><td><span class="pill pg">Present</span></td></tr>
+          <tr><td>Rahul Singh</td><td>09:30–18:30</td><td>09:41</td><td>—</td><td>05:05</td><td><span class="pill pg">● On</span></td><td><span class="pill py">Late 11 min</span></td></tr>
+          <tr><td>Karan Verma</td><td>09:30–18:30</td><td>09:28</td><td>—</td><td>05:18</td><td><span class="pill pg">● On</span></td><td><span class="pill pg">Present</span></td></tr>
+          <tr><td>Meena Pillai</td><td>09:30–18:30</td><td>—</td><td>—</td><td>00:00</td><td><span class="pill pgr">○ Off</span></td><td><span class="pill pr">Absent</span></td></tr>
+          <tr><td>Anil Rao</td><td>09:30–18:30</td><td>—</td><td>—</td><td>—</td><td><span class="pill pgr">○ Off</span></td><td><span class="pill pb">On leave</span></td></tr></table>
+      </div></div></div>
+</div>
+
+<div class="screen" id="s15">
+  <div class="shead"><span class="snum">15</span><h2>Insights &amp; Analytics</h2><span class="who">Admin</span></div>
+  <p class="cap">Charts for order boards and for all the data in the system (leads, sources, categories, staff). They're built in <b>Apache Superset</b> and shown inside the admin console. Hover over the charts to see the values.</p>
+  <div class="browser"><div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">shop.kjsindia.com/admin/insights</div></div>
+    <div class="portal">
+      <div class="side" data-side="admin" data-active="Insights & Analytics"></div>
+      <div class="main">
+        <div class="ss-bar"><b>Insights &amp; Analytics</b><span class="ss-badge">Powered by Superset</span><div class="seg-ctl" style="margin-left:14px"><span class="a">Order boards</span><span>Leads &amp; sources</span><span>Team</span></div><span style="margin-left:auto" class="in v">Last 30 days ▾</span><span class="in v">Category: All ▾</span></div>
+        <div class="grid g4" style="margin-bottom:12px">
+          <div class="stat"><b>30</b><span>Order boards (30 d)</span></div><div class="stat" style="border-top-color:var(--ok)"><b>83%</b><span>Finished on time</span></div><div class="stat" style="border-top-color:var(--warn)"><b>Packaging</b><span>Step most often late</span></div><div class="stat" style="border-top-color:var(--accent)"><b>412</b><span>Leads collected</span></div></div>
+        <div class="grid" style="grid-template-columns:1.5fr 1fr;margin-bottom:12px">
+          <div class="panel"><h6>Heatmap · step delay by week (avg days late)</h6>
+            <div class="hm" id="hm"></div>
+            <div class="legend" style="align-items:center">Less <span style="display:inline-flex;gap:2px"><i style="background:#cde2fb;margin:0"></i><i style="background:#86b6ef;margin:0"></i><i style="background:#3987e5;margin:0"></i><i style="background:#1c5cab;margin:0"></i><i style="background:#0d366b;margin:0"></i></span> More late</div></div>
+          <div class="panel"><h6>Leads by category</h6>
+            <div style="display:flex;align-items:center;gap:16px"><svg id="pie" width="170" height="170" viewBox="-1.1 -1.1 2.2 2.2"></svg>
+            <div class="legend" style="flex-direction:column;gap:6px;margin:0" id="pieleg"></div></div></div>
+        </div>
+        <div class="grid g2">
+          <div class="panel"><h6>Where data comes from (records in database)</h6><div id="src"></div></div>
+          <div class="panel"><h6>Order boards by current step</h6>
+            <div class="stack" id="stk"></div><div class="legend" id="stkleg"></div>
+            <table style="margin-top:10px"><tr><th>Step</th><th>Boards</th><th>Avg days</th><th>On time</th></tr>
+              <tr><td>Procurement</td><td>2</td><td>4.1</td><td>90%</td></tr><tr><td>Packaging</td><td>2</td><td>3.9</td><td>71%</td></tr><tr><td>Production</td><td>1</td><td>5.2</td><td>86%</td></tr><tr><td>Placement</td><td>1</td><td>2.8</td><td>88%</td></tr><tr><td>Track</td><td>1</td><td>1.9</td><td>95%</td></tr></table></div>
+        </div>
+      </div></div></div>
+</div>
+
+<div class="end">
+  <h2>To confirm with the client</h2>
+  <ol>
+    <li>Final list of <b>product categories</b>, and which products are <b>best sellers</b>.</li>
+    <li>Which <b>languages</b> the website should offer (for example English, Hindi, Telugu, Arabic).</li>
+    <li>Default <b>time split per step</b> (example: Procurement 25%, Packaging 19%, Production 30%, Placement 16%, Track 10%).</li>
+    <li><b>WhatsApp Business number</b> for alerts, and the email address alerts are sent from.</li>
+    <li>Shift timings, holiday list, and the list of employees with their categories.</li>
+    <li>Logo, brand colours, product photos and the first set of offers for the moving header.</li>
+  </ol>
+</div>
+</div>
+
+<script>
+// one sidebar definition for every screen
+var SIDES={emp:{title:'EMPLOYEE PORTAL',groups:[['',[['Dashboard'],['Attendance'],['My tasks','9'],['Order boards','2'],['Client queries','4'],['Leads']]]]},
+admin:{title:'ADMIN CONSOLE',groups:[['OVERVIEW',[['Dashboard'],['Insights & Analytics']]],['WORK',[['Order boards','7'],['Auto task assign'],['All tasks'],['Leads & queries']]],['PEOPLE',[['Team & attendance'],['Approvals','4']]],['WEBSITE',[['Offers ticker'],['Best sellers & products'],['Koko settings'],['Languages']]],['SYSTEM',[['Alerts (Mail/WhatsApp)'],['Audit log']]]]}};
+document.querySelectorAll('.side[data-side]').forEach(function(el){var s=SIDES[el.dataset.side],act=el.dataset.active,h='<div class="lg">KJS INDIA<small>'+s.title+'</small></div>';
+ s.groups.forEach(function(g){if(g[0])h+='<div class="grp">'+g[0]+'</div>';g[1].forEach(function(i){h+='<div class="i'+(i[0]===act?' a':'')+'">'+i[0].replace('&','&amp;')+(i[1]?' <span class="badge">'+i[1]+'</span>':'')+'</div>'})});el.innerHTML=h});
+
+function gate(c){document.getElementById('gcat').textContent=c;document.getElementById('gate').classList.add('on')}
+function ungate(){document.getElementById('gate').classList.remove('on')}
+function tgl(el,id,on,off){el.classList.toggle('on');if(id){var t=document.getElementById(id);var o=el.classList.contains('on');
+  t.textContent=on?(o?on:off):(o?'Available: receiving tasks':'Unavailable: no new tasks')}}
+function dur(el){[...el.parentNode.children].forEach(s=>s.classList.remove('a'));el.classList.add('a')}
+var tip=document.getElementById('tip');
+function hov(el,txt){el.addEventListener('mousemove',e=>{tip.style.display='block';tip.textContent=txt;tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px'});el.addEventListener('mouseleave',()=>tip.style.display='none')}
+// heatmap: sequential blue ramp
+(function(){var hm=document.getElementById('hm');var steps=['Procurement','Packaging','Production','Placement','Track'];
+ var ramp=['#f0efec','#cde2fb','#86b6ef','#3987e5','#1c5cab','#0d366b'];
+ var data=[[0,1,0,0,1,0,2,1,0,0,1,0],[1,2,3,2,1,3,4,2,3,5,3,4],[0,1,1,2,0,1,1,0,2,1,1,0],[0,0,1,0,1,0,0,1,0,2,1,1],[0,0,0,1,0,0,0,0,1,0,0,0]];
+ hm.innerHTML='<span></span>'+[...Array(12)].map((_,i)=>'<span class="hd">W'+(i+1)+'</span>').join('');
+ steps.forEach((s,r)=>{var l=document.createElement('span');l.className='lbl';l.textContent=s;hm.appendChild(l);
+  data[r].forEach((v,c)=>{var d=document.createElement('span');d.className='c';d.style.background=ramp[Math.min(v,5)];hm.appendChild(d);hov(d,s+' · Week '+(c+1)+': '+v+' day'+(v==1?'':'s')+' late avg')})})})();
+// pie (donut) with 2px surface gaps
+(function(){var d=[['Coffee',168,'#2a78d6'],['Tea',112,'#eb6834'],['Confectionery',64,'#1baf7a'],['Premixes',42,'#eda100'],['Seasonings',26,'#e87ba4']];
+ var tot=d.reduce((a,b)=>a+b[1],0),a0=-Math.PI/2,svg=document.getElementById('pie'),lg=document.getElementById('pieleg');
+ d.forEach(x=>{var a1=a0+x[1]/tot*2*Math.PI,lf=(a1-a0)>Math.PI?1:0,r=1,ri=.58;
+  var p='M'+Math.cos(a0)*r+' '+Math.sin(a0)*r+'A'+r+' '+r+' 0 '+lf+' 1 '+Math.cos(a1)*r+' '+Math.sin(a1)*r+'L'+Math.cos(a1)*ri+' '+Math.sin(a1)*ri+'A'+ri+' '+ri+' 0 '+lf+' 0 '+Math.cos(a0)*ri+' '+Math.sin(a0)*ri+'Z';
+  var e=document.createElementNS('http://www.w3.org/2000/svg','path');e.setAttribute('d',p);e.setAttribute('fill',x[2]);e.setAttribute('stroke','#fff');e.setAttribute('stroke-width','.03');svg.appendChild(e);
+  hov(e,x[0]+': '+x[1]+' leads ('+Math.round(x[1]/tot*100)+'%)');
+  lg.innerHTML+='<span><i style="background:'+x[2]+'"></i>'+x[0]+' · <b>'+Math.round(x[1]/tot*100)+'%</b></span>';a0=a1});
+ var t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('text-anchor','middle');t.setAttribute('y','.1');t.setAttribute('font-size','.32');t.setAttribute('font-weight','700');t.setAttribute('fill','#0b0b0b');t.textContent=tot;svg.appendChild(t)})();
+// sources: horizontal bars, one hue
+(function(){var d=[['Website forms',1840],['Koko chats',1210],['Excel uploads',3420],['Partner API',5960],['PDF uploads',410]],m=6000,el=document.getElementById('src');
+ d.forEach(x=>{var r=document.createElement('div');r.className='hbar';r.innerHTML='<span>'+x[0]+'</span><span class="t"><i style="width:'+(x[1]/m*100)+'%"></i></span><b>'+x[1].toLocaleString('en-IN')+'</b>';el.appendChild(r);hov(r,x[0]+': '+x[1].toLocaleString('en-IN')+' records')})})();
+// stacked bar for boards by step
+(function(){var d=[['Procurement',2,'#2a78d6'],['Packaging',2,'#eb6834'],['Production',1,'#1baf7a'],['Placement',1,'#eda100'],['Track',1,'#e87ba4']],el=document.getElementById('stk'),lg=document.getElementById('stkleg');
+ d.forEach(x=>{var i=document.createElement('i');i.style.flex=x[1];i.style.background=x[2];el.appendChild(i);hov(i,x[0]+': '+x[1]+' board'+(x[1]>1?'s':''));lg.innerHTML+='<span><i style="background:'+x[2]+'"></i>'+x[0]+' '+x[1]+'</span>'})})();
+</script>
+</body>
+</html>

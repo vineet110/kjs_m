@@ -17,22 +17,33 @@ A comprehensive digital enterprise platform designed for **KJS India** featuring
 
 ---
 
-## Quick Start
+## Run it locally (dev, Windows / macOS / Linux)
 
-### 1. Configure Environment
+You need: Node 20+, [uv](https://docs.astral.sh/uv/), Docker Desktop (only for the test database).
+
 ```bash
+# 1. Secrets: copy and fill in (Neon URLs, GROQ_API_KEY, first admin). Never commit .env
 cp .env.example .env
+
+# 2. Backend (FastAPI) on http://localhost:8000  (API docs: /docs)
+cd backend
+uv venv --python 3.12 .venv
+uv pip install --python .venv -r requirements.txt
+.venv/Scripts/alembic upgrade head        # macOS/Linux: .venv/bin/alembic
+.venv/Scripts/python -m app.seed          # categories + first admin
+.venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
+
+# 3. Frontend (Next.js) on http://localhost:3000  (new terminal)
+cd frontend
+npm ci
+python ../scripts/fetch_kjs_assets.py public/images/kjs ../docs/research/source/kjsindia-site-text.md  # videos (gitignored)
+npm run dev
+
+# 4. Tests (throwaway Postgres in Docker, never touches Neon)
+docker compose --profile test up -d test-db
+cd backend && .venv/Scripts/python -m pytest -q
 ```
 
-### 2. Start Services via Docker Compose
-```bash
-docker compose up -d --build
-```
-- **Next.js Web Application**: http://localhost:3000
-- **FastAPI Documentation**: http://localhost:8000/docs
-- **Apache Superset**: http://localhost:8088
+How the pieces talk: the browser only calls `localhost:3000`. Next.js proxies `/api/*` to FastAPI,
+so the login cookie is first-party. FastAPI owns all rules (login, permissions, audit log).
 
-### 3. Database Migrations
-```bash
-docker compose exec backend alembic upgrade head
-```

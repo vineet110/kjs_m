@@ -1,5 +1,7 @@
 # ==============================================================================
-# KJS India Digital Platform - Backend Requirements (Pip Installable)
+# KJS India Digital Platform - Backend Requirements
+# Only what the code uses today. Add a package back (with approval) when a
+# feature needs it; see "Later" at the bottom.
 # ==============================================================================
 
 # Core Web Framework & ASGI
@@ -7,35 +9,22 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.1
 pydantic==2.7.4
 pydantic-settings==2.3.4
+python-multipart==0.0.9
 
-# Database, ORM & Vector Search
+# Database, ORM & migrations
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
-psycopg2-binary==2.9.9
 alembic==1.13.1
-pgvector==0.3.1
 
 # Background Scheduler
 apscheduler==3.10.4
 
-# AI, Vector Embeddings & Semantic Search (Koko Assistant)
-anthropic==0.28.0
-sentence-transformers==3.0.1
-torch>=2.0.0
-numpy>=1.26.0
-
-# External APIs (WhatsApp Cloud API, Email, Superset Token)
+# HTTP client (Groq / Anthropic / WhatsApp / email APIs are plain HTTPS calls)
 httpx==0.27.0
 
-# Authentication & Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.9
-
-# Validation & Payroll Excel Export
+# Validation & Excel export
 phonenumbers==8.13.38
 openpyxl==3.1.5
-python-magic-bin==0.4.14
 
 # Observability
 structlog==24.2.0
@@ -44,3 +33,14 @@ structlog==24.2.0
 pytest==8.2.2
 pytest-asyncio==0.23.7
 freezegun==1.5.1
+
+# ------------------------------------------------------------------------------
+# Later (not installed yet):
+#   pgvector==0.3.1                 Koko semantic search (Phase 4)
+#   anthropic                       only if D4 picks Claude (httpx works too)
+#   sentence-transformers / torch   ~2 GB; local embeddings, decide in Phase 4
+#   python-magic                    file MIME checks (Phase 5). NOT python-magic-bin:
+#                                   that one is Windows-only and breaks the Linux image.
+# Removed: python-jose, passlib (passwords use hashlib.scrypt from the standard library;
+#          sessions are random tokens in the DB, not JWTs)
+# ------------------------------------------------------------------------------
