@@ -17,6 +17,25 @@ A comprehensive digital enterprise platform designed for **KJS India** featuring
 
 ---
 
+## Every day (Windows PowerShell, after the one-time setup below)
+
+Two terminals. Always start Python through `.venv` (plain `uvicorn` uses the system Python,
+which doesn't have our packages: "No module named ...").
+
+```powershell
+# Terminal 1: backend on http://localhost:8000
+cd C:\VINEET_WORK\KJS_v1\backend
+.\.venv\Scripts\alembic upgrade head          # only after pulling new code (safe to repeat)
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: frontend on http://localhost:3000
+cd C:\VINEET_WORK\KJS_v1\frontend
+npm run dev
+```
+
+Open http://localhost:3000. Staff login: http://localhost:3000/employee/login.
+The frontend expects the backend on port 8000 (`API_INTERNAL_URL` in `.env`).
+
 ## Run it locally (dev, Windows / macOS / Linux)
 
 You need: Node 20+, [uv](https://docs.astral.sh/uv/), Docker Desktop (only for the test database).
