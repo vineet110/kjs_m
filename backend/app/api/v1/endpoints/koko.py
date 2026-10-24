@@ -6,13 +6,17 @@ from app.core.deps import client_ip
 from app.core.rate_limit import koko_limiter
 from app.core.security import hash_ip
 from app.schemas.lead import KokoIn, KokoOut
-from app.services import koko_service
+from app.services import content_service, koko_service
 
 router = APIRouter()
 
 
 @router.post("/chat", response_model=KokoOut)
 async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(get_db)):
-    koko_limiter.check(hash_ip(client_ip(request)))  # so nobody can burn our LLM quota
+    ip_hash = hash_ip(client_ip(request))
+    koko_limiter.check(ip_hash)  # so nobody can burn our LLM quota
     reply, suggest = await koko_service.reply(db, data.messages)
+    if data.chat_id:  # keep the transcript (Admin > Koko) so we can improve the facts
+        convo = [m.model_dump() for m in data.messages] + [{"role": "assistant", "content": reply}]
+        await content_service.save_chat(db, data.chat_id, data.page, convo, suggest, ip_hash)
     return KokoOut(reply=reply, suggest_enquiry=suggest)

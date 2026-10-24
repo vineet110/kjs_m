@@ -3,14 +3,10 @@
 v0 puts all facts in the prompt (they're small). When content grows (Phase 4) we switch
 to retrieval (pgvector) so only the relevant pieces are sent.
 """
-from pathlib import Path
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.lead import ChatMessage
-from app.services import catalog_service, llm
-
-FACTS = (Path(__file__).parent.parent / "knowledge" / "kjs_facts.md").read_text(encoding="utf-8")
+from app.services import catalog_service, content_service, llm
 
 ENQUIRY_TAG = "[ENQUIRY]"
 
@@ -32,13 +28,13 @@ async def _catalogue_text(db: AsyncSession) -> str:
     return "\n".join(lines) or "- (catalogue is being prepared)"
 
 
-def system_prompt(catalogue: str) -> str:
+def system_prompt(catalogue: str, facts: str) -> str:
     # Rules go AFTER the facts: models follow the most recent instructions best.
     return f"""You are Koko, the website assistant of KJS India, a B2B contract manufacturer
 (coffee, tea, health drinks, confectionery; private label; bulk and export).
 
 KJS FACTS:
-{FACTS}
+{facts}
 
 CATALOGUE:
 {catalogue}
@@ -62,7 +58,9 @@ RULES (follow strictly):
 async def reply(db: AsyncSession, messages: list[ChatMessage]) -> tuple[str, bool]:
     history = [m.model_dump() for m in messages[-12:]]  # cap the context we send
     try:
-        text = await llm.chat(system_prompt(await _catalogue_text(db)), history)
+        # Facts: edited by staff in Admin > Koko (falls back to app/knowledge/kjs_facts.md)
+        facts = await content_service.get_text(db, "koko.facts")
+        text = await llm.chat(system_prompt(await _catalogue_text(db), facts), history)
     except llm.LLMUnavailable:
         return FALLBACK, True
     suggest = ENQUIRY_TAG in text

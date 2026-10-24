@@ -1,13 +1,12 @@
 """One error shape for the whole API: {code, message, details, request_id}."""
-import uuid
+import logging
 
-import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-log = structlog.get_logger()
+log = logging.getLogger("app.errors")
 
 
 class AppError(HTTPException):
@@ -30,13 +29,6 @@ def _body(request: Request, code: str, message: str, details=None) -> dict:
 
 
 def install_error_handlers(app: FastAPI) -> None:
-    @app.middleware("http")
-    async def add_request_id(request: Request, call_next):
-        request.state.request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
-        response = await call_next(request)
-        response.headers["x-request-id"] = request.state.request_id
-        return response
-
     @app.exception_handler(AppError)
     async def app_error(request: Request, exc: AppError):
         return JSONResponse(_body(request, exc.code, exc.message, exc.details), status_code=exc.status_code)
@@ -53,5 +45,7 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def unexpected(request: Request, exc: Exception):
-        log.exception("unhandled_error", request_id=getattr(request.state, "request_id", None))
+        # Logged once, here, with the stack trace. (request_id passed explicitly: this handler
+        # runs outside the request middleware.)
+        log.exception("server.error", extra={"request_id": getattr(request.state, "request_id", None)})
         return JSONResponse(_body(request, "server_error", "Something went wrong on our side."), status_code=500)

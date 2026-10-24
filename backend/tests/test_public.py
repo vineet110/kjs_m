@@ -63,3 +63,16 @@ async def test_koko_falls_back_when_llm_is_off(client):
     r = await client.post("/api/v1/koko/chat", json={"messages": [{"role": "user", "content": "hi"}]})
     assert r.status_code == 200
     assert "+91 97037 35666" in r.json()["reply"]
+
+
+async def test_rate_limit_is_per_visitor_behind_our_proxy(client):
+    """Through the Next.js proxy every request comes from 127.0.0.1; the limit must still be per visitor."""
+    body = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True}
+    for _ in range(5):
+        r = await client.post("/api/v1/public/leads", json=body, headers=HDR | {"x-forwarded-for": "5.5.5.5"})
+        assert r.status_code == 201
+    assert (await client.post("/api/v1/public/leads", json=body, headers=HDR | {"x-forwarded-for": "5.5.5.5"})).status_code == 429
+    # another visitor is not blocked; a faked first hop doesn't help the blocked one
+    assert (await client.post("/api/v1/public/leads", json=body, headers=HDR | {"x-forwarded-for": "6.6.6.6"})).status_code == 201
+    r = await client.post("/api/v1/public/leads", json=body, headers=HDR | {"x-forwarded-for": "1.2.3.4, 5.5.5.5"})
+    assert r.status_code == 429

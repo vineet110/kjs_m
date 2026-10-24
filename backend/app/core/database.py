@@ -7,9 +7,11 @@ from app.core.config import settings
 # prepared statements between queries. Turning asyncpg's statement cache off fixes that.
 engine = create_async_engine(
     settings.DATABASE_URL,
-    # No pool_pre_ping: it costs one extra DB round trip per request (~0.5 s to Neon in Ohio).
-    # Instead, replace connections every 4 min, before Neon/PgBouncer closes idle ones.
-    pool_recycle=240,
+    # pool_pre_ping: check a pooled connection before using it. Without it, the first request
+    # after Neon falls asleep (5 idle min) or the DB restarts fails with a 500 (found in the
+    # 24 Oct end-to-end test). It costs one quick round trip; cheap once the DB is near the API.
+    pool_pre_ping=True,
+    pool_recycle=240,  # also replace connections every 4 min, before PgBouncer closes idle ones
     # Tests open a new event loop per test; pooled connections can't cross loops.
     **({"poolclass": NullPool} if settings.APP_ENV == "test" else {}),
     connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0},

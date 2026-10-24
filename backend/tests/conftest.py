@@ -3,15 +3,18 @@ migrated once, emptied before every test. Tests never touch Neon."""
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://kjs_test:kjs_test@localhost:5433/kjs_test")
+TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://kjs_test:kjs_test@127.0.0.1:5433/kjs_test")
 os.environ.update({
     "APP_ENV": "test",
     "DATABASE_URL": TEST_DB,
     "MIGRATION_DATABASE_URL": TEST_DB,
     "LLM_PROVIDER": "none",  # no real AI calls in tests
     "SECRET_KEY": "test-secret",
+    "STORAGE_DRIVER": "local",
+    "FILE_STORAGE_PATH": tempfile.mkdtemp(prefix="kjs-test-files-"),
 })
 
 import pytest  # noqa: E402
@@ -19,7 +22,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core.database import AsyncSessionLocal, engine  # noqa: E402
-from app.core.rate_limit import koko_limiter, lead_limiter  # noqa: E402
+from app.core.rate_limit import koko_limiter, lead_limiter, login_failures  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import auth_service  # noqa: E402
 
@@ -35,16 +38,17 @@ def pytest_sessionstart(session):
 async def clean_db():
     # TRUNCATE is allowed on audit_log (the trigger blocks row UPDATE/DELETE only).
     async with engine.begin() as conn:
-        await conn.execute(text(
-            "TRUNCATE holidays, leads, products, categories, user_sessions, availability_log, audit_log, users "
-            "RESTART IDENTITY CASCADE"
-        ))
+        tables = (await conn.execute(text(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
+        ))).scalars().all()
+        await conn.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
         await conn.execute(text(
             "INSERT INTO categories (slug, name, description, sort_order, is_active) "
             "VALUES ('coffee', 'Coffee', 'Coffee things', 1, true)"
         ))
     lead_limiter.reset()
     koko_limiter.reset()
+    login_failures.reset()
     yield
 
 

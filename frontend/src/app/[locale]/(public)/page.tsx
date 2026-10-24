@@ -4,13 +4,21 @@ import Link from 'next/link';
 import CategoryGrid from '@/components/public/CategoryGrid';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
-import { serverGet, type Category, type Product } from '@/lib/api';
+import type { Metadata } from 'next';
+import { serverGet, texts, type Category, type Product } from '@/lib/api';
 import { CAPABILITIES, SITE } from '@/lib/site';
 
+// Title, description and headline are editable in Admin > Website (defaults in content_service.py).
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await texts();
+  return { title: { absolute: t['seo.home.title'] ?? 'KJS India' }, description: t['seo.home.description'] };
+}
+
 export default async function HomePage() {
-  const [categories, bestSellers] = await Promise.all([
+  const [categories, bestSellers, t] = await Promise.all([
     serverGet<Category[]>('/public/categories'),
     serverGet<Product[]>('/public/products?best_sellers=true'),
+    texts(),
   ]);
 
   return (
@@ -28,10 +36,9 @@ export default async function HomePage() {
         />
         <div className="relative mx-auto max-w-7xl px-4 py-24 md:py-32">
           <p className="eyebrow text-gold">Co-manufacturing · Hyderabad, India</p>
-          <h1 className="mt-4 max-w-3xl text-4xl font-extrabold leading-tight md:text-6xl">{SITE.tagline}</h1>
+          <h1 className="mt-4 max-w-3xl text-4xl font-extrabold leading-tight md:text-6xl">{t['home.hero_title'] ?? SITE.tagline}</h1>
           <p className="mt-5 max-w-2xl text-lg text-slate-200">
-            Coffee, tea, health drinks and confectionery, blended and packed for your brand. Trusted by global
-            leaders like {SITE.trustedBy.join(', ')}.
+            {t['home.hero_text'] ?? `Coffee, tea, health drinks and confectionery, blended and packed for your brand. Trusted by global leaders like ${SITE.trustedBy.join(', ')}.`}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/products" className="btn-gold">

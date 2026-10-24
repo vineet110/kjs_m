@@ -15,6 +15,9 @@ const config: Config = {
         forest: { DEFAULT: "#123A2B", light: "#1E5641" },
         paper: "#F7F5F0",
       },
+      // Offers ticker: slide left by half its width (the list is doubled), then repeat
+      keyframes: { ticker: { from: { transform: "translateX(0)" }, to: { transform: "translateX(-50%)" } } },
+      animation: { ticker: "ticker 40s linear infinite" },
     },
   },
   plugins: [require("tailwindcss-animate")],

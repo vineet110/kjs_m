@@ -20,6 +20,8 @@ export default function KokoChatWidget() {
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  // Random id for this conversation (no personal data), so staff can read the transcript in Admin > Koko.
+  const chatId = useRef(`c-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`);
 
   // Braces matter: an effect may only return a cleanup function. Newer Chrome makes
   // scrollIntoView() return a Promise, which React then tries to call -> "destroy is not a function".
@@ -39,7 +41,7 @@ export default function KokoChatWidget() {
       // Don't send our greeting; the server only needs the real conversation.
       const res = await api<{ reply: string; suggest_enquiry: boolean }>('/koko/chat', {
         method: 'POST',
-        body: { messages: next.slice(1), page: window.location.pathname },
+        body: { messages: next.slice(1), page: window.location.pathname, chat_id: chatId.current },
       });
       setMsgs([...next, { role: 'assistant', content: res.reply }]);
       if (res.suggest_enquiry && !sent) setShowForm(true);

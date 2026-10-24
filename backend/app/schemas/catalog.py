@@ -21,6 +21,7 @@ class ProductOut(BaseModel):
     is_best_seller: bool
     category_slug: str
     category_name: str
+    is_active: bool = True
 
 
 class ProductIn(BaseModel):

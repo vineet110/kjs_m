@@ -17,7 +17,6 @@ asyncpg==0.29.0
 alembic==1.13.1
 
 # Background Scheduler
-apscheduler==3.10.4
 
 # HTTP client (Groq / Anthropic / WhatsApp / email APIs are plain HTTPS calls)
 httpx==0.27.0
@@ -27,7 +26,6 @@ phonenumbers==8.13.38
 openpyxl==3.1.5
 
 # Observability
-structlog==24.2.0
 
 # Testing & Deterministic Clock Control
 pytest==8.2.2

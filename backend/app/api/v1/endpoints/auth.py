@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import client_ip, current_user
 from app.core.permissions import effective_permissions
-from app.core.security import hash_ip
+from app.core.security import hash_ip, hash_token
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut, SignupIn
 from app.services import auth_service
@@ -47,3 +48,32 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
 @router.get("/me", response_model=MeOut)
 async def me(user: User = Depends(current_user)):
     return _me(user)
+
+
+class ProfileIn(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=100)
+    phone: str | None = Field(default=None, max_length=20)
+    notify_email: bool | None = None
+    notify_whatsapp: bool | None = None
+
+
+@router.get("/profile")
+async def profile(user: User = Depends(current_user)):
+    return auth_service.profile_out(user)
+
+
+@router.patch("/profile")
+async def update_profile(data: ProfileIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await auth_service.update_profile(db, user, data.model_dump(exclude_unset=True, exclude_none=True))
+
+
+class PasswordIn(BaseModel):
+    current: str = Field(max_length=200)
+    new: str = Field(min_length=10, max_length=200)
+
+
+@router.post("/password", status_code=204)
+async def change_password(data: PasswordIn, request: Request, user: User = Depends(current_user),
+                          db: AsyncSession = Depends(get_db)):
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
+    await auth_service.change_password(db, user, data.current, data.new, hash_token(token))

@@ -36,13 +36,19 @@ uv pip install --python .venv -r requirements.txt
 # 3. Frontend (Next.js) on http://localhost:3000  (new terminal)
 cd frontend
 npm ci
-python ../scripts/fetch_kjs_assets.py public/images/kjs ../docs/research/source/kjsindia-site-text.md  # videos (gitignored)
+python ../scripts/fetch_kjs_assets.py public/images/kjs ../storage/kjsindia-site-text.md  # videos (gitignored); 2nd arg = where to save the site text
 npm run dev
 
 # 4. Tests (throwaway Postgres in Docker, never touches Neon)
 docker compose --profile test up -d test-db
 cd backend && .venv/Scripts/python -m pytest -q
+
+# 5. End-to-end (real servers + real Chrome): see scripts/e2e/README.md
 ```
+
+After pulling new code, run `alembic upgrade head` again (new tables). Tunable settings (SLA minutes,
+batch sizes, feature switches, log levels) are in `config/*.ini`: edit and save, they apply within
+seconds without a restart. Secrets stay in `.env`.
 
 How the pieces talk: the browser only calls `localhost:3000`. Next.js proxies `/api/*` to FastAPI,
 so the login cookie is first-party. FastAPI owns all rules (login, permissions, audit log).
