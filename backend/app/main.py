@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.jobs  # noqa: F401  (registers background jobs)
 from app.api.v1.router import api_router
-from app.core.config import settings
+from app.core.config import production_problems, settings
 from app.core.config.ini import public_config
 from app.core.database import get_db
 from app.core.errors import install_error_handlers
@@ -22,6 +22,10 @@ log = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if problems := production_problems(settings):
+        for p in problems:
+            log.critical("config.unsafe_for_production", extra={"problem": p})
+        raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
     log.info("app.started", extra={"env": settings.APP_ENV, "jobs": list(runner.JOBS)})
     # Tests run jobs directly (runner.run_job), never on a timer.
     task = None if settings.APP_ENV == "test" else asyncio.create_task(runner.loop())

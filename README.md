@@ -1,19 +1,20 @@
 # KJS India Digital Platform (`kjs_m`)
 
 A comprehensive digital enterprise platform designed for **KJS India** featuring:
-- **Public Website with Koko AI**: Product showcase, dynamic moving offers ticker, category unlock gate (DPDP Act 2023 compliant), and Claude Haiku-powered RAG assistant with pgvector.
-- **Employee Portal**: Server-time punch attendance (Mon–Sat working calendar, night shift support, auto-closing & regularization), availability toggle, task kanban with query outcome logging, and member-scoped order board step tracking.
-- **Admin Console**: Automatic task assignment engine (least-busy-first/round-robin with dry-run preview), 5-checkpoint order board manager (`ABC117-xxxx`), file upload versioning with delete approval workflow, append-only immutable audit logging, team attendance grid with payroll export, and embedded Apache Superset analytics.
+- **Public Website with Koko AI**: products and capabilities, offers ticker, gated price sheet / spec / sample / quote (DPDP Act 2023 consent), partners page, private-label builder, and Koko, an AI assistant that answers only from KJS facts.
+- **Employee Portal**: server-time check-in/out (Mon–Sat working calendar, missed-punch requests), availability switch, tasks, leads with SLA timers, auto-assigned batches, order-board steps, notifications.
+- **Admin Console**: staff approval and permissions, auto-assign with Excel import, order boards (`ABC117-3`) with 50/85/100% alerts, file delete approvals, append-only audit log, team attendance, website/Koko editors, charts from real data.
 
 ---
 
 ## Tech Stack
-- **Frontend**: Next.js 14+ (App Router), TypeScript, Tailwind CSS, shadcn/ui, next-intl (English & Hindi)
-- **Backend API**: FastAPI (Python 3.12), SQLAlchemy 2.0 (Async), Alembic, Pydantic v2, APScheduler
-- **Database**: PostgreSQL 16 + pgvector (embedding vector(384) for Koko)
-- **Queue/Worker**: PostgreSQL job queue (`FOR UPDATE SKIP LOCKED`)
-- **Analytics**: Apache Superset (Dockerized, embedded via Guest Token SDK)
-- **External Services**: Meta WhatsApp Business Cloud API, Resend/Brevo (Email), Anthropic Claude Haiku API
+- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, next-intl (English at launch)
+- **Backend API**: FastAPI (Python 3.12), SQLAlchemy 2.0 (async), Alembic, Pydantic v2
+- **Database**: PostgreSQL (Neon in development, the company server in production)
+- **Background jobs**: a small loop inside the API process (`backend/app/jobs`), Postgres locks
+- **Files**: local folder in development, Cloudflare R2 in production
+- **Koko AI**: Groq (switchable with `LLM_PROVIDER`)
+- **Production**: Docker Compose + nginx + Cloudflare Tunnel: see [`deploy/README.md`](deploy/README.md)
 
 ---
 

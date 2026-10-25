@@ -8,3 +8,7 @@
 *.ico binary
 *.svg -text
 *.mp4 binary
+
+# Shell scripts and server config run on Linux: always LF line endings
+*.sh text eol=lf
+deploy/** text eol=lf

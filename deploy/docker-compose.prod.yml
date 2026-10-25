@@ -1,0 +1,85 @@
+# Production stack for the company server. Run every command from the deploy/ folder:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Full guide: deploy/README.md. Secrets come from deploy/.env (copy .env.production.example).
+#
+#   Internet → Cloudflare → cloudflared (tunnel) → nginx → frontend (Next.js) / backend (FastAPI) → db
+#
+# No port is open to the internet: cloudflared dials out to Cloudflare. nginx listens only on
+# 127.0.0.1:8080 so you can test on the server itself.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }  # logs never fill the disk
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: kjs
+      POSTGRES_USER: kjs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kjs -d kjs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+
+  backend:
+    build: ../backend
+    image: kjs-api:${TAG:-latest}
+    env_file: .env
+    environment:
+      APP_ENV: production
+      CONFIG_DIR: /config
+      FILE_STORAGE_PATH: /srv/kjs_files
+      # config/ is shared with development; these always win on the server
+      KJS__LOGGING__FORMAT: json
+      KJS__LOGGING__SHOW_PERSONAL_DATA: "false"
+    volumes:
+      - ../config:/config:ro           # edit config/*.ini on the server: applies live
+      - files:/srv/kjs_files           # uploads when STORAGE_DRIVER=local
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+    logging: *logging
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        API_INTERNAL_URL: http://backend:8000
+        SITE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in deploy/.env}
+    image: kjs-web:${TAG:-latest}
+    depends_on: [backend]
+    restart: unless-stopped
+    logging: *logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on: [frontend, backend]
+    restart: unless-stopped
+    logging: *logging
+
+  # Cloudflare Tunnel. Start with: docker compose -f docker-compose.prod.yml --profile tunnel up -d
+  # The token comes from the Cloudflare dashboard (see README). Public hostname → http://nginx:80
+  cloudflared:
+    image: cloudflare/cloudflared:2024.10.0
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on: [nginx]
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  pgdata:
+  files:
