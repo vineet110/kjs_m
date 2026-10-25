@@ -1,4 +1,5 @@
 """Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
@@ -6,11 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.rate_limit import login_failures
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
 from app.models.user import User, UserSession
 from app.schemas.auth import SignupIn
 from app.services import audit_service
+
+log = logging.getLogger(__name__)
 
 
 async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
@@ -40,6 +44,8 @@ async def login(db: AsyncSession, email: str, password: str) -> tuple[User, str]
     user = await db.scalar(select(User).where(User.email == email))
     # Same message for "no such user" and "wrong password", so nobody can probe which emails exist.
     if user is None or not verify_password(password, user.password_hash):
+        log.warning("auth.login_failed", extra={"email": email})
+        login_failures.check(email)  # 10 wrong passwords in 15 min -> blocked for a while
         raise AppError(401, "bad_credentials", "Email or password is wrong.")
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
@@ -55,6 +61,7 @@ async def login(db: AsyncSession, email: str, password: str) -> tuple[User, str]
     # Housekeeping: drop this user's expired sessions.
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at < now))
     await db.commit()
+    log.info("auth.login_ok", extra={"login_user_id": user.id})
     return user, token
 
 
@@ -122,3 +129,32 @@ async def ensure_admin(db: AsyncSession, email: str, password: str, name: str = 
                          entity_id=admin.id, after={"email": email})
     await db.commit()
     return True
+
+
+# ---------- Profile ----------
+def profile_out(u: User) -> dict:
+    return {"id": u.id, "name": u.name, "email": u.email, "phone": u.phone or "", "role": u.role,
+            "categories": u.categories or [], "notify_email": u.notify_email, "notify_whatsapp": u.notify_whatsapp}
+
+
+async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
+    before = {k: getattr(user, k) for k in changes}
+    for k, v in changes.items():
+        setattr(user, k, v.strip() if isinstance(v, str) else v)
+    audit_service.record(db, actor=user, action="user.profile", entity_type="user", entity_id=user.id,
+                         before=before, after=changes)
+    await db.commit()
+    return profile_out(user)
+
+
+async def change_password(db: AsyncSession, user: User, current: str, new: str, keep_token_hash: str) -> None:
+    if not verify_password(current, user.password_hash):
+        raise AppError(422, "bad_password", "Your current password is wrong.")
+    if current == new:
+        raise AppError(422, "same_password", "Choose a new password that is different.")
+    user.password_hash = hash_password(new)
+    # Log out every other browser of this person (keep the one making the change).
+    await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.token_hash != keep_token_hash))
+    audit_service.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id)
+    await db.commit()
+    log.info("auth.password_changed")

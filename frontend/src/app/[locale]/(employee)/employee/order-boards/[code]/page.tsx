@@ -1,5 +1,6 @@
-import { ComingSoon } from '@/components/portal/PortalShell';
+'use client';
+import BoardDetail from '@/components/portal/BoardDetail';
 
 export default function Page({ params }: { params: { code: string } }) {
-  return <ComingSoon title={`Board ${params.code}`} phase="Phase 5" what="Step view, files and deadlines for this order board." />;
+  return <BoardDetail code={params.code} backHref="/employee/order-boards" />;
 }

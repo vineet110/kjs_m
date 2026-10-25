@@ -1,5 +1,88 @@
-import { ComingSoon } from '@/components/portal/PortalShell';
+'use client';
+// Approvals inbox: everything waiting for a yes/no, in one place. Sections you can't approve are hidden.
+import { useCallback, useEffect, useState } from 'react';
+import ApproveCard, { type Perm, type StaffUser } from '@/components/portal/ApproveCard';
+import { fmtDay, fmtIST, PageTitle } from '@/components/portal/ui';
+import { api, ApiFailure, type Regularization, type StoredFile } from '@/lib/api';
 
-export default function Page() {
-  return <ComingSoon title="Approvals" phase="Phase 6" what="File delete requests and attendance regularizations. (New staff approvals are on the Admin overview today.)" />;
+type Inbox = { signups: StaffUser[] | null; regularizations: Regularization[] | null; file_deletes: StoredFile[] | null };
+
+export default function Approvals() {
+  const [inbox, setInbox] = useState<Inbox | null>(null);
+  const [perms, setPerms] = useState<Perm[]>([]);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => {
+    api<Inbox>('/admin/approvals').then((i) => {
+      setInbox(i);
+      if (i.signups !== null) api<Perm[]>('/admin/permissions').then(setPerms);
+    });
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function run(path: string, body: unknown) {
+    setErr('');
+    try {
+      await api(path, { method: 'POST', body });
+      load();
+    } catch (e) {
+      setErr(e instanceof ApiFailure ? e.message : 'Could not save.');
+    }
+  }
+
+  if (!inbox) return <p className="text-sm text-slate-500">Loading…</p>;
+  const count = (inbox.signups?.length ?? 0) + (inbox.regularizations?.length ?? 0) + (inbox.file_deletes?.length ?? 0);
+
+  return (
+    <div className="space-y-8">
+      <PageTitle title="Approvals" sub={count ? `${count} waiting for you.` : 'Nothing is waiting. All clear.'} />
+      {err && <p className="text-sm text-red-700">{err}</p>}
+
+      {inbox.signups !== null && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold">New staff ({inbox.signups.length})</h2>
+          {inbox.signups.length === 0 && <p className="card p-4 text-sm text-slate-500">No sign-ups waiting.</p>}
+          {inbox.signups.map((u) => <ApproveCard key={u.id} user={u} perms={perms} onDone={load} />)}
+        </section>
+      )}
+
+      {inbox.regularizations !== null && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold">Missed punches ({inbox.regularizations.length})</h2>
+          {inbox.regularizations.length === 0 && <p className="card p-4 text-sm text-slate-500">No requests waiting.</p>}
+          {inbox.regularizations.map((r) => (
+            <div key={r.id} className="card flex flex-wrap items-center gap-3 p-4 text-sm">
+              <span className="font-semibold">{r.user_name}</span>
+              <span>{fmtDay(r.day, true)} · {r.check_in}–{r.check_out ?? '?'}</span>
+              <span className="text-slate-500">“{r.reason}”</span>
+              <span className="ml-auto flex gap-2">
+                <button onClick={() => run(`/attendance/approvals/${r.id}`, { approve: true })} className="btn-dark py-1">Approve</button>
+                <button onClick={() => run(`/attendance/approvals/${r.id}`, { approve: false })} className="btn-ghost py-1">Reject</button>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {inbox.file_deletes !== null && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold">File delete requests ({inbox.file_deletes.length})</h2>
+          {inbox.file_deletes.length === 0 && <p className="card p-4 text-sm text-slate-500">No requests waiting.</p>}
+          {inbox.file_deletes.map((f) => (
+            <div key={f.id} className="card flex flex-wrap items-center gap-3 p-4 text-sm">
+              <a href={`/api/v1/files/${f.id}/download`} className="font-semibold underline">{f.name}</a>
+              <span className="text-slate-500">{f.owner_type} {f.owner_id} · asked by {f.requested_by_name} · uploaded {fmtIST(f.created_at)}</span>
+              <span className="text-slate-500">“{f.delete_reason}”</span>
+              <span className="ml-auto flex gap-2">
+                <button onClick={() => confirm(`Delete ${f.name} for good?`) && run(`/files/${f.id}/delete-decision`, { approve: true })} className="btn-dark py-1">Delete</button>
+                <button onClick={() => run(`/files/${f.id}/delete-decision`, { approve: false })} className="btn-ghost py-1">Keep</button>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
+  );
 }

@@ -4,8 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/public/JsonLd';
-import EnquiryButton from '@/components/public/EnquiryButton';
-import { serverGet, type Product } from '@/lib/api';
+import GatedActions from '@/components/public/GatedActions';
+import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
 import { SITE } from '@/lib/site';
 
 type Props = { params: { slug: string } };
@@ -18,6 +18,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProductPage({ params }: Props) {
   const p = await serverGet<Product>(`/public/products/${params.slug}`);
   if (!p) notFound();
+  const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
+  const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));
+  const docs = (files ?? []).filter((x) => !x.content_type.startsWith('image/'));
+  const mainImage = p.image_path || photos[0]?.url;
 
   const facts = [
     ['Category', p.category_name],
@@ -45,8 +49,8 @@ export default async function ProductPage({ params }: Props) {
       </nav>
       <div className="grid gap-8 md:grid-cols-2">
         <div className="card relative flex aspect-square items-center justify-center overflow-hidden bg-slate-100">
-          {p.image_path ? (
-            <Image src={p.image_path} alt={p.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+          {mainImage ? (
+            <Image src={mainImage} alt={p.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" unoptimized={!p.image_path} />
           ) : (
             <span className="text-slate-400">{p.category_name}</span>
           )}
@@ -67,8 +71,13 @@ export default async function ProductPage({ params }: Props) {
               </div>
             ))}
           </dl>
+          {f.gated_actions && <GatedActions productSlug={p.slug} productName={p.name} />}
+          {docs.length > 0 && (
+            <ul className="text-sm">
+              {docs.map((d) => <li key={d.id}><a href={d.url} className="underline">{d.name}</a></li>)}
+            </ul>
+          )}
           <div className="flex flex-wrap gap-3">
-            <EnquiryButton label="Request price sheet" source="price_sheet" productSlug={p.slug} title={`${p.name}: price sheet`} />
             <a href={`${SITE.whatsapp}?text=${encodeURIComponent(`Hi, I'm interested in ${p.name}.`)}`} target="_blank" rel="noopener" className="btn-ghost">
               WhatsApp sales
             </a>

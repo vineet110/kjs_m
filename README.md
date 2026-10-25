@@ -17,6 +17,25 @@ A comprehensive digital enterprise platform designed for **KJS India** featuring
 
 ---
 
+## Every day (Windows PowerShell, after the one-time setup below)
+
+Two terminals. Always start Python through `.venv` (plain `uvicorn` uses the system Python,
+which doesn't have our packages: "No module named ...").
+
+```powershell
+# Terminal 1: backend on http://localhost:8000
+cd C:\VINEET_WORK\KJS_v1\backend
+.\.venv\Scripts\alembic upgrade head          # only after pulling new code (safe to repeat)
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: frontend on http://localhost:3000
+cd C:\VINEET_WORK\KJS_v1\frontend
+npm run dev
+```
+
+Open http://localhost:3000. Staff login: http://localhost:3000/employee/login.
+The frontend expects the backend on port 8000 (`API_INTERNAL_URL` in `.env`).
+
 ## Run it locally (dev, Windows / macOS / Linux)
 
 You need: Node 20+, [uv](https://docs.astral.sh/uv/), Docker Desktop (only for the test database).
@@ -36,13 +55,19 @@ uv pip install --python .venv -r requirements.txt
 # 3. Frontend (Next.js) on http://localhost:3000  (new terminal)
 cd frontend
 npm ci
-python ../scripts/fetch_kjs_assets.py public/images/kjs ../docs/research/source/kjsindia-site-text.md  # videos (gitignored)
+python ../scripts/fetch_kjs_assets.py public/images/kjs ../storage/kjsindia-site-text.md  # videos (gitignored); 2nd arg = where to save the site text
 npm run dev
 
 # 4. Tests (throwaway Postgres in Docker, never touches Neon)
 docker compose --profile test up -d test-db
 cd backend && .venv/Scripts/python -m pytest -q
+
+# 5. End-to-end (real servers + real Chrome): see scripts/e2e/README.md
 ```
+
+After pulling new code, run `alembic upgrade head` again (new tables). Tunable settings (SLA minutes,
+batch sizes, feature switches, log levels) are in `config/*.ini`: edit and save, they apply within
+seconds without a restart. Secrets stay in `.env`.
 
 How the pieces talk: the browser only calls `localhost:3000`. Next.js proxies `/api/*` to FastAPI,
 so the login cookie is first-party. FastAPI owns all rules (login, permissions, audit log).

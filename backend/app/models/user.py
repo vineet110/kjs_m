@@ -19,6 +19,10 @@ class User(Base, TimestampMixin):
     # Extra permission keys for this person (see app/core/permissions.py). Admins have all.
     permissions: Mapped[list[str]] = mapped_column(JSONB, default=list)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Product categories this person works on (auto-assign gives records only from these)
+    categories: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=False)  # opt-in (after Meta verification)
     shift_id: Mapped[int | None] = mapped_column(Integer)
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -13,6 +13,12 @@ PERMISSIONS: dict[str, str] = {
     "staff.approve": "Approve new staff and set their permissions",
     "audit.view": "See the audit log",
     "calendar.edit": "Manage the holiday calendar",
+    "attendance.manage": "See team attendance and approve regularizations",
+    "boards.manage": "Create and run order boards",
+    "assign.manage": "Set up and run auto-assign",
+    "content.edit": "Edit website text, offers and Koko knowledge",
+    "tasks.assign": "Give tasks to other staff and see everyone's tasks",
+    "files.approve": "Approve requests to delete files",
 }
 
 EMPLOYEE_DEFAULTS: list[str] = ["leads.view"]

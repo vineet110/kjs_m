@@ -12,7 +12,8 @@ class ChatMessage(BaseModel):
 
 
 class LeadIn(BaseModel):
-    source: Literal["enquiry_form", "price_sheet", "koko"] = "enquiry_form"
+    # price_sheet / spec_pdf / sample / quote = gated buttons on product pages; configurator = private-label tool
+    source: Literal["enquiry_form", "price_sheet", "spec_pdf", "sample", "quote", "configurator", "koko"] = "enquiry_form"
     name: str = Field(min_length=2, max_length=120)
     company: str = Field(default="", max_length=200)
     email: Email | None = None
@@ -54,11 +55,22 @@ class LeadOut(BaseModel):
     product_name: str | None = None
     category_name: str | None = None
     created_at: datetime
+    assigned_to: int | None = None
+    owner_name: str | None = None
+    responded_at: datetime | None = None
+    resolved_at: datetime | None = None
+    outcome: str = ""
+    note_count: int = 0
+    sla_state: str = "ok"  # ok | due_soon | overdue | done
+    sla_label: str = ""
+    respond_due_at: datetime | None = None
+    resolve_due_at: datetime | None = None
 
 
 class KokoIn(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=20)
     page: str = Field(default="", max_length=255)
+    chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")  # random id from the browser
 
 
 class KokoOut(BaseModel):

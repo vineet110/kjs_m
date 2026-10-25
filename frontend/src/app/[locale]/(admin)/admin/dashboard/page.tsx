@@ -2,11 +2,10 @@
 // Screen 09 (first slice): real numbers + approve new staff with per-person permissions (D5).
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import ApproveCard, { type Perm, type StaffUser as User } from '@/components/portal/ApproveCard';
 import { api, ApiFailure } from '@/lib/api';
 
 type Stats = { leads_total: number; leads_new: number; staff_pending: number; staff_active: number; products: number; categories: number };
-type User = { id: number; name: string; email: string; phone: string | null; role: string; status: string; permissions: string[]; created_at: string };
-type Perm = { key: string; label: string };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -97,43 +96,6 @@ export default function AdminDashboard() {
           </table>
         </div>
       </section>
-    </div>
-  );
-}
-
-function ApproveCard({ user, perms, onDone }: { user: User; perms: Perm[]; onDone: () => void }) {
-  const [chosen, setChosen] = useState<string[]>(['leads.view']);
-  const [busy, setBusy] = useState(false);
-
-  async function approve() {
-    setBusy(true);
-    await api(`/admin/users/${user.id}/approve`, { method: 'POST', body: { permissions: chosen } });
-    onDone();
-  }
-
-  return (
-    <div className="card space-y-3 p-4">
-      <div>
-        <p className="font-semibold">{user.name}</p>
-        <p className="text-sm text-slate-500">{user.email}{user.phone ? ` · ${user.phone}` : ''} · signed up {new Date(user.created_at).toLocaleDateString('en-IN')}</p>
-      </div>
-      <div>
-        <p className="mb-1 text-xs font-semibold uppercase text-slate-500">What can {user.name.split(' ')[0]} do?</p>
-        <div className="grid gap-1 sm:grid-cols-2">
-          {perms.map((p) => (
-            <label key={p.key} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={chosen.includes(p.key)}
-                disabled={p.key === 'leads.view'}
-                onChange={(e) => setChosen((c) => (e.target.checked ? [...c, p.key] : c.filter((k) => k !== p.key)))}
-              />
-              {p.label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <button disabled={busy} onClick={approve} className="btn-dark">Approve</button>
     </div>
   );
 }

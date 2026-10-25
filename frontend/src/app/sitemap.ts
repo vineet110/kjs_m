@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     serverGet<Product[]>('/public/products').catch(() => null),
   ]);
   const paths = [
-    '/', '/products', '/contact',
+    '/', '/products', '/private-label', '/partners', '/contact',
     ...CAPABILITIES.map((c) => `/capabilities/${c.slug}`),
     ...(categories ?? []).map((c) => `/categories/${c.slug}`),
     ...(products ?? []).map((p) => `/products/${p.slug}`),

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -30,3 +30,19 @@ class Lead(Base, TimestampMixin):
     ip_hash: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), default="new", index=True)  # new | contacted | closed
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # SLA (config/sla.ini): respond = first "contacted", resolve = "closed"
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(40), default="")  # quote_sent, not_interested, …
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)  # 1 = respond late reported, 2 = resolve late reported
+
+
+class LeadNote(Base, TimestampMixin):
+    """What staff did on a lead: a note, a call, an email, a hand-over."""
+
+    __tablename__ = "lead_notes"
+
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    kind: Mapped[str] = mapped_column(String(20))  # note | call | email | handover | outcome
+    text: Mapped[str] = mapped_column(Text, default="")

@@ -7,15 +7,17 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg, effective_with_sources, reload_now
 from app.core.database import get_db
-from app.core.deps import require_permission
-from app.core.permissions import PERMISSIONS
+from app.core.deps import current_user, require_permission
+from app.core.permissions import PERMISSIONS, effective_permissions
 from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
 from app.schemas.auth import ApproveIn, UserOut
 from app.schemas.catalog import ProductIn, ProductOut
-from app.services import auth_service, calendar_service, catalog_service, lead_service
+from app.schemas.lead import LeadOut
+from app.services import analytics_service, attendance_service, auth_service, calendar_service, catalog_service, file_service, lead_service
 
 router = APIRouter()
 
@@ -77,6 +79,87 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
 ):
     return await catalog_service.create_product(db, user, data)
+
+
+@router.get("/products", response_model=list[ProductOut])
+async def all_products(_: User = Depends(require_permission("catalog.edit")), db: AsyncSession = Depends(get_db)):
+    return await catalog_service.list_products(db, include_hidden=True)
+
+
+class ProductUpdateIn(ProductIn):
+    is_active: bool = True  # false = hidden from the website
+
+
+@router.patch("/products/{product_id}", response_model=ProductOut)
+async def update_product(
+    product_id: int, data: ProductUpdateIn,
+    user: User = Depends(require_permission("catalog.edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await catalog_service.update_product(db, user, product_id, ProductIn(**data.model_dump(exclude={"is_active"})), data.is_active)
+
+
+@router.get("/leads", response_model=list[LeadOut])
+async def all_leads(
+    status: str | None = None, owner: int | None = None, sla: str | None = None,
+    user: User = Depends(require_permission("leads.view_all")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=500)
+
+
+class AssignIn(BaseModel):
+    user_id: int
+
+
+@router.post("/leads/{lead_id}/assign", status_code=204)
+async def assign_lead(lead_id: int, data: AssignIn, user: User = Depends(require_permission("leads.view_all")),
+                      db: AsyncSession = Depends(get_db)):
+    await lead_service.assign(db, user, lead_id, data.user_id)
+
+
+@router.get("/sla")
+async def sla_settings(_: User = Depends(require_permission("leads.view_all"))):
+    """Current SLA targets (edit config/sla.ini; applies within seconds)."""
+    return cfg().sla.model_dump() | {"work_hours": f"{cfg().app.shift_start}-{cfg().app.shift_end}"}
+
+
+@router.get("/approvals")
+async def approvals(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """One inbox: each section only if you may approve it (null = not yours)."""
+    perms = effective_permissions(user.role, user.permissions)
+    signups = await auth_service.list_users(db, "pending") if "staff.approve" in perms else None
+    return {
+        "signups": [UserOut.model_validate(u).model_dump() for u in signups] if signups is not None else None,
+        "regularizations": await attendance_service.list_regularizations(db, status="pending")
+        if "attendance.manage" in perms else None,
+        "file_deletes": await file_service.delete_requests(db) if "files.approve" in perms else None,
+    }
+
+
+@router.get("/analytics")
+async def analytics(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+    return await analytics_service.summary(db)
+
+
+@router.get("/alerts")
+async def alerts(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+    c = cfg()
+    return {"rules": {"board_thresholds": c.alerts.thresholds, "channels": c.alerts.channels,
+                      "sla": c.sla.model_dump()},
+            "log": await analytics_service.alert_log(db)}
+
+
+@router.get("/config")
+async def config_view(_: User = Depends(require_permission("staff.approve"))):
+    """Effective tunable settings and their source. Secrets are never listed (they are in .env only)."""
+    return effective_with_sources()
+
+
+@router.post("/config/reload")
+async def config_reload(user: User = Depends(require_permission("staff.approve"))):
+    reload_now()
+    return effective_with_sources()
 
 
 class AuditOut(BaseModel):

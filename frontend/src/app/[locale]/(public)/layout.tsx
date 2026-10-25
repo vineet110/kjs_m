@@ -1,16 +1,22 @@
 import { JsonLd, organizationLd } from '@/components/public/JsonLd';
 import KokoChatWidget from '@/components/public/KokoChatWidget';
+import OffersTicker from '@/components/public/OffersTicker';
 import SiteFooter from '@/components/public/SiteFooter';
 import SiteHeader from '@/components/public/SiteHeader';
+import WhatsAppButton from '@/components/public/WhatsAppButton';
+import { features } from '@/lib/api';
 
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
+export default async function PublicLayout({ children }: { children: React.ReactNode }) {
+  const f = await features(); // on/off switches from config/features.ini
   return (
     <>
       <JsonLd data={organizationLd} />
-      <SiteHeader />
+      {f.offers_ticker && <OffersTicker />}
+      <SiteHeader showPartners={f.partners} showPrivateLabel />
       <main className="min-h-[60vh]">{children}</main>
       <SiteFooter />
-      <KokoChatWidget />
+      {f.whatsapp_button && <WhatsAppButton />}
+      {f.koko && <KokoChatWidget />}
     </>
   );
 }

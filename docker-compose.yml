@@ -44,43 +44,16 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      CONFIG_DIR: /config
     volumes:
       - ./backend:/app
+      - ./config:/config:ro  # edit config/*.ini on the server: applies live, no rebuild
       - file_storage:/srv/kjs_files
     ports:
       - "8000:8000"
+    # Background jobs run inside this process (app/jobs), so no separate worker/scheduler
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: kjs_worker
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - ./backend:/app
-      - file_storage:/srv/kjs_files
-    command: python -m app.worker.job_queue
-    restart: unless-stopped
-
-  scheduler:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: kjs_scheduler
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - ./backend:/app
-    command: python -m app.scheduler.scheduler_setup
     restart: unless-stopped
 
   frontend:
