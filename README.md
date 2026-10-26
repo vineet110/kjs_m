@@ -62,6 +62,13 @@ npm run dev
 # 4. Tests (throwaway Postgres in Docker, never touches Neon)
 docker compose --profile test up -d test-db
 cd backend && .venv/Scripts/python -m pytest -q
+#    Or fully inside Docker (about 40 s; also works when Windows blocks .venv's python.exe).
+#    Git Bash, from backend/:
+#    docker build -q -t kjs-api:test . && MSYS_NO_PATHCONV=1 docker run --rm -u root --network container:kjs_test_db \
+#      -v "$(cygpath -w "$PWD/tests"):/app/tests" -v "$(cygpath -w "$PWD/pyproject.toml"):/app/pyproject.toml" \
+#      -v "$(cygpath -w "$PWD/../config"):/config:ro" \
+#      -e TEST_DATABASE_URL=postgresql+asyncpg://kjs_test:kjs_test@127.0.0.1:5432/kjs_test \
+#      kjs-api:test sh -c "pip install -q pytest==8.2.2 pytest-asyncio==0.23.7 freezegun==1.5.1 && python -m pytest -q"
 
 # 5. End-to-end (real servers + real Chrome): see scripts/e2e/README.md
 ```

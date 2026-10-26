@@ -38,12 +38,42 @@ async def test_bad_type_and_unknown_owner_rejected(client):
 async def test_public_files_only_when_marked_public(client):
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
-    private_id = (await _upload(client)).json()["id"]
-    public_id = (await _upload(client, file=("photo.png", b"\x89PNG..", "image/png"), public=True)).json()["id"]
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"}, headers=HDR)).json()
+    private_id = (await _upload(client, owner_id=p["slug"])).json()["id"]
+    public_id = (await _upload(client, owner_id=p["slug"], file=("photo.png", b"\x89PNG..", "image/png"), public=True)).json()["id"]
     client.cookies.clear()
     assert (await client.get(f"/api/v1/public/files/{private_id}")).status_code == 404
     r = await client.get(f"/api/v1/public/files/{public_id}")
     assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.headers["content-security-policy"] == "sandbox"
+    assert [f["id"] for f in (await client.get(f"/api/v1/public/products/{p['slug']}/files")).json()] == [public_id]
+
+    # Hiding the product takes its files off the website too
+    await login(client, "cat@kjsindia.com")
+    await client.patch(f"/api/v1/admin/products/{p['id']}", json={"category_slug": "coffee", "name": "Stick Coffee",
+                                                                 "is_active": False}, headers=HDR)
+    client.cookies.clear()
+    assert (await client.get(f"/api/v1/public/files/{public_id}")).status_code == 404
+    assert (await client.get(f"/api/v1/public/products/{p['slug']}/files")).json() == []
+
+
+async def test_nobody_approves_their_own_delete(client):
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit", "files.approve"])
+    await login(client, "cat@kjsindia.com")
+    fid = (await _upload(client)).json()["id"]
+    await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "Old version"}, headers=HDR)
+    r = await client.post(f"/api/v1/files/{fid}/delete-decision", json={"approve": True}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "own_request"
+
+
+async def test_seeing_a_file_is_not_enough_to_request_its_delete(client):
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await make_user("e@kjsindia.com")  # can read product files, can't edit products
+    await login(client, "cat@kjsindia.com")
+    fid = (await _upload(client)).json()["id"]
+    await login(client, "e@kjsindia.com")
+    r = await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "I want it gone"}, headers=HDR)
+    assert r.status_code == 403
 
 
 async def test_delete_needs_approval(client):

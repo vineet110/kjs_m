@@ -41,7 +41,7 @@ async def _openai_compatible(url: str, key: str, system: str, messages: list[dic
             r = await client.post(url, json=payload, headers={"Authorization": f"Bearer {key}"})
         r.raise_for_status()
         return (r.json()["choices"][0]["message"]["content"] or "").strip()
-    except (httpx.HTTPError, KeyError, IndexError) as e:
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as e:  # ValueError: not JSON
         log.warning("llm.call_failed", extra={"provider": settings.LLM_PROVIDER, "reason": str(e)[:300]})
         raise LLMUnavailable(str(e)) from e
 
@@ -59,6 +59,6 @@ async def _anthropic(system: str, messages: list[dict], max_tokens: int) -> str:
             )
         r.raise_for_status()
         return "".join(b.get("text", "") for b in r.json()["content"]).strip()
-    except (httpx.HTTPError, KeyError) as e:
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
         log.warning("llm.call_failed", extra={"provider": "anthropic", "reason": str(e)[:300]})
         raise LLMUnavailable(str(e)) from e

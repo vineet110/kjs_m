@@ -118,4 +118,9 @@ async def _product_files_access(db: AsyncSession, user: User, owner_id: str, act
     return action == "read" or "catalog.edit" in effective_permissions(user.role, user.permissions)
 
 
-file_service.register_owner("product", _product_files_access)
+async def _product_is_live(db: AsyncSession, slug: str) -> bool:
+    return bool(await db.scalar(select(Product.id).join(Category, Category.id == Product.category_id)
+                                .where(Product.slug == slug, Product.is_active, Category.is_active)))
+
+
+file_service.register_owner("product", _product_files_access, public=_product_is_live)

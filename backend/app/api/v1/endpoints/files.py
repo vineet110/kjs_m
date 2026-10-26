@@ -29,8 +29,10 @@ def send_file(f, url: str | None, data: bytes | None, inline: bool = False):
     if url:
         return RedirectResponse(url, status_code=302)
     disposition = "inline" if inline else f'attachment; filename="{file_service.safe_name(f.name)}"'
+    # sandbox: even if an uploaded PDF carries scripts, they can't run as our website
     return Response(data, media_type=f.content_type, headers={"content-disposition": disposition,
-                                                               "x-content-type-options": "nosniff"})
+                                                               "x-content-type-options": "nosniff",
+                                                               "content-security-policy": "sandbox"})
 
 
 @router.get("/{file_id}/download")

@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-kjs_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kjs_secret_pass}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # this PC only: not reachable from the office network
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/alembic/init_roles.sql:/docker-entrypoint-initdb.d/init_roles.sql
@@ -32,7 +32,7 @@ services:
       POSTGRES_USER: kjs_test
       POSTGRES_PASSWORD: kjs_test
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     tmpfs:
       - /var/lib/postgresql/data  # in memory: fast, wiped on stop
 

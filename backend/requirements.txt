@@ -4,12 +4,12 @@
 # feature needs it; see "Later" at the bottom.
 # ==============================================================================
 
-# Core Web Framework & ASGI
-fastapi==0.111.0
+# Core Web Framework & ASGI (fastapi 0.129 brings starlette 0.52: fixes multipart/Range DoS advisories)
+fastapi==0.129.2
 uvicorn[standard]==0.30.1
 pydantic==2.7.4
 pydantic-settings==2.3.4
-python-multipart==0.0.9
+python-multipart==0.0.32
 
 # Database, ORM & migrations
 sqlalchemy[asyncio]==2.0.31

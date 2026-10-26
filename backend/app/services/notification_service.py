@@ -7,7 +7,7 @@ server never slows a click. WhatsApp copies come after Meta business verificatio
 import asyncio
 import logging
 import smtplib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
 from sqlalchemy import func, select, update
@@ -24,8 +24,9 @@ log = logging.getLogger(__name__)
 
 
 def notify(db: AsyncSession, user_ids: set[int] | list[int], kind: str, title: str, body: str = "", link: str = "") -> None:
+    title = " ".join(title.split())[:200]  # one line: titles become email subjects
     for uid in set(user_ids):
-        db.add(Notification(user_id=uid, kind=kind, title=title[:200], body=body, link=link,
+        db.add(Notification(user_id=uid, kind=kind, title=title, body=body, link=link,
                             email_status="pending"))
 
 
@@ -65,26 +66,45 @@ def _send_smtp(to: str, subject: str, text: str) -> None:
         s.send_message(msg)
 
 
-@job("send_emails")
+MAX_EMAIL_ATTEMPTS = 3
+
+
+@job("send_emails", any_time=True)  # also at night and on Sundays: a lead shouldn't wait till Monday
 async def send_emails(db: AsyncSession) -> dict:
+    """Each email is saved as sent the moment it goes out (commit per email), so a crash or restart
+    never sends the same email twice. A failed send is retried on the next runs, up to 3 tries."""
+    # Rows left in "sending" by a crash 15+ minutes ago go back in the queue.
+    await db.execute(update(Notification)
+                     .where(Notification.email_status == "sending",
+                            Notification.updated_at < datetime.now(timezone.utc) - timedelta(minutes=15))
+                     .values(email_status="pending"))
     rows = (await db.execute(
         select(Notification, User).join(User, User.id == Notification.user_id)
         .where(Notification.email_status == "pending").order_by(Notification.id).limit(50)
+        .with_for_update(of=Notification, skip_locked=True)
     )).all()
     sent = skipped = failed = 0
     email_on = "email" in cfg().alerts.channels and bool(settings.SMTP_HOST)
-    for n, u in rows:
-        if not (email_on and u.notify_email and u.status == "active"):
+    for n, u in rows:  # claim the whole batch first, so nobody else picks these rows
+        if email_on and u.notify_email and u.status == "active":
+            n.email_status = "sending"
+        else:
             n.email_status = "skipped"
             skipped += 1
+    await db.commit()
+    for n, u in rows:
+        if n.email_status != "sending":
             continue
         link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if n.link else ""
         try:
             await asyncio.to_thread(_send_smtp, u.email, f"[KJS] {n.title}", f"{n.body}{link}")
             n.email_status = "sent"
             sent += 1
-        except (OSError, smtplib.SMTPException) as e:
-            n.email_status = "failed"
+        except Exception as e:  # any error stays with this one email; the rest still go out
+            n.email_attempts += 1
+            n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
             failed += 1
-            log.warning("email.failed", extra={"notification_id": n.id, "reason": str(e)[:200]})
+            log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
+                                               "reason": f"{type(e).__name__}: {str(e)[:200]}"})
+        await db.commit()
     return {"sent": sent, "skipped": skipped, "failed": failed}

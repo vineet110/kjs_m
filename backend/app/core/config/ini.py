@@ -21,7 +21,9 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from pydantic import BaseModel, Field, ValidationError
+from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 log = logging.getLogger("app.config")
 
@@ -31,6 +33,9 @@ ENV_PREFIX = "KJS__"
 
 
 # ---------- The shape of every file (types, ranges, defaults) ----------
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"  # 24-hour time like 09:30. A typo ("09.30") is refused, not used.
+
+
 class AppIni(BaseModel):
     site_name: str = "KJS India"
     timezone: str = "Asia/Kolkata"
@@ -40,9 +45,21 @@ class AppIni(BaseModel):
     jobs_enabled: bool = True
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat
-    shift_start: str = "09:30"  # IST; check-in after shift_start + late_after_minutes = late
-    shift_end: str = "18:30"
+    shift_start: str = Field("09:30", pattern=HHMM)  # IST; check-in after shift_start + late_after_minutes = late
+    shift_end: str = Field("18:30", pattern=HHMM)
     late_after_minutes: int = Field(15, ge=0)
+
+    @field_validator("timezone")
+    @classmethod
+    def real_timezone(cls, v: str) -> str:
+        ZoneInfo(v)  # raises for a misspelt name, so the last good config is kept
+        return v
+
+    @model_validator(mode="after")
+    def shift_order(self):
+        if self.shift_start >= self.shift_end:
+            raise ValueError("shift_start must be before shift_end")
+        return self
 
 
 class FeaturesIni(BaseModel):
@@ -63,8 +80,14 @@ class SlaIni(BaseModel):
 class AssignIni(BaseModel):
     batch_size: int = Field(20, ge=1, le=500)
     max_batches_per_day: int = Field(3, ge=1)
-    work_start: str = "09:30"
-    work_end: str = "18:30"
+    work_start: str = Field("09:30", pattern=HHMM)
+    work_end: str = Field("18:30", pattern=HHMM)
+
+    @model_validator(mode="after")
+    def work_order(self):
+        if self.work_start >= self.work_end:
+            raise ValueError("work_start must be before work_end")
+        return self
 
 
 class AlertsIni(BaseModel):
@@ -75,6 +98,7 @@ class AlertsIni(BaseModel):
 class KokoIni(BaseModel):
     temperature: float = Field(0.3, ge=0, le=2)
     max_tokens: int = Field(700, ge=50, le=4000)
+    daily_limit: int = Field(2000, ge=0, le=100000)  # AI calls per day for ALL visitors together (cost cap)
 
 
 class LoggingIni(BaseModel):

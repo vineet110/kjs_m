@@ -80,6 +80,9 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None) -> Lead | 
     if data.website:  # honeypot filled = bot. Pretend success, save nothing.
         return None
     lead_limiter.check(ip_hash)
+    # The AI summary first, before any database query: an LLM call takes seconds, and holding a
+    # database connection that long would starve other requests when several visitors chat.
+    summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""
 
     product_id = category_id = None
     if data.product_slug:
@@ -89,7 +92,6 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None) -> Lead | 
     if data.category_slug and category_id is None:
         category_id = await db.scalar(select(Category.id).where(Category.slug == data.category_slug))
 
-    summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""
     lead = Lead(
         source=data.source, name=data.name.strip(), company=data.company.strip(),
         email=data.email or "", phone=data.phone.strip(), country=data.country.strip(),
@@ -134,6 +136,10 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
         q = q.where((Lead.assigned_to == user.id) | (Lead.assigned_to.is_(None)))
     if status:
         q = q.where(Lead.status == status)
+    if sla_state and sla_state != "done":
+        # Only open leads can be overdue / due soon. Filter them in SQL and look past the newest
+        # `limit` rows, otherwise an old overdue lead would vanish from the "overdue" list.
+        q = q.where(Lead.status != "closed").limit(2000)
     if owner:
         q = q.where(Lead.assigned_to == owner)
     now = datetime.now(timezone.utc)
@@ -155,8 +161,10 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
     return out
 
 
-async def _lead_for(db: AsyncSession, user: User, lead_id: int) -> Lead:
-    lead = await db.get(Lead, lead_id)
+async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = False) -> Lead:
+    # lock=True for changes: if two people take the same unassigned lead at once, the second waits,
+    # then sees it is no longer unassigned and gets "not found" instead of silently overwriting.
+    lead = await db.get(Lead, lead_id, with_for_update=lock, populate_existing=lock)
     if lead is None or not (_can_see_all(user) or lead.assigned_to in (None, user.id)):
         raise AppError(404, "not_found", "Lead not found.")
     return lead
@@ -164,7 +172,7 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int) -> Lead:
 
 # ---------- Working a lead ----------
 async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, outcome: str = "") -> None:
-    lead = await _lead_for(db, user, lead_id)
+    lead = await _lead_for(db, user, lead_id, lock=True)
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
@@ -186,7 +194,7 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
 
 
 async def add_note(db: AsyncSession, user: User, lead_id: int, kind: str, text: str) -> None:
-    lead = await _lead_for(db, user, lead_id)
+    lead = await _lead_for(db, user, lead_id, lock=True)
     db.add(LeadNote(lead_id=lead.id, user_id=user.id, kind=kind, text=text.strip()))
     if kind in ("call", "email") and lead.status == "new":
         await set_status(db, user, lead_id, "contacted")  # logging a call/email = responded
@@ -204,7 +212,7 @@ async def list_notes(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
 
 async def assign(db: AsyncSession, user: User, lead_id: int, to_user_id: int) -> None:
     """Hand over (owner) or reassign (leads.view_all) a lead to a colleague."""
-    lead = await _lead_for(db, user, lead_id)
+    lead = await _lead_for(db, user, lead_id, lock=True)
     target = await db.get(User, to_user_id)
     if target is None or target.status != "active":
         raise AppError(422, "bad_user", "Pick an active colleague.")

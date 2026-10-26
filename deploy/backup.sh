@@ -5,22 +5,30 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Backups hold password hashes, customer contact details and every uploaded file:
+# only the owner of the files may read them (no other user on the server).
+umask 077
+
 BACKUP_DIR="${BACKUP_DIR:-/srv/kjs/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+
+db_file="$BACKUP_DIR/db-$stamp.dump"
+files_file="$BACKUP_DIR/files-$stamp.tgz"
+# If anything fails, don't leave half-written files behind
+trap 'rm -f "$db_file.tmp" "$files_file.tmp"' EXIT
 
 # 1. Database. -Fc = Postgres "custom" format: compressed, restores table by table.
 #    Written to .tmp first, so a half-finished file is never mistaken for a good backup.
-db_file="$BACKUP_DIR/db-$stamp.dump"
 $COMPOSE exec -T db pg_dump -U kjs -d kjs -Fc > "$db_file.tmp"
 # Check the file is a readable backup before keeping it
 $COMPOSE exec -T db pg_restore -l < "$db_file.tmp" > /dev/null
 mv "$db_file.tmp" "$db_file"
 
 # 2. Uploaded files (only matters when STORAGE_DRIVER=local; with R2, Cloudflare keeps them)
-files_file="$BACKUP_DIR/files-$stamp.tgz"
 $COMPOSE exec -T backend tar czf - -C /srv/kjs_files . > "$files_file.tmp"
 mv "$files_file.tmp" "$files_file"
 

@@ -9,13 +9,13 @@ import { serverGet, type Category, type Product } from '@/lib/api';
 type Props = { params: { slug: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const c = await serverGet<Category>(`/public/categories/${params.slug}`);
+  const c = await serverGet<Category>(`/public/categories/${encodeURIComponent(params.slug)}`);
   return c ? { title: `${c.name} contract manufacturing`, description: c.description } : {};
 }
 
 export default async function CategoryPage({ params }: Props) {
   const [category, products] = await Promise.all([
-    serverGet<Category>(`/public/categories/${params.slug}`),
+    serverGet<Category>(`/public/categories/${encodeURIComponent(params.slug)}`),
     serverGet<Product[]>(`/public/products?category=${encodeURIComponent(params.slug)}`),
   ]);
   if (!category) notFound();

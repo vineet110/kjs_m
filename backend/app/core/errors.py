@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = logging.getLogger("app.errors")
@@ -42,6 +43,15 @@ def install_error_handlers(app: FastAPI) -> None:
     async def validation_error(request: Request, exc: RequestValidationError):
         fields = {".".join(str(p) for p in e["loc"][1:]): e["msg"] for e in exc.errors()}
         return JSONResponse(_body(request, "validation_error", "Please check the highlighted fields.", fields), status_code=422)
+
+    # Two clicks at the same moment (check-in, same board code, same holiday): the database's
+    # unique rule stops the second one. That's "already done", not a server bug.
+    @app.exception_handler(IntegrityError)
+    async def conflict(request: Request, exc: IntegrityError):
+        log.warning("db.conflict", extra={"request_id": getattr(request.state, "request_id", None),
+                                          "reason": str(exc.orig)[:200]})
+        return JSONResponse(_body(request, "conflict", "This was already done or already exists. Please refresh."),
+                            status_code=409)
 
     @app.exception_handler(Exception)
     async def unexpected(request: Request, exc: Exception):

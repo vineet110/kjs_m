@@ -2,6 +2,7 @@
 // Hidden when there are no live offers or the feature is switched off (config/features.ini).
 import Link from 'next/link';
 import { serverGet, type Offer } from '@/lib/api';
+import { safeLink } from '@/lib/safe-url';
 
 export default async function OffersTicker() {
   const offers = (await serverGet<Offer[]>('/public/offers').catch(() => null)) ?? [];
@@ -11,8 +12,8 @@ export default async function OffersTicker() {
     <div className="overflow-hidden bg-gold text-ink" aria-label="Current offers">
       <div className="flex w-max animate-ticker gap-12 whitespace-nowrap py-1.5 text-sm font-semibold hover:[animation-play-state:paused] motion-reduce:animate-none">
         {items.map((o, i) =>
-          o.link ? (
-            <Link key={i} href={o.link} className="underline-offset-2 hover:underline">★ {o.text}</Link>
+          safeLink(o.link) ? (
+            <Link key={i} href={safeLink(o.link)!} className="underline-offset-2 hover:underline">★ {o.text}</Link>
           ) : (
             <span key={i}>★ {o.text}</span>
           ),

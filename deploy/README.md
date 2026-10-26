@@ -20,6 +20,10 @@ Every command runs on the server (Linux), from the `deploy/` folder, unless it s
 
 6. `restore.sh`: put a backup back.
 
+7. `db/`: the app's own limited database user (`init-app-user.sh`, runs once) and its rights (`grants.sql`).
+
+8. `nginx/security-headers.conf`: security headers and the Content-Security-Policy, used by every page.
+
 
 How a visitor reaches us:
 
@@ -60,9 +64,13 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    cp .env.production.example .env
    chmod 600 .env          # only you can read it
    openssl rand -hex 32    # use this for SECRET_KEY
-   openssl rand -hex 24    # use this for POSTGRES_PASSWORD (and inside DATABASE_URL)
+   openssl rand -hex 24    # use this for POSTGRES_PASSWORD (and inside MIGRATION_DATABASE_URL)
+   openssl rand -hex 24    # a DIFFERENT one for APP_DB_PASSWORD (and inside DATABASE_URL)
    nano .env
    ```
+
+   Two database users: `kjs` owns the tables (migrations, backups) and `kjs_app` is what the app uses.
+   `kjs_app` may only read and write rows, and can never change the audit log.
 
    The API refuses to start if something is still unsafe (default secret, `http://` address,
    localhost in ALLOWED_ORIGINS, example database password). The log says exactly which one.
@@ -76,6 +84,8 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    ```
 
    Check it on the server: `curl http://127.0.0.1:8080/api/health/ready` should say `"ready"`.
+
+   Then log in, change the admin password (Profile), and delete the `FIRST_ADMIN_*` lines from `.env`.
 
 
 6. Cloudflare Tunnel (makes the site reachable from the internet, with HTTPS)
@@ -92,6 +102,8 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    ```
 
    vi.   In Cloudflare -> SSL/TLS: mode "Full", turn on "Always use HTTPS" and HSTS.
+   vii.  Leave Cloudflare's "Rocket Loader" and other script-injecting features OFF: our
+         Content-Security-Policy would block them (and they aren't needed).
 
 
 7. Nightly backups (cron)
@@ -112,7 +124,8 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    ./deploy.sh
    ```
 
-   It backs up, migrates, restarts, and waits for the health check. It keeps the last 3 image versions.
+   It backs up, migrates, restarts, and waits for the health check. It keeps the last 3 image versions
+   and writes the live version into `.env` (`TAG=<commit>`), so every later command uses that version.
 
 
 2. Change a setting (SLA minutes, batch size, feature on/off)
@@ -123,8 +136,10 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
 3. Change a secret in `.env`
 
    ```bash
-   docker compose -f docker-compose.prod.yml up -d    # recreates containers with the new values
+   docker compose -f docker-compose.prod.yml up -d --no-build    # recreates containers with the new values
    ```
+
+   Always use `--no-build` with a plain `up`: it runs the version recorded in `TAG`, never untested code.
 
 
 4. Look at logs
@@ -147,11 +162,14 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
 
 1. See which versions exist: `docker image ls kjs-api`  (tags are git commits, newest first)
 
-2. Start the previous one:
+2. Put the previous one in `.env` and start it:
 
    ```bash
-   TAG=<previous-commit> docker compose -f docker-compose.prod.yml up -d --no-build backend frontend
+   sed -i 's/^TAG=.*/TAG=<previous-commit>/' .env
+   docker compose -f docker-compose.prod.yml up -d --no-build backend frontend
    ```
+
+   Because the version is in `.env`, it stays rolled back after any restart.
 
 3. If the broken version changed the database (a new migration), also restore the backup that
    `deploy.sh` made just before it (section 5).
@@ -174,7 +192,14 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    ./restore.sh /srv/kjs/backups/db-20261210-023000.dump /srv/kjs/backups/files-20261210-023000.tgz
    ```
 
-   It asks you to type RESTORE, stops the app, replaces the database (and files), and starts the app.
+   It asks you to type RESTORE, then:
+
+   i.    backs up the CURRENT state first (so a wrong restore can be undone),
+   ii.   stops the app,
+   iii.  replaces the database in one transaction (if anything fails, nothing changes),
+   iv.   replaces the files (if you gave a files backup),
+   v.    updates the tables to the current code version and re-applies the app user's rights,
+   vi.   starts the app again (also when something failed).
 
 
 3. Restore drill (once a month, and before go-live)
@@ -189,13 +214,18 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
 
    A backup on the same disk is lost with the disk. Copy `/srv/kjs/backups` to another place every night,
    for example a Cloudflare R2 bucket with `rclone` (a new tool: ask before installing).
+   Encrypt it before it leaves the server (for example `age` or `gpg`): it holds customer data.
    Decide this with the KJS IT contact.
+
+5. Backups are readable only by the user who runs `backup.sh` (folder 700, files 600).
+   Run the cron job as that same user, never as a shared account.
 
 
 
 ## 6. Using Neon (or another hosted Postgres) instead of the db container
 
 1. Put the hosted address in `.env` as `DATABASE_URL` (and `MIGRATION_DATABASE_URL` for the direct one).
+   Create a limited app user there too, with the rights in `db/grants.sql`.
 
 2. Remove the `db` service from the compose file, and the `depends_on: db` under backend.
 

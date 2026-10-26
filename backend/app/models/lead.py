@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -11,6 +11,7 @@ class Lead(Base, TimestampMixin):
     distributors, private-label brands)."""
 
     __tablename__ = "leads"
+    __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"))
 
     source: Mapped[str] = mapped_column(String(30))  # enquiry_form | price_sheet | koko
     name: Mapped[str] = mapped_column(String(120))

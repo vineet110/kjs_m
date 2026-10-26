@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.models.user import User
+from app.schemas.common import OneLine, SafeLink
 from app.services import content_service
 
 router = APIRouter()
@@ -31,8 +32,8 @@ async def set_text(key: str, data: TextIn, user: User = Depends(editor), db: Asy
 
 
 class OfferIn(BaseModel):
-    text: str = Field(min_length=3, max_length=200)
-    link: str = Field(default="", max_length=255)
+    text: OneLine = Field(min_length=3, max_length=200)
+    link: SafeLink = Field(default="", max_length=255)
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     is_active: bool = True

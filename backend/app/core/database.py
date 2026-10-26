@@ -14,7 +14,8 @@ engine = create_async_engine(
     pool_recycle=240,  # also replace connections every 4 min, before PgBouncer closes idle ones
     # Tests open a new event loop per test; pooled connections can't cross loops.
     **({"poolclass": NullPool} if settings.APP_ENV == "test" else {}),
-    connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0},
+    # command_timeout: a query that hangs (network, lock) fails after 60 s instead of blocking forever
+    connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0, "command_timeout": 60},
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

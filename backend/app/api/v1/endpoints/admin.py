@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,8 @@ from app.models.user import User
 from app.schemas.auth import ApproveIn, UserOut
 from app.schemas.catalog import ProductIn, ProductOut
 from app.schemas.lead import LeadOut
-from app.services import analytics_service, attendance_service, auth_service, calendar_service, catalog_service, file_service, lead_service
+from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
+                          catalog_service, file_service, lead_service)
 
 router = APIRouter()
 
@@ -157,8 +158,11 @@ async def config_view(_: User = Depends(require_permission("staff.approve"))):
 
 
 @router.post("/config/reload")
-async def config_reload(user: User = Depends(require_permission("staff.approve"))):
+async def config_reload(user: User = Depends(require_permission("staff.approve")),
+                        db: AsyncSession = Depends(get_db)):
     reload_now()
+    audit_service.record(db, actor=user, action="config.reloaded", entity_type="config")
+    await db.commit()
     return effective_with_sources()
 
 
@@ -176,7 +180,7 @@ class AuditOut(BaseModel):
 
 @router.get("/audit", response_model=list[AuditOut])
 async def audit(
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=500),
     _: User = Depends(require_permission("audit.view")),
     db: AsyncSession = Depends(get_db),
 ):
