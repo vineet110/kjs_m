@@ -9,6 +9,7 @@ from app.core.permissions import effective_permissions
 from app.core.security import hash_ip, hash_token
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut, SignupIn
+from app.schemas.common import OneLine
 from app.services import auth_service
 
 router = APIRouter()
@@ -26,8 +27,8 @@ async def signup(data: SignupIn, request: Request, db: AsyncSession = Depends(ge
 
 
 @router.post("/login", response_model=MeOut)
-async def login(data: LoginIn, response: Response, db: AsyncSession = Depends(get_db)):
-    user, token = await auth_service.login(db, data.email, data.password)
+async def login(data: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    user, token = await auth_service.login(db, data.email, data.password, hash_ip(client_ip(request)))
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
         max_age=settings.SESSION_DAYS * 86400,
@@ -51,7 +52,7 @@ async def me(user: User = Depends(current_user)):
 
 
 class ProfileIn(BaseModel):
-    name: str | None = Field(default=None, min_length=2, max_length=100)
+    name: OneLine | None = Field(default=None, min_length=2, max_length=100)
     phone: str | None = Field(default=None, max_length=20)
     notify_email: bool | None = None
     notify_whatsapp: bool | None = None

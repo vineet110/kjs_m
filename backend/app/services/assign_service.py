@@ -9,13 +9,16 @@ Rules (config/assign.ini):
 - The `auto_assign` job runs between work_start and work_end; "Run now" works any time.
 Records are locked with FOR UPDATE SKIP LOCKED, so two runs can never give one record twice.
 """
+import asyncio
 import csv
 import io
 import logging
+import zipfile
+import zlib
 from datetime import datetime, timezone
 
 from openpyxl import load_workbook
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -30,6 +33,8 @@ from app.services.attendance_service import local_day, tz
 
 log = logging.getLogger(__name__)
 MAX_ROWS = 5000
+MAX_COLS = 30
+MAX_UNZIPPED_MB = 60  # an .xlsx is a zip: a small file can unpack to gigabytes ("zip bomb")
 COLUMNS = {  # our field -> header names people actually use
     "company": ("company", "company name", "business", "buyer", "name"),
     "contact_name": ("contact", "contact name", "person", "contact person"),
@@ -49,12 +54,24 @@ def read_rows(filename: str, data: bytes) -> list[dict]:
     name = filename.lower()
     if name.endswith(".xlsx"):
         try:
+            unzipped = sum(i.file_size for i in zipfile.ZipFile(io.BytesIO(data)).infolist())
+        except zipfile.BadZipFile as e:
+            raise AppError(422, "bad_file", "Could not read this Excel file.") from e
+        if unzipped > MAX_UNZIPPED_MB * 1024 * 1024:
+            raise AppError(422, "bad_file", "This Excel file is too big. Please split it into smaller files.")
+        try:
             ws = load_workbook(io.BytesIO(data), read_only=True, data_only=True).active
+            # Read at most MAX_ROWS (+ header) rows and MAX_COLS columns, never the whole sheet
+            table = [[("" if c is None else str(c)).strip() for c in row]
+                     for row in ws.iter_rows(max_row=MAX_ROWS + 1, max_col=MAX_COLS, values_only=True)]
         except Exception as e:  # openpyxl raises many types for a bad file
             raise AppError(422, "bad_file", "Could not read this Excel file.") from e
-        table = [[("" if c is None else str(c)).strip() for c in row] for row in ws.iter_rows(values_only=True)]
     elif name.endswith(".csv"):
-        table = [[c.strip() for c in row] for row in csv.reader(io.StringIO(data.decode("utf-8-sig", errors="replace")))]
+        try:
+            reader = csv.reader(io.StringIO(data.decode("utf-8-sig", errors="replace")))
+            table = [[c.strip() for c in row[:MAX_COLS]] for _, row in zip(range(MAX_ROWS + 1), reader)]
+        except csv.Error as e:
+            raise AppError(422, "bad_file", "Could not read this CSV file.") from e
     else:
         raise AppError(422, "bad_file", "Please upload an .xlsx or .csv file.")
     if not table:
@@ -73,7 +90,7 @@ def read_rows(filename: str, data: bytes) -> list[dict]:
 async def import_records(db: AsyncSession, user: User, filename: str, data: bytes, default_category: str) -> dict:
     cats = {c.slug: c.slug for c in (await db.scalars(select(Category))).all()}
     cats |= {c.name.lower(): c.slug for c in (await db.scalars(select(Category))).all()}
-    rows = read_rows(filename, data)
+    rows = await asyncio.to_thread(read_rows, filename, data)  # parsing is slow: keep the server responsive
     lst = RecordList(name=filename[:200], rows=0, uploaded_by=user.id)
     db.add(lst)
     await db.flush()
@@ -134,6 +151,9 @@ async def preview(db: AsyncSession, now: datetime | None = None) -> list[dict]:
 
 async def run(db: AsyncSession, actor: User | None = None, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
+    # Same lock as the auto_assign job: "Run now" waits for a running job (and a double click
+    # waits for the first click), so nobody gets two open batches.
+    await db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": zlib.crc32(b"auto_assign")})
     size, given = cfg().assign.batch_size, []
     for user, _ in await _eligible(db, now):
         records = (await db.scalars(
@@ -192,7 +212,8 @@ async def my_batches(db: AsyncSession, user: User) -> list[dict]:
 
 async def update_record(db: AsyncSession, user: User, record_id: int, status: str, outcome: str) -> dict:
     r = await db.get(BuyerRecord, record_id)
-    batch = await db.get(Batch, r.batch_id) if r and r.batch_id else None
+    # Lock the batch: two quick "done" clicks on its last two records must not both see "1 left"
+    batch = await db.get(Batch, r.batch_id, with_for_update=True) if r and r.batch_id else None
     if r is None or batch is None or batch.user_id != user.id:
         raise AppError(404, "not_found", "Record not found.")
     r.status, r.outcome = status, outcome.strip()

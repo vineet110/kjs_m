@@ -28,11 +28,15 @@ from app.core.logs import request_id_var
 log = logging.getLogger("app.jobs")
 JobFn = Callable[[AsyncSession], Awaitable[dict | None]]
 JOBS: dict[str, JobFn] = {}
+ANY_TIME: set[str] = set()  # jobs that also run outside jobs_hours (e.g. emails)
+JOB_TIMEOUT_SECONDS = 300  # a stuck job is cancelled, so it can't block every other job forever
 
 
-def job(name: str):
+def job(name: str, any_time: bool = False):
     def register(fn: JobFn) -> JobFn:
         JOBS[name] = fn
+        if any_time:
+            ANY_TIME.add(name)
         return fn
     return register
 
@@ -58,7 +62,7 @@ async def run_job(name: str) -> dict | None:
             if not got:
                 log.info("job.skipped_locked", extra={"job": name, "job_run_id": run_id})
                 return None
-            result = await JOBS[name](db) or {}
+            result = await asyncio.wait_for(JOBS[name](db), timeout=JOB_TIMEOUT_SECONDS) or {}
             await db.commit()
         log.info("job.finished", extra={"job": name, "job_run_id": run_id, **result})
         return result
@@ -72,9 +76,11 @@ async def run_job(name: str) -> dict | None:
 async def loop() -> None:
     while True:
         try:
-            if cfg().app.jobs_enabled and in_job_hours():
+            if cfg().app.jobs_enabled:
+                working = in_job_hours()
                 for name in list(JOBS):
-                    await run_job(name)
+                    if working or name in ANY_TIME:
+                        await run_job(name)
         except Exception:
             log.exception("jobs.loop_error")
         await asyncio.sleep(cfg().app.jobs_interval_seconds)

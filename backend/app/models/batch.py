@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -40,6 +40,8 @@ class Batch(Base, TimestampMixin):
     """A set of records given to one person on one day."""
 
     __tablename__ = "batches"
+    __table_args__ = (Index("uq_batches_one_open_per_user", "user_id", unique=True,
+                            postgresql_where=text("status = 'open'")),)
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     day: Mapped[date] = mapped_column(Date, index=True)  # IST date

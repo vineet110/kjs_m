@@ -166,6 +166,8 @@ async def set_partner_status(db: AsyncSession, user: User, partner_id: int, stat
 async def save_chat(db: AsyncSession, chat_id: str, page: str, messages: list[dict], suggested: bool,
                     ip_hash: str | None) -> None:
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
+    if row is not None and row.ip_hash != ip_hash:
+        return  # someone else's chat id: never overwrite another visitor's transcript
     if row is None:
         row = KokoChat(chat_id=chat_id, page=page[:255], messages=[], suggested_enquiry=False, ip_hash=ip_hash)
         db.add(row)

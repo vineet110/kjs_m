@@ -11,12 +11,12 @@ import { SITE } from '@/lib/site';
 type Props = { params: { slug: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const p = await serverGet<Product>(`/public/products/${params.slug}`);
+  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(params.slug)}`);
   return p ? { title: p.name, description: p.description.slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
-  const p = await serverGet<Product>(`/public/products/${params.slug}`);
+  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(params.slug)}`);
   if (!p) notFound();
   const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
   const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));

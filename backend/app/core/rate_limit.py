@@ -8,20 +8,45 @@ from app.core.config.ini import cfg
 from app.core.errors import AppError
 
 
+ALL: list["RateLimiter"] = []
+
+
+def reset_all() -> None:  # used by tests
+    for limiter in ALL:
+        limiter.reset()
+
+
 class RateLimiter:
     def __init__(self, limit: Callable[[], int], window_seconds: int):
         self.limit, self.window = limit, window_seconds  # limit is read on every check (live config)
         self._hits: dict[str, deque] = defaultdict(deque)
+        ALL.append(self)
 
-    def check(self, key: str | None) -> None:
-        if not key:
-            return
-        now, q = time.monotonic(), self._hits[key]
+    def _recent(self, key: str) -> deque:
+        now, q = time.monotonic(), self._hits.get(key)
+        if q is None:
+            return deque()
         while q and now - q[0] > self.window:
             q.popleft()
-        if len(q) >= self.limit():
+        if not q:
+            del self._hits[key]  # forget idle keys, so memory doesn't grow with every IP ever seen
+        return q
+
+    def blocked(self, key: str | None) -> bool:
+        """Is this key over the limit right now? (does not count as a hit)"""
+        return bool(key) and len(self._recent(key)) >= self.limit()
+
+    def hit(self, key: str | None) -> None:
+        """Count one hit, without refusing (e.g. a wrong password)."""
+        if key:
+            self._recent(key)
+            self._hits[key].append(time.monotonic())
+
+    def check(self, key: str | None) -> None:
+        """Refuse if over the limit, otherwise count this hit."""
+        if self.blocked(key):
             raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
-        q.append(now)
+        self.hit(key)
 
     def reset(self) -> None:  # used by tests
         self._hits.clear()
@@ -31,3 +56,5 @@ class RateLimiter:
 lead_limiter = RateLimiter(limit=lambda: cfg().app.lead_rate_per_hour, window_seconds=3600)
 koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_seconds=3600)
 login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # wrong passwords per email per 15 min
+login_ip_limiter = RateLimiter(limit=lambda: 30, window_seconds=900)  # login tries per IP per 15 min
+signup_limiter = RateLimiter(limit=lambda: 5, window_seconds=3600)  # sign-ups per IP per hour

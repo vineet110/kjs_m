@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { api, ApiFailure, type Me } from '@/lib/api';
+import { safeNext } from '@/lib/safe-url';
 
 function LoginInner() {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
@@ -24,7 +25,7 @@ function LoginInner() {
       if (tab === 'login') {
         const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password } });
         const home = me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard';
-        router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : home);
+        router.replace(safeNext(next) ?? home);
       } else {
         await api('/auth/signup', { method: 'POST', body: { name: f.name, email: f.email, phone: f.phone, password: f.password } });
         setNotice('Account created. An admin will approve it; then you can log in.');

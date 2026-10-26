@@ -22,7 +22,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core.database import AsyncSessionLocal, engine  # noqa: E402
-from app.core.rate_limit import koko_limiter, lead_limiter, login_failures  # noqa: E402
+from app.core.rate_limit import reset_all as reset_rate_limits  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import auth_service  # noqa: E402
 
@@ -46,9 +46,7 @@ async def clean_db():
             "INSERT INTO categories (slug, name, description, sort_order, is_active) "
             "VALUES ('coffee', 'Coffee', 'Coffee things', 1, true)"
         ))
-    lead_limiter.reset()
-    koko_limiter.reset()
-    login_failures.reset()
+    reset_rate_limits()
     yield
 
 

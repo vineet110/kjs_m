@@ -83,6 +83,11 @@ async def check_out(db: AsyncSession, user: User, now: datetime | None = None) -
     now = now or datetime.now(timezone.utc)
     row = await _row(db, user.id, local_day(now))
     if row is None or row.check_in_at is None:
+        # Working past midnight: the open day is yesterday's (a night shift counts on its start date)
+        prev = await _row(db, user.id, local_day(now) - timedelta(days=1))
+        if prev is not None and prev.check_in_at is not None and prev.check_out_at is None:
+            row = prev
+    if row is None or row.check_in_at is None:
         raise AppError(409, "not_checked_in", "Please check in first.")
     if row.check_out_at:
         raise AppError(409, "already_checked_out", f"You already checked out at {hm(row.check_out_at)}.")
@@ -189,7 +194,8 @@ async def list_regularizations(db: AsyncSession, status: str | None = None, user
 
 
 async def decide(db: AsyncSession, approver: User, reg_id: int, approve: bool) -> dict:
-    reg = await db.get(Regularization, reg_id)
+    # Locked: if two approvers click at the same moment, the second sees "already decided"
+    reg = await db.get(Regularization, reg_id, with_for_update=True, populate_existing=True)
     if reg is None:
         raise AppError(404, "not_found", "Request not found.")
     if reg.status != "pending":

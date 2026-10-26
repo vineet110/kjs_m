@@ -26,6 +26,10 @@ from app.services import audit_service, notification_service
 # owner_type -> async check(db, user, owner_id, action) -> bool ; action is "read" or "write"
 AccessCheck = Callable[[AsyncSession, User, str, str], Awaitable[bool]]
 OWNERS: dict[str, AccessCheck] = {}
+# owner_type -> async live(db, owner_id) -> bool. Only these owners may have files on the website,
+# and only while the owner is live (e.g. a hidden product's files stop being public).
+PublicCheck = Callable[[AsyncSession, str], Awaitable[bool]]
+PUBLIC_OWNERS: dict[str, PublicCheck] = {}
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -33,8 +37,15 @@ TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpe
          "doc": "application/msword", "csv": "text/csv", "txt": "text/plain", "zip": "application/zip"}
 
 
-def register_owner(owner_type: str, check: AccessCheck) -> None:
+def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None) -> None:
     OWNERS[owner_type] = check
+    if public:
+        PUBLIC_OWNERS[owner_type] = public
+
+
+async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) -> bool:
+    live = PUBLIC_OWNERS.get(owner_type)
+    return live is not None and await live(db, owner_id)
 
 
 async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, action: str) -> None:
@@ -58,6 +69,9 @@ def out(f: StoredFile, names: dict[int, str] | None = None) -> dict:
 async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_type: str, owner_id: str,
                  is_public: bool = False) -> dict:
     await _check(db, user, owner_type, owner_id, "write")
+    if is_public and owner_type not in PUBLIC_OWNERS:
+        # e.g. an order-board document must never become downloadable without login
+        raise AppError(422, "not_public", "Only product files can be shown on the website.")
     name = upload_file.filename or "file"
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
     if ext not in cfg().storage.allowed_types or ext not in TYPES:
@@ -95,6 +109,8 @@ async def list_files(db: AsyncSession, user: User, owner_type: str, owner_id: st
 
 
 async def public_files(db: AsyncSession, owner_type: str, owner_id: str) -> list[dict]:
+    if not await _publicly_visible(db, owner_type, owner_id):
+        return []
     rows = (await db.scalars(select(StoredFile).where(
         StoredFile.owner_type == owner_type, StoredFile.owner_id == owner_id, StoredFile.is_public.is_(True),
         StoredFile.deleted_at.is_(None)).order_by(StoredFile.id))).all()
@@ -102,8 +118,9 @@ async def public_files(db: AsyncSession, owner_type: str, owner_id: str) -> list
             for f in rows]
 
 
-async def _get(db: AsyncSession, file_id: int) -> StoredFile:
-    f = await db.get(StoredFile, file_id)
+async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile:
+    # lock=True: hold the row until commit, so two approvers can't decide the same request at once
+    f = await db.get(StoredFile, file_id, with_for_update=lock)
     if f is None or f.deleted_at is not None:
         raise AppError(404, "not_found", "File not found.")
     return f
@@ -112,11 +129,12 @@ async def _get(db: AsyncSession, file_id: int) -> StoredFile:
 async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[StoredFile, str | None, bytes | None]:
     """Returns (file, redirect_url, bytes). R2 gives a 5-minute link; local storage gives the bytes."""
     f = await _get(db, file_id)
-    if not f.is_public:
-        if user is None:
+    if user is None:  # the public website: only public files of a live product
+        if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
             raise AppError(404, "not_found", "File not found.")
+    elif not f.is_public:
         await _check(db, user, f.owner_type, f.owner_id, "read")
-    url = storage().url(f.key, f.name)
+    url = storage().url(f.key, safe_name(f.name))  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
     try:
@@ -126,8 +144,8 @@ async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[S
 
 
 async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str) -> dict:
-    f = await _get(db, file_id)
-    await _check(db, user, f.owner_type, f.owner_id, "read")
+    f = await _get(db, file_id, lock=True)
+    await _check(db, user, f.owner_type, f.owner_id, "write")  # seeing a file isn't enough to ask to delete it
     if f.delete_status == "requested":
         raise AppError(409, "already_requested", "Deletion was already requested.")
     f.delete_status, f.delete_reason, f.delete_requested_by = "requested", reason.strip(), user.id
@@ -147,20 +165,23 @@ async def delete_requests(db: AsyncSession) -> list[dict]:
 
 
 async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve: bool) -> dict:
-    f = await _get(db, file_id)
+    f = await _get(db, file_id, lock=True)
     if f.delete_status != "requested":
         raise AppError(409, "not_requested", "No delete request for this file.")
+    if f.delete_requested_by == approver.id and approver.role != "admin":
+        raise AppError(403, "own_request", "Someone else must approve your own delete request.")
     f.delete_status = "approved" if approve else "rejected"
     if approve:
         f.deleted_at = datetime.now(timezone.utc)
-        try:
-            await asyncio.to_thread(storage().delete, f.key)
-        except StorageError:
-            pass  # row is marked deleted either way; a cleanup can retry the object later
     audit_service.record(db, actor=approver, action=f"file.delete_{f.delete_status}", entity_type="file",
                          entity_id=f.id, before={"name": f.name})
     if f.delete_requested_by:
         notification_service.notify(db, [f.delete_requested_by], "file.delete_decided",
                                     f"Delete {f.delete_status}: {f.name}", "", "")
     await db.commit()
+    if approve:  # only after the decision is saved: a failed commit must not lose the file
+        try:
+            await asyncio.to_thread(storage().delete, f.key)
+        except StorageError:
+            pass  # row is marked deleted either way; a cleanup can retry the object later
     return out(f)

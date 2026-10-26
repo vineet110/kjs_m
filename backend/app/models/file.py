@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -11,6 +11,7 @@ class StoredFile(Base, TimestampMixin):
     Deleting needs approval: delete_status goes none -> requested -> approved/rejected."""
 
     __tablename__ = "files"
+    __table_args__ = (Index("ix_files_owner", "owner_type", "owner_id"),)
 
     key: Mapped[str] = mapped_column(String(300), unique=True)
     name: Mapped[str] = mapped_column(String(200))  # original file name

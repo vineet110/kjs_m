@@ -1,4 +1,5 @@
 """Route dependencies: who is calling, and are they allowed?"""
+import ipaddress
 import logging
 from datetime import datetime, timezone
 
@@ -54,14 +55,20 @@ def require_permission(permission: str):
 # Our own proxies (Next.js, nginx) run on the same machine / Docker network. Only when the
 # request comes from one of them do we trust the headers that carry the visitor's real IP;
 # otherwise anyone could fake an IP to dodge the rate limits.
-TRUSTED_PROXY_PREFIXES = ("127.", "::1", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.", "172.31.", "192.168.")
+def _is_our_proxy(peer: str) -> bool:
+    """Loopback or a private network (10/8, 172.16/12, 192.168/16, Docker): our own Next.js / nginx."""
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private
 
 
 def client_ip(request: Request) -> str | None:
     """The visitor's IP. Browsers reach us through the Next.js proxy, so without this every
     visitor would look like 127.0.0.1 and share one rate limit (found in the 24 Oct e2e test)."""
     peer = request.client.host if request.client else None
-    if not peer or not peer.startswith(TRUSTED_PROXY_PREFIXES):
+    if not peer or not _is_our_proxy(peer):
         return peer
     if cf := request.headers.get("cf-connecting-ip"):  # Cloudflare in production
         return cf.strip()

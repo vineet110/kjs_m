@@ -59,4 +59,27 @@ class Settings(BaseSettings):
         return self.APP_ENV == "production"
 
 
+# Values that only make sense on a laptop. Production must never start with them.
+DEV_SECRET_KEYS = {"dev_only_change_me", "change_this_to_a_secure_random_key_in_production"}
+
+
+def production_problems(s: Settings) -> list[str]:
+    """Settings that are unsafe in production. The app refuses to start if any are found,
+    so a missing .env value shows up at deploy time, not as a security hole later."""
+    if not s.is_production:
+        return []
+    problems = []
+    if s.SECRET_KEY in DEV_SECRET_KEYS or len(s.SECRET_KEY) < 32:
+        problems.append("SECRET_KEY is a default or shorter than 32 characters")
+    if "kjs_secret_pass" in s.DATABASE_URL:
+        problems.append("DATABASE_URL uses the example password")
+    if not s.PUBLIC_BASE_URL.startswith("https://"):
+        problems.append("PUBLIC_BASE_URL must be the real https:// address")
+    if "localhost" in s.ALLOWED_ORIGINS or "127.0.0.1" in s.ALLOWED_ORIGINS:
+        problems.append("ALLOWED_ORIGINS still lists localhost")
+    if s.STORAGE_DRIVER == "r2" and not all((s.R2_ACCOUNT_ID, s.R2_ACCESS_KEY_ID, s.R2_SECRET_ACCESS_KEY, s.R2_BUCKET)):
+        problems.append("STORAGE_DRIVER=r2 but an R2_* value is empty")
+    return problems
+
+
 settings = Settings()

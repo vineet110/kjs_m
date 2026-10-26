@@ -45,3 +45,10 @@ backend/storage/
 docs/
 .next-e2e/
 backend/storage-e2e/
+
+# Any env file except the examples; backups and dumps never go in git
+.env.*
+!.env.example
+!.env.production.example
+*.dump
+*.tgz

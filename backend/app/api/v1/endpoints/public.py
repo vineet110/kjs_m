@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.deps import client_ip
 from app.core.security import hash_ip
 from app.schemas.catalog import CategoryOut, ProductOut
-from app.schemas.common import Email
+from app.schemas.common import Email, OneLine
 from app.schemas.lead import LeadIn
 from app.services import catalog_service, content_service, file_service, lead_service
 
@@ -66,15 +66,15 @@ async def offers(db: AsyncSession = Depends(get_db)):
 
 
 class PartnerIn(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
-    company: str = Field(default="", max_length=200)
+    name: OneLine = Field(min_length=2, max_length=120)
+    company: OneLine = Field(default="", max_length=200)
     partner_type: Literal["agent", "broker", "forwarder", "distributor", "other"]
-    country: str = Field(min_length=2, max_length=80)
+    country: OneLine = Field(min_length=2, max_length=80)
     email: Email
-    phone: str = Field(default="", max_length=30)
+    phone: OneLine = Field(default="", max_length=30)
     message: str = Field(default="", max_length=2000)
     consent: Literal[True]
-    website: str = ""  # honeypot
+    website: str = Field(default="", max_length=255)  # honeypot
 
 
 @router.post("/partners", status_code=201)

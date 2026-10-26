@@ -142,3 +142,21 @@ async def test_bad_code_rejected(client):
     await login(client, "boss@kjsindia.com")
     body = board_body(1, 1) | {"code": "no spaces allowed"}
     assert (await client.post("/api/v1/boards", json=body, headers=HDR)).status_code == 422
+
+
+async def test_board_files_can_never_be_public(client):
+    # Any board member could otherwise publish an order document to the internet
+    await make_user("boss@kjsindia.com", permissions=["leads.view", "boards.manage"])
+    await make_user("blend@kjsindia.com")
+    await make_user("pack@kjsindia.com")
+    blend, pack = await _ids("blend@kjsindia.com", "pack@kjsindia.com")
+    await login(client, "boss@kjsindia.com")
+    assert (await client.post("/api/v1/boards", json=board_body(pack, blend), headers=HDR)).status_code == 201
+    await login(client, "blend@kjsindia.com")
+    form = {"owner_type": "board", "owner_id": "ABC117-3"}
+    pdf = {"file": ("order.pdf", b"%PDF-1.4 order", "application/pdf")}
+    r = await client.post("/api/v1/files", data=form | {"is_public": "true"}, files=pdf, headers=HDR)
+    assert r.status_code == 422 and r.json()["code"] == "not_public"
+    fid = (await client.post("/api/v1/files", data=form, files=pdf, headers=HDR)).json()["id"]
+    client.cookies.clear()
+    assert (await client.get(f"/api/v1/public/files/{fid}")).status_code == 404

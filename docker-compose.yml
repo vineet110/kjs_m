@@ -1,6 +1,8 @@
-version: '3.8'
+# Development databases only. The app itself runs directly on your PC (see README),
+# and production uses deploy/docker-compose.prod.yml.
 
 services:
+  # Optional local database for development (we normally use Neon). Start: docker compose up -d db
   db:
     image: pgvector/pgvector:pg16
     container_name: kjs_postgres
@@ -9,7 +11,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-kjs_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kjs_secret_pass}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # this PC only: not reachable from the office network
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/alembic/init_roles.sql:/docker-entrypoint-initdb.d/init_roles.sql
@@ -20,7 +22,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Throwaway database for automated tests (pytest). Start: docker compose up -d test-db
+  # Throwaway database for automated tests (pytest). Start: docker compose --profile test up -d test-db
   test-db:
     image: pgvector/pgvector:pg16
     container_name: kjs_test_db
@@ -30,61 +32,9 @@ services:
       POSTGRES_USER: kjs_test
       POSTGRES_PASSWORD: kjs_test
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     tmpfs:
       - /var/lib/postgresql/data  # in memory: fast, wiped on stop
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: kjs_api
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      CONFIG_DIR: /config
-    volumes:
-      - ./backend:/app
-      - ./config:/config:ro  # edit config/*.ini on the server: applies live, no rebuild
-      - file_storage:/srv/kjs_files
-    ports:
-      - "8000:8000"
-    # Background jobs run inside this process (app/jobs), so no separate worker/scheduler
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: kjs_nextjs
-    depends_on:
-      - backend
-    env_file:
-      - .env
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-
-  superset:
-    build:
-      context: ./superset
-      dockerfile: Dockerfile
-    container_name: kjs_superset
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "8088:8088"
-    restart: unless-stopped
-
 volumes:
   pgdata:
-  file_storage:

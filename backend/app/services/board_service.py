@@ -241,7 +241,9 @@ async def detail(db: AsyncSession, user: User, code: str) -> dict:
 # ---------- Run ----------
 async def _step_for_action(db: AsyncSession, user: User, code: str, step_id: int) -> tuple[OrderBoard, BoardStep]:
     b = await _visible_board(db, user, code)
-    step = await db.get(BoardStep, step_id)
+    # Locked until commit: a double "done" click would otherwise start the next step twice
+    # (duplicate tasks), and two members ticking the checklist at once would lose one tick.
+    step = await db.get(BoardStep, step_id, with_for_update=True, populate_existing=True)
     if step is None or step.board_id != b.id:
         raise AppError(404, "not_found", "Step not found.")
     if not can_manage(user) and user.id not in await _member_ids(db, b.id, step.id):

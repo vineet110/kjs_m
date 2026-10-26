@@ -1,4 +1,5 @@
 """Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -7,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import login_failures
-from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS
+from app.core.rate_limit import login_failures, login_ip_limiter, signup_limiter
+from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
 from app.models.user import User, UserSession
 from app.schemas.auth import SignupIn
@@ -16,8 +17,12 @@ from app.services import audit_service
 
 log = logging.getLogger(__name__)
 
+# Used when the email doesn't exist, so a login takes as long as a real password check.
+_DUMMY_HASH = hash_password("not-a-real-password-just-for-timing")
+
 
 async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
+    signup_limiter.check(ip_hash)  # before any hashing: password hashing is deliberately expensive
     exists = await db.scalar(select(func.count()).select_from(User).where(User.email == data.email))
     if exists:
         raise AppError(409, "email_taken", "An account with this email already exists.")
@@ -25,7 +30,7 @@ async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
         name=data.name.strip(),
         email=data.email,
         phone=data.phone.strip() or None,
-        password_hash=hash_password(data.password),
+        password_hash=await asyncio.to_thread(hash_password, data.password),
         role="employee",
         status="pending",  # can't log in until an admin approves
         permissions=[],
@@ -40,12 +45,19 @@ async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
     return user
 
 
-async def login(db: AsyncSession, email: str, password: str) -> tuple[User, str]:
+async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None = None) -> tuple[User, str]:
+    # Checked BEFORE the password: once an email is locked, even the right password is refused,
+    # otherwise an attacker could keep guessing and simply wait for the one "200".
+    login_ip_limiter.check(ip_hash)  # 30 tries per IP per 15 min (stops guessing across many emails)
+    if login_failures.blocked(email):
+        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
     user = await db.scalar(select(User).where(User.email == email))
-    # Same message for "no such user" and "wrong password", so nobody can probe which emails exist.
-    if user is None or not verify_password(password, user.password_hash):
+    # Same message AND about the same time for "no such user" and "wrong password", so nobody can
+    # probe which emails exist (scrypt runs against a dummy hash when there is no user).
+    stored = user.password_hash if user else _DUMMY_HASH
+    if not await asyncio.to_thread(verify_password, password, stored) or user is None:
         log.warning("auth.login_failed", extra={"email": email})
-        login_failures.check(email)  # 10 wrong passwords in 15 min -> blocked for a while
+        login_failures.hit(email)  # 10 wrong passwords in 15 min -> locked for a while
         raise AppError(401, "bad_credentials", "Email or password is wrong.")
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
@@ -78,6 +90,15 @@ async def list_users(db: AsyncSession, status: str | None) -> list[User]:
     return list((await db.scalars(q)).all())
 
 
+def _check_can_manage(actor: User, target: User) -> None:
+    """Nobody changes their own account here, and only an admin can touch an admin account
+    (otherwise a staff member with `staff.approve` could disable every admin)."""
+    if target.id == actor.id:
+        raise AppError(422, "self_change", "You can't change your own account.")
+    if target.role == "admin" and actor.role != "admin":
+        raise AppError(403, "forbidden", "Only an admin can change an admin account.")
+
+
 async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list[str]) -> User:
     user = await db.get(User, user_id)
     if user is None:
@@ -85,6 +106,16 @@ async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list
     unknown = [p for p in permissions if p not in PERMISSIONS]
     if unknown:
         raise AppError(422, "unknown_permission", "Unknown permission.", {"unknown": unknown})
+    _check_can_manage(admin, user)
+    if admin.role != "admin":
+        # A non-admin approver only approves NEW sign-ups (not re-enable or re-permission anyone),
+        # and can't hand out more than they have themselves.
+        if user.status != "pending":
+            raise AppError(403, "forbidden", "Only an admin can change an existing account.")
+        mine = effective_permissions(admin.role, admin.permissions)
+        extra = sorted(set(permissions) - mine)
+        if extra:
+            raise AppError(403, "forbidden", "You can't give permissions you don't have.", {"not_yours": extra})
     before = {"status": user.status, "permissions": user.permissions}
     user.status = "active"
     user.permissions = sorted(set(EMPLOYEE_DEFAULTS) | set(permissions))
@@ -102,8 +133,7 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
     user = await db.get(User, user_id)
     if user is None:
         raise AppError(404, "not_found", "User not found.")
-    if user.id == admin.id:
-        raise AppError(422, "self_change", "You can't change your own status.")
+    _check_can_manage(admin, user)
     before = {"status": user.status}
     user.status = status
     if status != "active":
@@ -148,11 +178,15 @@ async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
 
 
 async def change_password(db: AsyncSession, user: User, current: str, new: str, keep_token_hash: str) -> None:
-    if not verify_password(current, user.password_hash):
+    # Same lock as login: a stolen session must not be able to guess the current password forever.
+    if login_failures.blocked(user.email):
+        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
+    if not await asyncio.to_thread(verify_password, current, user.password_hash):
+        login_failures.hit(user.email)
         raise AppError(422, "bad_password", "Your current password is wrong.")
     if current == new:
         raise AppError(422, "same_password", "Choose a new password that is different.")
-    user.password_hash = hash_password(new)
+    user.password_hash = await asyncio.to_thread(hash_password, new)
     # Log out every other browser of this person (keep the one making the change).
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.token_hash != keep_token_hash))
     audit_service.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id)

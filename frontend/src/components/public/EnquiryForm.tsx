@@ -46,7 +46,17 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     if (v && source !== 'enquiry_form') setState('quick');
   }, [source]);
 
-  async function send(v: Visitor, extra: { quantity?: string; message?: string; website?: string }) {
+  function forget() {
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      /* nothing saved */
+    }
+    setSaved(null);
+    setState('idle');
+  }
+
+  async function send(v: Visitor, extra: { quantity?: string; message?: string; website?: string }, remember = true) {
     setState('sending');
     setError('');
     try {
@@ -61,7 +71,8 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         },
       });
       try {
-        localStorage.setItem(KEY, JSON.stringify(v));
+        if (remember) localStorage.setItem(KEY, JSON.stringify(v));
+        else localStorage.removeItem(KEY); // e.g. a shared office computer
       } catch {
         /* private window: just ask again next time */
       }
@@ -80,6 +91,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     await send(
       { name: get('name'), company: get('company'), email: get('email'), phone: get('phone'), country: get('country'), buyer_type: get('buyer_type') },
       { quantity: get('quantity'), message: get('message'), website: get('website') },
+      f.get('remember') === 'on',
     );
   }
 
@@ -93,6 +105,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
           <button onClick={() => send(saved, {})} className="btn-gold flex-1">{BUTTON[source]}</button>
           <button onClick={() => setState('idle')} className="btn-ghost">Change details</button>
         </div>
+        <button onClick={forget} className="text-xs text-slate-500 underline">Not you? Forget my details on this device</button>
       </div>
     );
   }
@@ -130,6 +143,10 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
       <label className="flex items-start gap-2 text-xs text-slate-600">
         <input type="checkbox" name="consent" required defaultChecked={!!saved} className="mt-0.5" />
         <span>I agree that KJS India may contact me about this request and store my details for that purpose (DPDP Act 2023).</span>
+      </label>
+      <label className="flex items-start gap-2 text-xs text-slate-600">
+        <input type="checkbox" name="remember" defaultChecked className="mt-0.5" />
+        <span>Remember my details in this browser, so my next request is one click. (Untick on a shared computer.)</span>
       </label>
       <p className="text-xs text-slate-500">Please give an email or a phone number.</p>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
