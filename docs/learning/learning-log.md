@@ -10,6 +10,28 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 27 Oct 2026 (catalogue and new home page)
+
+1. (T) The database stores only the path of an image, never the image itself. The file goes to a folder
+   (`storage/` on our PC, Cloudflare R2 in production). Databases are slow and costly for big files.
+
+2. (T) The frontend has no `requirements.txt`: JavaScript projects list their packages in `package.json`
+   (and exact versions in `package-lock.json`). `npm ci` is the frontend's `pip install -r requirements.txt`.
+
+3. (T) Two people working in parallel: keep your change in NEW files when you can. The catalogue seed is its own
+   file (`seed_catalogue.py`), so it didn't clash with Vineet's backend work. The docs did clash: we both
+   added A67, so mine became A73. Pull often, before writing new numbers.
+
+4. (T) "500 error" on the home page with `ECONNREFUSED 127.0.0.1:8000` means the backend is not running.
+   Start the backend first, then the frontend.
+
+5. (T) "An Application Control policy has blocked this file" = Windows Smart App Control. Docker runs the
+   backend in Linux, where Windows can't block it.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 27 Oct 2026 (production-readiness review)
 
 1. (V) Tests check what the code does on a good day; production is the bad days. The worst findings were

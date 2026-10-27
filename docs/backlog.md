@@ -801,6 +801,40 @@ A72. Buyer imports: max 5000 rows, and known buyers are skipped  🟢
    iii.  Where: `assign_service.read_rows`, `import_records`
 
 
+A73. Product list taken from the catalogue PDF "KJS INDIA products.pdf" (27 Oct)  🟠
+
+   i.    58 product families, about 175 item numbers, all confectionery. Where: `backend/app/seed_catalogue.py`
+   ii.   One product per brand family; flavours and sizes are listed as items inside the description.
+         Families with clearly different packs (e.g. Gofrey Cocoa / Milk / Black & White) are separate products.
+   iii.  Pages 13–16 of the PDF repeat as pages 21–24: added once.
+   iv.   Only the English lines are used. Brand names keep their printed spelling (Kremalı, Susamlı).
+   v.    No price and no MOQ in the PDF, so none on the site ("On request"). No product marked best seller.
+
+
+A74. Product pictures cut out of the catalogue PDF  🟠
+
+   i.    Background removed by a script and every pack placed on the same light background with a shadow.
+         Two fixed by hand (Gofrey Milk, Gofrey Black & White). Where: `frontend/public/images/products/`
+   ii.   Good enough for the demo. Replace with KJS's original pack files when they send them (I13).
+
+
+A75. New categories added next to the old ones  🟢
+
+   i.    Chocolate bars, Wafers, Marshmallow & cakes, Biscuits. Coffee, Tea, Health drinks, Confectionery stay
+         (shown as "made to order" while they have no products).
+
+
+A76. Catalogue phone number differs from the site  🔴 before go-live
+
+   i.    The PDF's back page says +91 83416 59999; the site (`lib/site.ts`) says +91 97037 35666.
+         Site unchanged until KJS confirms (I14).
+
+
+A77. Home page facts taken from the catalogue PDF  🟢
+
+   i.    "Two units, more than 250 products", partners list, stick-pack fills 0.9–3 g (page 2 of the PDF).
+
+
 ### Code and setup
 
 A39. Folder names  🟢
@@ -836,6 +870,8 @@ I1. Logo, brand colours, factory and product photos, first offers for the ticker
 
 I2. Product list: category, pack formats, minimum order, certifications, best sellers, HS code  🟠
 
+   i.    27 Oct: catalogue PDF received and added (A73). Still missing: MOQ, best sellers, HS codes.
+
 I3. Price bands (per product, pack and quantity, USD per 1,000)  🟢
 
    i.    Until then the private-label builder shows no price.
@@ -860,6 +896,10 @@ I10. SMTP details (email account for sending notifications)  🟠
 I11. Buyer lists (Excel), one product category per row  🟠
 
 I12. Confirm the partner programme offer (A47)  🔴 before go-live
+
+I13. Original pack images (PNG/JPG per item) to replace the ones cut from the PDF (A74)  🟢
+
+I14. Correct sales phone number: catalogue vs website (A76)  🔴 before go-live
 
 
 

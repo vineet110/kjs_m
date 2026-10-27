@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (25 Oct 2026)
+## 1. Status today (27 Oct 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -32,14 +32,23 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Left for later on purpose: `backlog.md` section 8.
 
 
-4. Waiting on
+4. Home page redesign + product catalogue (27 Oct, Nishita): CODE DONE, not seen in a browser yet
+
+   i.    Marketplace-style home page (search, category menu, banner, product tabs, quick view, enquiry list).
+   ii.   58 products from the KJS catalogue PDF with pictures. Seed: `python -m app.seed_catalogue` (adds only
+         new products; writes to the shared Neon database).
+   iii.  On Nishita's PC the backend runs in Docker (Smart App Control blocks Python there, see B12).
+   iv.   Next: run the seed, check the page, demo to KJS.
+
+
+5. Waiting on
 
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
    ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
 
 
-5. Can be done without KJS
+6. Can be done without KJS
 
    i.    (Done 26 Oct: 14 unused frontend packages removed.)
    ii.   Lighthouse check of the production build.
