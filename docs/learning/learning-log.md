@@ -1,0 +1,204 @@
+# Learning log
+
+2 or 3 lines a day, in your own words. Newest at the top.
+
+Tag who wrote it: (V) Vineet, (T) teammate.
+
+A word you don't know? Look it up in `../kb.md` (Ctrl + F).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 26 Oct 2026 (speed and Smart App Control)
+
+1. (V) Measure before you fix. "Koko is slow, is it the free tier?" The numbers said: each database query takes
+   about 560 ms because Neon is in the USA. Distance, not the price plan, was the main cost.
+
+2. (V) A page that runs 5 queries one after another pays the network delay 5 times. Keep the database close to
+   the app (same server in production, Docker on this PC for development).
+
+3. (V) Turning a security feature off is a trade-off, not a free fix. Write down why, and what still protects you.
+
+4. (V) Big upgrades go on their own branch. Next 14 → 16 was done on `next16`; if anything broke, delete the
+   branch and `kjs_v` / `main` are untouched. Merge only after every check passes.
+
+5. (V) Check every package before a major upgrade: does it support the new version (peer dependencies)?
+   One unused package (`lucide-react`) would have blocked React 19. Unused packages are pure risk.
+
+6. (V) Read the upgrade guide's "breaking changes" and search the code for each one (`params`, `cookies()`,
+   `middleware`). Counting the affected files turned a "2 days" guess into a half-day job.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 25 Oct 2026 (senior review)
+
+1. (V) Every check must happen BEFORE the expensive or risky step. The login lock only counted wrong
+   passwords, so after 10 wrong guesses the right one still worked: an attacker just waits for the one "200".
+   Check "is this email locked?" first, then the password.
+
+2. (V) A permission is not a role. Giving someone `staff.approve` quietly made them an admin, because
+   "approve" could also re-permission any account, including their own. Ask for every power: "can they use it
+   on themselves, or on someone above them?"
+
+3. (V) Links are code. `<a href="javascript:...">` runs JavaScript as our site when clicked. Any link that
+   comes from data (even from staff) must be checked: only `/our-page` or `https://`.
+
+4. (V) "Read, change, write back" breaks when two people click at the same moment. `SELECT ... FOR UPDATE`
+   locks the row until the change is saved, so the second click waits and then sees the new state.
+
+5. (V) Least privilege: the app's database user may read and write rows, nothing more. If the app is ever
+   tricked into running bad SQL, it can't drop tables, edit the audit log, or run server commands.
+
+6. (V) A small file can be huge inside: an .xlsx is a zip, and 60 KB can unpack to gigabytes. Check the
+   unpacked size before opening it.
+
+7. (V) An independent reviewer finds what the author can't see. All four reviews found real problems in
+   code that already had 125 passing tests: tests only check what you thought of.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 25 Oct 2026 (production setup)
+
+1. (V) Test the production setup like production. Running the whole stack locally found 4 things that reading
+   the files never would: the old nginx config cut `/api` off every address (every API call would be 404),
+   `docker compose run` has no `--no-build` flag, Next.js and nginx both sent `Cache-Control`, and production
+   logs were in the "pretty" format instead of JSON.
+
+2. (V) A backup is only proven by a restore. The drill was: back up → delete the leads and a file on purpose →
+   restore → count again. Same numbers before and after = the backup works.
+
+3. (V) Fail loudly at start-up. If production starts with a default secret or a localhost address, it is
+   better that it refuses to start (and says why) than runs with a hidden security hole.
+
+4. (V) Never run containers as root, and open no ports to the internet. Cloudflare Tunnel connects out from
+   the server, so there is nothing to attack from outside.
+
+5. (V) Windows Smart App Control can suddenly block programs it doesn't trust, like the small `python.exe`
+   inside `.venv`. The error says "Application Control policy". The base Python still works.
+
+6. (V) Git Bash rewrites paths like `/srv/files` into `C:/Program Files/Git/srv/files` before passing them to
+   Docker. `MSYS_NO_PATHCONV=1` turns that off. On a Linux server it never happens.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 24 Oct 2026 (morning: commit, push, docs clean-up)
+
+1. (V) Check before you commit. Before pushing 154 changed files we searched the staged changes for secrets
+   (API keys, passwords) and for files that must never be committed (`.env`, storage folders, `.next`).
+
+2. (V) A doc nobody can read is a doc nobody uses. Long tables are hard to read in a plain editor;
+   numbered lists with blank lines are easier. One glossary (`kb.md`) beats many small learning files.
+
+3. (V) Starter repos bring packages you don't use. `package.json` still lists 9 packages no code imports.
+   Unused packages slow installs and add security risk; remove them (after asking).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 24 Oct 2026 (night: all of Phase 1 + end-to-end testing)
+
+1. (V) Test the real thing, not only unit tests. 121 unit tests passed, yet the end-to-end run on real servers
+   found 2 serious bugs. Unit tests check pieces; e2e checks the pieces together (proxy, cookies, cache,
+   database restarts).
+
+2. (V) Behind a proxy, the "client IP" is the proxy. Next.js forwards every browser call, so the API saw
+   127.0.0.1 for everyone: one visitor's 5 enquiries would block the whole website. Read the real IP from
+   `X-Forwarded-For` / `CF-Connecting-IP`, but only when the request comes from our own proxy
+   (otherwise anyone can fake it).
+
+3. (V) Speed tricks can break correctness. Turning off `pool_pre_ping` saved 0.5 s per call, but after the
+   database dropped connections (Neon sleeps after 5 minutes) the next request failed. Fix slowness at the
+   cause (database far away), not by skipping safety checks.
+
+4. (V) Python's `round()` is banker's rounding: `round(2.5) == 2`. For business numbers people expect 3;
+   use `int(x + 0.5)` for positive numbers.
+
+5. (V) Next.js caches `fetch` by address + headers. Adding a unique header (a request ID) to every server
+   fetch would silently turn the cache off.
+
+6. (V) Two test runs on one test database wipe each other's data. Run the suite once at a time.
+
+7. (V) Settings you can change without a deploy: secrets in `.env`, tunable numbers in `config/*.ini`
+   (re-read every few seconds), and the code reads them at the moment of use (`cfg().sla.respond_minutes`),
+   never copied into a constant at start-up.
+
+8. (V) Store keys, not files, in the database. Files go to storage (disk now, Cloudflare R2 later);
+   the database keeps the key, name, size and owner.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 23 Oct 2026 (session 3b)
+
+1. (V) Prompt order matters. Koko kept promising "50,000 sticks/month is fine". Moving the rules after the long
+   facts block, plus one good and one bad example, fixed it. Always test the AI with tricky questions.
+
+2. (V) Check the server really restarted. A stale API process kept serving old code, and the tests looked wrong
+   for the wrong reason. If nothing changes after an edit, check which process is on the port.
+
+3. (V) Catch-all routes need checks. `[locale]` accepted anything, so `/robots.txt` showed the home page.
+   Unknown values must give 404.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 23 Oct 2026 (session 3: first code)
+
+1. (V) Proxy instead of CORS. The browser talks only to Next.js; Next.js forwards `/api/*` to FastAPI.
+   The login cookie stays on one site, so much less CORS and cookie setup.
+
+2. (V) httpOnly cookie + random token in the database. JavaScript can't read the cookie (XSS can't steal it);
+   we store only a hash of the token, so a database leak can't log anyone in. Logout = delete the row.
+
+3. (V) CSRF header trick. Every POST / PATCH must carry `x-requested-with`. Another website can't add custom
+   headers to requests to us, so it can't fake actions with your cookie.
+
+4. (V) Audit trigger. A Postgres trigger raises an error on UPDATE / DELETE of `audit_log`, so even buggy code
+   can't rewrite history.
+
+5. (V) Pooled vs direct database address (Neon). The pooler shares connections between clients, so asyncpg's
+   prepared-statement cache must be off; migrations use the direct address.
+
+6. (V) Honeypot. A hidden form field. People leave it empty, bots fill it, so we silently drop those.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 23 Oct 2026 (session 2)
+
+1. (V) Docker on Windows runs inside WSL 2 (a small Linux inside Windows). "WSL not installed" just meant that
+   part was still installing.
+
+2. (V) `make` turns long commands into short ones (`make up`). Handy, not required.
+
+3. (V) Design for change. Put things that may change (AI provider, file storage, database host) behind one module
+   and one setting, so switching later is a setting change, not a rewrite.
+
+4. (V) Permissions vs roles. Code checks a permission ("can approve leave"); a role is just a default bundle of
+   permissions. Giving one employee an extra permission then needs no code change.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 23 Oct 2026
+
+1. (V) Before coding, read every document and list where they disagree. Newer documents usually win, but
+   someone has to decide and write it down (`backlog.md` decisions).
+
+2. (V) A plan with dates must be re-planned the moment reality differs. Saying "we're 1 week behind" early is
+   professional, not a failure.
+
+3. (V) Our stack in one line: Next.js shows the pages, FastAPI owns the data and rules, Postgres stores
+   everything, an AI model powers Koko.

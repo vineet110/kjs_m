@@ -41,8 +41,6 @@ backend/storage/
 # TypeScript incremental build cache
 *.tsbuildinfo
 
-# Docs stay local only (not committed)
-docs/
 .next-e2e/
 backend/storage-e2e/
 
