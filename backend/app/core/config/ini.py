@@ -19,7 +19,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Literal
 
 from zoneinfo import ZoneInfo
 
@@ -101,11 +101,14 @@ class KokoIni(BaseModel):
     daily_limit: int = Field(2000, ge=0, le=100000)  # AI calls per day for ALL visitors together (cost cap)
 
 
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+
 class LoggingIni(BaseModel):
-    level: str = "INFO"
+    level: LogLevel = "INFO"  # a typo like "verbose" is refused; the last good config stays
     format: str = "pretty"  # pretty (dev) | json (staging, production)
     show_personal_data: bool = False  # true only on a dev machine
-    levels: dict[str, str] = Field(default_factory=dict)  # [logging.levels] app.services.lead = DEBUG
+    levels: dict[str, LogLevel] = Field(default_factory=dict)  # [logging.levels] app.services.lead = DEBUG
 
 
 class StorageIni(BaseModel):
@@ -187,7 +190,13 @@ class _Store:
         self.loaded_from_files = False
 
     def _current_mtimes(self) -> dict[str, float]:
-        return {f: p.stat().st_mtime for f in FILES.values() if (p := CONFIG_DIR / f).exists()}
+        out = {}
+        for f in FILES.values():
+            try:
+                out[f] = (CONFIG_DIR / f).stat().st_mtime
+            except OSError:  # missing, or being replaced right now: treat as absent
+                pass
+        return out
 
     def load(self, force: bool = False) -> None:
         with self.lock:
@@ -204,7 +213,10 @@ class _Store:
             self.config, first = new, not self.loaded_from_files
             self.loaded_from_files = True
         for fn in self.listeners:
-            fn(new)
+            try:  # a broken listener must never break cfg() for whoever called it
+                fn(new)
+            except Exception:
+                log.exception("config.listener_failed")
         if changed and not first:
             log.info("config.reloaded", extra={"changed": changed})
 

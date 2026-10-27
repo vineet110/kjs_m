@@ -167,6 +167,7 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    ```bash
    sed -i 's/^TAG=.*/TAG=<previous-commit>/' .env
    docker compose -f docker-compose.prod.yml up -d --no-build backend frontend
+   docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload   # find the new containers now
    ```
 
    Because the version is in `.env`, it stays rolled back after any restart.

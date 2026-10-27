@@ -12,6 +12,9 @@ engine = create_async_engine(
     # 24 Oct end-to-end test). It costs one quick round trip; cheap once the DB is near the API.
     pool_pre_ping=True,
     pool_recycle=240,  # also replace connections every 4 min, before PgBouncer closes idle ones
+    # Error messages must never carry the query's values (customer names, emails, password hashes)
+    # into the logs.
+    hide_parameters=True,
     # Tests open a new event loop per test; pooled connections can't cross loops.
     **({"poolclass": NullPool} if settings.APP_ENV == "test" else {}),
     # command_timeout: a query that hangs (network, lock) fails after 60 s instead of blocking forever

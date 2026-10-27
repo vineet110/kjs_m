@@ -23,6 +23,8 @@ $COMPOSE up -d db
 $COMPOSE run --rm backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql
 $COMPOSE up -d --remove-orphans
+# The app containers are new and may have new addresses: make nginx look them up again now
+$COMPOSE exec -T nginx nginx -s reload || true
 
 # Wait until the API (with its database) and the website both answer through nginx
 for _ in $(seq 1 30); do

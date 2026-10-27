@@ -23,6 +23,8 @@ class StoredFile(Base, TimestampMixin):
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)  # product images on the website
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the stored file itself was removed. Empty + deleted_at set = a cleanup job still has to do it.
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delete_status: Mapped[str] = mapped_column(String(20), default="none", index=True)
     delete_reason: Mapped[str] = mapped_column(String(500), default="")
     delete_requested_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

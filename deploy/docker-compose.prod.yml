@@ -9,7 +9,7 @@
 
 x-logging: &logging
   driver: json-file
-  options: { max-size: "10m", max-file: "5" }  # logs never fill the disk
+  options: { max-size: "20m", max-file: "10" }  # at most 200 MB per app (about 2 weeks), never fills the disk
 
 services:
   db:
@@ -50,6 +50,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     restart: unless-stopped
+    stop_grace_period: 30s  # let running requests (Koko can take ~25 s) finish on a restart
     logging: *logging
 
   frontend:

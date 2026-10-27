@@ -1,7 +1,9 @@
 """Files: upload, list, download, request delete. Who may do what depends on the owner
 (order board, product); approving deletes needs `files.approve`."""
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from fastapi.responses import RedirectResponse, Response
+from pathlib import Path
+
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,14 +27,19 @@ async def list_files(owner_type: str, owner_id: str, user: User = Depends(curren
     return await file_service.list_files(db, user, owner_type, owner_id)
 
 
-def send_file(f, url: str | None, data: bytes | None, inline: bool = False):
+def send_file(f, url: str | None, data: Path | bytes | None, inline: bool = False):
     if url:
         return RedirectResponse(url, status_code=302)
     disposition = "inline" if inline else f'attachment; filename="{file_service.safe_name(f.name)}"'
     # sandbox: even if an uploaded PDF carries scripts, they can't run as our website
-    return Response(data, media_type=f.content_type, headers={"content-disposition": disposition,
-                                                               "x-content-type-options": "nosniff",
-                                                               "content-security-policy": "sandbox"})
+    headers = {"content-disposition": disposition, "x-content-type-options": "nosniff",
+               "content-security-policy": "sandbox"}
+    # Public website files (product photos) may be cached by browsers and Cloudflare for an hour;
+    # staff files never are.
+    headers["cache-control"] = "public, max-age=3600" if inline else "private, no-store"
+    if isinstance(data, Path):  # local disk: streamed in chunks, never loaded whole into memory
+        return FileResponse(data, media_type=f.content_type, headers=headers)
+    return Response(data, media_type=f.content_type, headers=headers)
 
 
 @router.get("/{file_id}/download")
