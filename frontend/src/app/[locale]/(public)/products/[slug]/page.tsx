@@ -8,15 +8,18 @@ import GatedActions from '@/components/public/GatedActions';
 import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
 import { SITE } from '@/lib/site';
 
-type Props = { params: { slug: string } };
+// Next 15+: params arrive as a Promise.
+type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(params.slug)}`);
+  const { slug } = await params;
+  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
   return p ? { title: p.name, description: p.description.slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(params.slug)}`);
+  const { slug } = await params;
+  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
   if (!p) notFound();
   const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
   const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));
