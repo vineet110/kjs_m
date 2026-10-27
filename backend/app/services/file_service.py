@@ -7,9 +7,11 @@ boards or products. Deleting a file is a request that an approver (`files.approv
 """
 import asyncio
 import hashlib
+import logging
 import re
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Awaitable, Callable
 
 from fastapi import UploadFile
@@ -19,9 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.core.storage import StorageError, storage
+from app.jobs.runner import job
 from app.models.file import StoredFile
 from app.models.user import User
 from app.services import audit_service, notification_service
+
+log = logging.getLogger(__name__)
 
 # owner_type -> async check(db, user, owner_id, action) -> bool ; action is "read" or "write"
 AccessCheck = Callable[[AsyncSession, User, str, str], Awaitable[bool]]
@@ -68,6 +73,8 @@ def out(f: StoredFile, names: dict[int, str] | None = None) -> dict:
 
 async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_type: str, owner_id: str,
                  is_public: bool = False) -> dict:
+    if owner_type == "board":
+        owner_id = owner_id.upper()  # board codes are upper case: "abc117-3" must land on ABC117-3
     await _check(db, user, owner_type, owner_id, "write")
     if is_public and owner_type not in PUBLIC_OWNERS:
         # e.g. an order-board document must never become downloadable without login
@@ -100,6 +107,8 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
 
 
 async def list_files(db: AsyncSession, user: User, owner_type: str, owner_id: str) -> list[dict]:
+    if owner_type == "board":
+        owner_id = owner_id.upper()
     await _check(db, user, owner_type, owner_id, "read")
     rows = (await db.scalars(select(StoredFile).where(
         StoredFile.owner_type == owner_type, StoredFile.owner_id == owner_id, StoredFile.deleted_at.is_(None))
@@ -126,8 +135,9 @@ async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile
     return f
 
 
-async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[StoredFile, str | None, bytes | None]:
-    """Returns (file, redirect_url, bytes). R2 gives a 5-minute link; local storage gives the bytes."""
+async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[StoredFile, str | None, Path | bytes | None]:
+    """Returns (file, redirect_url, content). R2 gives a 5-minute link; local storage gives the path
+    on disk, so the file is streamed instead of loaded into memory."""
     f = await _get(db, file_id)
     if user is None:  # the public website: only public files of a live product
         if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
@@ -137,8 +147,11 @@ async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[S
     url = storage().url(f.key, safe_name(f.name))  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
+    store = storage()
     try:
-        return f, None, await asyncio.to_thread(storage().get, f.key)
+        if hasattr(store, "file_path"):
+            return f, None, store.file_path(f.key)
+        return f, None, await asyncio.to_thread(store.get, f.key)
     except StorageError as e:
         raise AppError(404, "not_found", "File not found.") from e
 
@@ -182,6 +195,25 @@ async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve:
     if approve:  # only after the decision is saved: a failed commit must not lose the file
         try:
             await asyncio.to_thread(storage().delete, f.key)
+            f.purged_at = datetime.now(timezone.utc)
+            await db.commit()
         except StorageError:
-            pass  # row is marked deleted either way; a cleanup can retry the object later
+            log.warning("file.purge_later", extra={"file_id": f.id})  # the purge job retries it
     return out(f)
+
+
+@job("purge_deleted_files", any_time=True)
+async def purge_deleted_files(db: AsyncSession) -> dict:
+    """Approved deletes whose stored copy couldn't be removed at the time (storage was down).
+    "Deleted" must really mean deleted (personal data, DPDP)."""
+    rows = (await db.scalars(select(StoredFile).where(StoredFile.deleted_at.is_not(None),
+                                                      StoredFile.purged_at.is_(None)).limit(50))).all()
+    purged = 0
+    for f in rows:
+        try:
+            await asyncio.to_thread(storage().delete, f.key)
+        except StorageError:
+            continue  # still down: next run
+        f.purged_at = datetime.now(timezone.utc)
+        purged += 1
+    return {"waiting": len(rows), "purged": purged}

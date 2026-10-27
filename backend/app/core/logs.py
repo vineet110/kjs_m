@@ -66,7 +66,7 @@ def _fields(record: logging.LogRecord) -> dict:
         if k not in _STANDARD and not k.startswith("_"):
             out[k] = _clean(k, v)
     if record.exc_info:
-        out["error"] = logging.Formatter().formatException(record.exc_info)
+        out["error"] = mask(logging.Formatter().formatException(record.exc_info))
     return out
 
 

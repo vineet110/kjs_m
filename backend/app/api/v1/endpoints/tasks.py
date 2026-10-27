@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -17,16 +17,24 @@ router = APIRouter()
 class TaskIn(BaseModel):
     title: str = Field(min_length=2, max_length=200)
     notes: str = Field(default="", max_length=4000)
-    due_at: datetime | None = None
+    due_at: AwareDatetime | None = None  # must carry a time zone ("...Z"), or "today" would be guessed
     assignee_id: int | None = None  # empty = me
 
 
 class TaskPatch(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=200)
     notes: str | None = Field(default=None, max_length=4000)
-    due_at: datetime | None = None
+    due_at: AwareDatetime | None = None  # null = remove the due date
     status: Literal["todo", "doing", "done"] | None = None
     outcome: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def no_empty_required(self):
+        # Leaving a field out = don't change it. Sending null is only allowed for the due date.
+        nulls = [f for f in ("title", "notes", "status", "outcome") if f in self.model_fields_set and getattr(self, f) is None]
+        if nulls:
+            raise ValueError(f"These can't be empty: {', '.join(nulls)}")
+        return self
 
 
 @router.get("")

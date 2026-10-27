@@ -119,7 +119,8 @@ def _can_see_all(user: User) -> bool:
 
 
 async def list_for(db: AsyncSession, user: User, status: str | None = None, owner: int | None = None,
-                   sla_state: str | None = None, all_leads: bool = False, limit: int = 200) -> list[LeadOut]:
+                   sla_state: str | None = None, all_leads: bool = False, limit: int = 200,
+                   offset: int = 0) -> list[LeadOut]:
     owner_user = User.__table__.alias("owner")
     notes = select(LeadNote.lead_id, func.count().label("n")).group_by(LeadNote.lead_id).subquery()
     q = (
@@ -130,6 +131,7 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
         .outerjoin(notes, notes.c.lead_id == Lead.id)
         .order_by(Lead.created_at.desc())
         .limit(limit)
+        .offset(offset)  # older pages: ?offset=500
     )
     if not (all_leads and _can_see_all(user)):
         # My leads + unassigned ones anyone may pick up.
@@ -173,6 +175,11 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = Fal
 # ---------- Working a lead ----------
 async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, outcome: str = "") -> None:
     lead = await _lead_for(db, user, lead_id, lock=True)
+    # Status rules: the timers (responded_at, resolved_at) must always match the status.
+    if status == lead.status:
+        raise AppError(409, "unchanged", f"This lead is already '{status}'.")
+    if status == "new" and lead.responded_at is not None:
+        raise AppError(409, "already_answered", "This lead was already answered; set it to 'contacted' instead.")
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
@@ -181,8 +188,8 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
     if status == "closed":
         lead.resolved_at = now  # stops the "resolve" timer
         lead.outcome = outcome or lead.outcome
-    if status == "new":
-        lead.resolved_at = None
+    else:
+        lead.resolved_at = None  # re-opened: the "resolve" timer runs again
     if lead.assigned_to is None:
         lead.assigned_to = user.id  # whoever acts on an unassigned lead takes it
     audit_service.record(db, actor=user, action="lead.status_changed", entity_type="lead",

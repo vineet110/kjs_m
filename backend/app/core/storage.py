@@ -37,19 +37,33 @@ class LocalStorage:
             raise StorageError("bad key")
         return p
 
+    # Every disk error becomes StorageError, so callers handle one error type (full disk, permissions...)
     def put(self, key: str, data: bytes, content_type: str) -> None:
         p = self._path(key)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(data)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(data)
+        except OSError as e:
+            raise StorageError(f"write failed: {type(e).__name__}") from e
 
     def get(self, key: str) -> bytes:
         try:
             return self._path(key).read_bytes()
-        except FileNotFoundError as e:
+        except OSError as e:  # includes FileNotFoundError
             raise StorageError("missing") from e
 
+    def file_path(self, key: str) -> Path:
+        """The file on disk, so the API can stream it instead of loading it all into memory."""
+        p = self._path(key)
+        if not p.is_file():
+            raise StorageError("missing")
+        return p
+
     def delete(self, key: str) -> None:
-        self._path(key).unlink(missing_ok=True)
+        try:
+            self._path(key).unlink(missing_ok=True)
+        except OSError as e:
+            raise StorageError(f"delete failed: {type(e).__name__}") from e
 
     def url(self, key: str, filename: str = "") -> str | None:
         return None
@@ -129,7 +143,10 @@ class R2Storage:
                                 access_key=settings.R2_ACCESS_KEY_ID, secret_key=settings.R2_SECRET_ACCESS_KEY,
                                 region=self.region, now=datetime.now(timezone.utc), content_type=content_type)
         url = f"https://{self.host}{quote(self._path(key), safe='/-_.~')}"
-        r = httpx.request(method, url, content=body, headers=headers, timeout=60)
+        try:
+            r = httpx.request(method, url, content=body, headers=headers, timeout=60)
+        except httpx.HTTPError as e:  # network down, timeout: same error type as a refused request
+            raise StorageError(f"R2 {method} failed: {type(e).__name__}") from e
         if r.status_code >= 300 and not (method == "DELETE" and r.status_code == 404):
             raise StorageError(f"R2 {method} failed: {r.status_code}")
         return r

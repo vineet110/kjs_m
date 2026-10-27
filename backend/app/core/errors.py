@@ -48,6 +48,10 @@ def install_error_handlers(app: FastAPI) -> None:
     # unique rule stops the second one. That's "already done", not a server bug.
     @app.exception_handler(IntegrityError)
     async def conflict(request: Request, exc: IntegrityError):
+        # Only a unique rule (Postgres code 23505) means "already done". Any other broken rule
+        # (missing link, empty required field) is a bug in our code and must show up as a 500.
+        if _sqlstate(exc) != "23505":
+            return await unexpected(request, exc)
         log.warning("db.conflict", extra={"request_id": getattr(request.state, "request_id", None),
                                           "reason": str(exc.orig)[:200]})
         return JSONResponse(_body(request, "conflict", "This was already done or already exists. Please refresh."),
@@ -57,5 +61,14 @@ def install_error_handlers(app: FastAPI) -> None:
     async def unexpected(request: Request, exc: Exception):
         # Logged once, here, with the stack trace. (request_id passed explicitly: this handler
         # runs outside the request middleware.)
-        log.exception("server.error", extra={"request_id": getattr(request.state, "request_id", None)})
-        return JSONResponse(_body(request, "server_error", "Something went wrong on our side."), status_code=500)
+        rid = getattr(request.state, "request_id", None)
+        log.exception("server.error", extra={"request_id": rid})
+        # The header too (the middleware never sees this response), so support can find the log line.
+        return JSONResponse(_body(request, "server_error", "Something went wrong on our side."), status_code=500,
+                            headers={"x-request-id": rid} if rid else None)
+
+
+def _sqlstate(exc: IntegrityError) -> str | None:
+    """Postgres error code of a database error ('23505' = unique rule broken)."""
+    orig = exc.orig
+    return getattr(orig, "sqlstate", None) or getattr(getattr(orig, "__cause__", None), "sqlstate", None)

@@ -154,7 +154,7 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
             {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
         )}
-        {lead.status === 'closed' && <button disabled={busy} onClick={() => run(() => api(`/employee/leads/${lead.id}`, { method: 'PATCH', body: { status: 'new' } }))} className="btn-ghost py-1 text-xs">Reopen</button>}
+        {lead.status === 'closed' && <button disabled={busy} onClick={() => run(() => api(`/employee/leads/${lead.id}`, { method: 'PATCH', body: { status: 'contacted' } }))} className="btn-ghost py-1 text-xs">Reopen</button>}
         <select
           disabled={busy}
           defaultValue=""

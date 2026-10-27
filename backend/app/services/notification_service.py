@@ -7,6 +7,8 @@ server never slows a click. WhatsApp copies come after Meta business verificatio
 import asyncio
 import logging
 import smtplib
+import ssl
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
@@ -55,18 +57,41 @@ async def mark_read(db: AsyncSession, user: User, ids: list[int] | None) -> None
 
 
 # ---------- Email ----------
-def _send_smtp(to: str, subject: str, text: str) -> None:
+def _smtp_connect() -> smtplib.SMTP:
+    """One logged-in connection, reused for the whole batch. The server's certificate IS checked
+    (without a context, Python's starttls() would accept any certificate and hand our password to
+    whoever answers)."""
+    ctx = ssl.create_default_context()
+    if settings.SMTP_PORT == 465:  # port 465 = TLS from the first byte
+        s: smtplib.SMTP = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20, context=ctx)
+    else:  # 587 / 25 = plain first, then STARTTLS
+        s = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+        s.starttls(context=ctx)
+    if settings.SMTP_USER:
+        s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+    return s
+
+
+def _message(to: str, subject: str, text: str) -> EmailMessage:
     msg = EmailMessage()
     msg["From"], msg["To"], msg["Subject"] = settings.SMTP_FROM, to, subject
     msg.set_content(text)
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as s:
-        s.starttls()
-        if settings.SMTP_USER:
-            s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        s.send_message(msg)
+    return msg
+
+
+def _close(conn: smtplib.SMTP | None) -> None:
+    if conn is not None:
+        try:
+            conn.quit()
+        except Exception:
+            pass
 
 
 MAX_EMAIL_ATTEMPTS = 3
+EMAIL_TIME_BUDGET_SECONDS = 120  # stop early so the other jobs (SLA, alerts) aren't held up
+# Visitor text reaches staff inboxes from our own address, so say clearly that it isn't ours.
+VISITOR_TEXT_NOTE = ("\n\n--\nThis alert may include text typed by a website visitor. "
+                     "Don't open links or attachments you didn't expect.")
 
 
 @job("send_emails", any_time=True)  # also at night and on Sundays: a lead shouldn't wait till Monday
@@ -92,19 +117,36 @@ async def send_emails(db: AsyncSession) -> dict:
             n.email_status = "skipped"
             skipped += 1
     await db.commit()
-    for n, u in rows:
-        if n.email_status != "sending":
-            continue
-        link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if n.link else ""
-        try:
-            await asyncio.to_thread(_send_smtp, u.email, f"[KJS] {n.title}", f"{n.body}{link}")
-            n.email_status = "sent"
-            sent += 1
-        except Exception as e:  # any error stays with this one email; the rest still go out
-            n.email_attempts += 1
-            n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
-            failed += 1
-            log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
-                                               "reason": f"{type(e).__name__}: {str(e)[:200]}"})
-        await db.commit()
+    conn, started, server_down = None, time.monotonic(), False
+    try:
+        for n, u in rows:
+            if n.email_status != "sending":
+                continue
+            if server_down or time.monotonic() - started > EMAIL_TIME_BUDGET_SECONDS:
+                n.email_status = "pending"  # not tried: back in the queue for the next run
+                await db.commit()
+                continue
+            link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if n.link else ""
+            note = VISITOR_TEXT_NOTE if n.kind.startswith(("lead.", "partner.")) else ""
+            try:
+                if conn is None:
+                    try:
+                        conn = await asyncio.to_thread(_smtp_connect)
+                    except Exception:
+                        server_down = True  # can't reach or log in: don't try 50 times, retry next run
+                        raise
+                await asyncio.to_thread(conn.send_message, _message(u.email, f"[KJS] {n.title}", f"{n.body}{link}{note}"))
+                n.email_status = "sent"
+                sent += 1
+            except Exception as e:  # any error stays with this one email; the rest still go out
+                _close(conn)
+                conn = None  # the connection may be broken: open a fresh one for the next email
+                n.email_attempts += 1
+                n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
+                failed += 1
+                log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
+                                                   "reason": f"{type(e).__name__}: {str(e)[:200]}"})
+            await db.commit()
+    finally:
+        await asyncio.to_thread(_close, conn)
     return {"sent": sent, "skipped": skipped, "failed": failed}

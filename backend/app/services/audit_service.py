@@ -21,7 +21,8 @@ def record(
     db.add(
         AuditLog(
             actor_id=actor.id if actor else None,
-            actor_label=f"{actor.name} ({actor.email})" if actor else "visitor/system",
+            # Cut to the column size: a long name + email must never make the whole action fail.
+            actor_label=f"{actor.name} ({actor.email})"[:120] if actor else "visitor/system",
             action=action,
             entity_type=entity_type,
             entity_id=str(entity_id) if entity_id is not None else None,

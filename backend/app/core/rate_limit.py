@@ -16,11 +16,25 @@ def reset_all() -> None:  # used by tests
         limiter.reset()
 
 
+SWEEP_EVERY_SECONDS = 60
+
+
 class RateLimiter:
     def __init__(self, limit: Callable[[], int], window_seconds: int):
         self.limit, self.window = limit, window_seconds  # limit is read on every check (live config)
         self._hits: dict[str, deque] = defaultdict(deque)
+        self._swept_at = time.monotonic()
         ALL.append(self)
+
+    def _sweep(self) -> None:
+        """Once a minute, drop every key with no recent hits. Without this, a bot trying a million
+        different emails or IPs would fill the server's memory (keys it never repeats stay forever)."""
+        now = time.monotonic()
+        if now - self._swept_at < SWEEP_EVERY_SECONDS:
+            return
+        self._swept_at = now
+        for key in [k for k, q in self._hits.items() if not q or now - q[-1] > self.window]:
+            del self._hits[key]
 
     def _recent(self, key: str) -> deque:
         now, q = time.monotonic(), self._hits.get(key)
@@ -39,6 +53,7 @@ class RateLimiter:
     def hit(self, key: str | None) -> None:
         """Count one hit, without refusing (e.g. a wrong password)."""
         if key:
+            self._sweep()
             self._recent(key)
             self._hits[key].append(time.monotonic())
 
@@ -55,6 +70,9 @@ class RateLimiter:
 # Limits per IP per hour come from config/app.ini
 lead_limiter = RateLimiter(limit=lambda: cfg().app.lead_rate_per_hour, window_seconds=3600)
 koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_seconds=3600)
-login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # wrong passwords per email per 15 min
+# Wrong passwords. Locked per email AND network: a stranger guessing from their own network can't
+# lock the real person out. The per-email limit is a high backstop against guessing from many networks.
+login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # per email + IP, 15 min
+login_email_failures = RateLimiter(limit=lambda: 100, window_seconds=900)  # per email, any IP, 15 min
 login_ip_limiter = RateLimiter(limit=lambda: 30, window_seconds=900)  # login tries per IP per 15 min
 signup_limiter = RateLimiter(limit=lambda: 5, window_seconds=3600)  # sign-ups per IP per hour

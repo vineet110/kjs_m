@@ -17,7 +17,7 @@ import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -25,6 +25,7 @@ from app.core.errors import AppError
 from app.core.permissions import effective_permissions
 from app.jobs.runner import job
 from app.models.order_board import BoardMember, BoardStep, OrderBoard
+from app.models.task import Task
 from app.models.user import User
 from app.services import audit_service, file_service, notification_service, task_service
 from app.services.attendance_service import local_day, to_utc
@@ -80,9 +81,11 @@ def used_pct(step: BoardStep, today: date, holidays: set[date]) -> int:
     if today < step.planned_start:
         return 0
     planned = max(1, CalendarService.working_days_between(step.planned_start, step.planned_end, holidays))
-    elapsed = CalendarService.working_days_between(step.planned_start, today, holidays)
+    # Only days that are over count as used: today is still available (a 1-day step is 0% on its
+    # day, not already "out of time").
+    elapsed = CalendarService.working_days_between(step.planned_start, today - timedelta(days=1), holidays)
     if today > step.planned_end:  # past the end: count calendar overrun too, so it keeps growing
-        elapsed = max(elapsed, planned + (today - step.planned_end).days)
+        elapsed = max(elapsed, planned + (today - step.planned_end).days - 1)
     return round(elapsed / planned * 100)
 
 
@@ -104,8 +107,11 @@ def can_manage(user: User) -> bool:
     return "boards.manage" in effective_permissions(user.role, user.permissions)
 
 
-async def _board(db: AsyncSession, code: str) -> OrderBoard:
-    b = await db.scalar(select(OrderBoard).where(OrderBoard.code == code.upper()))
+async def _board(db: AsyncSession, code: str, lock: bool = False) -> OrderBoard:
+    q = select(OrderBoard).where(OrderBoard.code == code.upper())
+    if lock:
+        q = q.with_for_update().execution_options(populate_existing=True)
+    b = await db.scalar(q)
     if b is None:
         raise AppError(404, "not_found", "Order board not found.")
     return b
@@ -211,7 +217,13 @@ async def _board_out(db: AsyncSession, b: OrderBoard, steps: list[BoardStep], to
 
 
 async def list_boards(db: AsyncSession, user: User, include_finished: bool = False) -> list[dict]:
-    q = select(OrderBoard).order_by(OrderBoard.deadline_at)
+    # Running boards first (nearest deadline first), then finished ones (newest first), at most 300:
+    # finished boards pile up over the years.
+    q = (select(OrderBoard)
+         .order_by(OrderBoard.status != "active",
+                   case((OrderBoard.status == "active", OrderBoard.deadline_at)).asc(),
+                   OrderBoard.deadline_at.desc())
+         .limit(300))
     if not can_manage(user):
         q = q.where(OrderBoard.id.in_(select(BoardMember.board_id).where(BoardMember.user_id == user.id)))
     if not include_finished:
@@ -272,22 +284,33 @@ async def complete_step(db: AsyncSession, user: User, code: str, step_id: int) -
 
 
 async def toggle_check(db: AsyncSession, user: User, code: str, step_id: int, index: int, done: bool) -> dict:
-    _, step = await _step_for_action(db, user, code, step_id)
+    b, step = await _step_for_action(db, user, code, step_id)
     if not 0 <= index < len(step.checklist):
         raise AppError(404, "not_found", "Checklist item not found.")
     items = [dict(i) for i in step.checklist]
     items[index]["done"] = done
     step.checklist = items  # new list so SQLAlchemy sees the change
+    audit_service.record(db, actor=user, action="board.check_ticked" if done else "board.check_unticked",
+                         entity_type="board", entity_id=b.code,
+                         after={"step": step.position, "item": items[index].get("text", ""), "done": done})
     await db.commit()
     return await detail(db, user, code)
 
 
 async def finish(db: AsyncSession, user: User, code: str, final_status: str) -> dict:
-    b = await _board(db, code)
+    b = await _board(db, code, lock=True)
+    if b.status != "active":
+        # Finished once, with one outcome: "Delivered" must not later become "Cancelled".
+        raise AppError(409, "finished", "This board is already finished.")
     before = {"status": b.status, "final_status": b.final_status}
     b.status, b.final_status = "finished", final_status
+    # Its open tasks would otherwise show as overdue on people's lists forever.
+    closed = await db.execute(
+        update(Task).where(Task.source == "board", Task.source_ref.startswith(f"board:{b.code}:"),
+                           Task.status != "done")
+        .values(status="done", notes=Task.notes + f"\n[Closed: board finished as {final_status}]"))
     audit_service.record(db, actor=user, action="board.finished", entity_type="board", entity_id=b.code,
-                         before=before, after={"final_status": final_status})
+                         before=before, after={"final_status": final_status, "tasks_closed": closed.rowcount})
     await db.commit()
     return await detail(db, user, code)
 

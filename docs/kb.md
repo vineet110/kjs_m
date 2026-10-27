@@ -1022,6 +1022,59 @@ Sections:
           update. 25 Oct: FastAPI 0.129.2 / Starlette 0.52.1 / python-multipart 0.0.32 fixed upload DoS holes.
 
 
+### Heartbeat (jobs health)
+
+   What   The background jobs loop writes down the time of each finished round. `/api/health/ready` fails
+          (503 "jobs_stalled") if that time is too old, so an uptime check notices stopped emails / alerts.
+   Where  `runner.last_tick`, `runner.loop_is_alive()`, `/api/health/ready` in `main.py`.
+
+
+### Docker DNS (resolve)
+
+   What   Containers find each other by name (`backend`, `frontend`) through Docker's own DNS (127.0.0.11).
+          A new container can get a new address, so nginx re-checks the name every 10 s (`resolve`).
+   Where  `deploy/nginx/default.conf` (resolver, upstream ... resolve).
+
+
+### Keep-alive
+
+   What   Reusing one connection for many requests (faster). Both sides close idle ones after a while; the side
+          that waits longer can send a request on a connection the other side just closed = a random 502.
+          Rule: nginx must give up first (4 s, the apps wait 5 s).
+
+
+### Graceful shutdown
+
+   What   On restart, stop taking new requests but let running ones finish (we allow 25 s; Docker waits 30 s).
+   Where  `--timeout-graceful-shutdown 25` in `backend/Dockerfile`, `stop_grace_period` in production compose.
+
+
+### TLS certificate check
+
+   What   Encryption alone isn't enough: the client must also check the server's certificate, or anyone in
+          the middle can pretend to be the server. Python's `starttls()` without a context does NOT check.
+   Where  `ssl.create_default_context()` in `notification_service._smtp_connect`.
+
+
+### SQLSTATE 23505
+
+   What   Postgres' code for "a unique rule was broken" (e.g. a double click). Only this one becomes 409
+          "already done"; other database errors are bugs and must show as 500.
+   Where  `_sqlstate()` in `app/core/errors.py`.
+
+
+### Time-zone-aware date (AwareDatetime)
+
+   What   A date-time that says which time zone it is in ("...Z" or "+05:30"). Without it, "10:00" could mean
+          UTC or IST. Task due dates and offer times must carry one.
+
+
+### Purge job
+
+   What   Deleting a file first marks the row deleted, then removes the stored copy. If storage is down at that
+          moment, the `purge_deleted_files` job retries later (`purged_at` shows it's really gone).
+
+
 ### Security review
 
    What   Someone who didn't write the code reads it looking for ways to break it. Ours (25 Oct) found about 50

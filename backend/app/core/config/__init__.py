@@ -77,6 +77,9 @@ def production_problems(s: Settings) -> list[str]:
         problems.append("PUBLIC_BASE_URL must be the real https:// address")
     if "localhost" in s.ALLOWED_ORIGINS or "127.0.0.1" in s.ALLOWED_ORIGINS:
         problems.append("ALLOWED_ORIGINS still lists localhost")
+    others = [o.strip() for o in s.ALLOWED_ORIGINS.split(",") if "localhost" not in o and "127.0.0.1" not in o]
+    if any(not o.startswith("https://") for o in others):
+        problems.append("ALLOWED_ORIGINS must list only https:// addresses (never *)")
     if s.STORAGE_DRIVER == "r2" and not all((s.R2_ACCOUNT_ID, s.R2_ACCESS_KEY_ID, s.R2_SECRET_ACCESS_KEY, s.R2_BUCKET)):
         problems.append("STORAGE_DRIVER=r2 but an R2_* value is empty")
     return problems

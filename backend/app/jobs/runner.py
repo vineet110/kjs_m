@@ -12,6 +12,7 @@ app/jobs/__init__.py. No Redis or Celery needed at our size.
 """
 import asyncio
 import logging
+import time
 import uuid
 import zlib
 from datetime import datetime
@@ -30,6 +31,15 @@ JobFn = Callable[[AsyncSession], Awaitable[dict | None]]
 JOBS: dict[str, JobFn] = {}
 ANY_TIME: set[str] = set()  # jobs that also run outside jobs_hours (e.g. emails)
 JOB_TIMEOUT_SECONDS = 300  # a stuck job is cancelled, so it can't block every other job forever
+last_tick: float | None = None  # time.monotonic() of the last finished loop round (health check)
+
+
+def loop_is_alive() -> bool:
+    """False when the jobs loop has stopped or is stuck (SLA alerts and emails would silently stop)."""
+    if last_tick is None:
+        return True  # not started yet (or disabled in tests)
+    allowed = 3 * cfg().app.jobs_interval_seconds + JOB_TIMEOUT_SECONDS * max(1, len(JOBS))
+    return time.monotonic() - last_tick < allowed
 
 
 def job(name: str, any_time: bool = False):
@@ -74,13 +84,18 @@ async def run_job(name: str) -> dict | None:
 
 
 async def loop() -> None:
+    """Never ends on its own: any error is logged and the next round runs as usual."""
+    global last_tick
     while True:
+        interval = 60
         try:
             if cfg().app.jobs_enabled:
                 working = in_job_hours()
                 for name in list(JOBS):
                     if working or name in ANY_TIME:
                         await run_job(name)
-        except Exception:
+            interval = cfg().app.jobs_interval_seconds
+        except Exception:  # CancelledError is not an Exception, so shutdown still stops the loop
             log.exception("jobs.loop_error")
-        await asyncio.sleep(cfg().app.jobs_interval_seconds)
+        last_tick = time.monotonic()
+        await asyncio.sleep(interval)

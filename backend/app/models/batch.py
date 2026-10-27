@@ -20,6 +20,8 @@ class BuyerRecord(Base, TimestampMixin):
     """One company/contact to work on (call, email, qualify). Auto-assign puts records into batches."""
 
     __tablename__ = "buyer_records"
+    # Auto-assign picks "new records of this category, oldest first" (migration 0010)
+    __table_args__ = (Index("ix_buyer_records_pick", "status", "category", "id"),)
 
     list_id: Mapped[int] = mapped_column(ForeignKey("record_lists.id", ondelete="CASCADE"), index=True)
     category: Mapped[str] = mapped_column(String(60), index=True)  # category slug, e.g. coffee
