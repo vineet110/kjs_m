@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Index, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -24,6 +24,9 @@ class Regularization(Base, TimestampMixin):
     """'I forgot to punch' request. An approver fixes the day's times."""
 
     __tablename__ = "regularizations"
+    # One open request per person per day: a double click can't create two (migration 0011)
+    __table_args__ = (Index("uq_regularizations_one_pending", "user_id", "day", unique=True,
+                            postgresql_where=text("status = 'pending'")),)
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     day: Mapped[date] = mapped_column(Date)

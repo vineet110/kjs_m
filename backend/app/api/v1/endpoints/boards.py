@@ -1,10 +1,10 @@
 """Order boards. Create / finish: `boards.manage`. View and update a step: its members
 (or `boards.manage`). Files: /files with owner_type=board, owner_id=<code>."""
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -14,6 +14,14 @@ from app.services import board_service
 from app.services.calendar_service import holiday_set
 
 router = APIRouter()
+MAX_BOARD_DAYS = 730  # an order runs at most 2 years: far-away dates would make the day-by-day plan very slow
+
+
+def _check_dates(start: date, deadline: date) -> None:
+    if deadline < start:
+        raise ValueError("The deadline must be on or after the start date.")
+    if (deadline - start).days > MAX_BOARD_DAYS:
+        raise ValueError("A board can run at most 2 years.")
 
 
 class StepIn(BaseModel):
@@ -36,6 +44,11 @@ class BoardIn(BaseModel):
     notes: str = Field(default="", max_length=4000)
     steps: list[StepIn] = Field(min_length=1, max_length=20)
 
+    @model_validator(mode="after")
+    def sane_dates(self):
+        _check_dates(self.start, self.deadline)
+        return self
+
 
 @router.get("")
 async def boards(include_finished: bool = False, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
@@ -53,7 +66,12 @@ class PreviewIn(BaseModel):
     start: date
     deadline: date
     split_mode: Literal["percent", "days"] = "percent"
-    sizes: list[int] = Field(min_length=1, max_length=20)
+    sizes: list[Annotated[int, Field(ge=1, le=365)]] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def sane_dates(self):
+        _check_dates(self.start, self.deadline)
+        return self
 
 
 @router.post("/preview")

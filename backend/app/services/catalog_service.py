@@ -115,7 +115,11 @@ async def update_product(db: AsyncSession, actor: User, product_id: int, data: P
 
 # ---------- Product files (images, spec PDFs) ----------
 async def _product_files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
-    return action == "read" or "catalog.edit" in effective_permissions(user.role, user.permissions)
+    if action == "read":
+        return True
+    # Uploads only to a product that exists (not to a typo slug, where nobody would ever see them)
+    return ("catalog.edit" in effective_permissions(user.role, user.permissions)
+            and bool(await db.scalar(select(Product.id).where(Product.slug == owner_id))))
 
 
 async def _product_is_live(db: AsyncSession, slug: str) -> bool:

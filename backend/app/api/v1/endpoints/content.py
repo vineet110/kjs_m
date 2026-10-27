@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -34,8 +34,8 @@ async def set_text(key: str, data: TextIn, user: User = Depends(editor), db: Asy
 class OfferIn(BaseModel):
     text: OneLine = Field(min_length=3, max_length=200)
     link: SafeLink = Field(default="", max_length=255)
-    starts_at: datetime | None = None
-    ends_at: datetime | None = None
+    starts_at: AwareDatetime | None = None  # with a time zone, so start/end compare safely
+    ends_at: AwareDatetime | None = None
     is_active: bool = True
     sort_order: int = 0
 

@@ -1,10 +1,24 @@
 """Files: upload rules, owner access, download, public files, delete needs approval."""
+from sqlalchemy import select
+
+from app.core.database import AsyncSessionLocal
+from app.models.catalog import Category, Product
 from tests.conftest import HDR, login, make_user
 
 PDF = ("spec.pdf", b"%PDF-1.4 test", "application/pdf")
 
 
+async def _product(slug: str) -> None:
+    """Files can only be added to a product that exists."""
+    async with AsyncSessionLocal() as db:
+        if not await db.scalar(select(Product.id).where(Product.slug == slug)):
+            cat = await db.scalar(select(Category.id).where(Category.slug == "coffee"))
+            db.add(Product(category_id=cat, slug=slug, name=slug))
+            await db.commit()
+
+
 async def _upload(client, owner_id="coffee-stick", file=PDF, public=False):
+    await _product(owner_id)
     return await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": owner_id, "is_public": str(public).lower()},
                              files={"file": file}, headers=HDR)
 

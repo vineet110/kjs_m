@@ -35,6 +35,9 @@ class LeadIn(BaseModel):
             raise ValueError("Please give an email or a phone number.")
         if not self.consent:
             raise ValueError("Please agree to be contacted.")
+        # Same cap as a Koko chat: the chat is summarised by the AI, and a huge one costs a lot.
+        if sum(len(m.content) for m in self.chat) > 8000:
+            raise ValueError("The conversation is too long.")
         return self
 
 

@@ -40,8 +40,9 @@ async def summary(db: AsyncSession) -> dict:
     # SLA: of leads answered in the last 8 weeks, how many on time
     answered = [x for x in leads if x.responded_at]
     on_time = sum(1 for x in answered if x.responded_at <= lead_service.sla(x, now, holidays)["respond_due_at"])
-    breaches = await db.scalar(select(func.count()).select_from(Notification).where(
-        Notification.kind == "lead.sla_breach", Notification.created_at >= since))
+    # Leads that went over a time limit (counting notifications instead would multiply each breach by
+    # the number of people told about it).
+    breaches = sum(1 for x in leads if x.escalation_level > 0)
 
     # Attendance: last 14 days, present vs late
     start = today - timedelta(days=13)

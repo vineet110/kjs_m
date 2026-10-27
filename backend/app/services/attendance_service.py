@@ -22,6 +22,9 @@ from app.services import audit_service
 from app.services.calendar_service import CalendarService, holiday_set
 
 
+MAX_SHIFT = timedelta(hours=16)  # longest believable shift for a check-out after midnight
+
+
 def tz() -> ZoneInfo:
     return ZoneInfo(cfg().app.timezone)
 
@@ -85,7 +88,10 @@ async def check_out(db: AsyncSession, user: User, now: datetime | None = None) -
     if row is None or row.check_in_at is None:
         # Working past midnight: the open day is yesterday's (a night shift counts on its start date)
         prev = await _row(db, user.id, local_day(now) - timedelta(days=1))
-        if prev is not None and prev.check_in_at is not None and prev.check_out_at is None:
+        # Only a real night shift (started under 16 h ago). A check-in forgotten yesterday must not
+        # turn into a 33-hour day: that one is fixed with a regularization request.
+        if (prev is not None and prev.check_in_at is not None and prev.check_out_at is None
+                and now - prev.check_in_at < MAX_SHIFT):
             row = prev
     if row is None or row.check_in_at is None:
         raise AppError(409, "not_checked_in", "Please check in first.")
@@ -210,11 +216,17 @@ async def decide(db: AsyncSession, approver: User, reg_id: int, approve: bool) -
         if row is None:
             row = Attendance(user_id=reg.user_id, day=reg.day)
             db.add(row)
-        row.check_in_at, row.check_out_at = reg.check_in_at, reg.check_out_at
-        row.status, row.source = punch_status(reg.check_in_at), "regularized"
+        # A request usually fixes one missed punch ("forgot to check in"); an empty check-out
+        # means "keep my real check-out", never "erase it".
+        row.check_in_at = reg.check_in_at
+        row.check_out_at = reg.check_out_at or row.check_out_at
+        if row.check_out_at and row.check_out_at <= row.check_in_at:
+            raise AppError(422, "bad_times", "The new check-in is after this person's check-out. "
+                                             "Ask them to send both times.")
+        row.status, row.source = punch_status(row.check_in_at), "regularized"
         audit_service.record(db, actor=approver, action="attendance.regularized", entity_type="attendance",
                              entity_id=f"{reg.user_id}:{reg.day.isoformat()}", before=before,
-                             after={"in": hm(reg.check_in_at), "out": hm(reg.check_out_at)})
+                             after={"in": hm(row.check_in_at), "out": hm(row.check_out_at)})
     audit_service.record(db, actor=approver, action=f"regularization.{reg.status}", entity_type="regularization",
                          entity_id=reg.id)
     await db.commit()

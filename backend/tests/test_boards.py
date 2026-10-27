@@ -38,10 +38,18 @@ def test_days_plan_can_run_past_deadline():
 
 def test_used_pct():
     step = BoardStep(status="active", planned_start=MON, planned_end=date(2026, 10, 29))  # 4 working days
-    assert svc.used_pct(step, date(2026, 10, 25), set()) == 0
-    assert svc.used_pct(step, date(2026, 10, 27), set()) == 50
-    assert svc.used_pct(step, date(2026, 10, 29), set()) == 100
+    assert svc.used_pct(step, date(2026, 10, 25), set()) == 0  # not started
+    assert svc.used_pct(step, MON, set()) == 0  # first day: nothing used yet
+    assert svc.used_pct(step, date(2026, 10, 27), set()) == 25  # Monday is over
+    assert svc.used_pct(step, date(2026, 10, 29), set()) == 75  # last day is still available
+    assert svc.used_pct(step, date(2026, 10, 30), set()) == 100  # day after the end: out of time
     assert svc.used_pct(step, date(2026, 10, 31), set()) > 100
+
+
+def test_one_day_step_is_not_late_on_its_day():
+    step = BoardStep(status="active", planned_start=MON, planned_end=MON)
+    assert svc.used_pct(step, MON, set()) == 0
+    assert svc.used_pct(step, date(2026, 10, 27), set()) == 100
 
 
 async def _ids(*emails) -> list[int]:
@@ -132,8 +140,8 @@ async def test_alerts_once_per_threshold(client):
             results.append((await svc.board_alerts(db, today=day))["alerts"])
             await db.commit()
         alerts = (await db.scalars(select(Notification.title).where(Notification.kind == "board.alert"))).all()
-    # Mon 33% none, Tue 67% -> 50 alert, Tue again none, Wed 100% -> 100 alert (85 skipped, already past), Fri none
-    assert results == [0, 1, 0, 1, 0]
+    # Mon 0%, Tue 33% none, Tue again none, Wed 67% -> 50 alert, Fri past the end -> 100 alert (85 skipped)
+    assert results == [0, 0, 0, 1, 1]
     assert any("out of time" in a for a in alerts)
 
 

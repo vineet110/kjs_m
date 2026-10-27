@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import login_failures, login_ip_limiter, signup_limiter
+from app.core.rate_limit import login_email_failures, login_failures, login_ip_limiter, signup_limiter
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
 from app.models.user import User, UserSession
@@ -49,7 +49,8 @@ async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None
     # Checked BEFORE the password: once an email is locked, even the right password is refused,
     # otherwise an attacker could keep guessing and simply wait for the one "200".
     login_ip_limiter.check(ip_hash)  # 30 tries per IP per 15 min (stops guessing across many emails)
-    if login_failures.blocked(email):
+    lock_key = f"{email}|{ip_hash}"
+    if login_failures.blocked(lock_key) or login_email_failures.blocked(email):
         raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
     user = await db.scalar(select(User).where(User.email == email))
     # Same message AND about the same time for "no such user" and "wrong password", so nobody can
@@ -57,7 +58,8 @@ async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None
     stored = user.password_hash if user else _DUMMY_HASH
     if not await asyncio.to_thread(verify_password, password, stored) or user is None:
         log.warning("auth.login_failed", extra={"email": email})
-        login_failures.hit(email)  # 10 wrong passwords in 15 min -> locked for a while
+        login_failures.hit(lock_key)  # 10 wrong passwords in 15 min from this network -> locked
+        login_email_failures.hit(email)
         raise AppError(401, "bad_credentials", "Email or password is wrong.")
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
@@ -134,6 +136,10 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
     if user is None:
         raise AppError(404, "not_found", "User not found.")
     _check_can_manage(admin, user)
+    if admin.role != "admin" and status == "active":
+        # Turning an account back on brings back all its old permissions, so only an admin may.
+        # (A non-admin approver activates new sign-ups through approve(), with its checks.)
+        raise AppError(403, "forbidden", "Only an admin can turn an account back on.")
     before = {"status": user.status}
     user.status = status
     if status != "active":
@@ -178,11 +184,12 @@ async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
 
 
 async def change_password(db: AsyncSession, user: User, current: str, new: str, keep_token_hash: str) -> None:
-    # Same lock as login: a stolen session must not be able to guess the current password forever.
-    if login_failures.blocked(user.email):
+    # A stolen session must not be able to guess the current password forever: 10 tries per 15 min.
+    lock_key = f"{user.email}|password_change"
+    if login_failures.blocked(lock_key):
         raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
     if not await asyncio.to_thread(verify_password, current, user.password_hash):
-        login_failures.hit(user.email)
+        login_failures.hit(lock_key)
         raise AppError(422, "bad_password", "Your current password is wrong.")
     if current == new:
         raise AppError(422, "same_password", "Choose a new password that is different.")
