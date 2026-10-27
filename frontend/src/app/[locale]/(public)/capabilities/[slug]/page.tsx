@@ -4,19 +4,22 @@ import { notFound } from 'next/navigation';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import { CAPABILITIES } from '@/lib/site';
 
-type Props = { params: { slug: string } };
+// Next 15+: params arrive as a Promise.
+type Props = { params: Promise<{ slug: string }> };
 
 export function generateStaticParams() {
   return CAPABILITIES.map((c) => ({ slug: c.slug }));
 }
 
-export function generateMetadata({ params }: Props): Metadata {
-  const c = CAPABILITIES.find((x) => x.slug === params.slug);
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const c = CAPABILITIES.find((x) => x.slug === slug);
   return c ? { title: c.title, description: c.summary } : {};
 }
 
-export default function CapabilityPage({ params }: Props) {
-  const c = CAPABILITIES.find((x) => x.slug === params.slug);
+export default async function CapabilityPage({ params }: Props) {
+  const { slug } = await params;
+  const c = CAPABILITIES.find((x) => x.slug === slug);
   if (!c) notFound();
 
   return (

@@ -10,7 +10,8 @@ const intl = createIntlMiddleware({
 
 const SESSION_COOKIE = 'kjs_session';
 
-export default function middleware(req: NextRequest) {
+// Next 16 renamed "middleware" to "proxy" (same job: runs before every page request).
+export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isPortal = pathname.startsWith('/admin') || pathname.startsWith('/employee');
   const isLogin = pathname === '/employee/login';

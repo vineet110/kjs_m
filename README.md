@@ -8,7 +8,7 @@ A comprehensive digital enterprise platform designed for **KJS India** featuring
 ---
 
 ## Tech Stack
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, next-intl (English at launch)
+- **Frontend**: Next.js 16 (App Router, React 19), TypeScript, Tailwind CSS, next-intl (English at launch)
 - **Backend API**: FastAPI (Python 3.12), SQLAlchemy 2.0 (async), Alembic, Pydantic v2
 - **Database**: PostgreSQL (Neon in development, the company server in production)
 - **Background jobs**: a small loop inside the API process (`backend/app/jobs`), Postgres locks

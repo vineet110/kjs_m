@@ -119,3 +119,18 @@ def test_only_private_networks_count_as_our_proxy():
     assert ip("172.18.0.5") == "203.0.113.9"  # nginx in Docker
     assert ip("172.2.3.4") == "172.2.3.4"  # a PUBLIC address that merely starts with "172.2"
     assert ip("8.8.8.8") == "8.8.8.8"
+
+
+async def test_product_image_must_be_a_plain_local_path(client):
+    # Next.js 16 breaks on "?" in image paths and crashes the product page on outside images.
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    for bad in ("https://example.com/x.jpg", "//evil.example/x.jpg", "/images/x.png?v=2", "/images/../x.png",
+                "images/x.png", "javascript:alert(1)"):
+        r = await client.post("/api/v1/admin/products", headers=HDR,
+                              json={"category_slug": "coffee", "name": "Stick Coffee", "image_path": bad})
+        assert r.status_code == 422, bad
+    for good in ("/images/products/coffee-stick.jpg", ""):
+        r = await client.post("/api/v1/admin/products", headers=HDR,
+                              json={"category_slug": "coffee", "name": f"Coffee {len(good)}", "image_path": good})
+        assert r.status_code == 201, good

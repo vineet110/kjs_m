@@ -6,17 +6,20 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
 import { serverGet, type Category, type Product } from '@/lib/api';
 
-type Props = { params: { slug: string } };
+// Next 15+: params arrive as a Promise.
+type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const c = await serverGet<Category>(`/public/categories/${encodeURIComponent(params.slug)}`);
+  const { slug } = await params;
+  const c = await serverGet<Category>(`/public/categories/${encodeURIComponent(slug)}`);
   return c ? { title: `${c.name} contract manufacturing`, description: c.description } : {};
 }
 
 export default async function CategoryPage({ params }: Props) {
+  const { slug } = await params;
   const [category, products] = await Promise.all([
-    serverGet<Category>(`/public/categories/${encodeURIComponent(params.slug)}`),
-    serverGet<Product[]>(`/public/products?category=${encodeURIComponent(params.slug)}`),
+    serverGet<Category>(`/public/categories/${encodeURIComponent(slug)}`),
+    serverGet<Product[]>(`/public/products?category=${encodeURIComponent(slug)}`),
   ]);
   if (!category) notFound();
 

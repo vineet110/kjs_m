@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
-const LOCALES = ['en']; // keep in sync with src/middleware.ts
+const LOCALES = ['en']; // keep in sync with src/proxy.ts
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,11 +18,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-  params: { locale },
+  params,
 }: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>; // Next 15+: a Promise
 }) {
+  const { locale } = await params;
   // Without this, any first path segment (e.g. /robots.txt) would be treated as a "locale".
   if (!LOCALES.includes(locale)) notFound();
   const messages = await getMessages();
