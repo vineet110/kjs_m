@@ -96,7 +96,7 @@ Tick `[x]` when a feature works end to end (backend + screen + tests). Source: `
 - [x] All 3 must-fix + 12 should-fix + the small ones fixed, 22 new tests (`test_prod_readiness.py`)
 - [x] nginx container swap tested for real; 114 API + 38 Chrome end-to-end checks pass
 - [ ] Review the new behaviour rules A67–A72 (backlog section 3)
-- [ ] Merge branch `fix/prod-readiness` (pull request)
+- [x] Merged into `main` (pull request #5, 27 Oct, CI green)
 
 ## Production (needs the server / KJS)
 - [ ] Neon in Singapore or company server Postgres

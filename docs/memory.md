@@ -291,7 +291,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    New rules to review: A67–A72. Migration 0011. 22 new tests (162 backend tests in total, all passing),
          114 API + 38 Chrome end-to-end checks pass. nginx container swap tested for real.
    vi.   e2e backend now runs with background jobs off (the minute job raced the "preview" check).
-   vii.  On branch `fix/prod-readiness`, pull request into `main`.
+   vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
 2. 26 Oct 2026 (merge, speed, Smart App Control)
