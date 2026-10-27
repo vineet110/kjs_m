@@ -756,6 +756,51 @@ A66. Product image path must be a plain local path  🟢
    iii.  Outside photos: upload them (Products > photos) instead. Where: `schemas/catalog.py`
 
 
+A67. A missed-punch request with no check-out keeps the real check-out  🟢
+
+   i.    "I forgot to punch in" requests usually leave check-out empty. Approving now keeps the real
+         check-out instead of erasing it. If the new check-in would be after that check-out, approval is refused.
+   ii.   Where: `attendance_service.decide`
+
+
+A68. "Check out" after midnight closes yesterday only for a real night shift  🟢
+
+   i.    Only if yesterday's check-in was less than 16 hours ago. Otherwise "Please check in first",
+         and the forgotten day is fixed with a missed-punch request (no more 33-hour days).
+   ii.   Where: `attendance_service.check_out` (MAX_SHIFT)
+
+
+A69. Lead status rules  🟢
+
+   i.    Setting the same status again is refused ("already closed").
+   ii.   An answered lead can't go back to "new". "Reopen" now sets it to "contacted".
+   iii.  Leaving "closed" clears the resolved time, so the resolve timer runs again.
+   iv.   Where: `lead_service.set_status`, portal Reopen button (`LeadsTable.tsx`)
+
+
+A70. Finished things stay finished  🟢
+
+   i.    A finished batch can't be edited or reopened (it also blocked new batches for that person).
+   ii.   An order board can be finished only once. Finishing closes its open tasks (marked done, with a
+         note "board finished as Cancelled/…") so they don't show as overdue forever.
+   iii.  Where: `assign_service.update_record`, `board_service.finish`
+
+
+A71. Order-board step time counts only days that are over  🟢
+
+   i.    Today is still available: a 1-day step is 0% on its day and "out of time" the next day.
+         Before, every step looked late on its last planned day (false alarms).
+   ii.   Where: `board_service.used_pct`
+
+
+A72. Buyer imports: max 5000 rows, and known buyers are skipped  🟢
+
+   i.    A bigger file is refused with "split it" (before, rows after 5000 were silently dropped).
+   ii.   Same company + email as an already imported record = skipped as "already imported", so the
+         same company is never called twice from two lists.
+   iii.  Where: `assign_service.read_rows`, `import_records`
+
+
 ### Code and setup
 
 A39. Folder names  🟢
@@ -943,3 +988,67 @@ R11. Backups: failure alerts, off-site copy, encryption  🟠 (with KJS IT)
 R12. Failed logins are only in the app log, not in the audit log  🟢
 
    i.    Searchable by request id in the logs; add to the audit log only if KJS asks for it.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 9. Production-readiness review (27 Oct): fixed, and what's left
+
+Three independent reviews (server behaviour, data correctness, security). Security: no blockers.
+Everything below "Fixed" has a test in `backend/tests/test_prod_readiness.py`.
+
+
+1. Fixed (branch `fix/prod-readiness`)
+
+   i.    Must fix:
+         a.  nginx kept old container addresses after a deploy (502 until restart). Now it looks them up
+             every 10 s, and `deploy.sh` reloads nginx. Tested with a real container swap.
+         b.  Approving a missed-punch request erased the real check-out (A67).
+         c.  A typo in `config/logging.ini` could stop all background jobs silently. Bad levels are now
+             refused, the loop can't die, and `/api/health/ready` fails if jobs stop.
+
+   ii.   Should fix:
+         a.  `staff.approve` could turn disabled accounts back on (only admins now).
+         b.  A stranger could keep the admin locked out (the lock is now per email + network).
+         c.  Email login didn't check the mail server's certificate. Port 465 supported.
+         d.  A slow or down mail server stalled every job; now one connection per batch, one try when down,
+             a 2-minute budget, and visitor text is marked as such in staff emails.
+         e.  Customer data in database error logs (hidden now, tracebacks masked).
+         f.  Random 502s from nginx/app keep-alive mismatch.
+         g.  Rate-limit memory could grow forever (swept every minute now).
+         h.  Long name + email broke every action of that user (audit label cut to fit).
+         i.  Board steps looked late a day early (A71). Finished boards / batches (A70). Lead status rules (A69).
+         j.  Imports over 5000 rows silently cut (A72).
+
+   iii.  Smaller ones: `/openapi.json` off in production; unsafe CORS refused at start; only real duplicates
+         give 409 (other database errors are 500, so bugs show); 500 answers carry the request id; graceful
+         shutdown (25 s); big uploads only on the two upload addresses; product files only for real products;
+         board file codes in any case; dates must carry a time zone; task fields can't be set to null;
+         one pending missed-punch request per day (migration 0011); public photos cached for an hour and
+         streamed from disk; storage errors handled + a job that removes files whose delete failed;
+         AI calls stop after 25 s total; SLA-breach count = leads, not notifications; board list capped;
+         admin leads list has paging (`?offset=500`); checklist ticks audited; logs keep about 2 weeks.
+
+
+2. Left for later (low risk)
+
+R13. Sign-up confirms that an email has a staff account  🟢 (decision D21)
+
+   i.    Limited to 5 tries per network per hour. Also: sign-up doesn't prove the person owns the email;
+         the approver checks the name. Decide with D21.
+
+
+R14. No idle timeout on sessions  🟢
+
+   i.    A session lasts 7 days even if unused. Fine for office PCs; add "log out after 8 h idle" if KJS wants it.
+
+
+R15. A 500 error's stack trace is logged twice  🟢
+
+   i.    Once by us (masked), once by uvicorn. Only log volume; turn off uvicorn's copy if logs get big.
+
+
+R16. Background jobs run one after another  🟢
+
+   i.    A slow job (up to 5 min) delays the others. Emails now stop after 2 minutes, so at most a short delay.

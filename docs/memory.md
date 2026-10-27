@@ -276,7 +276,25 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 26 Oct 2026 (merge, speed, Smart App Control)
+1. 27 Oct 2026 (production-readiness review)
+
+   i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
+         own from `.env.example`.
+   ii.   Three independent reviews of the backend: server behaviour, data correctness, security.
+         Security: no blockers. Everything found was checked against the code before fixing.
+   iii.  Must fix (done): nginx kept old container addresses after a deploy; approving a missed punch erased
+         the real check-out; one config typo could silently stop all background jobs.
+   iv.   Should fix (done): re-enabling accounts, admin lock-out by strangers, unverified mail-server TLS,
+         slow mail server stalling jobs, customer data in error logs, random 502s, limiter memory,
+         long names breaking actions, board time a day early, finished boards/batches, lead status rules,
+         silent import cut at 5000 rows. Plus about 20 smaller ones (backlog section 9).
+   v.    New rules to review: A67–A72. Migration 0011. 22 new tests (162 backend tests in total, all passing),
+         114 API + 38 Chrome end-to-end checks pass. nginx container swap tested for real.
+   vi.   e2e backend now runs with background jobs off (the minute job raced the "preview" check).
+   vii.  On branch `fix/prod-readiness`, pull request into `main`.
+
+
+2. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -292,7 +310,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-2. 25 Oct 2026 (senior review)
+3. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -314,7 +332,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-3. 25 Oct 2026
+4. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -328,7 +346,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-4. 24 Oct 2026 (morning)
+5. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -349,21 +367,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-5. 23 Oct 2026 (5)
+6. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-6. 23 Oct 2026 (4)
+7. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-7. 23 Oct 2026 (2 and 3)
+8. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-8. 23 Oct 2026 (1)
+9. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

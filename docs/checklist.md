@@ -91,6 +91,13 @@ Tick `[x]` when a feature works end to end (backend + screen + tests). Source: `
 - [x] Upgrade to Next.js 16.4.3 + React 19 (B13, branch `next16`, 26 Oct; all e2e checks pass)
 - [x] Next.js 16 merged into `main` (pull request #4, 27 Oct, CI green)
 
+## Production-readiness review (27 Oct)
+- [x] Three independent reviews: server behaviour, data correctness, security (no security blockers)
+- [x] All 3 must-fix + 12 should-fix + the small ones fixed, 22 new tests (`test_prod_readiness.py`)
+- [x] nginx container swap tested for real; 114 API + 38 Chrome end-to-end checks pass
+- [ ] Review the new behaviour rules A67–A72 (backlog section 3)
+- [ ] Merge branch `fix/prod-readiness` (pull request)
+
 ## Production (needs the server / KJS)
 - [ ] Neon in Singapore or company server Postgres
 - [ ] Company server running the Docker images behind nginx + Cloudflare Tunnel

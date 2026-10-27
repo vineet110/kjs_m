@@ -10,6 +10,27 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 27 Oct 2026 (production-readiness review)
+
+1. (V) Tests check what the code does on a good day; production is the bad days. The worst findings were
+   "what if": the mail server is down, a deploy changes container addresses, someone types a config typo.
+
+2. (V) A background job that dies must be noticed. Our health check said "OK" while emails and SLA alerts
+   could have stopped forever. Now the jobs loop leaves a heartbeat and `/api/health/ready` checks it.
+
+3. (V) An empty field means "no change", not "erase". Approving "I forgot to punch in" wiped the real
+   check-out because the request had no check-out.
+
+4. (V) A failing test is not always a bug in the app. The e2e "auto-assign" failure was the background job
+   doing its work one second before the test. Read the log before "fixing" anything.
+
+5. (V) Security limits can be turned against the owner: a lock per email let a stranger lock the admin out.
+   Lock the attacker (email + network), not the victim.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 26 Oct 2026 (speed and Smart App Control)
 
 1. (V) Measure before you fix. "Koko is slow, is it the free tier?" The numbers said: each database query takes

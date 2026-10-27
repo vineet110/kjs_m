@@ -117,5 +117,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 4. 25 Oct: Phase 1 merged into `main`. Production setup built and tested (`deploy/`).
    Senior review: about 50 findings, high and medium ones fixed.
 
-5. Tip for this Windows PC: `uvicorn --reload` sometimes misses changes. If nothing changes after an edit,
+5. 26–27 Oct: Next.js 16 upgrade merged (PR #4). Docs now committed. Production-readiness review: 3 must-fix
+   and 12 should-fix items fixed on branch `fix/prod-readiness` (backlog section 9).
+
+6. Tip for this Windows PC: `uvicorn --reload` sometimes misses changes. If nothing changes after an edit,
    stop the API fully and start it again. Smart App Control was turned off on 26 Oct, so `.venv` Python works again (B12 closed).
