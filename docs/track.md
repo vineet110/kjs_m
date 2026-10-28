@@ -32,7 +32,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Left for later on purpose: `backlog.md` section 8.
 
 
-4. Home page redesign + product catalogue (Nishita): PR #6, review fixes done 28 Oct
+4. Home page redesign + product catalogue (Nishita): DONE, merged into `main` (PR #6, 28 Oct)
 
    i.    Marketplace-style home page (search, category menu, banner, product tabs, quick view, enquiry list).
    ii.   58 products from the KJS catalogue PDF with pictures. Seeded into Neon on 28 Oct (`app.seed_catalogue`).
@@ -42,7 +42,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iv.   On Nishita's PC the backend can run in Docker (Smart App Control, see B12).
    v.    Second review (28 Oct): 4 blockers + CI type-check fix done; follow-ups in backlog R17–R20.
          Third review (28 Oct): e2e text, home text defaults, Pacho Fret pack labels; R21–R24 added.
-   vi.   Next: Vineet reviews and merges PR #6, demo to KJS. Real-phone test still to do (see memory).
+   vi.   Fourth review (28 Oct): approved, follow-ups R25–R29. Merged; catalogue seeded into the Singapore database.
+   vii.  Next: demo to KJS. Real-phone test still to do (see memory).
 
 
 5. Waiting on
@@ -56,7 +57,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
    i.    (Done 26 Oct: 14 unused frontend packages removed.)
    ii.   Lighthouse check of the production build.
-   iii.  Move development to a Neon project in Singapore (needs the new connection string).
+   iii.  (Done 28 Oct: development moved to a Neon project in Singapore, backlog B10.)
+   iv.   Reset the Singapore database password (pasted in chat, B9) and send it to Nishita privately.
 
 
 
@@ -135,3 +137,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 6. Tip for this Windows PC: `uvicorn --reload` sometimes misses changes. If nothing changes after an edit,
    stop the API fully and start it again. Smart App Control was turned off on 26 Oct, so `.venv` Python works again (B12 closed).
+
+7. 28 Oct: PR #6 (home page + 58-product catalogue) reviewed four times and merged. Development database moved
+   to Neon Singapore: about 70–180 ms per database trip from India, was about 560 ms (backlog B10).

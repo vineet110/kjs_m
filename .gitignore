@@ -52,3 +52,8 @@ backend/storage-e2e/
 !.env.production.example
 *.dump
 *.tgz
+
+# Neon agent skills (installed locally with `npx neon skills`, not shared)
+.claude/skills/neon/
+.claude/skills/neon-postgres/
+skills-lock.json
