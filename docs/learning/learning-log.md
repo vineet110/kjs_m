@@ -10,6 +10,21 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 28 Oct 2026 (third review)
+
+1. (T) Run every test suite the project has, not only the ones you know: the end-to-end browser test still
+   looked for the old home page text, and nothing else would have caught it.
+
+2. (T) A fallback that can never run is a bug in disguise: the backend always sends a default text, so the
+   new wording written in the frontend never showed. Change the text where it really comes from.
+
+3. (T) Check a "duplicate" against the source before deleting it: Pacho Fret 663 and 664 are both cocoa,
+   but in two different packs. The fix was a clearer label, not a deletion.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 28 Oct 2026 (second review)
 
 1. (T) A reviewer's suggested fix is a suggestion: check it against the source. Next's <Link> always calls

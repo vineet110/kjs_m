@@ -125,8 +125,9 @@ PRODUCTS = [
     dict(slug="pacho-fret", name="Pacho Fret wafers", cat="wafers",
          text="Cream-filled wafers in vanilla, strawberry, banana and cocoa.",
          items=[("660", "Vanilla flavoured cream", "40 g", 24, 6), ("661", "Strawberry flavoured cream", "40 g", 24, 6),
-                ("662", "Banana flavoured cream", "40 g", 24, 6), ("663", "Cocoa cream", "40 g", 24, 6),
-                ("664", "Cocoa cream", "40 g", 24, 6)]),
+                # 663 and 664 are both cocoa, in two pack designs (catalogue page 30: red and brown)
+                ("662", "Banana flavoured cream", "40 g", 24, 6), ("663", "Cocoa cream, red pack", "40 g", 24, 6),
+                ("664", "Cocoa cream, brown pack", "40 g", 24, 6)]),
     dict(slug="flavoured-wafers-35g", name="Flavoured wafers 35 g", cat="wafers",
          text="Cream-filled wafers in pistachio, orange, vanilla and cocoa.",
          items=[("670", "Pistachio flavoured cream", "35 g", 24, 6), ("671", "Orange flavoured cream", "35 g", 24, 6),

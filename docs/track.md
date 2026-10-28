@@ -41,6 +41,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          answering 200 because of a loading.tsx).
    iv.   On Nishita's PC the backend can run in Docker (Smart App Control, see B12).
    v.    Second review (28 Oct): 4 blockers + CI type-check fix done; follow-ups in backlog R17–R20.
+         Third review (28 Oct): e2e text, home text defaults, Pacho Fret pack labels; R21–R24 added.
    vi.   Next: Vineet reviews and merges PR #6, demo to KJS. Real-phone test still to do (see memory).
 
 

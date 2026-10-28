@@ -1117,6 +1117,32 @@ R19. Product items stored as text in the description  🟠
          `app/seed_catalogue.py`
 
 
-R20. image_path is only checked in the frontend  🟢
+R20. image_path is only checked in the frontend  ✅ CLOSED 28 Oct (not a problem)
 
    i.    Validate ProductIn.image_path in the API, so bad paths are refused when saved (today `imageOf` hides them).
+   ii.   Closed: the API already checks it (`schemas/catalog.py`, pattern on ProductIn.image_path).
+         `imageOf` could shrink to `p.image_path || null`; kept for rows saved before that check (A66).
+
+
+R21. Progress bar keeps running after a failed page change  🟢
+
+   i.    It stops only when the URL changes; a navigation that fails or is cancelled leaves it on for up to
+         10 s. Where: `components/public/NavigationProgress.tsx`
+
+
+R22. Windows line breaks break the summary  🟢
+
+   i.    `summary()` splits on "\n\n" only; a description pasted with "\r\n" keeps the whole item list in
+         the summary. Normalise line breaks first. Where: `frontend/src/lib/catalogue.ts`
+
+
+R23. Enquiry list text has no length limit  🟢
+
+   i.    20 products with long names or many items could still pass 4000 characters with the buyer's note.
+         Trim the list text (or cap its length). Where: `ProductExplorer.tsx` (listMessage)
+
+
+R24. Carousel picture keys use the image path  🟢
+
+   i.    Two products with the same picture would give two React elements the same key. Use the product slug.
+         Where: `HeroCarousel.tsx`

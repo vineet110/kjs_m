@@ -53,7 +53,7 @@ export default async function HomePage() {
       // The headline and text editable in Admin > Website
       eyebrow: 'Co-manufacturing · Hyderabad, India',
       title: t['home.hero_title'] ?? SITE.tagline,
-      text: t['home.hero_text'] ?? `Chocolate bars, wafers and biscuits, made and packed for your brand. Trusted by ${SITE.trustedBy.join(', ')}.`,
+      text: t['home.hero_text'] ?? '', // the backend always sends one (its default lives in content_service.TEXTS)
       href: '#range',
       cta: 'Explore the range',
       images: pick(['gofrey-crispy-x2', 'pacho-chocolate-bar', 'bigy-mellow']),
