@@ -31,11 +31,16 @@ type Props = {
   categorySlug?: string;
   title?: string;
   onDone?: () => void;
+  onSent?: () => void; // after the lead is saved (e.g. empty the enquiry list)
 };
+
+// Same limit as LeadIn.message in the API: extraMessage + the visitor's message must fit in it
+const MESSAGE_MAX = 4000;
 
 const BUYER_TYPES = ['Brand / private label', 'Distributor', 'Retailer', 'Importer', 'Other'];
 
-export default function EnquiryForm({ source = 'enquiry_form', extraMessage = '', productSlug, categorySlug, title, onDone }: Props) {
+export default function EnquiryForm({ source = 'enquiry_form', extraMessage = '', productSlug, categorySlug, title, onDone, onSent }: Props) {
+  const messageRoom = Math.max(0, MESSAGE_MAX - (extraMessage ? extraMessage.length + 1 : 0)); // +1: the line break
   const [state, setState] = useState<'idle' | 'quick' | 'sending' | 'done'>('idle');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState<Visitor | null>(null);
@@ -77,6 +82,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         /* private window: just ask again next time */
       }
       setState('done');
+      onSent?.();
     } catch (err) {
       setError(err instanceof ApiFailure ? err.message : 'Could not send. Please WhatsApp us instead.');
       setState('idle');
@@ -137,7 +143,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         </div>
       </div>
       <div><label className="label" htmlFor="quantity">Quantity needed</label><input id="quantity" name="quantity" className="input" placeholder="e.g. 50,000 sticks / month" /></div>
-      <div><label className="label" htmlFor="message">Message</label><textarea id="message" name="message" rows={3} className="input" /></div>
+      <div><label className="label" htmlFor="message">Message</label><textarea id="message" name="message" rows={3} maxLength={messageRoom} className="input" /></div>
       {/* Honeypot: hidden from people, bots fill it in */}
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <label className="flex items-start gap-2 text-xs text-slate-600">

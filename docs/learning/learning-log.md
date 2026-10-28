@@ -10,6 +10,31 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 28 Oct 2026 (review fixes)
+
+1. (T) A CSS transform changes what "fixed" means for everything inside it: a full-screen popup inside a
+   transformed box only fills that box. Centre without transforms, or draw popups into <body> (a portal).
+
+2. (T) Data saved in the browser can go stale: a product can be hidden or deleted later. When loading saved
+   data, keep only what still exists.
+
+3. (T) Every limit must count everything that goes into it: 20 products fit in 4000 characters, but the
+   buyer's own note did not, so the whole lead could be refused.
+
+4. (T) Test with a throwaway database when a test writes data (here: sending an enquiry), never the shared one.
+
+5. (T) A loading.tsx makes the page stream: headers (and the 200 status) go out before the page decides it is
+   "not found". So a missing product answered 200, not 404. Keep loading.tsx away from pages that call notFound().
+
+6. (T) An animation that hides content must always have a way back to visible: content that moves into view
+   without a scroll (a tab switch) or that you jump past must still appear. Test with fast jumps, not slow scrolls.
+
+7. (T) Testing your own work only finds what you thought of. The independent review found 10 issues my tests missed.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 27 Oct 2026 (catalogue and new home page)
 
 1. (T) The database stores only the path of an image, never the image itself. The file goes to a folder

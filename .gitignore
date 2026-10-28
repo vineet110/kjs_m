@@ -1,6 +1,8 @@
 # Node & Next.js
 node_modules/
 .next/
+# Next.js rewrites this file on every dev/build run, so it is not tracked
+frontend/next-env.d.ts
 out/
 build/
 dist/

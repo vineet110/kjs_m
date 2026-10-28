@@ -4,24 +4,22 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import type { Category, Product } from '@/lib/api';
-import { imageOf, searchText } from '@/lib/catalogue';
+import type { Category } from '@/lib/api';
+import { matchesSearch, searchEntry } from '@/lib/catalogue';
+import { useCatalogue } from './CatalogueContext';
 
-type Props = { products: Product[]; categories: Category[] };
-
-export default function HomeSearch({ products, categories }: Props) {
+export default function HomeSearch({ categories }: { categories: Category[] }) {
+  const products = useCatalogue();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [open, setOpen] = useState(false);
 
-  const matches = useMemo(() => {
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return [];
-    return products
-      .filter((p) => (!cat || p.category_slug === cat) && words.every((w) => searchText(p).includes(w)))
-      .slice(0, 6);
-  }, [q, cat, products]);
+  const index = useMemo(() => products.map((p) => ({ p, entry: searchEntry(p) })), [products]);
+  const matches = useMemo(
+    () => index.filter(({ p, entry }) => (!cat || p.categorySlug === cat) && matchesSearch(entry, q)).map(({ p }) => p).slice(0, 6),
+    [q, cat, index],
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,13 +63,13 @@ export default function HomeSearch({ products, categories }: Props) {
           {matches.length ? (
             matches.map((p) => (
               <Link key={p.slug} href={`/products/${p.slug}`} className="flex items-center gap-3 px-4 py-2 hover:bg-paper">
-                {imageOf(p) ? (
-                  <Image src={imageOf(p)!} alt="" width={56} height={42} className="h-10 w-14 rounded object-cover" />
+                {p.image ? (
+                  <Image src={p.image} alt="" width={56} height={42} className="h-10 w-14 rounded object-cover" />
                 ) : (
                   <span className="h-10 w-14 rounded bg-paper" />
                 )}
                 <span className="flex-1 text-sm font-medium text-slate-900">{p.name}</span>
-                <span className="text-xs text-slate-500">{p.category_name}</span>
+                <span className="text-xs text-slate-500">{p.categoryName}</span>
               </Link>
             ))
           ) : (

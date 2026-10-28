@@ -1,18 +1,17 @@
 'use client';
-// Left-hand category menu. Hovering a category opens a panel with its products (desktop);
-// on phones it becomes a row of chips.
+// Left-hand category menu. Hovering (or tabbing to) a category opens a panel with its products
+// (desktop); on phones it becomes a row of chips.
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import type { Category, Product } from '@/lib/api';
-import { imageOf } from '@/lib/catalogue';
+import type { Category } from '@/lib/api';
+import { useCatalogue } from './CatalogueContext';
 
-type Props = { categories: Category[]; products: Product[] };
-
-export default function CategoryMenu({ categories, products }: Props) {
+export default function CategoryMenu({ categories }: { categories: Category[] }) {
+  const products = useCatalogue();
   const [hover, setHover] = useState<string | null>(null);
   const active = categories.find((c) => c.slug === hover);
-  const inActive = active ? products.filter((p) => p.category_slug === active.slug) : [];
+  const inActive = active ? products.filter((p) => p.categorySlug === active.slug) : [];
 
   return (
     <>
@@ -24,7 +23,15 @@ export default function CategoryMenu({ categories, products }: Props) {
         ))}
       </div>
 
-      <nav className="relative hidden h-full lg:block" onMouseLeave={() => setHover(null)} aria-label="Product categories">
+      <nav
+        className="relative hidden h-full lg:block"
+        onMouseLeave={() => setHover(null)}
+        // Close when keyboard focus moves outside the menu and its panel, or on Escape.
+        // (Clicking empty space gives no relatedTarget: the mouse handlers decide then.)
+        onBlur={(e) => e.relatedTarget && !e.currentTarget.contains(e.relatedTarget) && setHover(null)}
+        onKeyDown={(e) => e.key === 'Escape' && setHover(null)}
+        aria-label="Product categories"
+      >
         <div className="card h-full py-2">
           <p className="px-4 pb-2 pt-1 text-xs font-bold uppercase tracking-widest text-slate-500">Categories</p>
           <ul>
@@ -55,8 +62,8 @@ export default function CategoryMenu({ categories, products }: Props) {
               <div className="mt-4 grid grid-cols-4 gap-3">
                 {inActive.slice(0, 12).map((p) => (
                   <Link key={p.slug} href={`/products/${p.slug}`} className="group text-center">
-                    {imageOf(p) ? (
-                      <Image src={imageOf(p)!} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
+                    {p.image ? (
+                      <Image src={p.image} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
                     ) : (
                       <span className="block aspect-[4/3] w-full rounded-lg bg-paper" />
                     )}

@@ -803,7 +803,7 @@ A72. Buyer imports: max 5000 rows, and known buyers are skipped  🟢
 
 A73. Product list taken from the catalogue PDF "KJS INDIA products.pdf" (27 Oct)  🟠
 
-   i.    58 product families, about 175 item numbers, all confectionery. Where: `backend/app/seed_catalogue.py`
+   i.    58 product families, 156 item numbers, all confectionery. Where: `backend/app/seed_catalogue.py`
    ii.   One product per brand family; flavours and sizes are listed as items inside the description.
          Families with clearly different packs (e.g. Gofrey Cocoa / Milk / Black & White) are separate products.
    iii.  Pages 13–16 of the PDF repeat as pages 21–24: added once.

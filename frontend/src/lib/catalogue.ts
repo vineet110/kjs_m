@@ -26,7 +26,45 @@ export function imageOf(p: Pick<Product, 'image_path'>): string | null {
   return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? p.image_path : null;
 }
 
-/** Lowercase text to search in: name, category, description (so item numbers like "801" match). */
-export function searchText(p: Pick<Product, 'name' | 'category_name' | 'description'>): string {
-  return `${p.name} ${p.category_name} ${p.description}`.toLowerCase();
+/** What the home page needs per product: small, with the item list already read.
+ *  Sent to the browser once (see components/public/home/CatalogueContext.tsx). */
+export type HomeProduct = {
+  slug: string; name: string; categorySlug: string; categoryName: string; image: string | null;
+  summary: string; packFormats: string; moq: string; privateLabel: boolean; items: CatalogueItem[];
+};
+
+export function toHomeProduct(p: Product): HomeProduct {
+  return {
+    slug: p.slug, name: p.name, categorySlug: p.category_slug, categoryName: p.category_name, image: imageOf(p),
+    summary: summary(p.description), packFormats: p.pack_formats, moq: p.moq, privateLabel: p.private_label,
+    items: parseItems(p.description),
+  };
+}
+
+const SPLIT = /[\s,.;:!?()&/'"+–-]+/;
+
+/** Lowercase without accents, so "kremali" finds "Kremalı" and "nestle" finds "Nestlé". */
+function plain(text: string): string {
+  return text.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+export type SearchEntry = { tokens: string[]; numbers: string[] };
+
+/** What search looks at, prepared once per product (not on every keystroke). */
+export function searchEntry(p: HomeProduct): SearchEntry {
+  return {
+    tokens: plain([p.name, p.categoryName, p.summary, ...p.items.map((i) => i.variant)].join(' ')).split(SPLIT),
+    numbers: p.items.map((i) => plain(i.no)),
+  };
+}
+
+/** Search. Every typed word must match: an item number ("801", "600A"), or the start of a word in the
+ *  name, category, summary or variants. Pack numbers like "24 pieces per box" are not searched,
+ *  so typing "24" doesn't match every product. */
+export function matchesSearch({ tokens, numbers }: SearchEntry, query: string): boolean {
+  const words = plain(query).split(SPLIT).filter(Boolean);
+  if (!words.length) return false;
+  return words.every(
+    (w) => tokens.some((t) => t.startsWith(w)) || numbers.some((n) => n === w || (w.length >= 3 && n.startsWith(w))),
+  );
 }

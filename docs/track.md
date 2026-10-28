@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (27 Oct 2026)
+## 1. Status today (28 Oct 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -32,13 +32,15 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Left for later on purpose: `backlog.md` section 8.
 
 
-4. Home page redesign + product catalogue (27 Oct, Nishita): CODE DONE, not seen in a browser yet
+4. Home page redesign + product catalogue (Nishita): PR #6, review fixes done 28 Oct
 
    i.    Marketplace-style home page (search, category menu, banner, product tabs, quick view, enquiry list).
-   ii.   58 products from the KJS catalogue PDF with pictures. Seed: `python -m app.seed_catalogue` (adds only
-         new products; writes to the shared Neon database).
-   iii.  On Nishita's PC the backend runs in Docker (Smart App Control blocks Python there, see B12).
-   iv.   Next: run the seed, check the page, demo to KJS.
+   ii.   58 products from the KJS catalogue PDF with pictures. Seeded into Neon on 28 Oct (`app.seed_catalogue`).
+   iii.  28 Oct: all 10 points of Vineet's review fixed; then loading screen (home), page-change progress bar,
+         scroll animations; an independent code review found 10 more issues, all fixed (incl. 404 pages
+         answering 200 because of a loading.tsx).
+   iv.   On Nishita's PC the backend can run in Docker (Smart App Control, see B12).
+   v.    Next: Vineet reviews and merges PR #6, demo to KJS.
 
 
 5. Waiting on
