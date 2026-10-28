@@ -10,6 +10,25 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 28 Oct 2026 (database move)
+
+1. (V) A Neon project's region is fixed when it is created. "Changing region" means a new project, then
+   migrations + seed (or copying the data), then new URLs in `.env`. Each folder has its own `.env`: v1 and v2
+   both had to be changed.
+
+2. (V) Moving the database close to us cut one trip from about 560 ms to about 80 ms. But one request can make
+   several trips (check the connection, begin, run, end), so even a one-query page still waits about 0.5 s.
+
+3. (V) A re-review looks at the latest commit, not the old one. Submit it as a new review (Request changes or
+   Approve), so the PR's status matches the code that is there now.
+
+4. (V) `git pull` refused because a generated file (`next-env.d.ts`) had changed locally. Generated files can
+   be thrown away (`git restore`); the tool makes them again.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 28 Oct 2026 (third review)
 
 1. (T) Run every test suite the project has, not only the ones you know: the end-to-end browser test still
