@@ -1,6 +1,6 @@
 // Shown at once while the home page waits for the API (our database is far away, so this can take
-// a few seconds): a gold progress bar, the KJS mark with a spinning ring, product packs bobbing in a
-// wave, and shimmering placeholder cards. Header and footer stay.
+// a few seconds): the KJS mark with a spinning ring, product packs bobbing in a wave, and shimmering
+// placeholder cards, while the header's gold progress bar runs. Header and footer stay.
 // Only for the home page, on purpose: pages that can be "not found" (products, categories) must not
 // have a loading.tsx, or they would answer 200 instead of 404 (the page starts streaming before
 // notFound() runs). Those pages get the progress bar in NavigationProgress instead.
@@ -19,11 +19,8 @@ function Shimmer({ className = '' }: { className?: string }) {
 
 export default function Loading() {
   return (
-    <div aria-busy="true" aria-live="polite">
-      {/* Gold progress bar under the header */}
-      <div className="fixed inset-x-0 top-16 z-30 h-1 overflow-hidden bg-gold/15">
-        <div className="h-full w-1/4 animate-progress rounded-full bg-gradient-to-r from-gold-light via-gold to-gold-dark motion-reduce:hidden" />
-      </div>
+    // data-loading-screen: shows the header's gold bar while this screen is on the page (globals.css)
+    <div aria-busy="true" aria-live="polite" data-loading-screen>
 
       <div className="bg-paper">
         <div className="mx-auto max-w-7xl px-4 py-8">

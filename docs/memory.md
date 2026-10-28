@@ -280,7 +280,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 28 Oct 2026 (PR #6 review fixes, Nishita)
+1. 28 Oct 2026 (PR #6 second review, Nishita)
+
+   i.    4 blockers fixed: category panel gap (padding, not margin), search results stay open while focus is in
+         the search box (no timer), one progress bar inside the header (CSS: <html data-navigating> or a
+         loading screen on the page), bar only for real page changes.
+   ii.   Reviewer's fix for the bar (bubble phase) would never start it: Next's <Link> always calls
+         preventDefault() (link.js, linkClicked). Kept capture phase + data-no-progress opt-out.
+   iii.  CI runs `next typegen` before `tsc` (next-env.d.ts is gitignored). Proven with a test image import.
+   iv.   Found while testing: home page scrolled sideways on phones (certification logos); fresh home load
+         showed no bar. Both fixed. Independent review of the final code: 5 more fixed, 3 explained.
+   v.    Tested: real mouse and keyboard in Chrome, 390 px frame, ticker simulated. NOT tested: a real phone,
+         Safari, Firefox. Follow-ups R17–R20 in backlog.
+
+
+2. 28 Oct 2026 (PR #6 review fixes, Nishita)
 
    i.    Vineet's review of PR #6: 4 blocking + 6 follow-ups, all fixed. Enquiry form now opens in a portal
          (a CSS transform on the bar squeezed it), stale saved products dropped, list emptied after sending,
@@ -296,7 +310,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          missing pages answer 200 instead of 404. Rule: no loading.tsx above pages that call notFound().
 
 
-2. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
+3. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
 
    i.    Read the 50-page catalogue PDF (pictures only, no text): 58 product families, 156 items.
    ii.   New `backend/app/seed_catalogue.py`: 4 new categories (old ones kept) and 58 products. Only file
@@ -310,7 +324,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  New assumptions A73–A77, inputs I13, I14 (phone number mismatch).
 
 
-3. 27 Oct 2026 (production-readiness review)
+4. 27 Oct 2026 (production-readiness review)
 
    i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
          own from `.env.example`.
@@ -328,7 +342,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
-4. 26 Oct 2026 (merge, speed, Smart App Control)
+5. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -344,7 +358,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-5. 25 Oct 2026 (senior review)
+6. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -366,7 +380,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-6. 25 Oct 2026
+7. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -380,7 +394,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-7. 24 Oct 2026 (morning)
+8. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -388,7 +402,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Next: production setup.
 
 
-8. 23–24 Oct 2026 (night)
+9. 23–24 Oct 2026 (night)
 
    i.    New plan from `master-build-prompt.pdf`: Phase 1 in 2 weeks, one list (`checklist.md`).
    ii.   Built every Phase 1 feature: settings files with live reload, JSON logs with request IDs, background jobs,
@@ -401,21 +415,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-9. 23 Oct 2026 (5)
+10. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-10. 23 Oct 2026 (4)
+11. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-11. 23 Oct 2026 (2 and 3)
+12. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-12. 23 Oct 2026 (1)
+13. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

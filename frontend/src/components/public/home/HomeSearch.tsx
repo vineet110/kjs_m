@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Category } from '@/lib/api';
 import { matchesSearch, searchEntry } from '@/lib/catalogue';
+import { startNavigationProgress } from '../NavigationProgress';
 import { useCatalogue } from './CatalogueContext';
 
 export default function HomeSearch({ categories }: { categories: Category[] }) {
@@ -23,12 +24,22 @@ export default function HomeSearch({ categories }: { categories: Category[] }) {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (matches[0]) router.push(`/products/${matches[0].slug}`);
-    else if (cat) router.push(`/categories/${cat}`);
+    const to = matches[0] ? `/products/${matches[0].slug}` : cat ? `/categories/${cat}` : null;
+    if (!to) return;
+    startNavigationProgress(); // router.push is not a link click, so the bar is started here
+    router.push(to);
   }
 
   return (
-    <form onSubmit={submit} className="relative" role="search">
+    <form
+      onSubmit={submit}
+      className="relative"
+      role="search"
+      // Results stay open while focus is anywhere in the search box (input, button, result links):
+      // keyboard users can Tab to the results. They close when focus leaves it, or on Escape.
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}
+      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+    >
       <div className="flex overflow-hidden rounded-full border-2 border-gold bg-white shadow-sm focus-within:ring-4 focus-within:ring-gold/20">
         <select
           value={cat}
@@ -45,7 +56,7 @@ export default function HomeSearch({ categories }: { categories: Category[] }) {
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onClick={() => setOpen(true)} // reopens after Escape (focus never left, so no new focus event)
           placeholder="Search wafers, chocolate bars, biscuits or an item number like 801"
           className="min-w-0 flex-1 px-4 py-3 text-sm text-slate-900 outline-none"
           aria-label="Search products"
@@ -59,7 +70,12 @@ export default function HomeSearch({ categories }: { categories: Category[] }) {
       </div>
 
       {open && q.trim() && (
-        <div className="absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div
+          className="absolute inset-x-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+          // A mouse press here doesn't move focus, so the input keeps it and the list stays open until
+          // the click lands (some browsers, e.g. Safari, don't focus links on click)
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {matches.length ? (
             matches.map((p) => (
               <Link key={p.slug} href={`/products/${p.slug}`} className="flex items-center gap-3 px-4 py-2 hover:bg-paper">

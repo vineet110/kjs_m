@@ -52,30 +52,34 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
         </div>
 
         {active && (
-          <div className="absolute left-full top-0 z-30 ml-2 h-full w-[640px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-lg font-bold">{active.name}</h3>
-              <Link href={`/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
-            </div>
-            <p className="mt-1 text-sm text-slate-600">{active.description}</p>
-            {inActive.length ? (
-              <div className="mt-4 grid grid-cols-4 gap-3">
-                {inActive.slice(0, 12).map((p) => (
-                  <Link key={p.slug} href={`/products/${p.slug}`} className="group text-center">
-                    {p.image ? (
-                      <Image src={p.image} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
-                    ) : (
-                      <span className="block aspect-[4/3] w-full rounded-lg bg-paper" />
-                    )}
-                    <span className="mt-1 block text-xs font-medium text-slate-700 group-hover:text-ink">{p.name}</span>
-                  </Link>
-                ))}
+          // The 8px space between the list and the panel is padding of this wrapper (not a margin),
+          // so it belongs to the menu: crossing it with the mouse doesn't fire onMouseLeave
+          <div className="absolute left-full top-0 z-30 h-full pl-2">
+            <div className="h-full w-[640px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-lg font-bold">{active.name}</h3>
+                <Link href={`/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
               </div>
-            ) : (
-              <p className="mt-6 rounded-lg bg-paper p-4 text-sm text-slate-600">
-                Made to order for your brand. Ask us for formats, recipes and the catalogue.
-              </p>
-            )}
+              <p className="mt-1 text-sm text-slate-600">{active.description}</p>
+              {inActive.length ? (
+                <div className="mt-4 grid grid-cols-4 gap-3">
+                  {inActive.slice(0, 12).map((p) => (
+                    <Link key={p.slug} href={`/products/${p.slug}`} className="group text-center">
+                      {p.image ? (
+                        <Image src={p.image} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
+                      ) : (
+                        <span className="block aspect-[4/3] w-full rounded-lg bg-paper" />
+                      )}
+                      <span className="mt-1 block text-xs font-medium text-slate-700 group-hover:text-ink">{p.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-6 rounded-lg bg-paper p-4 text-sm text-slate-600">
+                  Made to order for your brand. Ask us for formats, recipes and the catalogue.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </nav>

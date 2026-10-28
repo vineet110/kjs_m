@@ -145,7 +145,8 @@ export default async function HomePage() {
       {/* Trust strip */}
       <section className="border-y border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-5">
-          <div className="flex items-center gap-3">
+          {/* flex-wrap: on phones the logos go onto two lines instead of making the page scroll sideways */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Certified</span>
             {SITE.certifications.map((c) => (
               <Image key={c.name} src={c.img} alt={c.name} width={80} height={44} className="h-10 w-auto object-contain" />

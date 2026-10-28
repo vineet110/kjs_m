@@ -1092,3 +1092,31 @@ R15. A 500 error's stack trace is logged twice  🟢
 R16. Background jobs run one after another  🟢
 
    i.    A slow job (up to 5 min) delays the others. Emails now stop after 2 minutes, so at most a short delay.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 10. PR #6 review follow-ups (28 Oct): for a separate PR
+
+R17. Carousel pauses only on mouse hover  🟢
+
+   i.    Also pause on keyboard focus and for "reduce motion" users; a slide change can take focus away
+         from "Explore the range". Where: `components/public/home/HeroCarousel.tsx`
+
+
+R18. Quick view copies the enquiry modal's overlay  🟢
+
+   i.    Make one shared Modal (portal, Escape, backdrop click) for the quick view and EnquiryButton.
+
+
+R19. Product items stored as text in the description  🟠
+
+   i.    Item numbers and pack sizes are read with a strict pattern ("• Item 801: 25 g, 24 pieces per box,
+         6 per case"). If an admin writes it differently, the items silently disappear from the site.
+   ii.   Plan a proper items column or table (migration, admin form, API). Where: `lib/catalogue.ts`,
+         `app/seed_catalogue.py`
+
+
+R20. image_path is only checked in the frontend  🟢
+
+   i.    Validate ProductIn.image_path in the API, so bad paths are refused when saved (today `imageOf` hides them).

@@ -40,7 +40,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          scroll animations; an independent code review found 10 more issues, all fixed (incl. 404 pages
          answering 200 because of a loading.tsx).
    iv.   On Nishita's PC the backend can run in Docker (Smart App Control, see B12).
-   v.    Next: Vineet reviews and merges PR #6, demo to KJS.
+   v.    Second review (28 Oct): 4 blockers + CI type-check fix done; follow-ups in backlog R17–R20.
+   vi.   Next: Vineet reviews and merges PR #6, demo to KJS. Real-phone test still to do (see memory).
 
 
 5. Waiting on

@@ -13,6 +13,16 @@
   .eyebrow { @apply text-xs font-bold uppercase tracking-[0.18em] text-gold-dark; }
 }
 
+/* The header's ONE progress bar (ProgressBar in SiteHeader), shown while:
+   - another page is loading: <html data-navigating>, set by NavigationProgress, or
+   - a loading screen is on the page ([data-loading-screen], e.g. (home)/loading.tsx). This part is CSS,
+     not React: a loading screen streamed by the server runs no JavaScript until the page arrives.
+   One element for both, so a click that ends in a loading screen keeps one smooth animation.
+   (:has() is in all current browsers; in older ones only the loading-screen case shows no bar.) */
+.page-progress { display: none; }
+html[data-navigating] .page-progress,
+body:has([data-loading-screen]) .page-progress { display: block; }
+
 @media (prefers-reduced-motion: reduce) {
   video[autoplay] { display: none; }
 }

@@ -1,43 +1,54 @@
 'use client';
-// A gold bar running under the header while the next page loads, after a click on a link to another
-// page of our site. Gives feedback on every page without a loading.tsx (which would turn 404 pages
-// into 200, see (home)/loading.tsx). It stops when the new page is shown, or after 15 s at most.
+// Runs the header's progress bar (ONE element, see ProgressBar) while another page of our site loads:
+// after a click on a link, or when code navigates with startNavigationProgress() + router.push.
+// It only sets <html data-navigating>; CSS shows the bar (globals.css). The same bar is also shown by
+// CSS while a loading screen is on the page, so a click that ends in a loading screen keeps one
+// smooth animation. Stops when the new page is shown, or after 10 s at most.
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+
+let timer = 0;
+
+/** Call before router.push(...) to another page: shows the bar until that page is shown. */
+export function startNavigationProgress() {
+  document.documentElement.setAttribute('data-navigating', '');
+  window.clearTimeout(timer);
+  timer = window.setTimeout(stopNavigationProgress, 10000);
+}
+
+function stopNavigationProgress() {
+  document.documentElement.removeAttribute('data-navigating');
+  window.clearTimeout(timer);
+}
 
 export default function NavigationProgress() {
   const pathname = usePathname();
   const search = useSearchParams();
-  const [busy, setBusy] = useState(false);
 
   // New page shown: stop
-  useEffect(() => setBusy(false), [pathname, search]);
+  useEffect(stopNavigationProgress, [pathname, search]);
 
   useEffect(() => {
-    let timer = 0;
+    // Capture phase on purpose. Next's <Link> always calls preventDefault() and then navigates itself
+    // (node_modules/next/dist/client/app-dir/link.js, linkClicked), so in the bubble phase every
+    // internal link click looks "cancelled" and the bar would never start. Next has no global
+    // "navigation started" event; code that navigates itself calls startNavigationProgress().
+    // A link that cancels its own navigation can opt out with data-no-progress; none do today.
     function onClick(e: MouseEvent) {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // new tab / window
       const a = (e.target as Element | null)?.closest('a');
-      if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+      if (!a || a.target === '_blank' || a.hasAttribute('download') || a.hasAttribute('data-no-progress')) return;
       const url = new URL(a.href, window.location.href);
       if (url.origin !== window.location.origin) return; // another website
       if (url.pathname === window.location.pathname && url.search === window.location.search) return; // same page or #anchor
-      setBusy(true);
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setBusy(false), 15000);
+      startNavigationProgress();
     }
-    // Capture phase: runs before Next's <Link>, which calls preventDefault() to do its own navigation
     document.addEventListener('click', onClick, true);
     return () => {
       document.removeEventListener('click', onClick, true);
-      window.clearTimeout(timer);
+      stopNavigationProgress();
     };
   }, []);
 
-  if (!busy) return null;
-  return (
-    <div className="fixed inset-x-0 top-16 z-50 h-1 overflow-hidden bg-gold/15" role="progressbar" aria-label="Loading page">
-      <div className="h-full w-1/4 animate-progress rounded-full bg-gradient-to-r from-gold-light via-gold to-gold-dark motion-reduce:w-full motion-reduce:animate-none" />
-    </div>
-  );
+  return null;
 }

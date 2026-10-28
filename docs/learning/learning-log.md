@@ -10,6 +10,23 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 28 Oct 2026 (second review)
+
+1. (T) A reviewer's suggested fix is a suggestion: check it against the source. Next's <Link> always calls
+   preventDefault(), so "only start the bar if the click wasn't cancelled" would never start it.
+
+2. (T) Test like a user, not like a script: move the mouse slowly across gaps, use only the keyboard, turn
+   optional parts on (the offers ticker), and try a phone-sized screen. Each of these found a bug.
+
+3. (T) Keep a PR small. Every new feature added to an open PR gave the reviewer new code to find bugs in.
+
+4. (T) Content streamed by the server runs no JavaScript until the page is ready. To react to a loading
+   screen on a fresh load, use CSS (`body:has(...)`), not a React effect.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 28 Oct 2026 (review fixes)
 
 1. (T) A CSS transform changes what "fixed" means for everything inside it: a full-screen popup inside a
