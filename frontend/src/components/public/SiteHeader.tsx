@@ -1,5 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import NavigationProgress from './NavigationProgress';
+import ProgressBar from './ProgressBar';
 import { SITE } from '@/lib/site';
 
 const NAV = [
@@ -35,6 +38,13 @@ export default function SiteHeader({ showPartners = true, showPrivateLabel = tru
           </Link>
         </div>
       </div>
+      {/* The page-loading bar on the header's bottom edge. Shown by CSS (globals.css, .page-progress)
+          while a page loads (NavigationProgress) or a loading screen is on the page. Suspense:
+          NavigationProgress reads the URL (useSearchParams); fallback null, so pages never stream. */}
+      <ProgressBar className="page-progress" />
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
     </header>
   );
 }

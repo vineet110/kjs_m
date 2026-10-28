@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/public/JsonLd';
 import GatedActions from '@/components/public/GatedActions';
 import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
+import { imageOf, summary } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Next 15+: params arrive as a Promise.
@@ -14,7 +15,7 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
-  return p ? { title: p.name, description: p.description.slice(0, 160) } : {};
+  return p ? { title: p.name, description: summary(p.description).slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
@@ -24,7 +25,8 @@ export default async function ProductPage({ params }: Props) {
   const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
   const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));
   const docs = (files ?? []).filter((x) => !x.content_type.startsWith('image/'));
-  const mainImage = p.image_path || photos[0]?.url;
+  const ownImage = imageOf(p);
+  const mainImage = ownImage || photos[0]?.url;
 
   const facts = [
     ['Category', p.category_name],
@@ -40,7 +42,7 @@ export default async function ProductPage({ params }: Props) {
           '@context': 'https://schema.org',
           '@type': 'Product',
           name: p.name,
-          description: p.description,
+          description: summary(p.description),
           category: p.category_name,
           brand: { '@type': 'Organization', name: 'KJS India' },
         }}
@@ -51,9 +53,9 @@ export default async function ProductPage({ params }: Props) {
         <span className="text-slate-900">{p.name}</span>
       </nav>
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="card relative flex aspect-square items-center justify-center overflow-hidden bg-slate-100">
+        <div className="card relative flex aspect-square items-center justify-center overflow-hidden bg-paper">
           {mainImage ? (
-            <Image src={mainImage} alt={p.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" unoptimized={!p.image_path} />
+            <Image src={mainImage} alt={p.name} fill className="object-contain" sizes="(max-width: 768px) 100vw, 50vw" unoptimized={!ownImage} />
           ) : (
             <span className="text-slate-400">{p.category_name}</span>
           )}

@@ -10,6 +10,7 @@ const API = process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000';
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // don't advertise the framework in every response
+  devIndicators: false, // no Next.js "N" badge in the corner during `npm run dev` (demos, screenshots)
   // A separate build folder (e.g. NEXT_DIST_DIR=.next-e2e) lets a test build run without
   // touching the .next folder that `npm run dev` is using.
   distDir: process.env.NEXT_DIST_DIR || '.next',

@@ -4,7 +4,7 @@ The project's long-term memory: short facts, rules and decisions.
 
 Anyone joining (person or AI) reads this first.
 
-Last updated: 24 Oct 2026.
+Last updated: 27 Oct 2026.
 
 Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
@@ -181,6 +181,10 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 18. 24 Oct. Commits and pull requests never mention the AI assistant.
 
+19. 27 Oct. Products come from the KJS catalogue PDF (seeded by `app/seed_catalogue.py`), pictures cut from
+    the PDF until KJS sends originals. Home page laid out like a B2B marketplace (Alibaba-style layout,
+    KJS branding).
+
 
 
 ---------------------------------------------------------------------------------------------------
@@ -276,7 +280,62 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 27 Oct 2026 (production-readiness review)
+1. 28 Oct 2026 (PR #6 third review, Nishita)
+
+   i.    e2e `browser_e2e.mjs` expected the old home text ("Explore products"): now "Explore the range".
+   ii.   Home texts come from the backend defaults (`content_service.TEXTS`), which always win over a frontend
+         fallback: new chocolate / wafers / biscuits wording for home.hero_text and seo.home.*. None were
+         customised in Admin > Website, checked in Neon.
+   iii.  Pacho Fret 663 and 664 are both cocoa in the printed catalogue (page 30), in two pack designs: labelled
+         "red pack" and "brown pack" in the seed, and in Neon with a one-off update (only if unedited).
+   iv.   Follow-ups R21–R24 added; R20 closed (the API already checks image_path).
+
+
+2. 28 Oct 2026 (PR #6 second review, Nishita)
+
+   i.    4 blockers fixed: category panel gap (padding, not margin), search results stay open while focus is in
+         the search box (no timer), one progress bar inside the header (CSS: <html data-navigating> or a
+         loading screen on the page), bar only for real page changes.
+   ii.   Reviewer's fix for the bar (bubble phase) would never start it: Next's <Link> always calls
+         preventDefault() (link.js, linkClicked). Kept capture phase + data-no-progress opt-out.
+   iii.  CI runs `next typegen` before `tsc` (next-env.d.ts is gitignored). Proven with a test image import.
+   iv.   Found while testing: home page scrolled sideways on phones (certification logos); fresh home load
+         showed no bar. Both fixed. Independent review of the final code: 5 more fixed, 3 explained.
+   v.    Tested: real mouse and keyboard in Chrome, 390 px frame, ticker simulated. NOT tested: a real phone,
+         Safari, Firefox. Follow-ups R17–R20 in backlog.
+
+
+3. 28 Oct 2026 (PR #6 review fixes, Nishita)
+
+   i.    Vineet's review of PR #6: 4 blocking + 6 follow-ups, all fixed. Enquiry form now opens in a portal
+         (a CSS transform on the bar squeezed it), stale saved products dropped, list emptied after sending,
+         Clear on phones, message box limited to what fits in 4000 characters.
+   ii.   Follow-ups: product meta description = summary only, search matches item numbers and word starts
+         (not "24 pieces"), Popular uses best sellers, admin headline is the h1 on slide 1, hidden slides inert,
+         category panel closes on blur/Escape, product list sent to the browser once (context), imageOf in ProductCard.
+   iii.  Tested in Chrome against a throwaway database (not Neon): all 4 blocking fixes checked.
+   iv.   Catalogue seeded into Neon (58 products). `frontend/next-env.d.ts` no longer tracked (gitignored).
+   v.    Home page: overlap fixed, Next.js dev badge off, loading screen (home only), gold progress bar on page
+         changes, scroll animations (`components/public/Reveal.tsx`, one shared observer).
+   vi.   Independent code review: 10 findings, all fixed. Worst: a loading.tsx over product/category pages made
+         missing pages answer 200 instead of 404. Rule: no loading.tsx above pages that call notFound().
+
+
+4. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
+
+   i.    Read the 50-page catalogue PDF (pictures only, no text): 58 product families, 156 items.
+   ii.   New `backend/app/seed_catalogue.py`: 4 new categories (old ones kept) and 58 products. Only file
+         added in the backend (Vineet works on the backend in parallel).
+   iii.  58 product pictures cut out of the PDF with a script, cleaned, same background: `frontend/public/images/products/`.
+   iv.   New home page: search with instant results (also by item number), category menu with product panel,
+         banner slideshow, buyer panel, category tiles, product tabs, quick view, enquiry list (up to 20 products,
+         one enquiry), "how it works". New: `components/public/home/*`, `lib/catalogue.ts`. tsc passes.
+   v.    Smart App Control blocks Python on Nishita's PC (also uv's Python). Backend runs in Docker there.
+   vi.   The home page shows a 500 error when the API is off (by design in `serverGet`). Start the backend first.
+   vii.  New assumptions A73–A77, inputs I13, I14 (phone number mismatch).
+
+
+5. 27 Oct 2026 (production-readiness review)
 
    i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
          own from `.env.example`.
@@ -294,7 +353,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
-2. 26 Oct 2026 (merge, speed, Smart App Control)
+6. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -310,7 +369,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-3. 25 Oct 2026 (senior review)
+7. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -332,7 +391,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-4. 25 Oct 2026
+8. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -346,7 +405,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-5. 24 Oct 2026 (morning)
+9. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -354,7 +413,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Next: production setup.
 
 
-4. 23–24 Oct 2026 (night)
+10. 23–24 Oct 2026 (night)
 
    i.    New plan from `master-build-prompt.pdf`: Phase 1 in 2 weeks, one list (`checklist.md`).
    ii.   Built every Phase 1 feature: settings files with live reload, JSON logs with request IDs, background jobs,
@@ -367,21 +426,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-6. 23 Oct 2026 (5)
+11. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-7. 23 Oct 2026 (4)
+12. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-8. 23 Oct 2026 (2 and 3)
+13. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-9. 23 Oct 2026 (1)
+14. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

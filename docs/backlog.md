@@ -801,6 +801,40 @@ A72. Buyer imports: max 5000 rows, and known buyers are skipped  🟢
    iii.  Where: `assign_service.read_rows`, `import_records`
 
 
+A73. Product list taken from the catalogue PDF "KJS INDIA products.pdf" (27 Oct)  🟠
+
+   i.    58 product families, 156 item numbers, all confectionery. Where: `backend/app/seed_catalogue.py`
+   ii.   One product per brand family; flavours and sizes are listed as items inside the description.
+         Families with clearly different packs (e.g. Gofrey Cocoa / Milk / Black & White) are separate products.
+   iii.  Pages 13–16 of the PDF repeat as pages 21–24: added once.
+   iv.   Only the English lines are used. Brand names keep their printed spelling (Kremalı, Susamlı).
+   v.    No price and no MOQ in the PDF, so none on the site ("On request"). No product marked best seller.
+
+
+A74. Product pictures cut out of the catalogue PDF  🟠
+
+   i.    Background removed by a script and every pack placed on the same light background with a shadow.
+         Two fixed by hand (Gofrey Milk, Gofrey Black & White). Where: `frontend/public/images/products/`
+   ii.   Good enough for the demo. Replace with KJS's original pack files when they send them (I13).
+
+
+A75. New categories added next to the old ones  🟢
+
+   i.    Chocolate bars, Wafers, Marshmallow & cakes, Biscuits. Coffee, Tea, Health drinks, Confectionery stay
+         (shown as "made to order" while they have no products).
+
+
+A76. Catalogue phone number differs from the site  🔴 before go-live
+
+   i.    The PDF's back page says +91 83416 59999; the site (`lib/site.ts`) says +91 97037 35666.
+         Site unchanged until KJS confirms (I14).
+
+
+A77. Home page facts taken from the catalogue PDF  🟢
+
+   i.    "Two units, more than 250 products", partners list, stick-pack fills 0.9–3 g (page 2 of the PDF).
+
+
 ### Code and setup
 
 A39. Folder names  🟢
@@ -836,6 +870,8 @@ I1. Logo, brand colours, factory and product photos, first offers for the ticker
 
 I2. Product list: category, pack formats, minimum order, certifications, best sellers, HS code  🟠
 
+   i.    27 Oct: catalogue PDF received and added (A73). Still missing: MOQ, best sellers, HS codes.
+
 I3. Price bands (per product, pack and quantity, USD per 1,000)  🟢
 
    i.    Until then the private-label builder shows no price.
@@ -860,6 +896,10 @@ I10. SMTP details (email account for sending notifications)  🟠
 I11. Buyer lists (Excel), one product category per row  🟠
 
 I12. Confirm the partner programme offer (A47)  🔴 before go-live
+
+I13. Original pack images (PNG/JPG per item) to replace the ones cut from the PDF (A74)  🟢
+
+I14. Correct sales phone number: catalogue vs website (A76)  🔴 before go-live
 
 
 
@@ -1052,3 +1092,57 @@ R15. A 500 error's stack trace is logged twice  🟢
 R16. Background jobs run one after another  🟢
 
    i.    A slow job (up to 5 min) delays the others. Emails now stop after 2 minutes, so at most a short delay.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 10. PR #6 review follow-ups (28 Oct): for a separate PR
+
+R17. Carousel pauses only on mouse hover  🟢
+
+   i.    Also pause on keyboard focus and for "reduce motion" users; a slide change can take focus away
+         from "Explore the range". Where: `components/public/home/HeroCarousel.tsx`
+
+
+R18. Quick view copies the enquiry modal's overlay  🟢
+
+   i.    Make one shared Modal (portal, Escape, backdrop click) for the quick view and EnquiryButton.
+
+
+R19. Product items stored as text in the description  🟠
+
+   i.    Item numbers and pack sizes are read with a strict pattern ("• Item 801: 25 g, 24 pieces per box,
+         6 per case"). If an admin writes it differently, the items silently disappear from the site.
+   ii.   Plan a proper items column or table (migration, admin form, API). Where: `lib/catalogue.ts`,
+         `app/seed_catalogue.py`
+
+
+R20. image_path is only checked in the frontend  ✅ CLOSED 28 Oct (not a problem)
+
+   i.    Validate ProductIn.image_path in the API, so bad paths are refused when saved (today `imageOf` hides them).
+   ii.   Closed: the API already checks it (`schemas/catalog.py`, pattern on ProductIn.image_path).
+         `imageOf` could shrink to `p.image_path || null`; kept for rows saved before that check (A66).
+
+
+R21. Progress bar keeps running after a failed page change  🟢
+
+   i.    It stops only when the URL changes; a navigation that fails or is cancelled leaves it on for up to
+         10 s. Where: `components/public/NavigationProgress.tsx`
+
+
+R22. Windows line breaks break the summary  🟢
+
+   i.    `summary()` splits on "\n\n" only; a description pasted with "\r\n" keeps the whole item list in
+         the summary. Normalise line breaks first. Where: `frontend/src/lib/catalogue.ts`
+
+
+R23. Enquiry list text has no length limit  🟢
+
+   i.    20 products with long names or many items could still pass 4000 characters with the buyer's note.
+         Trim the list text (or cap its length). Where: `ProductExplorer.tsx` (listMessage)
+
+
+R24. Carousel picture keys use the image path  🟢
+
+   i.    Two products with the same picture would give two React elements the same key. Use the product slug.
+         Where: `HeroCarousel.tsx`

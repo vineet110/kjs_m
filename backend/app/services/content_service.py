@@ -21,14 +21,15 @@ KOKO_FACTS_FILE = Path(__file__).parent.parent / "knowledge" / "kjs_facts.md"
 # key -> (what it is, default). Public = shown to website visitors through /public/texts.
 TEXTS: dict[str, tuple[str, str]] = {
     "home.hero_title": ("Home: big headline", "Trusted Co-Manufacturing Partner"),
+    # Home texts follow the product catalogue (27 Oct): confectionery first, coffee and tea made to order
     "home.hero_text": ("Home: text under the headline",
-                       "Coffee, tea, health drinks and confectionery, blended and packed for your brand. "
+                       "Chocolate bars, wafers, biscuits and marshmallow treats, made and packed for your brand. "
                        "Trusted by global leaders like Nestlé, Unilever, Mayora."),
     "seo.home.title": ("Home: page title (Google)",
-                       "KJS India | Contract Manufacturing: Coffee, Tea, Health Drinks, Confectionery"),
+                       "KJS India | Contract Manufacturing: Chocolate Bars, Wafers, Biscuits"),
     "seo.home.description": ("Home: description (Google)",
-                             "Co-manufacturer of coffee, tea, health drinks and confectionery in stick packs, "
-                             "sachets and pouches. Private label, export, FSSC 22000 certified."),
+                             "Co-manufacturer of chocolate bars, wafers, biscuits and marshmallow confectionery, "
+                             "plus coffee and tea in stick packs. Private label, export, FSSC 22000 certified."),
     "seo.products.title": ("Products: page title (Google)", "Products | KJS India"),
     "seo.products.description": ("Products: description (Google)",
                                  "Coffee, tea, health drink and confectionery products for private label and export."),

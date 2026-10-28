@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (25 Oct 2026)
+## 1. Status today (28 Oct 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -32,14 +32,27 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Left for later on purpose: `backlog.md` section 8.
 
 
-4. Waiting on
+4. Home page redesign + product catalogue (Nishita): PR #6, review fixes done 28 Oct
+
+   i.    Marketplace-style home page (search, category menu, banner, product tabs, quick view, enquiry list).
+   ii.   58 products from the KJS catalogue PDF with pictures. Seeded into Neon on 28 Oct (`app.seed_catalogue`).
+   iii.  28 Oct: all 10 points of Vineet's review fixed; then loading screen (home), page-change progress bar,
+         scroll animations; an independent code review found 10 more issues, all fixed (incl. 404 pages
+         answering 200 because of a loading.tsx).
+   iv.   On Nishita's PC the backend can run in Docker (Smart App Control, see B12).
+   v.    Second review (28 Oct): 4 blockers + CI type-check fix done; follow-ups in backlog R17–R20.
+         Third review (28 Oct): e2e text, home text defaults, Pacho Fret pack labels; R21–R24 added.
+   vi.   Next: Vineet reviews and merges PR #6, demo to KJS. Real-phone test still to do (see memory).
+
+
+5. Waiting on
 
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
    ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
 
 
-5. Can be done without KJS
+6. Can be done without KJS
 
    i.    (Done 26 Oct: 14 unused frontend packages removed.)
    ii.   Lighthouse check of the production build.

@@ -10,6 +10,85 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 28 Oct 2026 (third review)
+
+1. (T) Run every test suite the project has, not only the ones you know: the end-to-end browser test still
+   looked for the old home page text, and nothing else would have caught it.
+
+2. (T) A fallback that can never run is a bug in disguise: the backend always sends a default text, so the
+   new wording written in the frontend never showed. Change the text where it really comes from.
+
+3. (T) Check a "duplicate" against the source before deleting it: Pacho Fret 663 and 664 are both cocoa,
+   but in two different packs. The fix was a clearer label, not a deletion.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 28 Oct 2026 (second review)
+
+1. (T) A reviewer's suggested fix is a suggestion: check it against the source. Next's <Link> always calls
+   preventDefault(), so "only start the bar if the click wasn't cancelled" would never start it.
+
+2. (T) Test like a user, not like a script: move the mouse slowly across gaps, use only the keyboard, turn
+   optional parts on (the offers ticker), and try a phone-sized screen. Each of these found a bug.
+
+3. (T) Keep a PR small. Every new feature added to an open PR gave the reviewer new code to find bugs in.
+
+4. (T) Content streamed by the server runs no JavaScript until the page is ready. To react to a loading
+   screen on a fresh load, use CSS (`body:has(...)`), not a React effect.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 28 Oct 2026 (review fixes)
+
+1. (T) A CSS transform changes what "fixed" means for everything inside it: a full-screen popup inside a
+   transformed box only fills that box. Centre without transforms, or draw popups into <body> (a portal).
+
+2. (T) Data saved in the browser can go stale: a product can be hidden or deleted later. When loading saved
+   data, keep only what still exists.
+
+3. (T) Every limit must count everything that goes into it: 20 products fit in 4000 characters, but the
+   buyer's own note did not, so the whole lead could be refused.
+
+4. (T) Test with a throwaway database when a test writes data (here: sending an enquiry), never the shared one.
+
+5. (T) A loading.tsx makes the page stream: headers (and the 200 status) go out before the page decides it is
+   "not found". So a missing product answered 200, not 404. Keep loading.tsx away from pages that call notFound().
+
+6. (T) An animation that hides content must always have a way back to visible: content that moves into view
+   without a scroll (a tab switch) or that you jump past must still appear. Test with fast jumps, not slow scrolls.
+
+7. (T) Testing your own work only finds what you thought of. The independent review found 10 issues my tests missed.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 27 Oct 2026 (catalogue and new home page)
+
+1. (T) The database stores only the path of an image, never the image itself. The file goes to a folder
+   (`storage/` on our PC, Cloudflare R2 in production). Databases are slow and costly for big files.
+
+2. (T) The frontend has no `requirements.txt`: JavaScript projects list their packages in `package.json`
+   (and exact versions in `package-lock.json`). `npm ci` is the frontend's `pip install -r requirements.txt`.
+
+3. (T) Two people working in parallel: keep your change in NEW files when you can. The catalogue seed is its own
+   file (`seed_catalogue.py`), so it didn't clash with Vineet's backend work. The docs did clash: we both
+   added A67, so mine became A73. Pull often, before writing new numbers.
+
+4. (T) "500 error" on the home page with `ECONNREFUSED 127.0.0.1:8000` means the backend is not running.
+   Start the backend first, then the frontend.
+
+5. (T) "An Application Control policy has blocked this file" = Windows Smart App Control. Docker runs the
+   backend in Linux, where Windows can't block it.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 27 Oct 2026 (production-readiness review)
 
 1. (V) Tests check what the code does on a good day; production is the bad days. The worst findings were
