@@ -3,6 +3,8 @@ node_modules/
 .next/
 # Next.js rewrites this file on every dev/build run, so it is not tracked
 frontend/next-env.d.ts
+# Extra Next.js build folders for local test copies (e.g. .next-check for phone tests)
+.next-*/
 out/
 build/
 dist/

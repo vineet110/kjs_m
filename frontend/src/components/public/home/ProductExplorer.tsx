@@ -9,9 +9,9 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
+import { readEnquiryList, rememberViewed, saveEnquiryList } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
 
-const LIST_KEY = 'kjs_enquiry_list';
 const LIST_MAX = 20; // 20 lines of products leave room for the buyer's own message (4000 characters in all)
 const PAGE = 12;
 
@@ -44,14 +44,6 @@ function CardImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-function store(list: string[]) {
-  try {
-    localStorage.setItem(LIST_KEY, JSON.stringify(list));
-  } catch {
-    // private window or blocked storage: the list still works for this visit
-  }
-}
-
 export default function ProductExplorer({ categories }: { categories: Category[] }) {
   const products = useCatalogue();
   const [tab, setTab] = useState('all');
@@ -63,16 +55,10 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   // Load the saved list, keeping only products that are still on the site (a hidden or deleted
   // product would otherwise use up a slot that nobody can see or remove)
   useEffect(() => {
-    let saved: unknown = [];
-    try {
-      saved = JSON.parse(localStorage.getItem(LIST_KEY) || '[]');
-    } catch {
-      // private window or blocked storage: start with an empty list
-    }
     const live = new Set(products.map((p) => p.slug));
-    const kept = Array.isArray(saved) ? saved.filter((s): s is string => typeof s === 'string' && live.has(s)).slice(0, LIST_MAX) : [];
+    const kept = readEnquiryList().filter((s) => live.has(s)).slice(0, LIST_MAX);
     setList(kept);
-    store(kept);
+    saveEnquiryList(kept);
   }, [products]);
 
   useEffect(() => {
@@ -85,7 +71,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
 
   function saveList(next: string[]) {
     setList(next);
-    store(next);
+    saveEnquiryList(next);
   }
 
   function toggle(slug: string) {
@@ -97,7 +83,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   // After a successful send the saved list is emptied at once; the bar stays until the
   // "Thank you" window is closed, then disappears
   function onListSent() {
-    store([]);
+    saveEnquiryList([]);
     setSent(true);
   }
   function onListClosed() {
@@ -132,13 +118,13 @@ export default function ProductExplorer({ categories }: { categories: Category[]
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
-        {visible.slice(0, shown).map((p, n) => {
+        {visible.slice(0, shown).map((p) => {
           const inList = list.includes(p.slug);
           return (
-            // Cards rise in a ripple, row by row, as they scroll into view
-            <Reveal key={p.slug} delay={(n % 4) * 90} className="flex">
+            // Cards pop in, row by row, every time they scroll into view (down or up)
+            <Reveal key={p.slug} stagger repeat className="flex">
               <article className="card group flex w-full flex-col overflow-hidden transition-shadow hover:shadow-lg">
-                <button onClick={() => setQuick(p)} className="relative block aspect-[4/3] overflow-hidden bg-paper" aria-label={`Quick view: ${p.name}`}>
+                <button onClick={() => { setQuick(p); rememberViewed(p.slug); }} className="relative block aspect-[4/3] overflow-hidden bg-paper" aria-label={`Quick view: ${p.name}`}>
                   {p.image ? (
                     <CardImage src={p.image} alt={p.name} />
                   ) : (

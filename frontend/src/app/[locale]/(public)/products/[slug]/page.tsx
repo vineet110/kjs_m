@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/public/JsonLd';
 import GatedActions from '@/components/public/GatedActions';
+import TrackView from '@/components/public/TrackView';
 import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
 import { imageOf, summary } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
@@ -37,6 +38,7 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-12">
+      <TrackView slug={p.slug} />
       <JsonLd
         data={{
           '@context': 'https://schema.org',

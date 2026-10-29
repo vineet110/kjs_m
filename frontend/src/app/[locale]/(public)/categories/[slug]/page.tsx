@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
+import Reveal from '@/components/public/Reveal';
 import { serverGet, type Category, type Product } from '@/lib/api';
 
 // Next 15+: params arrive as a Promise.
@@ -38,7 +39,12 @@ export default async function CategoryPage({ params }: Props) {
 
       {products && products.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {products.map((p) => <ProductCard key={p.id} p={p} />)}
+          {/* Cards pop in, row by row, every time they scroll into view (down or up) */}
+          {products.map((p) => (
+            <Reveal key={p.id} stagger repeat className="flex">
+              <ProductCard p={p} />
+            </Reveal>
+          ))}
         </div>
       ) : (
         <div className="card p-6 text-sm text-slate-600">
