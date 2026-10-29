@@ -898,6 +898,69 @@ Sections:
 
 
 
+
+
+### IntersectionObserver
+
+   What   A browser feature that tells our code when an element comes into view (or leaves it), without
+          checking on every scroll.
+   Why    `Reveal.tsx` uses it to fade sections in as you scroll.
+   Where  `frontend/src/components/public/Reveal.tsx`.
+
+
+### getBoundingClientRect
+
+   What   Asks the browser where an element is on screen right now (top, left, width, height).
+   Why    Cheap once, but calling it for many elements on every scroll event can make scrolling jerky (codeReview CR32).
+
+
+### createPortal
+
+   What   A React function that draws a component somewhere else in the page (usually at the end of `<body>`)
+          while it still belongs to its parent in the code.
+   Why    Popups like the enquiry form must not be trapped inside a parent with a transform or overflow.
+
+
+### inert (attribute)
+
+   What   An HTML attribute that makes a part of the page unclickable and skipped by the keyboard and screen readers.
+   Why    Used for the parts of the page behind an open popup, or for hidden carousel slides.
+
+
+### CSS :has()
+
+   What   A CSS selector that styles an element based on what it contains, for example a card that has a
+          checked box inside it.
+
+
+### Capture-phase listener
+
+   What   An event listener added with `{ capture: true }`. It runs on the way down to the clicked element,
+          before normal listeners, so it sees the click first.
+   Why    Lets a global handler (like the page progress bar) see a click even when a component stops it.
+
+
+### next typegen
+
+   What   A Next.js command that writes the type files for our routes. Run it before `npx tsc --noEmit`
+          on a fresh clone, or type checking shows errors that aren't real (codeReview CR33).
+
+
+### Catch-all route [...rest]
+
+   What   A Next.js folder name like `[...rest]` that matches any path not matched by another page.
+   Why    A way to send unknown URLs to our own 404 page (codeReview CR4). Where it sits decides which
+          `not-found.tsx` is used.
+
+
+### dvh (CSS unit)
+
+   What   "Dynamic viewport height": 100dvh is the visible screen height, even when a phone's address bar
+          shows or hides.
+   Why    Stops popups being taller than a phone held sideways (codeReview CR26).
+
+
+
 ===================================================================================================
 
 ## 6. Security and privacy
@@ -1148,6 +1211,16 @@ Sections:
    Why    A limit "per IP address" must count the whole block as one, or a bot just changes address (codeReview CR6).
           Only the limits should group by block; saved records keep the real address.
    Where  Planned: a `rate_key()` helper next to `client_ip()` in `backend/app/core/deps.py`.
+
+
+
+
+
+### IPv4-mapped IPv6 address
+
+   What   An IPv4 address written in IPv6 form, like `::ffff:1.2.3.4`. Servers that listen on both kinds
+          show IPv4 visitors this way.
+   Why    Must be treated as the IPv4 address, or every IPv4 visitor falls into one IPv6 /64 rate limit (codeReview CR6).
 
 
 
@@ -1510,6 +1583,15 @@ Sections:
 
    What   A GitHub bot that opens PRs to update old or unsafe dependencies.
    Why    Its PRs get no secrets, so workflows that need a secret fail on them (codeReview CR37).
+
+
+
+
+
+### exec (shell)
+
+   What   `exec command` replaces the running script with `command`; nothing after that line runs.
+   Why    A way for `deploy.sh` to restart itself as the newly pulled version (codeReview CR35).
 
 
 

@@ -845,6 +845,14 @@ A77. Home page facts taken from the catalogue PDF  🟢
    i.    "Two units, more than 250 products", partners list, stick-pack fills 0.9–3 g (page 2 of the PDF).
 
 
+A78. Night-shift regularization: a "check-out was the next day" tick box  🟢  (guess, 29 Oct)
+
+   i.    Suggested fix for `codeReview.md` CR14: the employee ticks the box instead of the system
+         guessing a night shift from the times. Not built yet.
+   ii.   To confirm with HR before building: is a tick box OK for staff, or should night shifts be
+         set per person?
+
+
 ### Code and setup
 
 A39. Folder names  🟢

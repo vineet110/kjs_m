@@ -31,6 +31,10 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 4. Not done: the backend tests were not run (the test database container was paused). Nothing was
    changed in the code. This file is the to-do list.
 
+5. Each "Fix" is a direction, not ready code. The first version of this file had code snippets; three
+   review rounds kept finding bugs in them, because nobody had run them. So the snippets were
+   removed. Write the real fix in a code PR, with a test that fails first (`prompt.md` section 6).
+
 
 Severity:
 
@@ -88,25 +92,12 @@ CR1. `restore.sh` can wipe the database and still print "restore done"  🔴
 
    Fix:
 
-   a.  Check both files before touching anything:
-       ```bash
-       $COMPOSE exec -T db pg_restore -l < "$db_file" > /dev/null || { echo "Not a valid DB backup: $db_file"; exit 1; }
-       [ -z "$files_file" ] || tar tzf "$files_file" > /dev/null || { echo "Not a valid files backup: $files_file"; exit 1; }
-       ```
-   b.  Turn the backup into SQL first, and only then drop the schema:
-       ```bash
-       $COMPOSE exec -T db sh -c 'set -e
-         trap "rm -f /tmp/r.dump /tmp/r.sql" EXIT
-         cat > /tmp/r.dump
-         pg_restore --no-owner --no-privileges -f /tmp/r.sql /tmp/r.dump
-         { echo "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; cat /tmp/r.sql; } \
-           | psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"
-       ```
-       The `trap` deletes the two temp files even when a step fails. Without it, `set -e` stops the
-       script before the cleanup, and a full copy of the database (password hashes, customer contacts)
-       stays in the container's `/tmp`.
+   a.  Check both backup files are valid (`pg_restore -l`, `tar tzf`) before deleting anything.
+   b.  Turn the backup into SQL first, and only drop the schema once that worked. Any temp file holds a
+       full copy of the database, so it must be deleted even when a step fails (a shell `trap`).
    c.  Files: extract into a new folder first, then swap it in.
    d.  Test: run `restore.sh` with a wrong file and check that the data is still there.
+   e.  `pipefail` alone doesn't fix this: it only changes the exit code after `psql` has committed.
 
 
 
@@ -127,8 +118,10 @@ CR2. Health checks pass even when the home page is broken  🟠
          "healthy".
 
    Fix: check a page with no `loading.tsx`, or add a tiny route that does the same API call the home
-   page needs, e.g. `app/healthz/route.ts` that calls `/public/products` and returns 500 on failure.
-   Point `deploy.sh` and the Dockerfile at it.
+   page needs and answers 500 when it fails. Point `deploy.sh` and the Dockerfile at it.
+   Careful where it goes: `proxy.ts` sends every non-API path through next-intl, which rewrites
+   `/healthz` to `/en/healthz`. A route at `app/healthz/` would always answer 404 and every deploy
+   would "fail". Put it under `app/[locale]/`, or exclude it in the proxy matcher.
 
 
 CR3. Backups need the backend to be running, so a crashing backend blocks deploys and restores  🟠
@@ -141,10 +134,8 @@ CR3. Backups need the backend to be running, so a crashing backend blocks deploy
          first step is `backup.sh`, which fails, so the deploy stops. Same with `restore.sh`, exactly
          when you need it most.
 
-   Fix: read the files volume with a throwaway container (the pattern `restore.sh` already uses):
-   ```bash
-   $COMPOSE run --rm -T --no-deps --entrypoint tar backend czf - -C /srv/kjs_files . > "$files_file.tmp"
-   ```
+   Fix: read the files volume with a throwaway container (`$COMPOSE run --rm --no-deps`), the pattern
+   `restore.sh` already uses, instead of `exec` into the running backend.
 
 
 CR4. The public site has no error page and no time limit on API calls  🟠
@@ -160,22 +151,21 @@ CR4. The public site has no error page and no time limit on API calls  🟠
    iv.   `notFound()` shows Next's default 404, also without our header and footer.
 
    Fix:
-   a.  `fetch(..., { signal: AbortSignal.timeout(8000), next: { revalidate: ... } })`.
-       Careful: a `signal` turns off Next's de-duplication of identical fetches in one render. Pages
-       that call `serverGet` for the same path twice (for example `generateMetadata` plus the page)
-       would then call the API twice. Wrap those calls in React `cache()` so each runs once.
-   b.  Add `app/[locale]/(public)/error.tsx` ('use client', "Try again" button, phone and WhatsApp).
-       It catches crashes in the pages, but not in `(public)/layout.tsx` itself. For those, also add
-       an `error.tsx` one level up (`app/[locale]/error.tsx`).
-   c.  Add `app/[locale]/(public)/not-found.tsx`. It only shows when a page calls `notFound()`. A URL
-       that matches no page at all (`/does-not-exist`) still gets Next's default 404, so also add a
-       catch-all `app/[locale]/[...rest]/page.tsx` that calls `notFound()`.
-   d.  Check b and c against the Next 16 docs before writing them; these rules are easy to get wrong.
+   a.  A time limit on the API call (`AbortSignal.timeout`). A `signal` turns off Next's
+       de-duplication of identical fetches, so pages that fetch the same path twice (for example
+       `generateMetadata` plus the page) should use React `cache()`.
+   b.  An `error.tsx` for the public pages ("Try again", phone, WhatsApp). It doesn't catch crashes in
+       the layout of its own folder, so one level up is needed for those.
+   c.  A `not-found.tsx` with our header and footer. It only shows when a page calls `notFound()`; a
+       URL that matches no page needs a catch-all route (`[...rest]`) that calls `notFound()`, placed
+       inside `(public)` so it finds that `not-found.tsx`.
+   d.  These Next.js rules are easy to get wrong: check them in the Next 16 docs, then test each case
+       (API down, unknown URL, layout crash) in the browser.
 
 
 CR5. A stranger can still lock the admin out (backlog section 9 says this is fixed)  🟠
 
-   Where: `backend/app/services/auth_service.py:52`, `backend/app/core/rate_limit.py:76`
+   Where: `backend/app/services/auth_service.py:53`, `backend/app/core/rate_limit.py:76`
 
    i.    There are two lockout counters. The per email + network one (10 tries) is fine.
    ii.   The second one, `login_email_failures` (100 failures in 15 min from any network), blocks the
@@ -188,19 +178,12 @@ CR5. A stranger can still lock the admin out (backlog section 9 says this is fix
 
    Fix:
    a.  Fix CR6 first (it makes this much harder).
-   b.  Remember networks where this person logged in successfully, and don't let the any-network
-       counter block them:
-       ```python
-       # the check
-       if login_failures.blocked(lock_key) or (
-               login_email_failures.blocked(email) and not known_network(email, ip_hash)):
-       ```
-       Where `known_network` reads from:
-       i.    Not a plain dict in memory. It is empty after every deploy or restart (exactly when an
-             attacker can lock the admin out again), and it never forgets a network.
-       ii.   Better: the database, for example the `ip_hash` of this person's successful logins in the
-             last 30 days. If no table has that yet, a small `login_networks` table is a migration:
-             decide first.
+   b.  Don't let the any-network counter block a network where this person logged in successfully
+       recently (for example the last 30 days).
+       i.    Keep that list in the database, not in memory: memory is empty after every deploy or
+             restart, which is exactly when an attacker could lock the admin out again.
+       ii.   If no table has it yet, a small table is a migration: decide first.
+       iii.  A database read is `async`: remember the `await`, or the check is always "true".
    c.  Test: 10 attacker networks, then a correct login from the office network still works, also
        after an API restart.
 
@@ -215,28 +198,15 @@ CR6. Every IPv6 address gets its own rate limit, so all per-IP limits can be ski
          sign-ups, Koko and login. Unlimited spam leads mean a notification and an email to staff for
          each one. Koko spam uses up the daily AI budget, and real visitors get the fallback answer.
 
-   Fix: count a whole IPv6 /64 block as one visitor, but only for the limits:
-   ```python
-   def rate_key(ip: str | None) -> str | None:
-       """Rate-limit key: one IPv6 /64 block counts as one visitor."""
-       try:
-           addr = ipaddress.ip_address(ip)
-       except (TypeError, ValueError):
-           return ip  # 'testclient' in tests, or a bad header: keep it as it is
-       if addr.version == 6 and addr.ipv4_mapped:
-           return str(addr.ipv4_mapped)  # ::ffff:1.2.3.4 is really an IPv4 visitor
-       if addr.version == 6:
-           return str(ipaddress.ip_network(f"{addr}/64", strict=False))
-       return str(addr)
-   ```
-   i.    Don't put this inside `client_ip()`. Its result is also hashed and saved in leads, audit
-         logs and content rows, and those should keep the real address.
-   ii.   Today each endpoint passes one `hash_ip(client_ip(request))` that the service uses for both
-         the limit and the saved row. Pass a second value for the limiters,
-         `hash_ip(rate_key(client_ip(request)))`, and keep the saved one as it is.
-   iii.  The `try` matters: without it, a bad address gives a 500 on every login, sign-up, enquiry
-         and Koko call. The `ipv4_mapped` line stops all IPv4 visitors on a dual-stack server from
-         sharing one /64 limit.
+   Fix: a small helper that turns an address into a rate-limit key, counting a whole IPv6 /64 block
+   as one visitor.
+   i.    Only for the limits. Don't change `client_ip()`: its result is also hashed and saved in
+         leads, audit logs and content rows, and those should keep the real address. Today each
+         endpoint passes one `ip_hash` for both jobs, so the limiters need a second value.
+   ii.   It must never crash on a bad address (`testclient` in tests, a strange header), or every
+         login, sign-up, enquiry and Koko call gives a 500.
+   iii.  An IPv4-mapped address (`::ffff:1.2.3.4`) is really IPv4: treat it as IPv4, or all IPv4
+         visitors on a dual-stack server share one limit.
 
 
 CR7. The office shares one IP, so the login and sign-up limits will block KJS staff  🟠
@@ -266,12 +236,8 @@ CR8. Turning a feature off only hides it; the API still works  🟠
    ii.   A bot is spamming Koko and the admin turns Koko off to stop the cost. The bot calls the API
          directly and keeps spending AI calls up to the daily limit, every day.
 
-   Fix: at the top of `koko_chat`:
-   ```python
-   if not cfg().features.koko:
-       raise AppError(404, "off", "Koko is off.")
-   ```
-   Same check in `lead_service.create` for sources whose feature is off. Add a test per flag.
+   Fix: `koko_chat` refuses when the `koko` flag is off, and `lead_service.create` refuses sources
+   whose feature is off. Add a test per flag.
 
 
 CR9. A disabled employee's open batch of buyers is stuck forever, and admins can't see it  🟠
@@ -283,22 +249,17 @@ CR9. A disabled employee's open batch of buyers is stuck forever, and admins can
    ii.   Disabling a user doesn't touch their batch, no admin screen can take it back, and the
          overview lists only active users, so it is hidden too.
    iii.  An employee leaves with 20 buyers half done. Those buyers are never given to anyone again
-         and don't show as "unassigned" either. Same during a long leave.
+         and don't show as "unassigned" either.
+   iv.   Same during a long leave. A leave is "not available" (`set_availability`), not a disabled
+         account (`set_status`), so a fix only in `set_status` doesn't cover it.
 
-   Fix: when a user stops being active, give their unfinished buyers back:
-   ```python
-   open_b = await db.scalar(select(Batch).where(Batch.user_id == user.id, Batch.status == "open"))
-   if open_b:
-       await db.execute(update(BuyerRecord)
-                        .where(BuyerRecord.batch_id == open_b.id, BuyerRecord.status == "assigned")
-                        .values(status="new", batch_id=None))
-       open_b.status = "returned"
-   ```
-   Not `"done"`: that means "finished", so the batch history and reports would count a half-done
-   batch as completed. `"returned"` is a new value (the column is a plain `String(20)`, no
-   migration needed). Update the comment in `models/batch.py` (`open | done | returned`) and check
-   that the employee batches page shows it sensibly.
-   Optional: a "take back batch" button for `assign.manage`. Add a test.
+   Fix:
+   a.  When a user is disabled, put their unfinished buyers back to "new" and mark the batch with a
+       new status such as "returned". Not "done": that means "finished", and the history and reports
+       would count a half-done batch as completed.
+   b.  For leave: an admin "take back batch" button (`assign.manage`) is simpler and safer than doing
+       it automatically every time someone switches availability off. Decide which first.
+   c.  Test both cases.
 
 
 CR10. When the mail server is down, emails are lost for good, about one every 3 minutes  🟠
@@ -327,21 +288,16 @@ CR11. The running API has the database superuser password  🟠  (adds to R7)
          commands on the database container (`COPY ... TO PROGRAM`).
 
    Fix: only the migration step needs it.
-   a.  Remove it from the long-running container's env file. Put it in a separate file that only the
-       scripts read, for example `deploy/.env.migrate` (git-ignored, like `.env`).
-   b.  Both scripts must load that file themselves. They run with `set -u` and never read `.env`, so a
-       bare `$MIGRATION_DATABASE_URL` would stop them with "unbound variable". Near the top of
-       **both** `deploy.sh` and `restore.sh` (both run migrations):
-       ```bash
-       MIGRATION_DATABASE_URL="$(sed -n 's/^MIGRATION_DATABASE_URL=//p' .env.migrate 2>/dev/null)"
-       : "${MIGRATION_DATABASE_URL:?put MIGRATION_DATABASE_URL in deploy/.env.migrate}"
-       ```
-       Then pass it only to the migration step:
-       `$COMPOSE run --rm -e MIGRATION_DATABASE_URL="$MIGRATION_DATABASE_URL" backend alembic upgrade head`
-   c.  Make `alembic/env.py` refuse to run when `MIGRATION_DATABASE_URL` is empty. Today it silently
-       falls back to `DATABASE_URL` (see CR24 vi). If `restore.sh` were missed in b, the migration
-       would run as `kjs_app` with no right to change tables and fail half-way through a restore.
-   d.  Do this together with R7 (one env file per service).
+   a.  Remove it from the long-running container's env file. Keep it in a separate, git-ignored file
+       that only the scripts read, and pass it to the migration step only.
+   b.  **Both** `deploy.sh` and `restore.sh` run migrations, so both need it.
+   c.  Both scripts use `set -euo pipefail` and don't read `.env` themselves. Loading the value must
+       not stop the script silently (for example when the file is missing): it must print a clear
+       message, and in `restore.sh` it must happen before the app is stopped.
+   d.  `alembic/env.py` silently falls back to `DATABASE_URL` when the value is empty (see CR24 vi).
+       Refuse that only in production (`APP_ENV=production`): `.env.example` leaves it empty and local
+       development relies on the fallback.
+   e.  Do this together with R7 (one env file per service). Test a deploy and a restore after it.
 
 
 
@@ -357,8 +313,9 @@ CR12. Re-opening a lead that was closed on time sends a false "not closed in tim
    ii.   A lead was closed in 30 minutes. A week later the buyer replies and staff click Reopen.
          Within a minute everyone gets "Lead not closed in time", and the breach count goes up.
 
-   Fix: save a `reopened_at` and count the resolve timer from it (same root as R3 / R4). Quick
-   version: set `escalation_level = 2` when leaving "closed". Add a test.
+   Fix: save a `reopened_at` and count the resolve timer from it (same root as R3 / R4). Add a test.
+   Not the shortcut of setting `escalation_level = 2` on reopen: `sla_check` skips level 2, so a
+   reopened lead would never be alerted on again, even if it sits untouched for weeks.
 
 
 CR13. "Step done" and "finish board" at the same moment leave open tasks on a finished board  🟢
@@ -383,25 +340,16 @@ CR14. A night-shift missed punch can't be fixed  🟢
    ii.   Someone works 22:00 to 06:00 (allowed, A68) and forgets to check out. Asking for 22:00 / 06:00
          is refused.
 
-   Fix: let the employee say so, with a "check-out was the next day" tick box (`next_day: bool` in
-   the request), instead of guessing from the times:
-   ```python
-   now = datetime.now(timezone.utc)
-   start = to_utc(day, check_in)
-   end = to_utc(day + timedelta(days=1) if next_day else day, check_out) if check_out else None
-   if end and end <= start:
-       raise AppError(422, "bad_times", "Check-out must be after check-in.")
-   if end and end - start > MAX_SHIFT:
-       raise AppError(422, "too_long", "That shift is too long.")
-   if start > now or (end and end > now):
-       raise AppError(422, "future_time", "Times can't be in the future.")
-   ```
+   Fix: let the employee say so, with a "check-out was the next day" tick box, instead of guessing
+   from the times. Then refuse check-out before check-in, shifts longer than `MAX_SHIFT`, and times
+   in the future.
    i.    Why not "if check-out is before check-in, add a day": someone who types 18:00 / 09:00 by
          mistake (meaning 09:00 to 18:00) would get a 15-hour night shift, which `MAX_SHIFT` (16 h)
          lets through, instead of an error.
    ii.   The future check is needed because only `day` is checked today: at 23:00, "22:00 to 06:00
          next day" would make a check-out that hasn't happened yet.
-   iii.  Needs a small frontend change (the tick box) as well.
+   iii.  Needs a small frontend change (the tick box) as well. The tick box is a guess at how HR
+         wants this: confirm it first (`backlog.md` section 3).
 
 
 CR15. Background jobs can alert about something that was just fixed  🟢
@@ -412,8 +360,10 @@ CR15. Background jobs can alert about something that was just fixed  🟢
          then emails everyone "Lead not answered in time" about a lead that was just answered. Same
          for a board step marked done at that moment.
 
-   Fix: `.with_for_update(skip_locked=True)` on both job queries (`of=BoardStep` in the board one).
-   A row being edited is skipped and checked fresh next minute.
+   Fix: find the late rows first without locking, then lock each one (`SKIP LOCKED`) and check it
+   again before alerting. A row being edited is skipped and checked fresh next minute.
+   Not a lock on the whole job query: `sla_check` reads every open lead, so it would lock all of
+   them every minute and staff saving a lead would have to wait.
 
 
 CR16. Board tasks let one employee edit colleagues' tasks  🟢
@@ -468,8 +418,8 @@ CR20. Holiday name has no length limit (500 instead of a clear error)  🟢
    i.    `HolidayIn.name: str` has no limit, but the column is `String(120)`; an empty name is also
          accepted.
 
-   Fix: `name: OneLine = Field(min_length=2, max_length=120)`. Worth one pass over every input model
-   to check that its `max_length` matches its column size.
+   Fix: make it `OneLine` with a minimum length and `max_length=120`. Worth one pass over every input
+   model to check that its `max_length` matches its column size.
 
 
 CR21. Product names with no English letters get an empty web address  🟢
@@ -479,7 +429,8 @@ CR21. Product names with no English letters get an empty web address  🟢
    i.    `slugify("चॉकलेट बार")` returns `""`. The product's page address becomes `/products/`
          (unreachable), and the next such product gets "already exists".
 
-   Fix: `if not slug: raise AppError(422, "bad_name", "Name needs at least one English letter or number.")`
+   Fix: refuse a name whose slug comes out empty, with a clear message ("needs at least one English
+   letter or number").
 
 
 CR22. With R2 storage, public spec sheets always download instead of opening  🟢
@@ -535,8 +486,8 @@ CR25. Task due times use the laptop's time zone, but the page says "IST"  🟢
    i.    `new Date(f.due)` reads the time in the laptop's zone. A salesperson in Dubai sets "17:00"
          and it is saved as 18:30 IST.
 
-   Fix: same as the website admin page: `new Date(\`${f.due}:00+05:30\`).toISOString()`. Better, move
-   that helper into `portal/ui.tsx` and use it in both pages.
+   Fix: read the time as IST, the way the website admin page already does. Better, move that helper
+   into `portal/ui.tsx` and use it in both pages.
 
 
 CR26. Koko widget: double leads, small screens, screen readers  🟢
@@ -546,7 +497,7 @@ CR26. Koko widget: double leads, small screens, screen readers  🟢
    i.    `sendLead` has no "busy" guard: a double-click sends two leads and two staff alerts. Add a
          `sending` state and disable the button.
    ii.   The panel is a fixed 520 px tall. On a phone held sideways (~375 px) the close button is off
-         screen. Use `h-[min(520px,calc(100dvh-2.5rem))]`.
+         screen. Cap its height to the screen (`dvh` units).
    iii.  Replies aren't announced to screen readers and the input has only a placeholder. Add
          `aria-live="polite"` on the message list and an `aria-label` on the input.
 
@@ -569,13 +520,8 @@ CR28. After login, a portal link loses its query string  🟢
 
    i.    `/admin/leads?status=new` becomes `/admin/leads` after the login redirect.
 
-   Fix: clear the copied query first, then put the whole address in `next`. `safeNext` already checks it.
-   ```ts
-   const url = req.nextUrl.clone();
-   url.pathname = '/employee/login';
-   url.search = '';  // the clone still has ?status=new; it belongs in next, not on the login page
-   url.searchParams.set('next', pathname + req.nextUrl.search);
-   ```
+   Fix: put the path plus the query string in `next` (`safeNext` already checks it). The copied URL
+   still carries the original query, so clear it first, or `?status=new` also ends up on the login page.
 
 
 CR29. Home page: empty banner text when one API call fails  🟢
@@ -646,7 +592,7 @@ CR34. Postgres says "ready" too early on the very first start  🟢
          scripts on a temporary server that only listens there, then restarts. The first `deploy.sh`
          can run migrations during that restart and fail. Running it again works.
 
-   Fix: `pg_isready -h 127.0.0.1 -U kjs -d kjs`
+   Fix: give `pg_isready` the network address (`-h 127.0.0.1`), plus the user and database.
 
 
 CR35. `deploy.sh` runs its old self after `git pull`  🟢
@@ -656,12 +602,9 @@ CR35. `deploy.sh` runs its old self after `git pull`  🟢
    i.    bash keeps reading the file it already opened. A PR that adds a deploy step only takes
          effect on the second deploy after the merge.
 
-   Fix: pull, then restart the new script once (this line replaces `git pull --ff-only`, after the `cd`):
-   ```bash
-   if [ -z "${KJS_REEXEC:-}" ]; then git pull --ff-only; KJS_REEXEC=1 exec "./$(basename "$0")" "$@"; fi
-   ```
-   Not `exec "$0"`: the script has already done `cd "$(dirname "$0")"`, so a relative `$0` like
-   `deploy/deploy.sh` would point at `deploy/deploy/deploy.sh`, and the deploy would stop after the pull.
+   Fix: after `git pull`, start the new script once (`exec`), with a flag so it doesn't pull again.
+   Careful: the script has already done `cd "$(dirname "$0")"`, so a relative `$0` like
+   `deploy/deploy.sh` no longer points at the script. Test it from the repo root and from cron.
 
 
 CR36. CI tests on Postgres 16, production runs Postgres 17  🟢
@@ -677,7 +620,7 @@ CR37. The AI review workflow fails on PRs from forks and loads an unpinned plugi
    Where: `.github/workflows/claude-code-review.yml:4`, `:39`
 
    i.    It runs on every `pull_request`. Fork and Dependabot PRs get no secrets, so it fails with a red ✗.
-         Fix: `if: github.event.pull_request.head.repo.full_name == github.repository`
+         Fix: run it only for PRs from this repo (an `if:` on the job).
    ii.   `plugin_marketplaces` points at another repo's main branch, so it runs whatever is there that
          day. Pin it to a commit (same idea as R8).
    iii.  Checked and fine: no `pull_request_target`, no untrusted text in `run:` steps, read-only
@@ -699,7 +642,7 @@ CR39. Process: new ideas were not added to `kb.md`  🟢
          attribute, CSS `:has()`, `loading.tsx` streaming and capture-phase listeners. `prompt.md`
          says every new idea goes into `kb.md`; most are missing.
 
-   Fix: add 2 or 3 lines for each.
+   Fix: add 2 or 3 lines for each. Done in the PR that added this file.
 
 
 
