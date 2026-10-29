@@ -280,7 +280,22 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 29 Oct 2026 (PR #9 review, Nishita)
+1. 29 Oct 2026 (PR #9 third review, Nishita)
+
+   i.    Vineet's third review: 7 points, all real, all fixed. Back on home after visiting another page shows
+         the latest list (cached snapshot dropped when nothing listens); the first-load fade keeps going when
+         the list's one-time clean-up changes the picks (no jump); the enquiry form works on the list as it was
+         when opened (frozen: what is shown, sent and removed); the 20 limit counts only products this page
+         shows; another tab's newly saved value replaces this tab's memory fallback.
+   ii.   Reveal redesigned: one animation (an entrance from above or below) for both modes. A hidden card has
+         no "side"; the direction is chosen when it comes in, from the last real scroll movement. The side
+         checks, their timer and page-size watcher are gone (no leftover timer).
+   iii.  Independent review of the fixes: 8 real, all fixed (form stays open if another tab clears the list;
+         the clean-up never drops the newest product; a deletion in another tab doesn't wipe a memory-only list).
+   iv.   Tested: browser checks 30/30 (this round) + 20/20 + 12/12, e2e API 114/114 and browser 38/38.
+
+
+2. 29 Oct 2026 (PR #9 review, Nishita)
 
    i.    Vineet's review of PR #9: 7 points, all real, all fixed. Private window now personalises for the visit
          (history kept in memory per key when storage is blocked or full); one shared hook `useHistory` for the
@@ -292,7 +307,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Tested: logic 6/6, browser checks 12/12 (review fixes) + 20/20, e2e API 114/114 and browser 38/38.
 
 
-2. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
+3. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
 
    i.    "Recommended" section on the home page. Personal picks come from what the visitor opened (product page,
          quick view) or put in their enquiry list, kept in THEIR browser only (localStorage `kjs_viewed`,
@@ -307,7 +322,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Still to decide (R31–R33): deals strip, best sellers, frequently searched (no made-up claims).
 
 
-3. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
+4. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
 
    i.    New Neon project in Singapore (aws-ap-southeast-1). Migrations to 0011, `app.seed`, `app.seed_catalogue`
          (58 products). v1 and v2 `.env` both point to it; old US lines kept as comments. The URL must stay
@@ -320,7 +335,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          still uses only the connection string (decision 13).
 
 
-4. 28 Oct 2026 (PR #6 third review, Nishita)
+5. 28 Oct 2026 (PR #6 third review, Nishita)
 
    i.    e2e `browser_e2e.mjs` expected the old home text ("Explore products"): now "Explore the range".
    ii.   Home texts come from the backend defaults (`content_service.TEXTS`), which always win over a frontend
@@ -331,7 +346,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Follow-ups R21–R24 added; R20 closed (the API already checks image_path).
 
 
-5. 28 Oct 2026 (PR #6 second review, Nishita)
+6. 28 Oct 2026 (PR #6 second review, Nishita)
 
    i.    4 blockers fixed: category panel gap (padding, not margin), search results stay open while focus is in
          the search box (no timer), one progress bar inside the header (CSS: <html data-navigating> or a
@@ -345,7 +360,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Safari, Firefox. Follow-ups R17–R20 in backlog.
 
 
-6. 28 Oct 2026 (PR #6 review fixes, Nishita)
+7. 28 Oct 2026 (PR #6 review fixes, Nishita)
 
    i.    Vineet's review of PR #6: 4 blocking + 6 follow-ups, all fixed. Enquiry form now opens in a portal
          (a CSS transform on the bar squeezed it), stale saved products dropped, list emptied after sending,
@@ -361,7 +376,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          missing pages answer 200 instead of 404. Rule: no loading.tsx above pages that call notFound().
 
 
-7. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
+8. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
 
    i.    Read the 50-page catalogue PDF (pictures only, no text): 58 product families, 156 items.
    ii.   New `backend/app/seed_catalogue.py`: 4 new categories (old ones kept) and 58 products. Only file
@@ -375,7 +390,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  New assumptions A73–A77, inputs I13, I14 (phone number mismatch).
 
 
-8. 27 Oct 2026 (production-readiness review)
+9. 27 Oct 2026 (production-readiness review)
 
    i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
          own from `.env.example`.
@@ -393,7 +408,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
-9. 26 Oct 2026 (merge, speed, Smart App Control)
+10. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -409,7 +424,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-10. 25 Oct 2026 (senior review)
+11. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -431,7 +446,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-11. 25 Oct 2026
+12. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -445,7 +460,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-12. 24 Oct 2026 (morning)
+13. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -453,7 +468,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Next: production setup.
 
 
-13. 23–24 Oct 2026 (night)
+14. 23–24 Oct 2026 (night)
 
    i.    New plan from `master-build-prompt.pdf`: Phase 1 in 2 weeks, one list (`checklist.md`).
    ii.   Built every Phase 1 feature: settings files with live reload, JSON logs with request IDs, background jobs,
@@ -466,21 +481,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-14. 23 Oct 2026 (5)
+15. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-15. 23 Oct 2026 (4)
+16. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-16. 23 Oct 2026 (2 and 3)
+17. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-17. 23 Oct 2026 (1)
+18. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

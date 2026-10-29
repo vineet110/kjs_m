@@ -10,7 +10,7 @@
 // - Always the same number of cards (recommend() tops up), so nothing below ever jumps.
 import { useEffect, useRef, useState } from 'react';
 import Reveal from '@/components/public/Reveal';
-import { recommend, useHistory, type Reason } from '@/lib/history';
+import { recommend, sameList, useHistory, type Reason } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
 import HomeProductCard from './HomeProductCard';
 
@@ -22,7 +22,8 @@ const EYEBROW: Record<Exclude<Reason, null>, string> = {
   both: 'Based on your browsing',
 };
 type Picks = ReturnType<typeof recommend>;
-const same = (a: Picks, b: Picks) => a.reason === b.reason && a.products.map((p) => p.slug).join() === b.products.map((p) => p.slug).join();
+const slugs = (p: Picks) => p.products.map((x) => x.slug);
+const same = (a: Picks, b: Picks) => a.reason === b.reason && sameList(slugs(a), slugs(b));
 
 export default function RecommendedProducts() {
   const products = useCatalogue();
@@ -31,6 +32,7 @@ export default function RecommendedProducts() {
   const onScreen = useRef(false);
   const pending = useRef<Picks | null>(null);
   const personalised = useRef(false);
+  const fadeOn = useRef(false); // the first-load fade is running
   const [picks, setPicks] = useState<Picks>(() => recommend(products, [], [], COUNT));
   const [fading, setFading] = useState(false);
   // What is on screen, kept in step with every change (compared against before any update)
@@ -61,18 +63,22 @@ export default function RecommendedProducts() {
     const next = recommend(products, viewed, listed, COUNT);
     const first = !personalised.current;
     personalised.current = true; // the first load is over, whatever it found (also with no history)
+    if (first || fadeOn.current) {
+      // First load, or a change DURING the first-load fade (e.g. the enquiry list's one-time clean-up):
+      // fade to the newest picks. A re-run doesn't snap: it keeps the fade going with the newer picks.
+      if (!fadeOn.current && same(next, shown.current)) return;
+      const r = section.current?.getBoundingClientRect();
+      if (!fadeOn.current && (!r || r.bottom <= 0 || r.top >= window.innerHeight)) return show(next); // off screen
+      fadeOn.current = true;
+      setFading(true);
+      // Every run that fades sets a timer that ends the fade, so the grid can't stay faded. The cleanup
+      // only stops this timer (the next run sets a new one; an unmount needs nothing).
+      const timer = window.setTimeout(() => { fadeOn.current = false; show(next); setFading(false); }, FADE_MS);
+      return () => window.clearTimeout(timer);
+    }
     if (same(next, shown.current)) { // nothing really changed: no update, no re-render
       pending.current = null;
       return;
-    }
-    if (first) {
-      // First load: swap in at once; fade only if the section is already on screen
-      const r = section.current?.getBoundingClientRect();
-      if (!r || r.bottom <= 0 || r.top >= window.innerHeight) return show(next);
-      setFading(true);
-      const timer = window.setTimeout(() => { show(next); setFading(false); }, FADE_MS);
-      // Interrupted before the timer fired (re-run, unmount): apply now, so the grid never stays faded
-      return () => { window.clearTimeout(timer); show(next); setFading(false); };
     }
     // Later changes: only while the section is off screen (else they wait for it to leave)
     if (onScreen.current) pending.current = next;

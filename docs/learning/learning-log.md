@@ -10,6 +10,24 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 29 Oct 2026 (PR #9 third review, Nishita)
+
+1. (T) A cache needs to know when it may be stale. If only listeners clear it, it goes stale while nobody
+   listens (e.g. on another page). Drop it when the last listener leaves.
+
+2. (T) Decide things at the moment they happen, not ahead of time: a card picks its entrance direction as
+   it comes in, so nothing that happened while it was off screen can make it wrong.
+
+3. (T) A form should work on the data as it was when it opened (a snapshot), or a change elsewhere can alter
+   what is sent behind the user's back.
+
+4. (T) A test that fakes a browser event must fake it the way the browser really sends it (the storage event
+   carries the new value). A fake missing a field tested the wrong case.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 29 Oct 2026 (PR #9 review, Nishita)
 
 1. (T) A test that passes can still be wrong: one check passed because its click never happened, another

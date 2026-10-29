@@ -11,7 +11,7 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
-import { readEnquiryList, rememberViewed, saveEnquiryList, useHistory } from '@/lib/history';
+import { cleanEnquiryList, readEnquiryList, rememberViewed, saveEnquiryList, useHistory } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
 import HomeProductCard from './HomeProductCard';
 
@@ -34,7 +34,10 @@ export default function ProductExplorer({ categories }: { categories: Category[]
 
   // Products on the site, and the list as shown: only those products, at most LIST_MAX
   const live = useMemo(() => new Set(products.map((p) => p.slug)), [products]);
-  const list = useMemo(() => listed.filter((s) => live.has(s)).slice(0, LIST_MAX), [listed, live]);
+  const list = useMemo(() => cleanEnquiryList(listed, live), [listed, live]);
+  // The list as it was when the enquiry form opened: the message and the removal after sending both use
+  // it, so a product another tab adds while the form is open is neither sent nor removed
+  const [frozen, setFrozen] = useState<string[] | null>(null);
 
   // Clean the saved list ONCE, when the page loads: a hidden or deleted product would otherwise use up
   // a slot that nobody can see or remove. Not on later changes: a product another tab just added may
@@ -43,7 +46,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   useEffect(() => {
     if (!ready || cleaned.current) return;
     cleaned.current = true;
-    saveEnquiryList(listed.filter((s) => live.has(s)).slice(0, LIST_MAX));
+    saveEnquiryList(cleanEnquiryList(listed, live));
   }, [ready, listed, live]);
 
   useEffect(() => {
@@ -54,14 +57,14 @@ export default function ProductExplorer({ categories }: { categories: Category[]
     return () => window.removeEventListener('keydown', close);
   }, [quick]);
 
-  // Every change is saved at once and comes back through useHistory (also to other tabs)
   // Adds or removes just this product in the LATEST saved list (not this render's copy), keeping
   // everything else, so quick clicks or another tab's change in between are never lost. Every change
-  // is saved at once and comes back through useHistory (also to other tabs).
+  // is saved at once and comes back through useHistory (also to other tabs). The limit counts the
+  // products this page shows (the ones the visitor can see and send).
   function toggle(slug: string) {
     const latest = readEnquiryList();
     if (latest.includes(slug)) saveEnquiryList(latest.filter((s) => s !== slug));
-    else if (latest.length < LIST_MAX) saveEnquiryList([...latest, slug]);
+    else if (cleanEnquiryList(latest, live).length < LIST_MAX) saveEnquiryList([...latest, slug]);
     else alert(`Your enquiry list can hold ${LIST_MAX} products. Send it first, then start a new one.`);
   }
 
@@ -69,21 +72,25 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   // R29). The bar stays, saying "Enquiry sent", while the "Thank you" window is open (the window lives
   // inside the bar), and disappears when it is closed.
   function onListSent() {
-    // Remove only what was in the enquiry (a product another tab added meanwhile stays)
-    const sentSlugs = new Set(picked.map((p) => p.slug));
+    // Remove only what was in the enquiry (the frozen list); anything added meanwhile stays
+    const sentSlugs = new Set(enquirySlugs);
     saveEnquiryList(readEnquiryList().filter((s) => !sentSlugs.has(s)));
     setSent(true);
   }
   function onListClosed() {
     setSent(false);
+    setFrozen(null);
   }
 
   const tabs = categories.filter((c) => products.some((p) => p.categorySlug === c.slug));
   const visible = useMemo(() => (tab === 'all' ? products : products.filter((p) => p.categorySlug === tab)), [tab, products]);
-  const picked = products.filter((p) => list.includes(p.slug));
+  // ONE source for the bar, the form's title and message, and the removal after sending: the frozen
+  // list while the form is open (what the visitor saw when they opened it), else the live list
+  const enquirySlugs = frozen ?? list;
+  const inEnquiry = products.filter((p) => enquirySlugs.includes(p.slug));
   const listMessage =
     'Enquiry list from the website:\n' +
-    picked.map((p) => `- ${p.name} (items ${p.items.map((i) => i.no).join(', ') || 'n/a'})`).join('\n');
+    inEnquiry.map((p) => `- ${p.name} (items ${p.items.map((i) => i.no).join(', ') || 'n/a'})`).join('\n');
 
   return (
     <>
@@ -215,10 +222,11 @@ export default function ProductExplorer({ categories }: { categories: Category[]
       {/* Enquiry list bar: on laptops it sits between the WhatsApp (left) and Koko (right) buttons;
           on smaller screens it sits above them so they don't overlap.
           Centred with inset-x-0 + mx-auto, not a transform (see EnquiryButton). */}
-      {(picked.length > 0 || sent) && (
+      {/* Kept while the form is open (frozen), so a change in another tab can't close it mid-typing */}
+      {(inEnquiry.length > 0 || sent || frozen) && (
         <div className="fixed inset-x-0 bottom-20 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-xl items-center lg:bottom-5 lg:w-[calc(100%-9rem)] gap-3 rounded-full border border-slate-200 bg-white py-2 pl-3 pr-2 shadow-2xl">
           <div className="hidden -space-x-3 sm:flex">
-            {picked.filter((p) => p.image).slice(0, 4).map((p) => (
+            {inEnquiry.filter((p) => p.image).slice(0, 4).map((p) => (
               <Image key={p.slug} src={p.image!} alt="" width={40} height={30} className="h-8 w-10 rounded-md object-cover ring-2 ring-white" />
             ))}
           </div>
@@ -226,7 +234,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
             {sent ? (
               <span className="font-semibold text-forest">✓ Enquiry sent</span>
             ) : (
-              <><span className="font-semibold">{picked.length}</span> in your enquiry list</>
+              <><span className="font-semibold">{inEnquiry.length}</span> in your enquiry list</>
             )}
           </p>
           {!sent && <button onClick={() => saveEnquiryList([])} className="text-xs text-slate-500 hover:text-slate-900">Clear</button>}
@@ -234,7 +242,8 @@ export default function ProductExplorer({ categories }: { categories: Category[]
             label="Send enquiry"
             source="quote"
             extraMessage={listMessage}
-            title={`Enquiry for ${picked.length} product${picked.length > 1 ? 's' : ''}`}
+            title={`Enquiry for ${inEnquiry.length} product${inEnquiry.length > 1 ? 's' : ''}`}
+            onOpen={() => setFrozen(list)}
             onSent={onListSent}
             onClose={onListClosed}
             className="btn-dark rounded-full !py-1.5 text-xs"

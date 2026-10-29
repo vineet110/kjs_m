@@ -52,6 +52,20 @@ function write(key: string, list: string[]) {
   window.dispatchEvent(new Event(HISTORY_EVENT));
 }
 
+/** Same strings in the same order (cheap comparison for short lists of slugs). */
+export function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((s, i) => s === b[i]);
+}
+
+/**
+ * The enquiry list as a page shows and sends it: only products this page knows (`live`). Never cut by
+ * count, so the newest product is never dropped; the limit is checked when adding instead.
+ * (A product another tab added may be unknown here: it stays in storage, it just isn't shown.)
+ */
+export function cleanEnquiryList(list: string[], live: Set<string>): string[] {
+  return list.filter((s) => live.has(s));
+}
+
 /** Products this visitor opened, most recent first. */
 export function readViewed(): string[] {
   return read(VIEWED_KEY);
@@ -75,13 +89,14 @@ export type History = { viewed: string[]; listed: string[]; ready: boolean };
 const SERVER: History = { viewed: [], listed: [], ready: false }; // server render and hydration
 let cached: History | null = null; // what getSnapshot returns until something changes
 let last: History | null = null; // the previous snapshot, reused when the content is the same
+let subscribers = 0;
 
 // React calls this on every render: it reads storage only after a change cleared the cache
 function current(): History {
   if (cached) return cached;
   const next: History = { viewed: readViewed(), listed: readEnquiryList(), ready: true };
   // Same content: keep the same object, so React doesn't re-render for nothing
-  const same = last && last.viewed.join() === next.viewed.join() && last.listed.join() === next.listed.join();
+  const same = last && sameList(last.viewed, next.viewed) && sameList(last.listed, next.listed);
   cached = same ? last! : next;
   last = cached;
   return cached;
@@ -93,8 +108,13 @@ function subscribe(onChange: () => void) {
     onChange();
   };
   const fromOtherTab = (e: StorageEvent) => {
-    if (e.key === null || e.key === LIST_KEY || e.key === VIEWED_KEY) changed();
+    if (e.key !== null && e.key !== LIST_KEY && e.key !== VIEWED_KEY) return;
+    // Another tab SAVED a newer value: it wins over this tab's in-memory fallback (storage full). A key
+    // removed or storage cleared in another tab doesn't wipe what this tab could only keep in memory.
+    if (e.key && e.newValue !== null) memory.delete(e.key);
+    changed();
   };
+  subscribers++;
   window.addEventListener(HISTORY_EVENT, changed);
   window.addEventListener('storage', fromOtherTab); // another tab changed it
   window.addEventListener('pageshow', changed); // back/forward cache restore
@@ -102,6 +122,9 @@ function subscribe(onChange: () => void) {
     window.removeEventListener(HISTORY_EVENT, changed);
     window.removeEventListener('storage', fromOtherTab);
     window.removeEventListener('pageshow', changed);
+    // Nobody listens any more (e.g. moved to another page): changes made meanwhile in another tab
+    // would be missed, so forget the cache; the next page that uses it reads fresh
+    if (--subscribers === 0) cached = null;
   };
 }
 

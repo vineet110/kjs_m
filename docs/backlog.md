@@ -1186,6 +1186,8 @@ R29. Enquiry list kept in two places after sending  ✅ FIXED 29 Oct (branch kjs
 
    i.    `onListSent` empties localStorage but keeps `list` in state until the window closes. Clear both together.
          Where: `ProductExplorer.tsx`
+   ii.   Follow-up (PR #9 third review, 29 Oct): a send removes only what the open form showed (frozen list);
+         products added meanwhile stay.
 
 
 ---------------------------------------------------------------------------------------------------
