@@ -16,6 +16,29 @@ export const HISTORY_EVENT = 'kjs:history';
 // for that key only; every other key is still read from storage (a full store is still readable).
 const memory = new Map<string, string>();
 
+function keepInMemory(key: string, value: string) {
+  memory.set(key, value);
+  watchOtherTabs();
+}
+
+// ONE listener for other tabs' changes, from the first use until the tab closes (so a change is noticed
+// even while no component listens, e.g. on another page):
+// 1. another tab SAVED a newer value: it wins over this tab's in-memory copy (a key removed or storage
+//    cleared there doesn't wipe what only memory has);
+// 2. then the components that listen re-read (they see that newer value).
+const listeners = new Set<() => void>();
+let watchingOtherTabs = false;
+function watchOtherTabs() {
+  if (watchingOtherTabs) return;
+  watchingOtherTabs = true;
+  window.addEventListener('storage', (e) => {
+    if (e.key && e.newValue !== null) memory.delete(e.key);
+    if (e.key !== null && e.key !== LIST_KEY && e.key !== VIEWED_KEY) return;
+    cached = null;
+    listeners.forEach((onChange) => onChange());
+  });
+}
+
 function getRaw(key: string): string | null {
   if (memory.has(key)) return memory.get(key)!;
   try {
@@ -30,7 +53,7 @@ function setRaw(key: string, value: string) {
     localStorage.setItem(key, value);
     memory.delete(key); // saved: storage is the truth again for this key
   } catch {
-    memory.set(key, value); // blocked or full: keep it for this visit
+    keepInMemory(key, value); // blocked or full: keep it for this visit
   }
 }
 
@@ -58,12 +81,20 @@ export function sameList(a: string[], b: string[]): boolean {
 }
 
 /**
- * The enquiry list as a page shows and sends it: only products this page knows (`live`). Never cut by
- * count, so the newest product is never dropped; the limit is checked when adding instead.
- * (A product another tab added may be unknown here: it stays in storage, it just isn't shown.)
+ * The enquiry list as a page shows and sends it: only products this page knows (`live`), the newest
+ * `max`. A product this page doesn't know (another tab may have a newer catalogue) is just not shown.
  */
-export function cleanEnquiryList(list: string[], live: Set<string>): string[] {
-  return list.filter((s) => live.has(s));
+export function cleanEnquiryList(list: string[], live: Set<string>, max: number): string[] {
+  return list.filter((s) => live.has(s)).slice(-max);
+}
+
+/**
+ * The enquiry list as it is SAVED: products this page doesn't know are kept too (another tab may know
+ * them), but at most `max`, the NEWEST ones (whatever they are: the newest may be one only another tab
+ * knows).
+ */
+export function capEnquiryList(list: string[], max: number): string[] {
+  return list.length > max ? list.slice(-max) : list;
 }
 
 /** Products this visitor opened, most recent first. */
@@ -89,7 +120,6 @@ export type History = { viewed: string[]; listed: string[]; ready: boolean };
 const SERVER: History = { viewed: [], listed: [], ready: false }; // server render and hydration
 let cached: History | null = null; // what getSnapshot returns until something changes
 let last: History | null = null; // the previous snapshot, reused when the content is the same
-let subscribers = 0;
 
 // React calls this on every render: it reads storage only after a change cleared the cache
 function current(): History {
@@ -107,24 +137,17 @@ function subscribe(onChange: () => void) {
     cached = null;
     onChange();
   };
-  const fromOtherTab = (e: StorageEvent) => {
-    if (e.key !== null && e.key !== LIST_KEY && e.key !== VIEWED_KEY) return;
-    // Another tab SAVED a newer value: it wins over this tab's in-memory fallback (storage full). A key
-    // removed or storage cleared in another tab doesn't wipe what this tab could only keep in memory.
-    if (e.key && e.newValue !== null) memory.delete(e.key);
-    changed();
-  };
-  subscribers++;
+  watchOtherTabs(); // another tab changed it
+  listeners.add(onChange);
   window.addEventListener(HISTORY_EVENT, changed);
-  window.addEventListener('storage', fromOtherTab); // another tab changed it
   window.addEventListener('pageshow', changed); // back/forward cache restore
   return () => {
+    listeners.delete(onChange);
     window.removeEventListener(HISTORY_EVENT, changed);
-    window.removeEventListener('storage', fromOtherTab);
     window.removeEventListener('pageshow', changed);
-    // Nobody listens any more (e.g. moved to another page): changes made meanwhile in another tab
-    // would be missed, so forget the cache; the next page that uses it reads fresh
-    if (--subscribers === 0) cached = null;
+    // Nobody listens any more (e.g. moved to another page): forget the cache, so the next page that
+    // uses it reads fresh (safe also for a change made meanwhile by this tab's code)
+    if (!listeners.size) cached = null;
   };
 }
 

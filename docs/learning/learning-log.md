@@ -10,6 +10,22 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 29 Oct 2026 (PR #9 fourth review, Nishita)
+
+1. (T) An IntersectionObserver sees an element's MOVED box (with its transform). An entrance that slides
+   a card can slide it out of view, which hides it, which brings it back… A loop. Leave a margin bigger
+   than the slide.
+
+2. (T) One observer, one exact question is clearer and cheaper than one observer with many thresholds and
+   extra checks.
+
+3. (T) A limit needs a rule for what goes when it is hit. "Keep the newest" is simple and predictable,
+   even if, in a rare case, an older product goes.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 29 Oct 2026 (PR #9 third review, Nishita)
 
 1. (T) A cache needs to know when it may be stale. If only listeners clear it, it goes stale while nobody

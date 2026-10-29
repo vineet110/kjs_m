@@ -5,6 +5,9 @@
 // - without it (Recommended): the WHOLE card opens the product page. The name's link is stretched over
 //   the card (an invisible ::after layer), so there is still one link for keyboards and screen readers.
 // - overlay: badges drawn over the picture.
+// Every card has the same height (fixed picture box; category, name and pack sizes always one line: a
+// name is required, and an empty category or pack sizes keeps its line), so swapping cards never changes
+// the page's height (Safari has no scroll anchoring).
 import Link from 'next/link';
 import type { HomeProduct } from '@/lib/catalogue';
 import CardImage from './CardImage';
@@ -32,7 +35,7 @@ export default function HomeProductCard({ p, onQuickView, overlay, children }: P
         <div className={box}>{picture}</div>
       )}
       <div className="flex flex-1 flex-col p-3 md:p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-gold-dark">{p.categoryName}</p>
+        <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-wide text-gold-dark">{p.categoryName || ' '}</p>
         <Link
           href={`/products/${p.slug}`}
           className={`mt-1 line-clamp-1 font-semibold text-slate-900 ${
@@ -41,7 +44,7 @@ export default function HomeProductCard({ p, onQuickView, overlay, children }: P
         >
           {p.name}
         </Link>
-        <p className="mt-1 line-clamp-1 text-xs text-slate-500">{p.packFormats}</p>
+        <p className="mt-1 line-clamp-1 text-xs text-slate-500">{p.packFormats || ' '}</p>
         {children}
       </div>
     </article>

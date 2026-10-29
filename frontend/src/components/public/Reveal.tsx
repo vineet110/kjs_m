@@ -10,13 +10,14 @@
 //   switch that moves them up, a resize) and ONE scroll listener (shows blocks a fast scroll or a jump
 //   such as "Explore the range" skipped over: those are above the screen and never "intersect").
 // - repeat: cards in a grid (products, category tiles). Pop in EVERY time they come into view,
-//   scrolling down or up. A card that is fully off screen is simply hidden; when it comes back into
-//   view, the direction is chosen THEN: from the last real scroll movement (scrolling up: from above;
+//   scrolling down or up. A card that is off screen is simply hidden; as soon as any part of it
+//   comes back into view it comes in (no blank box at the edge), and the direction is chosen THEN: from the last real scroll movement (scrolling up: from above;
 //   down: from below), or, with no recent scroll (e.g. a tab switch), from the edge it is at.
 //
 // stagger: cards in the same row appear one after another. The column is measured at the moment the
 // card appears (so it is right after a tab switch, a reorder or a resize, and on 2 or 4 columns).
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 type Props = {
   children: React.ReactNode;
@@ -30,6 +31,10 @@ type Props = {
 type State = 'static' | 'hidden' | 'fromAbove' | 'fromBelow';
 const STAGGER_MS = 90;
 const RECENT_SCROLL_MS = 300;
+// The entrance slides a card 32px (slide-in-from-*-8). Observers see that moved box, so a card counts
+// as gone only once it is further off screen than that: else a card just at the edge would slide off,
+// hide, come back, slide off… in a loop.
+const GONE_MARGIN_PX = 40;
 
 /** Column of a card in its grid row (0 = first), from where it really is on screen. */
 function columnOf(el: Element): number {
@@ -98,37 +103,57 @@ function unwatchOnce(el: Element) {
 }
 
 // ---------- repeat ----------
+// Two observers, each asking one exact question (no percentages, so zoom or fractional pixels can't make
+// a card miss its cue):
+// - gone: more than GONE_MARGIN_PX off screen → hidden;
+// - in view: any part on screen → if it was hidden, it comes in.
+// Cards already on screen when the page loads stay as they are (no animation on load).
+// `state` here is what the observers decide from (they need it at once, outside React); React's state
+// is only what is drawn.
 type Entry = { set: (s: State, column: number) => void; state: State; stagger: boolean };
 const repeating = new Map<Element, Entry>();
-let repeatObserver: IntersectionObserver | null = null;
+let goneObserver: IntersectionObserver | null = null;
+let inViewObserver: IntersectionObserver | null = null;
 
-function setRepeat(el: Element, state: State) {
-  const entry = repeating.get(el);
-  if (!entry || entry.state === state) return;
-  entry.state = state;
-  // The column is measured now, as the card appears: always the right ripple order
-  entry.set(state, state !== 'hidden' && entry.stagger ? columnOf(el) : 0);
+function hide(entries: IntersectionObserverEntry[]) {
+  const gone = entries
+    .filter((e) => !e.isIntersecting)
+    .map((e) => repeating.get(e.target))
+    .filter((entry): entry is Entry => !!entry && entry.state !== 'hidden');
+  if (!gone.length) return;
+  // Drawn at once, all together (one redraw, one style read), so a card that leaves and comes back in
+  // the same moment (a very fast flick) still replays its entrance instead of the two cancelling out
+  flushSync(() =>
+    gone.forEach((entry) => {
+      entry.state = 'hidden';
+      entry.set('hidden', 0);
+    }),
+  );
+  void getComputedStyle(entries[0].target).opacity;
+}
+
+function comeIn(entries: IntersectionObserverEntry[]) {
+  entries.forEach((e) => {
+    const entry = repeating.get(e.target);
+    if (!e.isIntersecting || entry?.state !== 'hidden') return;
+    entry.state = comesFromAbove(e.boundingClientRect) ? 'fromAbove' : 'fromBelow';
+    // The column is measured now, as the card appears: always the right ripple order
+    entry.set(entry.state, entry.stagger ? columnOf(e.target) : 0);
+  });
 }
 
 function watchRepeat(el: Element, entry: Entry) {
-  // 0% visible (fully off screen): hidden. 15% visible: if it was hidden, it comes in. Cards already
-  // on screen when the page loads stay as they are (no animation on load).
-  repeatObserver ??= new IntersectionObserver(
-    (entries) =>
-      entries.forEach((e) => {
-        if (!e.isIntersecting) setRepeat(e.target, 'hidden');
-        else if (e.intersectionRatio >= 0.15 && repeating.get(e.target)?.state === 'hidden')
-          setRepeat(e.target, comesFromAbove(e.boundingClientRect) ? 'fromAbove' : 'fromBelow');
-      }),
-    { threshold: [0, 0.15] },
-  );
+  goneObserver ??= new IntersectionObserver(hide, { rootMargin: `${GONE_MARGIN_PX}px 0px` });
+  inViewObserver ??= new IntersectionObserver(comeIn);
   repeating.set(el, entry);
-  repeatObserver.observe(el);
+  goneObserver.observe(el);
+  inViewObserver.observe(el);
 }
 
 function unwatchRepeat(el: Element) {
   repeating.delete(el);
-  repeatObserver?.unobserve(el);
+  goneObserver?.unobserve(el);
+  inViewObserver?.unobserve(el);
 }
 
 export default function Reveal({ children, className = '', delay = 0, stagger = false, as: Tag = 'div', repeat = false }: Props) {
@@ -139,21 +164,26 @@ export default function Reveal({ children, className = '', delay = 0, stagger = 
   useEffect(() => {
     const el = ref.current;
     if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    trackDirection(true);
     if (repeat) {
+      trackDirection(true);
       watchRepeat(el, { state: 'static', stagger, set: (s, c) => { setColumn(c); setState(s); } });
       return () => { unwatchRepeat(el); trackDirection(false); };
     }
-    if (el.getBoundingClientRect().top < window.innerHeight) { // already on screen or scrolled past
-      trackDirection(false);
-      return;
-    }
+    if (el.getBoundingClientRect().top < window.innerHeight) return; // already on screen or scrolled past
+    // A once-block needs the scroll direction only until it is shown: then it stops listening
+    let tracking = true;
+    const stopTracking = () => {
+      if (tracking) trackDirection(false);
+      tracking = false;
+    };
+    trackDirection(true);
     setState('hidden');
     watchOnce(el, () => {
       if (stagger) setColumn(columnOf(el));
       setState(comesFromAbove(el.getBoundingClientRect()) ? 'fromAbove' : 'fromBelow');
+      stopTracking();
     });
-    return () => { unwatchOnce(el); trackDirection(false); };
+    return () => { unwatchOnce(el); stopTracking(); };
   }, [repeat, stagger]);
 
   // fill-mode-backwards: the start state is kept during the stagger delay, but nothing after the end, so

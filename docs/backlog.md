@@ -1224,3 +1224,14 @@ R33. Frequently searched  🟢 needs a decision
 
    i.    The site does not record searches. A: "Popular searches" picked by the admin (frontend only).
          B: record anonymous search words and show the top ones (backend change, new table).
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R34. Home cards and grids: tidy-ups from Vineet's PR #9 review  🟢 later (not bugs)
+
+   i.    RecommendedProducts uses many refs (shown, pending, fade): a small reducer might be clearer.
+   ii.   HomeProductCard sits next to ProductCard: the two could be merged.
+   iii.  The grid markup is copied in `products/page.tsx` and `categories/[slug]/page.tsx`: a shared
+         ProductGrid would remove the copy.

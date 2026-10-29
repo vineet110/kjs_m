@@ -11,7 +11,7 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
-import { cleanEnquiryList, readEnquiryList, rememberViewed, saveEnquiryList, useHistory } from '@/lib/history';
+import { capEnquiryList, cleanEnquiryList, readEnquiryList, rememberViewed, saveEnquiryList, useHistory } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
 import HomeProductCard from './HomeProductCard';
 
@@ -32,21 +32,20 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   const [sent, setSent] = useState(false);
   const { listed, ready } = useHistory();
 
-  // Products on the site, and the list as shown: only those products, at most LIST_MAX
+  // Products on the site, and the list as shown and sent: only those products, the newest LIST_MAX
   const live = useMemo(() => new Set(products.map((p) => p.slug)), [products]);
-  const list = useMemo(() => cleanEnquiryList(listed, live), [listed, live]);
+  const list = useMemo(() => cleanEnquiryList(listed, live, LIST_MAX), [listed, live]);
   // The list as it was when the enquiry form opened: the message and the removal after sending both use
   // it, so a product another tab adds while the form is open is neither sent nor removed
   const [frozen, setFrozen] = useState<string[] | null>(null);
 
-  // Clean the saved list ONCE, when the page loads: a hidden or deleted product would otherwise use up
-  // a slot that nobody can see or remove. Not on later changes: a product another tab just added may
-  // be one this page doesn't know yet, and must not be deleted.
+  // Cap the saved list ONCE, when the page loads (a list saved by older code may be longer). Products
+  // this page doesn't know are kept: another tab may have a newer catalogue that knows them.
   const cleaned = useRef(false);
   useEffect(() => {
     if (!ready || cleaned.current) return;
     cleaned.current = true;
-    saveEnquiryList(cleanEnquiryList(listed, live));
+    saveEnquiryList(capEnquiryList(listed, LIST_MAX));
   }, [ready, listed, live]);
 
   useEffect(() => {
@@ -60,11 +59,11 @@ export default function ProductExplorer({ categories }: { categories: Category[]
   // Adds or removes just this product in the LATEST saved list (not this render's copy), keeping
   // everything else, so quick clicks or another tab's change in between are never lost. Every change
   // is saved at once and comes back through useHistory (also to other tabs). The limit counts the
-  // products this page shows (the ones the visitor can see and send).
+  // products this page shows (the ones the visitor can see and send); the saved list is capped too.
   function toggle(slug: string) {
     const latest = readEnquiryList();
     if (latest.includes(slug)) saveEnquiryList(latest.filter((s) => s !== slug));
-    else if (cleanEnquiryList(latest, live).length < LIST_MAX) saveEnquiryList([...latest, slug]);
+    else if (latest.filter((s) => live.has(s)).length < LIST_MAX) saveEnquiryList(capEnquiryList([...latest, slug], LIST_MAX));
     else alert(`Your enquiry list can hold ${LIST_MAX} products. Send it first, then start a new one.`);
   }
 

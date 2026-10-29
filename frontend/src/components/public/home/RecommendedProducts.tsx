@@ -32,7 +32,8 @@ export default function RecommendedProducts() {
   const onScreen = useRef(false);
   const pending = useRef<Picks | null>(null);
   const personalised = useRef(false);
-  const fadeOn = useRef(false); // the first-load fade is running
+  const fadeTo = useRef<Picks | null>(null); // while the first-load fade runs: the picks it ends with
+  const fadeTimer = useRef(0);
   const [picks, setPicks] = useState<Picks>(() => recommend(products, [], [], COUNT));
   const [fading, setFading] = useState(false);
   // What is on screen, kept in step with every change (compared against before any update)
@@ -41,6 +42,19 @@ export default function RecommendedProducts() {
     shown.current = next;
     setPicks(next);
   };
+
+  // On unmount, a running fade is finished at once (its picks shown, the grid visible), so the grid can
+  // never be left faded whatever runs or doesn't run next
+  useEffect(
+    () => () => {
+      window.clearTimeout(fadeTimer.current);
+      fadeTimer.current = 0;
+      if (fadeTo.current) show(fadeTo.current);
+      fadeTo.current = null;
+      setFading(false);
+    },
+    [],
+  );
 
   // Section visibility: a change that waited while it was on screen is applied once it leaves
   useEffect(() => {
@@ -63,18 +77,25 @@ export default function RecommendedProducts() {
     const next = recommend(products, viewed, listed, COUNT);
     const first = !personalised.current;
     personalised.current = true; // the first load is over, whatever it found (also with no history)
-    if (first || fadeOn.current) {
+    if (first || fadeTo.current) {
       // First load, or a change DURING the first-load fade (e.g. the enquiry list's one-time clean-up):
-      // fade to the newest picks. A re-run doesn't snap: it keeps the fade going with the newer picks.
-      if (!fadeOn.current && same(next, shown.current)) return;
-      const r = section.current?.getBoundingClientRect();
-      if (!fadeOn.current && (!r || r.bottom <= 0 || r.top >= window.innerHeight)) return show(next); // off screen
-      fadeOn.current = true;
-      setFading(true);
-      // Every run that fades sets a timer that ends the fade, so the grid can't stay faded. The cleanup
-      // only stops this timer (the next run sets a new one; an unmount needs nothing).
-      const timer = window.setTimeout(() => { fadeOn.current = false; show(next); setFading(false); }, FADE_MS);
-      return () => window.clearTimeout(timer);
+      // fade to the newest picks.
+      if (!fadeTo.current) {
+        if (same(next, shown.current)) return;
+        const r = section.current?.getBoundingClientRect();
+        if (!r || r.bottom <= 0 || r.top >= window.innerHeight) return show(next); // off screen: no fade
+        setFading(true);
+      }
+      // A change during the fade doesn't restart it: the same fade just ends with the newer picks.
+      fadeTo.current = next;
+      if (!fadeTimer.current)
+        fadeTimer.current = window.setTimeout(() => {
+          fadeTimer.current = 0;
+          if (fadeTo.current) show(fadeTo.current);
+          fadeTo.current = null;
+          setFading(false);
+        }, FADE_MS);
+      return;
     }
     if (same(next, shown.current)) { // nothing really changed: no update, no re-render
       pending.current = null;
