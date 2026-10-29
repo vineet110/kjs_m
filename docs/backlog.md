@@ -22,6 +22,9 @@ Sections in this file:
    6. Later (Stage 2)
    7. Scope requests log
    8. Review findings left for later (25 Oct senior review)
+   9. Production-readiness review
+   10. PR #6 review follow-ups
+   11. Speed
 
 
 
@@ -77,13 +80,19 @@ B9. Secrets were pasted in chat  🟢 (must be done before go-live)
 
    i.    The Groq key and the Neon password.
    ii.   Rotate (replace) both before go-live or before sharing the repo with more people.
+   iii.  28 Oct: the password of the new Singapore Neon project was also pasted in chat. Reset it in Neon
+         (Roles > neondb_owner), update both `.env` files (v1 and v2), send it to Nishita privately.
 
 
-B10. Neon database is far away  🟠
+B10. Neon database is far away  ✅ 28 Oct
 
    i.    It is in us-east-2 (Ohio, USA). Each API call takes about 2.3 seconds from India.
    ii.   Fix: create a new Neon project in Singapore and move to it.
    iii.  Do not turn off `pool_pre_ping` to make it faster: that broke the first request after Neon sleeps (24 Oct).
+   iv.   Done 28 Oct: new Neon project in Singapore (aws-ap-southeast-1). Migrations 0001–0011, `app.seed` and
+         `app.seed_catalogue` run on it. v1 and v2 `.env` both point to it (old US lines kept as comments).
+         One database round trip from India is now about 70–180 ms (was about 560 ms).
+   v.    The old US project is no longer used. Delete it in Neon once nobody needs its test data.
 
 
 B11. Commit the work  ✅ 24 Oct
@@ -1146,3 +1155,48 @@ R24. Carousel picture keys use the image path  🟢
 
    i.    Two products with the same picture would give two React elements the same key. Use the product slug.
          Where: `HeroCarousel.tsx`
+
+
+R25. Koko button shows on top of the quick view  🟢
+
+   i.    The quick view uses `z-50`, the same as KokoChatWidget, which comes later on the page, so Koko's button
+         sits over the backdrop. Quick fix: `z-[60]` like EnquiryButton; the shared Modal (R18) fixes it for good.
+         Where: `ProductExplorer.tsx` (quick view)
+
+
+R26. Progress bar runs on download links  🟢
+
+   i.    A same-site file link (`/api/v1/public/files/...`) starts the bar; the page doesn't change, so it runs
+         for the full 10 s. Skip links under `/api/`, or add `data-no-progress`. Where: `NavigationProgress.tsx`
+
+
+R27. Several products share one SEO description  🟢
+
+   i.    The chocolate bars that share the `BAR` text (Pacho, Paleyo, Philo, Banchetto, Ranch) all publish the
+         same meta description. Add the product name or its first item. Where: `products/[slug]/page.tsx`
+
+
+R28. Featured product slugs are written in several places  🟢
+
+   i.    `POPULAR_FALLBACK`, the three `pick([...])` lists and `PACKS` in loading.tsx all list slugs by hand.
+         Keep them in one constant. Where: `(home)/page.tsx`, `(home)/loading.tsx`
+
+
+R29. Enquiry list kept in two places after sending  🟢
+
+   i.    `onListSent` empties localStorage but keeps `list` in state until the window closes. Clear both together.
+         Where: `ProductExplorer.tsx`
+
+
+---------------------------------------------------------------------------------------------------
+
+## 11. Speed (28 Oct, after the move to Singapore)
+
+R30. Session check is slow for one query  🟢
+
+   i.    `GET /auth/me` takes about 0.5–0.7 s, but runs one query and a database round trip is about 80 ms.
+         Login takes 2–3 s (scrypt is slow on purpose; the rest is database trips).
+   ii.   Guess, not yet measured: each request makes several round trips (pool_pre_ping check, BEGIN, prepare
+         + run, because the statement cache is off for the pooler, ROLLBACK). Every API call pays this.
+   iii.  First step: turn on SQL logging, count the round trips of one `/auth/me`. Keep `pool_pre_ping` (B10.iii).
+         Where: `backend/app/core/database.py`, `backend/app/core/deps.py`

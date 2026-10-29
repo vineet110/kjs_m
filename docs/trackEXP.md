@@ -176,3 +176,10 @@ Add changes here, newest at the bottom, like this:
    night, and can be updated or rolled back safely. We tested a full "backup, lose data, restore" exercise and
    everything came back. Nothing on the server is open to the internet; visitors arrive through Cloudflare.
    Next: we need the server, an IT contact and the web address to put it live.
+
+
+4. 28 Oct
+
+   The new home page is ready: a catalogue of 58 KJS products with pictures, search, a category menu and an
+   enquiry list buyers can send in one go. Our development database moved from the USA to Singapore, so pages
+   that read data answer several times faster from India.
