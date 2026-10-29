@@ -292,8 +292,12 @@ CR9. A disabled employee's open batch of buyers is stuck forever, and admins can
        await db.execute(update(BuyerRecord)
                         .where(BuyerRecord.batch_id == open_b.id, BuyerRecord.status == "assigned")
                         .values(status="new", batch_id=None))
-       open_b.status = "done"
+       open_b.status = "returned"
    ```
+   Not `"done"`: that means "finished", so the batch history and reports would count a half-done
+   batch as completed. `"returned"` is a new value (the column is a plain `String(20)`, no
+   migration needed). Update the comment in `models/batch.py` (`open | done | returned`) and check
+   that the employee batches page shows it sensibly.
    Optional: a "take back batch" button for `assign.manage`. Add a test.
 
 
@@ -323,8 +327,16 @@ CR11. The running API has the database superuser password  🟠  (adds to R7)
          commands on the database container (`COPY ... TO PROGRAM`).
 
    Fix: only the migration step needs it.
-   a.  Remove it from the long-running container's env file. Keep it in a file only the scripts read.
-   b.  Pass it to **both** places that run migrations: `deploy.sh` and `restore.sh` (step 5):
+   a.  Remove it from the long-running container's env file. Put it in a separate file that only the
+       scripts read, for example `deploy/.env.migrate` (git-ignored, like `.env`).
+   b.  Both scripts must load that file themselves. They run with `set -u` and never read `.env`, so a
+       bare `$MIGRATION_DATABASE_URL` would stop them with "unbound variable". Near the top of
+       **both** `deploy.sh` and `restore.sh` (both run migrations):
+       ```bash
+       MIGRATION_DATABASE_URL="$(sed -n 's/^MIGRATION_DATABASE_URL=//p' .env.migrate 2>/dev/null)"
+       : "${MIGRATION_DATABASE_URL:?put MIGRATION_DATABASE_URL in deploy/.env.migrate}"
+       ```
+       Then pass it only to the migration step:
        `$COMPOSE run --rm -e MIGRATION_DATABASE_URL="$MIGRATION_DATABASE_URL" backend alembic upgrade head`
    c.  Make `alembic/env.py` refuse to run when `MIGRATION_DATABASE_URL` is empty. Today it silently
        falls back to `DATABASE_URL` (see CR24 vi). If `restore.sh` were missed in b, the migration
@@ -371,17 +383,25 @@ CR14. A night-shift missed punch can't be fixed  🟢
    ii.   Someone works 22:00 to 06:00 (allowed, A68) and forgets to check out. Asking for 22:00 / 06:00
          is refused.
 
-   Fix:
+   Fix: let the employee say so, with a "check-out was the next day" tick box (`next_day: bool` in
+   the request), instead of guessing from the times:
    ```python
    now = datetime.now(timezone.utc)
+   start = to_utc(day, check_in)
+   end = to_utc(day + timedelta(days=1) if next_day else day, check_out) if check_out else None
    if end and end <= start:
-       end += timedelta(days=1)  # check-out is the next morning
+       raise AppError(422, "bad_times", "Check-out must be after check-in.")
+   if end and end - start > MAX_SHIFT:
+       raise AppError(422, "too_long", "That shift is too long.")
    if start > now or (end and end > now):
        raise AppError(422, "future_time", "Times can't be in the future.")
    ```
-   Then refuse only if longer than `MAX_SHIFT`. The future check is needed because only `day` is
-   checked today: at 23:00, "22:00 to 06:00 today" would make a check-out tomorrow morning, which
-   hasn't happened yet.
+   i.    Why not "if check-out is before check-in, add a day": someone who types 18:00 / 09:00 by
+         mistake (meaning 09:00 to 18:00) would get a 15-hour night shift, which `MAX_SHIFT` (16 h)
+         lets through, instead of an error.
+   ii.   The future check is needed because only `day` is checked today: at 23:00, "22:00 to 06:00
+         next day" would make a check-out that hasn't happened yet.
+   iii.  Needs a small frontend change (the tick box) as well.
 
 
 CR15. Background jobs can alert about something that was just fixed  🟢
@@ -596,8 +616,11 @@ CR32. `Reveal.tsx` measures every waiting block on every scroll  🟢
          top of the IntersectionObserver that already watches them. This can make scrolling jerky on
          cheap phones.
 
-   Fix: rely on the IntersectionObserver, or check once per frame (`requestAnimationFrame`) / on
-   `scrollend`.
+   Fix: keep the scroll check, but run it at most once per frame (`requestAnimationFrame`) or once
+   when scrolling stops (`scrollend`).
+   Don't remove it and rely on the IntersectionObserver alone. The check exists for blocks that a
+   fast scroll or a jump ("Explore the range") skips over: they end up above the screen without
+   ever "intersecting", so they would stay invisible (the old bug the check fixed).
 
 
 CR33. `npx tsc --noEmit` fails on a fresh clone  🟢
@@ -714,7 +737,8 @@ CR39. Process: new ideas were not added to `kb.md`  🟢
 
 ## 5. Already in the backlog and still open
 
-This review hit these again. They are already written up in `backlog.md` section 10; no new entry.
+This review hit these again. They are already written up in `backlog.md` (R7 in section 8, the
+others in section 10); no new entry.
 
 1. R17: carousel pauses only on mouse hover. Also: a keyboard user loses focus when the slide
    changes, and it keeps moving for "reduce motion" users.

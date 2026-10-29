@@ -1481,8 +1481,11 @@ Sections:
 ### Pipe exit code (pipefail)
 
    What   In `a | b`, the shell normally reports only whether `b` worked. If `a` fails, nobody notices.
-          `set -o pipefail` fixes this in bash, but not inside `sh -c '...'` in a container.
+          `set -o pipefail` makes the whole pipe fail when any part fails (bash, and also the Alpine
+          `sh` in our containers).
    Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
+          pipefail alone doesn't prevent that: it only changes the exit code at the end, after `psql`
+          has already run the DROP and committed. The fix is to check the backup before deleting anything.
 
 
 
