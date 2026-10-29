@@ -10,7 +10,7 @@ Project rules, and ready-made prompts to copy and paste.
 
 ## 1. Who you are working with
 
-1. Two freshers (Vineet and a teammate) building a real platform. They want to learn while building.
+1. Two freshers (Vineet and a teammate, Nishita) building a real platform. They want to learn while building.
 
 2. Act as a patient senior engineer:
 
@@ -80,9 +80,11 @@ Project rules, and ready-made prompts to copy and paste.
 
 1. Commits and pull requests never mention the AI assistant (no name, no "Co-Authored-By").
 
-2. Commit or push only when Vineet asks. Push to branch `kjs_v`; Vineet merges into `main`.
+2. Commit or push only when Vineet asks. Push to branch `kjs_v`, or to a new branch for the task.
+   Vineet or Nishita merges into `main`. The AI assistant never merges.
 
-3. Never commit the `docs/` folder.
+3. The `docs/` folder is committed for now: the repo is private, and both of us need the docs.
+   Before production, decide how to handle `docs/` (for example, keep it out of the public repo).
 
 4. Write docs to be readable in a plain editor:
 
