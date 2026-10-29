@@ -4,12 +4,13 @@
 // The list is kept in this browser only (localStorage); nothing is sent until they submit the form.
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
 import { readEnquiryList, rememberViewed, saveEnquiryList } from '@/lib/history';
+import CardImage from './CardImage';
 import { useCatalogue } from './CatalogueContext';
 
 const LIST_MAX = 20; // 20 lines of products leave room for the buyer's own message (4000 characters in all)
@@ -19,29 +20,6 @@ function itemNumbers(items: CatalogueItem[]): string {
   if (!items.length) return 'On request';
   const first = items.slice(0, 2).map((i) => i.no).join(', ');
   return items.length > 2 ? `${first} +${items.length - 2}` : first;
-}
-
-/** A product picture that fades in once it has loaded, instead of popping in.
- *  Visible by default (server HTML, no JavaScript); only a picture still loading after the page starts
- *  is hidden, until it loads or fails (a failed one shows the browser's fallback). */
-function CardImage({ src, alt }: { src: string; alt: string }) {
-  const img = useRef<HTMLImageElement>(null);
-  const [pending, setPending] = useState(false);
-  useEffect(() => {
-    if (img.current && !img.current.complete) setPending(true);
-  }, []);
-  return (
-    <Image
-      ref={img}
-      src={src}
-      alt={alt}
-      fill
-      sizes="(max-width: 768px) 50vw, 25vw"
-      onLoad={() => setPending(false)}
-      onError={() => setPending(false)}
-      className={`object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${pending ? 'opacity-0' : 'opacity-100'}`}
-    />
-  );
 }
 
 export default function ProductExplorer({ categories }: { categories: Category[] }) {
@@ -80,16 +58,15 @@ export default function ProductExplorer({ categories }: { categories: Category[]
     else alert(`Your enquiry list can hold ${LIST_MAX} products. Send it first, then start a new one.`);
   }
 
-  // After a successful send the saved list is emptied at once; the bar stays until the
-  // "Thank you" window is closed, then disappears
+  // After a successful send the list is emptied on screen AND in storage at the same moment (backlog
+  // R29). The bar stays, saying "Enquiry sent", while the "Thank you" window is open (the window lives
+  // inside the bar), and disappears when it is closed.
   function onListSent() {
-    saveEnquiryList([]);
+    saveList([]);
     setSent(true);
   }
   function onListClosed() {
-    if (!sent) return;
     setSent(false);
-    setList([]);
   }
 
   const tabs = categories.filter((c) => products.some((p) => p.categorySlug === c.slug));
@@ -234,7 +211,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
       {/* Enquiry list bar: on laptops it sits between the WhatsApp (left) and Koko (right) buttons;
           on smaller screens it sits above them so they don't overlap.
           Centred with inset-x-0 + mx-auto, not a transform (see EnquiryButton). */}
-      {picked.length > 0 && (
+      {(picked.length > 0 || sent) && (
         <div className="fixed inset-x-0 bottom-20 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-xl items-center lg:bottom-5 lg:w-[calc(100%-9rem)] gap-3 rounded-full border border-slate-200 bg-white py-2 pl-3 pr-2 shadow-2xl">
           <div className="hidden -space-x-3 sm:flex">
             {picked.filter((p) => p.image).slice(0, 4).map((p) => (
@@ -242,9 +219,13 @@ export default function ProductExplorer({ categories }: { categories: Category[]
             ))}
           </div>
           <p className="min-w-0 flex-1 truncate text-sm">
-            <span className="font-semibold">{picked.length}</span> in your enquiry list
+            {sent ? (
+              <span className="font-semibold text-forest">✓ Enquiry sent</span>
+            ) : (
+              <><span className="font-semibold">{picked.length}</span> in your enquiry list</>
+            )}
           </p>
-          <button onClick={() => saveList([])} className="text-xs text-slate-500 hover:text-slate-900">Clear</button>
+          {!sent && <button onClick={() => saveList([])} className="text-xs text-slate-500 hover:text-slate-900">Clear</button>}
           <EnquiryButton
             label="Send enquiry"
             source="quote"

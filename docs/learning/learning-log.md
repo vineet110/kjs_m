@@ -10,6 +10,24 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 29 Oct 2026 (recommendations, Nishita)
+
+1. (T) Pull first, then push. We fetched Vineet's work and merged it into our branch before fixing and testing,
+   so everything was tested on the code that will really be pushed.
+
+2. (T) "Personal" features can stay private: the recommendations use only what is stored in the visitor's own
+   browser. Nothing about them is sent to our server.
+
+3. (T) Two reviews can pull in opposite directions ("no flash" vs "server-render the content"). Look for the
+   fix that satisfies both: server-render a real default, swap in personal picks quietly.
+
+4. (T) A feature that hides content must have a way back to visible in every case: scroll, jumps, tab switches,
+   and printing.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 28 Oct 2026 (database move)
 
 1. (V) A Neon project's region is fixed when it is created. "Changing region" means a new project, then

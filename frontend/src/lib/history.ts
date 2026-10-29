@@ -9,9 +9,12 @@ const VIEWED_MAX = 12;
 /** Fired on window when the history or the enquiry list changes (RecommendedProducts listens). */
 export const HISTORY_EVENT = 'kjs:history';
 
+// Saves, and tells listeners, only when something really changed (no needless work on every load)
 function write(key: string, list: string[]) {
+  const next = JSON.stringify(list);
   try {
-    localStorage.setItem(key, JSON.stringify(list));
+    if (localStorage.getItem(key) === next) return;
+    localStorage.setItem(key, next);
   } catch {
     // storage blocked: works for this visit only
   }
@@ -48,7 +51,11 @@ export function rememberViewed(slug: string) {
 /** A mix across categories: the first product of each category, then the second of each, and so on. */
 export function mixAcrossCategories(products: HomeProduct[], count: number): HomeProduct[] {
   const byCat = new Map<string, HomeProduct[]>();
-  for (const p of products) byCat.set(p.categorySlug, [...(byCat.get(p.categorySlug) ?? []), p]);
+  for (const p of products) {
+    const list = byCat.get(p.categorySlug);
+    if (list) list.push(p);
+    else byCat.set(p.categorySlug, [p]);
+  }
   const out: HomeProduct[] = [];
   for (let round = 0; out.length < count; round++) {
     const row = [...byCat.values()].map((list) => list[round]).filter((p): p is HomeProduct => !!p);
@@ -64,7 +71,9 @@ export type Reason = 'viewed' | 'listed' | 'both' | null;
 /**
  * Recommendations: products from the categories the visitor looked at (recent views count most, the
  * enquiry list counts too), leaving out what they already opened or listed; topped up with a mix
- * across categories. With no history it is just that mix.
+ * across categories, and (only if needed) with products they already saw, so there are always `count`
+ * picks when the catalogue has that many (the section never changes size). With no history it is
+ * just the mix. The reason says what really produced the personal picks.
  */
 export function recommend(products: HomeProduct[], viewed: string[], listed: string[], count: number): { products: HomeProduct[]; reason: Reason } {
   const seen = new Set([...viewed, ...listed]);
@@ -79,16 +88,30 @@ export function recommend(products: HomeProduct[], viewed: string[], listed: str
   // A picture-led section: products with a picture first, ones without only if there aren't enough
   const unseen = products.filter((p) => !seen.has(p.slug));
   const candidates = [...unseen.filter((p) => p.image), ...unseen.filter((p) => !p.image)];
-  const ranked = candidates
-    .map((p, i) => ({ p, w: weight.get(p.categorySlug) ?? 0, i }))
-    .filter((x) => x.w > 0)
-    .sort((a, b) => b.w - a.w || a.i - b.i)
-    .map((x) => x.p);
+  // The visitor's categories take turns, strongest first (biscuits, marshmallow, biscuits, …), so one
+  // strong interest doesn't push out the others
+  const interests = [...weight.entries()].sort((a, b) => b[1] - a[1]).map(([slug]) => slug);
+  const ranked = mixAcrossCategories(
+    interests.flatMap((slug) => candidates.filter((p) => p.categorySlug === slug)),
+    count,
+  );
   const picked = ranked.slice(0, count);
   const rest = candidates.filter((p) => !picked.includes(p));
   const withPicture = mixAcrossCategories(rest.filter((p) => p.image), count - picked.length);
   const fill = [...withPicture, ...mixAcrossCategories(rest.filter((p) => !p.image), count - picked.length - withPicture.length)];
-  const known = (slugs: string[]) => slugs.some((slug) => products.some((p) => p.slug === slug));
-  const reason: Reason = !picked.length ? null : known(viewed) && known(listed) ? 'both' : known(viewed) ? 'viewed' : 'listed';
-  return { products: [...picked, ...fill], reason };
+  let out = [...picked, ...fill];
+  if (out.length < count) {
+    // Visitor saw (almost) everything: top up with seen products, pictures first
+    const seenProducts = products.filter((p) => seen.has(p.slug) && !out.includes(p));
+    out = [...out, ...seenProducts.filter((p) => p.image), ...seenProducts.filter((p) => !p.image)].slice(0, count);
+  }
+
+  // Reason: which history produced the personal picks (by the categories they come from)
+  const catsOf = (slugs: string[]) => new Set(products.filter((p) => slugs.includes(p.slug)).map((p) => p.categorySlug));
+  const fromViewed = catsOf(viewed);
+  const fromListed = catsOf(listed);
+  const byViewed = picked.some((p) => fromViewed.has(p.categorySlug));
+  const byListed = picked.some((p) => fromListed.has(p.categorySlug));
+  const reason: Reason = byViewed && byListed ? 'both' : byViewed ? 'viewed' : byListed ? 'listed' : null;
+  return { products: out, reason };
 }

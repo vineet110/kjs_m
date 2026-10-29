@@ -1182,7 +1182,7 @@ R28. Featured product slugs are written in several places  🟢
          Keep them in one constant. Where: `(home)/page.tsx`, `(home)/loading.tsx`
 
 
-R29. Enquiry list kept in two places after sending  🟢
+R29. Enquiry list kept in two places after sending  ✅ FIXED 29 Oct (branch kjs_n2)
 
    i.    `onListSent` empties localStorage but keeps `list` in state until the window closes. Clear both together.
          Where: `ProductExplorer.tsx`
@@ -1200,3 +1200,25 @@ R30. Session check is slow for one query  🟢
          + run, because the statement cache is off for the pooler, ROLLBACK). Every API call pays this.
    iii.  First step: turn on SQL logging, count the round trips of one `/auth/me`. Keep `pool_pre_ping` (B10.iii).
          Where: `backend/app/core/database.py`, `backend/app/core/deps.py`
+
+
+---------------------------------------------------------------------------------------------------
+
+## 12. Home page ideas waiting for a decision (29 Oct)
+
+R31. Deals strip ("up to 15% off", like Alibaba)  🟠 needs KJS
+
+   i.    We have no prices or discounts from KJS (I3), so a discount on the site would be a made-up offer.
+   ii.   Proposal: show only offers an admin enters (Admin > Website, offers exist already); hidden when none.
+
+
+R32. Best sellers row  🟠 needs KJS
+
+   i.    The "best seller" tick box exists per product, but which products sell best is a business fact (I2).
+   ii.   Proposal: label it "Featured" until KJS confirms, or KJS / Vineet tick the real best sellers.
+
+
+R33. Frequently searched  🟢 needs a decision
+
+   i.    The site does not record searches. A: "Popular searches" picked by the admin (frontend only).
+         B: record anonymous search words and show the top ones (backend change, new table).
