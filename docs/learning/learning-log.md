@@ -10,6 +10,21 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 29 Oct 2026 (PR #9 review, Nishita)
+
+1. (T) A test that passes can still be wrong: one check passed because its click never happened, another
+   only because of the very bug a review found. Make tests prove their setup (did the click land?).
+
+2. (T) Data shared between tabs: only change what you are about (add or remove one item) in the latest saved
+   copy, never save your whole old copy back; it may miss what another tab added.
+
+3. (T) "Storage blocked" and "storage full" are different: a full store can still be read. Fall back to memory
+   for what failed only, not for everything.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 29 Oct 2026 (recommendations, Nishita)
 
 1. (T) Pull first, then push. We fetched Vineet's work and merged it into our branch before fixing and testing,

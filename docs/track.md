@@ -46,7 +46,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    vii.  Next: demo to KJS. Real-phone test still to do (see memory).
 
 
-4b. Recommended products + cards that pop in on every scroll (Nishita, branch kjs_n2): READY FOR PR (29 Oct)
+4b. Recommended products + cards that pop in on every scroll (Nishita): PR #9, review fixes done (29 Oct)
 
    i.    "Recommended" on the home page: personal picks from this browser's history, or a mix across categories.
    ii.   Product cards and category tiles pop in every time they scroll into view, down or up.

@@ -11,9 +11,9 @@
 //   such as "Explore the range" skipped over: those are above the screen and never "intersect").
 // - repeat: cards in a grid (products, category tiles). Pop in EVERY time they come into view,
 //   scrolling down or up: a card that is fully off screen is hidden on the side it is on, so it slides
-//   in from below when scrolling down and from above when scrolling up. One shared check (at most once
-//   per frame, on scroll and when the page height changes) keeps that side right for cards a jump or a
-//   tab switch carried past without them ever "intersecting".
+//   in from below when scrolling down and from above when scrolling up. One shared check (at most every
+//   120 ms while scrolling, and when the page height changes) keeps that side right for cards a jump or
+//   a tab switch carried past without them ever "intersecting".
 //
 // stagger: cards in the same row appear one after another. The column is measured at the moment the
 // card appears (so it is right after a tab switch, a reorder or a resize, and on 2 or 4 columns).
@@ -74,7 +74,7 @@ type Entry = { set: (s: State, column: number) => void; state: State; stagger: b
 const repeating = new Map<Element, Entry>();
 let repeatObserver: IntersectionObserver | null = null;
 let pageObserver: ResizeObserver | null = null;
-let frame = 0;
+let settle = 0;
 
 function setRepeat(el: Element, state: State) {
   const entry = repeating.get(el);
@@ -85,9 +85,11 @@ function setRepeat(el: Element, state: State) {
 }
 
 // Hidden cards keep the side they are on up to date (a jump or a tab switch can carry them past
-// the screen without them ever "intersecting"). Runs at most once per frame.
+// the screen without them ever "intersecting"). Runs at most every CHECK_MS while scrolling (also
+// during one long continuous scroll) and once more at the end: little work even with many cards.
+const CHECK_MS = 120;
 function checkSides() {
-  frame = 0;
+  settle = 0;
   for (const [el, entry] of repeating) {
     if (entry.state !== 'below' && entry.state !== 'above') continue;
     const r = el.getBoundingClientRect();
@@ -96,7 +98,7 @@ function checkSides() {
   }
 }
 function scheduleSides() {
-  if (!frame) frame = requestAnimationFrame(checkSides);
+  if (!settle) settle = window.setTimeout(checkSides, CHECK_MS); // not restarted: a throttle, not a debounce
 }
 
 function watchRepeat(el: Element, entry: Entry) {
