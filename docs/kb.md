@@ -693,6 +693,16 @@ Sections:
 
 
 
+
+
+### Superuser (Postgres)
+
+   What   A database user that may do anything: change any table, read server files, even run commands on
+          the database server. Our `kjs` user is one.
+   Why    The running app should never hold its password (codeReview CR11). See "Least privilege".
+
+
+
 ===================================================================================================
 
 ## 5. Frontend (Next.js, React)
@@ -834,6 +844,57 @@ Sections:
    What   `package.json` still lists packages from the starter repo that no code uses: zod, recharts, axios,
           date-fns, lucide-react, Radix UI, clsx, tailwind-merge, class-variance-authority.
    Note   Removing them is a cleanup to ask about first.
+
+
+### loading.tsx (streaming)
+
+   What   A file next to a page that Next.js shows at once while the real page is still loading. The answer
+          starts with "200 OK" straight away, so a later crash can't change the status code.
+   Why    Health checks that look only at the status code can't see a broken page (codeReview CR2).
+   Where  `app/[locale]/(public)/(home)/loading.tsx`.
+
+
+### error.tsx / not-found.tsx
+
+   What   Files Next.js shows when a page crashes (error.tsx) or doesn't exist (not-found.tsx).
+   Why    Without them, visitors get Next's bare default page with no header or contact details (codeReview CR4).
+
+
+
+
+
+### AbortSignal.timeout
+
+   What   `fetch(url, { signal: AbortSignal.timeout(8000) })` gives up after 8 seconds instead of waiting forever.
+   Why    A slow API shouldn't freeze our public pages (codeReview CR4). It turns off Next's fetch
+          de-duplication, so see "React cache()".
+
+
+### React cache()
+
+   What   Wraps a server function so that, inside one page render, a second call with the same arguments
+          reuses the first answer.
+   Why    Stops a page calling the API twice for the same data (codeReview CR4).
+
+
+### aria-live
+
+   What   An attribute that tells screen readers to read out new text when it appears in that area, like a
+          new chat reply. `polite` waits until the reader has finished what it is saying.
+   Why    Koko replies aren't announced to blind visitors today (codeReview CR26).
+
+
+### sr-only
+
+   What   A Tailwind class that hides text on screen but keeps it for screen readers.
+   Why    Our home page's only `h1` is sr-only (codeReview CR31).
+
+
+### requestAnimationFrame / scrollend
+
+   What   `requestAnimationFrame(fn)` runs `fn` just before the browser paints the next frame, so at most
+          once per frame. `scrollend` is an event that fires once when scrolling stops.
+   Why    Cheaper ways to react to scrolling than doing work on every scroll event (codeReview CR32).
 
 
 
@@ -1081,6 +1142,14 @@ Sections:
           points in code that passed 125 tests. Results: `memory.md` session log, `backlog.md` section 8.
 
 
+### IPv6 /64 block
+
+   What   Most homes and phones get a whole block of IPv6 addresses (a "/64", billions of them), not one address.
+   Why    A limit "per IP address" must count the whole block as one, or a bot just changes address (codeReview CR6).
+          Only the limits should group by block; saved records keep the real address.
+   Where  Planned: a `rate_key()` helper next to `client_ip()` in `backend/app/core/deps.py`.
+
+
 
 ===================================================================================================
 
@@ -1190,6 +1259,21 @@ Sections:
 ### Lighthouse
 
    What   Google's tool that scores a page for speed, SEO and accessibility. Goal: 90 or more.
+
+
+
+
+
+### Vitest
+
+   What   A test runner for JavaScript / TypeScript, like pytest but for the frontend.
+   Why    We have no frontend tests yet. Adding it is a new dependency, so decide first (codeReview section 4).
+
+
+### shellcheck
+
+   What   A tool that reads shell scripts and points out common mistakes (missing quotes, unsafe pipes).
+   Why    Could check `deploy/*.sh` in CI (codeReview section 4).
 
 
 
@@ -1392,6 +1476,37 @@ Sections:
 
    What   Git Bash on Windows rewrites `/srv/...` paths into Windows paths. Setting `MSYS_NO_PATHCONV=1` stops it.
           Only matters when testing Linux scripts on Windows.
+
+
+### Pipe exit code (pipefail)
+
+   What   In `a | b`, the shell normally reports only whether `b` worked. If `a` fails, nobody notices.
+          `set -o pipefail` fixes this in bash, but not inside `sh -c '...'` in a container.
+   Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
+
+
+
+
+
+### pg_isready
+
+   What   Postgres's "are you ready?" command. Without `-h` it checks the local socket; with `-h 127.0.0.1`
+          it checks the network port the app really uses.
+   Why    The database health check uses it, and on the very first start the socket answers too early (codeReview CR34).
+   Where  `deploy/docker-compose.prod.yml`.
+
+
+### trap (shell)
+
+   What   `trap 'command' EXIT` runs the command when the script ends, whether it worked or failed.
+   Why    For cleanup that must always happen, like deleting temp files that hold a full database copy (codeReview CR1).
+   Where  `deploy/restore.sh` already uses one to start the app again.
+
+
+### Dependabot
+
+   What   A GitHub bot that opens PRs to update old or unsafe dependencies.
+   Why    Its PRs get no secrets, so workflows that need a secret fail on them (codeReview CR37).
 
 
 

@@ -25,6 +25,7 @@ Sections in this file:
    9. Production-readiness review
    10. PR #6 review follow-ups
    11. Speed
+   12. Whole-repo code review (29 Oct)
 
 
 
@@ -1200,3 +1201,31 @@ R30. Session check is slow for one query  🟢
          + run, because the statement cache is off for the pooler, ROLLBACK). Every API call pays this.
    iii.  First step: turn on SQL logging, count the round trips of one `/auth/me`. Keep `pool_pre_ping` (B10.iii).
          Where: `backend/app/core/database.py`, `backend/app/core/deps.py`
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 12. Whole-repo code review (29 Oct)
+
+The full list, with where, why and how to fix, is in `codeReview.md` (CR1–CR39). Only the headline items here.
+
+CR1. `restore.sh` can empty the database and still say "restore done"  🔴
+
+   i.    Must fix before go-live. See `codeReview.md` CR1.
+
+
+CR2–CR11. Should fix before go-live  🟠
+
+   i.    Health check can't see a broken home page (CR2). Backups need the backend running (CR3).
+   ii.   No public error page or API timeout (CR4).
+   iii.  Rate limits: admin lockout still possible (CR5), IPv6 gets around every limit (CR6),
+         the office's shared IP hits the login / sign-up limits (CR7).
+   iv.   Feature flags not checked by the API (CR8). Disabled user's batch stuck (CR9).
+   v.    Emails lost when the mail server is down (CR10). Superuser password in the API container (CR11).
+
+
+CR12–CR39. Fix when convenient  🟢
+
+   i.    Business-rule edge cases, small frontend bugs, deploy / CI cleanups. See `codeReview.md`.
+

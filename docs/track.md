@@ -140,3 +140,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 7. 28 Oct: PR #6 (home page + 58-product catalogue) reviewed four times and merged. Development database moved
    to Neon Singapore: about 70–180 ms per database trip from India, was about 560 ms (backlog B10).
+
+8. 29 Oct: whole-repo code review in `codeReview.md` (CR1–CR39). No security holes; 1 must-fix (`restore.sh`)
+   and 10 should-fix. Not fixed yet: 5 small PRs planned (`codeReview.md` section 2).
