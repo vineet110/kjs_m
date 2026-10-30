@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import CategoryGrid from '@/components/public/CategoryGrid';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
+import Reveal from '@/components/public/Reveal';
 import { serverGet, type Category, type Product } from '@/lib/api';
 
 export const metadata: Metadata = { title: 'Products' };
@@ -22,8 +23,11 @@ export default async function ProductsPage() {
       <CategoryGrid categories={categories ?? []} />
       {products && products.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Cards pop in, row by row, every time they scroll into view (down or up) */}
           {products.map((p) => (
-            <ProductCard key={p.id} p={p} />
+            <Reveal key={p.id} stagger repeat className="flex">
+              <ProductCard p={p} />
+            </Reveal>
           ))}
         </div>
       ) : (

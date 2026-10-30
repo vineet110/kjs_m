@@ -46,6 +46,13 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    vii.  Next: demo to KJS. Real-phone test still to do (see memory).
 
 
+4b. Recommended products + cards that pop in on every scroll (Nishita): PR #9, fifth review fix done (30 Oct)
+
+   i.    "Recommended" on the home page: personal picks from this browser's history, or a mix across categories.
+   ii.   Product cards and category tiles pop in every time they scroll into view, down or up.
+   iii.  Waiting on decisions (backlog R31–R33): deals strip, best sellers, frequently searched.
+
+
 5. Waiting on
 
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).

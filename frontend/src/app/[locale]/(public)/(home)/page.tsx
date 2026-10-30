@@ -8,6 +8,7 @@ import CategoryMenu from '@/components/public/home/CategoryMenu';
 import HeroCarousel, { type Slide } from '@/components/public/home/HeroCarousel';
 import HomeSearch from '@/components/public/home/HomeSearch';
 import ProductExplorer from '@/components/public/home/ProductExplorer';
+import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
@@ -172,8 +173,8 @@ export default async function HomePage() {
             <Link href="/products" className="hidden text-sm font-semibold text-gold-dark hover:underline sm:block">All products →</Link>
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {stocked.map((c, i) => (
-              <Reveal key={c.slug} delay={i * 100} className="flex">
+            {stocked.map((c) => (
+              <Reveal key={c.slug} stagger repeat className="flex">
                 <Link href={`/categories/${c.slug}`} className="card group w-full overflow-hidden p-3 transition-shadow hover:shadow-lg">
                   {withImage.some((p) => p.categorySlug === c.slug) ? (
                     <div className="grid grid-cols-2 gap-1.5">
@@ -206,6 +207,9 @@ export default async function HomePage() {
           )}
         </section>
       )}
+
+      {/* Recommended: personal picks from this browser's history, or a mix for first-time visitors */}
+      <RecommendedProducts />
 
       {/* Product range */}
       <section id="range" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-14">

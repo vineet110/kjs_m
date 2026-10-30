@@ -10,6 +10,90 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct 2026 (PR #9 fifth review, Nishita)
+
+1. (T) Fixing a rare case can create a common one: keeping "unknown" products (for two tabs on different
+   site versions) also kept products taken off the site, which happens far more often. Ask how often each
+   case really happens.
+
+2. (T) A test is only worth something if it can fail: run it against a deliberately broken version of the
+   code and see it catch the bug. Random inputs find cases you didn't think of, but check they really
+   reach the hard case (here: lists over the limit).
+
+3. (T) An effect runs after the page draws: read the LATEST saved data there, not the value from when the
+   page drew.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 29 Oct 2026 (PR #9 fourth review, Nishita)
+
+1. (T) An IntersectionObserver sees an element's MOVED box (with its transform). An entrance that slides
+   a card can slide it out of view, which hides it, which brings it back… A loop. Leave a margin bigger
+   than the slide.
+
+2. (T) One observer, one exact question is clearer and cheaper than one observer with many thresholds and
+   extra checks.
+
+3. (T) A limit needs a rule for what goes when it is hit. "Keep the newest" is simple and predictable,
+   even if, in a rare case, an older product goes.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 29 Oct 2026 (PR #9 third review, Nishita)
+
+1. (T) A cache needs to know when it may be stale. If only listeners clear it, it goes stale while nobody
+   listens (e.g. on another page). Drop it when the last listener leaves.
+
+2. (T) Decide things at the moment they happen, not ahead of time: a card picks its entrance direction as
+   it comes in, so nothing that happened while it was off screen can make it wrong.
+
+3. (T) A form should work on the data as it was when it opened (a snapshot), or a change elsewhere can alter
+   what is sent behind the user's back.
+
+4. (T) A test that fakes a browser event must fake it the way the browser really sends it (the storage event
+   carries the new value). A fake missing a field tested the wrong case.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 29 Oct 2026 (PR #9 review, Nishita)
+
+1. (T) A test that passes can still be wrong: one check passed because its click never happened, another
+   only because of the very bug a review found. Make tests prove their setup (did the click land?).
+
+2. (T) Data shared between tabs: only change what you are about (add or remove one item) in the latest saved
+   copy, never save your whole old copy back; it may miss what another tab added.
+
+3. (T) "Storage blocked" and "storage full" are different: a full store can still be read. Fall back to memory
+   for what failed only, not for everything.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 29 Oct 2026 (recommendations, Nishita)
+
+1. (T) Pull first, then push. We fetched Vineet's work and merged it into our branch before fixing and testing,
+   so everything was tested on the code that will really be pushed.
+
+2. (T) "Personal" features can stay private: the recommendations use only what is stored in the visitor's own
+   browser. Nothing about them is sent to our server.
+
+3. (T) Two reviews can pull in opposite directions ("no flash" vs "server-render the content"). Look for the
+   fix that satisfies both: server-render a real default, swap in personal picks quietly.
+
+4. (T) A feature that hides content must have a way back to visible in every case: scroll, jumps, tab switches,
+   and printing.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 28 Oct 2026 (database move)
 
 1. (V) A Neon project's region is fixed when it is created. "Changing region" means a new project, then

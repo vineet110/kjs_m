@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import EnquiryForm from './EnquiryForm';
 
-type Props = React.ComponentProps<typeof EnquiryForm> & { label: string; className?: string; onClose?: () => void };
+type Props = React.ComponentProps<typeof EnquiryForm> & { label: string; className?: string; onOpen?: () => void; onClose?: () => void };
 
 /** A button that opens the enquiry form in a modal.
  *  The modal is drawn straight into <body> (a portal): a parent with a CSS transform would otherwise
  *  squeeze its full-screen layer into the parent's box (e.g. the floating enquiry-list bar). */
-export default function EnquiryButton({ label, className = 'btn-gold', onClose, ...form }: Props) {
+export default function EnquiryButton({ label, className = 'btn-gold', onOpen, onClose, ...form }: Props) {
   const [open, setOpen] = useState(false);
   const close = () => {
     setOpen(false);
@@ -16,7 +16,7 @@ export default function EnquiryButton({ label, className = 'btn-gold', onClose, 
   };
   return (
     <>
-      <button onClick={() => setOpen(true)} className={className}>{label}</button>
+      <button onClick={() => { onOpen?.(); setOpen(true); }} className={className}>{label}</button>
       {open &&
         createPortal(
           <div
