@@ -692,6 +692,13 @@ Sections:
    Where  We use half-up for board %.
 
 
+### Superuser (Postgres)
+
+   What   A database user that may do anything: change any table, read server files, even run commands on
+          the database server. Our `kjs` user is one.
+   Why    The running app should never hold its password (codeReview CR11). See "Least privilege".
+
+
 
 ===================================================================================================
 
@@ -743,7 +750,8 @@ Sections:
 ### TypeScript
 
    What   JavaScript with types. It catches mistakes before the code runs.
-   Command  `npx tsc --noEmit` (type check).
+   Command  `npx next typegen`, then `npx tsc --noEmit` (type check). On a fresh clone, skipping the first
+            one shows type errors that aren't real.
 
 
 ### Tailwind CSS
@@ -834,6 +842,114 @@ Sections:
    What   `package.json` still lists packages from the starter repo that no code uses: zod, recharts, axios,
           date-fns, lucide-react, Radix UI, clsx, tailwind-merge, class-variance-authority.
    Note   Removing them is a cleanup to ask about first.
+
+
+### loading.tsx (streaming)
+
+   What   A file next to a page that Next.js shows at once while the real page is still loading. The answer
+          starts with "200 OK" straight away, so a later crash can't change the status code.
+   Why    Health checks that look only at the status code can't see a broken page (codeReview CR2).
+   Where  `app/[locale]/(public)/(home)/loading.tsx`.
+
+
+### error.tsx / not-found.tsx
+
+   What   Files Next.js shows when a page crashes (error.tsx) or doesn't exist (not-found.tsx).
+   Why    Without them, visitors get Next's bare default page with no header or contact details (codeReview CR4).
+
+
+### AbortSignal.timeout
+
+   What   `fetch(url, { signal: AbortSignal.timeout(8000) })` gives up after 8 seconds instead of waiting forever.
+   Why    A slow API shouldn't freeze our public pages (codeReview CR4). It turns off Next's fetch
+          de-duplication, so see "React cache()".
+
+
+### React cache()
+
+   What   Wraps a server function so that, inside one page render, a second call with the same arguments
+          reuses the first answer.
+   Why    Stops a page calling the API twice for the same data (codeReview CR4).
+
+
+### aria-live
+
+   What   An attribute that tells screen readers to read out new text when it appears in that area, like a
+          new chat reply. `polite` waits until the reader has finished what it is saying.
+   Why    Koko replies aren't announced to blind visitors today (codeReview CR26).
+
+
+### sr-only
+
+   What   A Tailwind class that hides text on screen but keeps it for screen readers.
+   Why    Our home page's only `h1` is sr-only (codeReview CR31).
+
+
+### requestAnimationFrame / scrollend
+
+   What   `requestAnimationFrame(fn)` runs `fn` just before the browser paints the next frame, so at most
+          once per frame. `scrollend` is an event that fires once when scrolling stops.
+   Why    Cheaper ways to react to scrolling than doing work on every scroll event (codeReview CR32).
+
+
+### IntersectionObserver
+
+   What   A browser feature that tells our code when an element comes into view (or leaves it), without
+          checking on every scroll.
+   Why    `Reveal.tsx` uses it to fade sections in as you scroll.
+   Where  `frontend/src/components/public/Reveal.tsx`.
+
+
+### getBoundingClientRect
+
+   What   Asks the browser where an element is on screen right now (top, left, width, height).
+   Why    Cheap once, but calling it for many elements on every scroll event can make scrolling jerky (codeReview CR32).
+
+
+### createPortal
+
+   What   A React function that draws a component somewhere else in the page (usually at the end of `<body>`)
+          while it still belongs to its parent in the code.
+   Why    Popups like the enquiry form must not be trapped inside a parent with a transform or overflow.
+
+
+### inert (attribute)
+
+   What   An HTML attribute that makes a part of the page unclickable and skipped by the keyboard and screen readers.
+   Why    Used for the parts of the page behind an open popup, or for hidden carousel slides.
+
+
+### CSS :has()
+
+   What   A CSS selector that styles an element based on what it contains, for example a card that has a
+          checked box inside it.
+
+
+### Capture-phase listener
+
+   What   An event listener added with `{ capture: true }`. It runs on the way down to the clicked element,
+          before normal listeners, so it sees the click first.
+   Why    Lets a global handler (like the page progress bar) see a click even when a component stops it.
+
+
+### next typegen
+
+   What   A Next.js command that writes the type files for our routes. Run it before `npx tsc --noEmit`
+          on a fresh clone, or type checking shows errors that aren't real (codeReview CR33).
+
+
+### Catch-all route [...rest]
+
+   What   A Next.js folder name like `[...rest]` that matches any path not matched by another page.
+   Why    A way to send unknown URLs to our own 404 page (codeReview CR4). Where it sits decides which
+          `not-found.tsx` is used.
+
+
+### dvh (CSS unit)
+
+   What   "Dynamic viewport height": 100dvh is the visible screen height, even when a phone's address bar
+          shows or hides.
+   Why    Stops popups being taller than a phone held sideways (codeReview CR26).
 
 
 
@@ -1081,6 +1197,28 @@ Sections:
           points in code that passed 125 tests. Results: `memory.md` session log, `backlog.md` section 8.
 
 
+### IPv6 /64 block
+
+   What   Most homes and phones get a whole block of IPv6 addresses (a "/64", billions of them), not one address.
+   Why    A limit "per IP address" must count the whole block as one, or a bot just changes address (codeReview CR6).
+          Only the limits should group by block; saved records keep the real address.
+   Where  Planned: a `rate_key()` helper next to `client_ip()` in `backend/app/core/deps.py`.
+
+
+### id-token: write (GitHub Actions)
+
+   What   A permission that lets a workflow ask GitHub for a short-lived login token (OIDC).
+   Why    Actions use it to log in to outside services. Anything running in that job can request a token,
+          so don't mix it with unpinned code (codeReview CR37).
+
+
+### IPv4-mapped IPv6 address
+
+   What   An IPv4 address written in IPv6 form, like `::ffff:1.2.3.4`. Servers that listen on both kinds
+          show IPv4 visitors this way.
+   Why    Must be treated as the IPv4 address, or every IPv4 visitor falls into one IPv6 /64 rate limit (codeReview CR6).
+
+
 
 ===================================================================================================
 
@@ -1190,6 +1328,18 @@ Sections:
 ### Lighthouse
 
    What   Google's tool that scores a page for speed, SEO and accessibility. Goal: 90 or more.
+
+
+### Vitest
+
+   What   A test runner for JavaScript / TypeScript, like pytest but for the frontend.
+   Why    We have no frontend tests yet. Adding it is a new dependency, so decide first (codeReview section 4).
+
+
+### shellcheck
+
+   What   A tool that reads shell scripts and points out common mistakes (missing quotes, unsafe pipes).
+   Why    Could check `deploy/*.sh` in CI (codeReview section 4).
 
 
 
@@ -1392,6 +1542,57 @@ Sections:
 
    What   Git Bash on Windows rewrites `/srv/...` paths into Windows paths. Setting `MSYS_NO_PATHCONV=1` stops it.
           Only matters when testing Linux scripts on Windows.
+
+
+### dash
+
+   What   A small, fast shell. On Debian images like our backend's `python:3.12-slim`, `sh` is dash, not bash,
+          so some bash features may not work there.
+
+
+### Mount point (Docker volume)
+
+   What   The folder inside a container where a Docker volume is attached. It can't be renamed or replaced
+          while it is attached, only the things inside it can.
+   Where  `/srv/kjs_files` in the backend container (codeReview CR1).
+
+
+### Pipe exit code (pipefail)
+
+   What   In `a | b`, the shell normally reports only whether `b` worked. If `a` fails, nobody notices.
+          `set -o pipefail` makes the whole pipe fail when any part fails. It works in bash and in the
+          `postgres:17-alpine` db container. Don't rely on it in the backend container's `sh` (dash, see
+          above): use `bash -c` there instead of `sh -c`.
+   Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
+          pipefail alone doesn't prevent that: it only changes the exit code at the end, after `psql`
+          has already run the DROP and committed. The fix is to check the backup before deleting anything.
+
+
+### pg_isready
+
+   What   Postgres's "are you ready?" command. Without `-h` it checks the local socket; with `-h 127.0.0.1`
+          it checks the network port the app really uses.
+   Why    The database health check uses it, and on the very first start the socket answers too early (codeReview CR34).
+   Where  `deploy/docker-compose.prod.yml`.
+
+
+### trap (shell)
+
+   What   `trap 'command' EXIT` runs the command when the script ends, whether it worked or failed.
+   Why    For cleanup that must always happen, like deleting temp files or starting the app again.
+   Where  `deploy/restore.sh` already uses one to start the app again.
+
+
+### Dependabot
+
+   What   A GitHub bot that opens PRs to update old or unsafe dependencies.
+   Why    Its PRs get no secrets, so workflows that need a secret fail on them (codeReview CR37).
+
+
+### exec (shell)
+
+   What   `exec command` replaces the running script with `command`; nothing after that line runs.
+   Why    A way for `deploy.sh` to restart itself as the newly pulled version (codeReview CR35).
 
 
 

@@ -1,6 +1,7 @@
 # docs: project memory
 
-These files live only on this PC. They are not committed to git.
+These files are committed to git for now, so both of us have them (the repo is private). See
+`prompt.md` section 4 rule 3.
 
 Read in this order if you are new:
 

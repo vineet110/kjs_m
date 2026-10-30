@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (28 Oct 2026)
+## 1. Status today (30 Oct 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -46,11 +46,19 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    vii.  Next: demo to KJS. Real-phone test still to do (see memory).
 
 
-4b. Recommended products + cards that pop in on every scroll (Nishita): PR #9, fifth review fix done (30 Oct)
+4b. Recommended products + cards that pop in on every scroll (Nishita): PR #9 merged (30 Oct)
 
    i.    "Recommended" on the home page: personal picks from this browser's history, or a mix across categories.
    ii.   Product cards and category tiles pop in every time they scroll into view, down or up.
    iii.  Waiting on decisions (backlog R31–R33): deals strip, best sellers, frequently searched.
+
+
+4c. Whole-repo code review (29 Oct): `codeReview.md`, nothing fixed yet
+
+   i.    🔴 CR1 must be fixed before go-live: `restore.sh` can empty the database and still say "restore done".
+   ii.   🟠 CR2–CR11 should be fixed before go-live: health check, backups, public error page, rate limits,
+         feature flags, disabled user's batch, lost emails, superuser password in the API container.
+   iii.  Plan: 5 small code PRs, each with a failing test first (`codeReview.md` section 2, `prompt.md` section 6).
 
 
 5. Waiting on
@@ -58,6 +66,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
    ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
+   iii.  Vineet + Nishita: CR1 `restore.sh` fix before go-live, then the should-fix list CR2–CR11.
 
 
 6. Can be done without KJS
@@ -147,3 +156,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 7. 28 Oct: PR #6 (home page + 58-product catalogue) reviewed four times and merged. Development database moved
    to Neon Singapore: about 70–180 ms per database trip from India, was about 560 ms (backlog B10).
+
+8. 29 Oct: whole-repo code review in `codeReview.md` (CR1–CR39). No security holes; 1 must-fix (`restore.sh`)
+   and 10 should-fix. Not fixed yet: 5 small PRs planned (`codeReview.md` section 2).
