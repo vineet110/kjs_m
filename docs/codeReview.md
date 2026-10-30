@@ -375,7 +375,8 @@ CR16. Board tasks let one employee edit colleagues' tasks  🟢
    i.    When A marks step 1 done, every step-2 task for B and C is saved as "created by A".
    ii.   A can now change B's and C's tasks (mark done, change due date) without `tasks.assign`.
 
-   Fix: `created_by=board.created_by` (or `None`) for tasks the board makes.
+   Fix: `created_by=None` for tasks the board makes (the column allows it, and the task list handles it).
+   Not `board.created_by`: the board's creator could then edit everyone's tasks, which is the same leak.
 
 
 CR17. Buyer import: two gaps in the duplicate check  🟢
@@ -464,7 +465,7 @@ CR24. Smaller backend points  🟢
    iii.  `attendance_service.py`: the approver can't see the person's real punches for the day being
          corrected. Show the current check-in / check-out next to the request. A "within 30 days"
          limit needs a decision: log it as an A-item.
-   iv.   `jobs/runner.py:66-70`: the comment says the lock makes each job run once per tick, but the
+   iv.   `jobs/runner.py:4-7`: the comment says the lock makes each job run once per tick, but the
          lock ends at the first `commit()`. `send_emails` commits often (safe anyway thanks to
          `SKIP LOCKED`). Fix the comment so nobody relies on it.
    v.    `backend/requirements.txt`: `pytest`, `pytest-asyncio`, `freezegun` are installed in the
@@ -572,13 +573,13 @@ CR32. `Reveal.tsx` measures every waiting block on every scroll  🟢
 
 CR33. `npx tsc --noEmit` fails on a fresh clone  🟢
 
-   Where: `frontend/next-env.d.ts` (removed from git), `docs/kb.md:746`
+   Where: `frontend/next-env.d.ts` (removed from git), `docs/kb.md` (TypeScript entry)
 
    i.    CI runs `next typegen` first, but `kb.md` tells you to run `npx tsc --noEmit`. On a fresh
          clone that shows type errors that aren't real.
 
-   Fix: update `kb.md`: "run `npx next typegen` first", or add a `"typecheck"` script in
-   `package.json` that does both.
+   Fix: `kb.md` now says to run `npx next typegen` first (done in the PR that added this file).
+   Optional: a `"typecheck"` script in `package.json` that does both.
 
 
 
@@ -612,8 +613,11 @@ CR36. CI tests on Postgres 16, production runs Postgres 17  🟢
 
    Where: `.github/workflows/ci.yml:19` (`pgvector/pgvector:pg16`), `deploy/docker-compose.prod.yml:16`
 
-   Fix: use `postgres:17-alpine` in CI and in the root `docker-compose.yml` test database. No
-   migration uses pgvector.
+   Fix: use `pgvector/pgvector:pg17` in CI and in the root `docker-compose.yml`, so the Postgres version
+   matches production.
+   Not plain `postgres:17-alpine`: no migration uses pgvector, but `backend/alembic/init_roles.sql` line 2
+   creates the `vector` extension, so the local test database wouldn't start. To move to the plain image
+   later, that line has to go first.
 
 
 CR37. The AI review workflow fails on PRs from forks and loads an unpinned plugin  🟢

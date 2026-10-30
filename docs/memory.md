@@ -177,7 +177,8 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 15. 24 Oct. New plan: Phase 1 in 2 weeks, one simple list (`checklist.md`).
 
-16. 24 Oct. `docs/` is not committed to git. It lives only on this PC.
+16. 24 Oct. (REPLACED: `docs/` is committed now, see `prompt.md` section 4 rule 3) `docs/` is not committed to
+    git. It lives only on this PC.
 
 17. 24 Oct. Every guess we make goes into `backlog.md` section 3, so it can be checked later.
 
@@ -293,7 +294,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Trade-off (Vineet's call): a product another tab added from a newer site version is removed when this
          page loads; much rarer than products taken off the site.
    iii.  His other points (Reveal wrapper, Recommended leftovers, card components, kb.md notes): backlog
-         R34 iv, R35, R36, R37.
+         R34 iv, R35, R36, R37. Small points from the review after this fix: R35 ii, R38.
    iv.   Tested: a logic test on the real helpers (19,356 checks incl. 7,836 random lists over the limit; it
          fails on two broken versions), browser checks 23/23 (this round, incl. Vineet's example, zoom and
          phone) + 30/30 + 20/20 + 12/12, e2e API 114/114 and browser 38/38. Independent review: 4 real, fixed.

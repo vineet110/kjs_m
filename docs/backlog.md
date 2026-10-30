@@ -1070,6 +1070,7 @@ Everything below "Fixed" has a test in `backend/tests/test_prod_readiness.py`.
    ii.   Should fix:
          a.  `staff.approve` could turn disabled accounts back on (only admins now).
          b.  A stranger could keep the admin locked out (the lock is now per email + network).
+             Only partly fixed: the any-network counter can still lock the admin out, see `codeReview.md` CR5.
          c.  Email login didn't check the mail server's certificate. Port 465 supported.
          d.  A slow or down mail server stalled every job; now one connection per batch, one try when down,
              a 2-minute budget, and visitor text is marked as such in staff emails.
@@ -1256,6 +1257,8 @@ R35. Reveal: watch an outer box, animate an inner one  🟢 later (not a bug)
    i.    The repeat cards hide only when more than 40px off screen, because the observers see the box that
          the entrance slides. Watching an outer wrapper and animating an inner element removes the margin.
          Where: `Reveal.tsx`
+   ii.   Same cause: cards that start within 40px of the screen edge appear without the entrance animation
+         on the first scroll. The fix in i removes this too.
 
 
 ---------------------------------------------------------------------------------------------------
@@ -1283,9 +1286,7 @@ R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
 
    i.    The enquiry message and the bar thumbnails follow catalogue order, not the order the visitor added
          products. Where: `ProductExplorer.tsx`
-   ii.   Cards that start within 40px of the screen edge appear without the entrance animation on the first
-         scroll. Where: `Reveal.tsx`
-   iii.  `flushSync` and a forced style read run each time cards leave the screen, which could stutter on
+   ii.   `flushSync` and a forced style read run each time cards leave the screen, which could stutter on
          cheap phones. Where: `Reveal.tsx`
 
 

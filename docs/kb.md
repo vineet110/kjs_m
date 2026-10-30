@@ -692,9 +692,6 @@ Sections:
    Where  We use half-up for board %.
 
 
-
-
-
 ### Superuser (Postgres)
 
    What   A database user that may do anything: change any table, read server files, even run commands on
@@ -753,7 +750,8 @@ Sections:
 ### TypeScript
 
    What   JavaScript with types. It catches mistakes before the code runs.
-   Command  `npx tsc --noEmit` (type check).
+   Command  `npx next typegen`, then `npx tsc --noEmit` (type check). On a fresh clone, skipping the first
+            one shows type errors that aren't real.
 
 
 ### Tailwind CSS
@@ -860,9 +858,6 @@ Sections:
    Why    Without them, visitors get Next's bare default page with no header or contact details (codeReview CR4).
 
 
-
-
-
 ### AbortSignal.timeout
 
    What   `fetch(url, { signal: AbortSignal.timeout(8000) })` gives up after 8 seconds instead of waiting forever.
@@ -895,9 +890,6 @@ Sections:
    What   `requestAnimationFrame(fn)` runs `fn` just before the browser paints the next frame, so at most
           once per frame. `scrollend` is an event that fires once when scrolling stops.
    Why    Cheaper ways to react to scrolling than doing work on every scroll event (codeReview CR32).
-
-
-
 
 
 ### IntersectionObserver
@@ -1213,9 +1205,6 @@ Sections:
    Where  Planned: a `rate_key()` helper next to `client_ip()` in `backend/app/core/deps.py`.
 
 
-
-
-
 ### IPv4-mapped IPv6 address
 
    What   An IPv4 address written in IPv6 form, like `::ffff:1.2.3.4`. Servers that listen on both kinds
@@ -1332,9 +1321,6 @@ Sections:
 ### Lighthouse
 
    What   Google's tool that scores a page for speed, SEO and accessibility. Goal: 90 or more.
-
-
-
 
 
 ### Vitest
@@ -1561,9 +1547,6 @@ Sections:
           has already run the DROP and committed. The fix is to check the backup before deleting anything.
 
 
-
-
-
 ### pg_isready
 
    What   Postgres's "are you ready?" command. Without `-h` it checks the local socket; with `-h 127.0.0.1`
@@ -1583,9 +1566,6 @@ Sections:
 
    What   A GitHub bot that opens PRs to update old or unsafe dependencies.
    Why    Its PRs get no secrets, so workflows that need a secret fail on them (codeReview CR37).
-
-
-
 
 
 ### exec (shell)
