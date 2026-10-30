@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, ApiFailure, type Me } from '@/lib/api';
 import Bell from './Bell';
+import Spinner from '@/components/ui/Spinner';
 
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
@@ -52,6 +53,8 @@ const NAV: { group: string; items: NavItem[] }[] = [
 export default function PortalShell({ children, requirePerm }: { children: React.ReactNode; requirePerm?: string }) {
   const [me, setMe] = useState<Me | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [failed, setFailed] = useState(false); // "who am I" failed for another reason than "logged out"
+  const [attempt, setAttempt] = useState(0); // "Try again" asks once more
   const router = useRouter();
   const pathname = usePathname();
 
@@ -63,15 +66,30 @@ export default function PortalShell({ children, requirePerm }: { children: React
       })
       .catch((e) => {
         if (e instanceof ApiFailure && e.status === 401) router.replace(`/employee/login?next=${encodeURIComponent(pathname)}`);
+        else setFailed(true); // server down or unreachable: say so, instead of loading forever
       });
-  }, [requirePerm, router, pathname]);
+  }, [requirePerm, router, pathname, attempt]);
 
   async function logout() {
     await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
     router.replace('/employee/login');
   }
 
-  if (!me) return <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading…</div>;
+  // Also what staff see right after logging in, so the login spinner carries on until the page is ready
+  if (!me && failed)
+    return (
+      <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 p-4 text-center text-sm text-slate-600">
+        <p>Could not load your account. The server may be busy; please try again.</p>
+        <button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="btn-dark">Try again</button>
+      </div>
+    );
+  if (!me)
+    return (
+      <div role="status" className="flex min-h-screen items-center justify-center gap-2 text-sm text-slate-500">
+        <Spinner />
+        Loading…
+      </div>
+    );
 
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions)) }))
     .filter((g) => g.items.length > 0);

@@ -10,6 +10,20 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct 2026 (login spinner, Nishita)
+
+1. (T) To keep a "loading" state on while the page changes, don't skip the reset and hope the page goes
+   away: React's useTransition says when the page change is really done, in every case.
+
+2. (T) A loading screen needs an end: if the request fails (not "logged out"), show an error and "Try again",
+   or the visitor watches a spinner forever.
+
+3. (T) Prove a test can fail: run it on the old code first (git stash), then on the new code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct 2026 (PR #9 fifth review, Nishita)
 
 1. (T) Fixing a rare case can create a common one: keeping "unknown" products (for two tabs on different

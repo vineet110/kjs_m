@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useTransition } from 'react';
+import Spinner from '@/components/ui/Spinner';
 import { api, ApiFailure, type Me } from '@/lib/api';
 import { safeNext } from '@/lib/safe-url';
 
@@ -12,6 +13,10 @@ function LoginInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // After a successful login: true until the next page has opened (React tracks the page change), so the
+  // spinner carries on with no flash back to "Log in", and ends by itself whatever the page change does
+  const [navigating, startNavigation] = useTransition();
+  const working = busy || navigating;
   const router = useRouter();
   const next = useSearchParams().get('next');
 
@@ -25,7 +30,7 @@ function LoginInner() {
       if (tab === 'login') {
         const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password } });
         const home = me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard';
-        router.replace(safeNext(next) ?? home);
+        startNavigation(() => router.replace(safeNext(next) ?? home));
       } else {
         await api('/auth/signup', { method: 'POST', body: { name: f.name, email: f.email, phone: f.phone, password: f.password } });
         setNotice('Account created. An admin will approve it; then you can log in.');
@@ -40,6 +45,7 @@ function LoginInner() {
       setBusy(false);
     }
   }
+  const label = tab === 'login' ? (working ? 'Logging in…' : 'Log in') : working ? 'Creating account…' : 'Create account';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink p-4">
@@ -54,7 +60,7 @@ function LoginInner() {
           </div>
           <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-semibold">
             {(['login', 'signup'] as const).map((t) => (
-              <button key={t} onClick={() => { setTab(t); setError(''); }} className={`rounded-md py-1.5 ${tab === t ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
+              <button key={t} disabled={working} onClick={() => { setTab(t); setError(''); }} className={`rounded-md py-1.5 ${tab === t ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
                 {t === 'login' ? 'Log in' : 'Sign up'}
               </button>
             ))}
@@ -74,7 +80,10 @@ function LoginInner() {
             </div>
             {notice && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p>}
             {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-            <button disabled={busy} className="btn-dark w-full">{busy ? 'Please wait…' : tab === 'login' ? 'Log in' : 'Create account'}</button>
+            <button disabled={working} aria-busy={working} className="btn-dark w-full">
+              {working && <Spinner />}
+              {label}
+            </button>
           </form>
         </div>
       </div>

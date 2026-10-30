@@ -1288,6 +1288,16 @@ R37. kb.md: short notes for what PR #9 used  🟢 later (docs)
 ---------------------------------------------------------------------------------------------------
 
 
+R38. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
+
+   i.    1 login spinner ✅ (branch feat/uiUpdates). 2 sliding sidebar. 3 home: remove Capabilities and
+         "250+". 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone code and country pickers.
+   ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
+
+
+---------------------------------------------------------------------------------------------------
+
+
 R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
 
    i.    The enquiry message and the bar thumbnails follow catalogue order, not the order the visitor added

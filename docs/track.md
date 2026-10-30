@@ -53,6 +53,16 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Waiting on decisions (backlog R31–R33): deals strip, best sellers, frequently searched.
 
 
+4d. UI requests from Nishita (30 Oct): 7 small PRs, lowest risk first
+
+   i.    Step 1 login spinner: done on branch feat/uiUpdates (not merged yet).
+   ii.   Next: 2 sliding sidebar, 3 home removals (Capabilities, "250+"), 4 partner page ("Referral partner",
+         real content only), 5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and
+         country pickers with flags (flags copied into public/flags, no package; country picker only, the site
+         stays English: D2).
+   iii.  Best seller stays a tick box per product (not a category): a product keeps its real category.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`, nothing fixed yet
 
    i.    🔴 CR1 must be fixed before go-live: `restore.sh` can empty the database and still say "restore done".
