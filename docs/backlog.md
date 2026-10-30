@@ -25,6 +25,8 @@ Sections in this file:
    9. Production-readiness review
    10. PR #6 review follow-ups
    11. Speed
+   12. Home page ideas waiting for a decision
+   13. Whole-repo code review (29 Oct)
 
 
 
@@ -844,6 +846,14 @@ A77. Home page facts taken from the catalogue PDF  🟢
    i.    "Two units, more than 250 products", partners list, stick-pack fills 0.9–3 g (page 2 of the PDF).
 
 
+A78. Night-shift regularization: a "check-out was the next day" tick box  🟢  (guess, 29 Oct)
+
+   i.    Suggested fix for `codeReview.md` CR14: the employee ticks the box instead of the system
+         guessing a night shift from the times. Not built yet.
+   ii.   To confirm with HR before building: is a tick box OK for staff, or should night shifts be
+         set per person?
+
+
 ### Code and setup
 
 A39. Folder names  🟢
@@ -1264,3 +1274,44 @@ R37. kb.md: short notes for what PR #9 used  🟢 later (docs)
 
    i.    useSyncExternalStore; `pageshow` and the back/forward cache; the `storage` event (other tabs);
          scroll anchoring (and Safari without it); tailwindcss-animate.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
+
+   i.    The enquiry message and the bar thumbnails follow catalogue order, not the order the visitor added
+         products. Where: `ProductExplorer.tsx`
+   ii.   Cards that start within 40px of the screen edge appear without the entrance animation on the first
+         scroll. Where: `Reveal.tsx`
+   iii.  `flushSync` and a forced style read run each time cards leave the screen, which could stutter on
+         cheap phones. Where: `Reveal.tsx`
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 13. Whole-repo code review (29 Oct)
+
+The full list, with where, why and the direction of each fix, is in `codeReview.md` (CR1–CR39). Only the
+headline items here.
+
+CR1. `restore.sh` can empty the database and still say "restore done"  🔴
+
+   i.    Must fix before go-live. See `codeReview.md` CR1.
+
+
+CR2–CR11. Should fix before go-live  🟠
+
+   i.    Health check can't see a broken home page (CR2). Backups need the backend running (CR3).
+   ii.   No public error page or API timeout (CR4).
+   iii.  Rate limits: admin lockout still possible (CR5), IPv6 gets around every limit (CR6),
+         the office's shared IP hits the login / sign-up limits (CR7).
+   iv.   Feature flags not checked by the API (CR8). Disabled user's batch stuck (CR9).
+   v.    Emails lost when the mail server is down (CR10). Superuser password in the API container (CR11).
+
+
+CR12–CR39. Fix when convenient  🟢
+
+   i.    Business-rule edge cases, small frontend bugs, deploy / CI cleanups. See `codeReview.md`.

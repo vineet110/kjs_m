@@ -27,6 +27,24 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 29 Oct 2026 (whole-repo code review)
+
+1. (V) `a | b` in a shell only reports whether `b` worked. Our restore piped `pg_restore` into `psql`: a bad
+   backup file could empty the database and the script would still say "done". Check inputs before deleting anything.
+
+2. (V) "200 OK" doesn't always mean the page works. With `loading.tsx`, Next.js sends 200 before the page has
+   finished, so a health check must call something that really fails when things are broken.
+
+3. (V) Limits "per IP" are tricky: an office shares one IP (blocks our own staff), while one IPv6 home has
+   billions of addresses (a bot walks around the limit). Count IPv6 by /64 block, count only failed logins.
+
+4. (V) A fix nobody has run is a guess. Three review rounds kept finding bugs in code snippets written in a
+   document, while the problem descriptions held up. So: a failing test first, and no code snippets in docs.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 29 Oct 2026 (PR #9 fourth review, Nishita)
 
 1. (T) An IntersectionObserver sees an element's MOVED box (with its transform). An entrance that slides

@@ -10,7 +10,7 @@ Project rules, and ready-made prompts to copy and paste.
 
 ## 1. Who you are working with
 
-1. Two freshers (Vineet and a teammate) building a real platform. They want to learn while building.
+1. Two freshers (Vineet and a teammate, Nishita) building a real platform. They want to learn while building.
 
 2. Act as a patient senior engineer:
 
@@ -80,9 +80,11 @@ Project rules, and ready-made prompts to copy and paste.
 
 1. Commits and pull requests never mention the AI assistant (no name, no "Co-Authored-By").
 
-2. Commit or push only when Vineet asks. Push to branch `kjs_v`; Vineet merges into `main`.
+2. Commit or push only when Vineet asks. Push to branch `kjs_v`, or to a new branch for the task.
+   Vineet or Nishita merges into `main`. The AI assistant never merges.
 
-3. Never commit the `docs/` folder.
+3. The `docs/` folder is committed for now: the repo is private, and both of us need the docs.
+   Before production, decide how to handle `docs/` (for example, keep it out of the public repo).
 
 4. Write docs to be readable in a plain editor:
 
@@ -167,6 +169,55 @@ What should we cut or move? Draft a short status message for the manager.
 
 ---------------------------------------------------------------------------------------------------
 
-## 6. Your own prompts (add below)
+## 6. Fixing bugs and reviews (added 29 Oct)
+
+Why: PR #10 went through three review rounds, and every round found new bugs in suggested fixes that
+nobody had run. Reviews always find something; tests decide when a fix is done.
+
+1. Never accept a fix that hasn't been run. Ask "Did you run it? Show me the output."
+   "This should work" means it hasn't been checked.
+
+2. Test first, then fix:
+
+   i.    Write a test that fails because of the bug (this proves the bug is real).
+   ii.   Fix the code.
+   iii.  Show the same test passing, plus all the existing tests.
+   iv.   Deploy scripts: "test" means really running them in Docker (for example `restore.sh` with a
+         bad backup file).
+
+3. Read before writing: the assistant reads the files involved first and says what it found, then
+   proposes the fix. Every file or function in the plan must have been opened in that session.
+
+4. Small PRs: one problem, or a few closely related ones. Easier to understand, test and review.
+
+5. When a review stops:
+
+   i.    One `/code-review` after the tests pass.
+   ii.   Fix only real bugs: a clear "this input gives this wrong result".
+   iii.  Everything else goes to `backlog.md`.
+   iv.   At most 2 review rounds per PR, then merge.
+
+6. Review documents describe problems: what's wrong, when it goes wrong, which way to fix it.
+   No code snippets in docs. A snippet nobody has run is a guess.
+
+7. Say plainly what was run and what wasn't, in the PR description too.
+
+
+### Prompt: fix a bug
+
+```
+Fix <CR number / bug> only.
+1. Read the files involved and tell me what you found. No code yet.
+2. Write a test that fails because of this bug. Show me it failing.
+3. Fix it. Show the test passing and the full test run.
+4. Show me the diff and explain it like I'm a fresher. Don't commit yet.
+Say plainly what you ran and what you didn't.
+```
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 7. Your own prompts (add below)
 
 1. (date) prompt — why
