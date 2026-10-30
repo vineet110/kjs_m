@@ -10,6 +10,23 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct 2026 (PR #9 fifth review, Nishita)
+
+1. (T) Fixing a rare case can create a common one: keeping "unknown" products (for two tabs on different
+   site versions) also kept products taken off the site, which happens far more often. Ask how often each
+   case really happens.
+
+2. (T) A test is only worth something if it can fail: run it against a deliberately broken version of the
+   code and see it catch the bug. Random inputs find cases you didn't think of, but check they really
+   reach the hard case (here: lists over the limit).
+
+3. (T) An effect runs after the page draws: read the LATEST saved data there, not the value from when the
+   page drew.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 29 Oct 2026 (PR #9 fourth review, Nishita)
 
 1. (T) An IntersectionObserver sees an element's MOVED box (with its transform). An entrance that slides

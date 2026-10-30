@@ -81,20 +81,28 @@ export function sameList(a: string[], b: string[]): boolean {
 }
 
 /**
- * The enquiry list as a page shows and sends it: only products this page knows (`live`), the newest
- * `max`. A product this page doesn't know (another tab may have a newer catalogue) is just not shown.
+ * The enquiry list as a page shows and sends it, and as it is saved when the page loads: only products
+ * on the site (`live`), the newest `max`. A product taken off the site is removed, so it never uses up
+ * a slot. (A product another tab with a newer catalogue added is removed too: much rarer.)
  */
 export function cleanEnquiryList(list: string[], live: Set<string>, max: number): string[] {
   return list.filter((s) => live.has(s)).slice(-max);
 }
 
 /**
- * The enquiry list as it is SAVED: products this page doesn't know are kept too (another tab may know
- * them), but at most `max`, the NEWEST ones (whatever they are: the newest may be one only another tab
- * knows).
+ * The saved list with `slug` added, or null when it is full (`max` products the page shows). Adding
+ * never removes a product the visitor can see: if the saved list would go over `max` (products another
+ * tab added that this page doesn't show), only those go, oldest first.
  */
-export function capEnquiryList(list: string[], max: number): string[] {
-  return list.length > max ? list.slice(-max) : list;
+export function addToEnquiryList(list: string[], slug: string, live: Set<string>, max: number): string[] | null {
+  if (list.filter((s) => live.has(s)).length >= max) return null;
+  let extra = list.length + 1 - max;
+  const kept: string[] = [];
+  for (const s of list) {
+    if (extra > 0 && !live.has(s)) extra--;
+    else kept.push(s);
+  }
+  return [...kept, slug];
 }
 
 /** Products this visitor opened, most recent first. */

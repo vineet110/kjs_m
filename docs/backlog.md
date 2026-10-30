@@ -1235,3 +1235,32 @@ R34. Home cards and grids: tidy-ups from Vineet's PR #9 review  🟢 later (not 
    ii.   HomeProductCard sits next to ProductCard: the two could be merged.
    iii.  The grid markup is copied in `products/page.tsx` and `categories/[slug]/page.tsx`: a shared
          ProductGrid would remove the copy.
+   iv.   (Vineet, fifth review) the duplicate card components were added in PR #9: merge them here.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R35. Reveal: watch an outer box, animate an inner one  🟢 later (not a bug)
+
+   i.    The repeat cards hide only when more than 40px off screen, because the observers see the box that
+         the entrance slides. Watching an outer wrapper and animating an inner element removes the margin.
+         Where: `Reveal.tsx`
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R36. RecommendedProducts: leftover setters and a duplicate of the picks  🟢 later (not a bug)
+
+   i.    Some state setters React ignores (same value), and the `shown` ref duplicates `picks`. Simplify
+         (maybe with the reducer from R34 i).
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R37. kb.md: short notes for what PR #9 used  🟢 later (docs)
+
+   i.    useSyncExternalStore; `pageshow` and the back/forward cache; the `storage` event (other tabs);
+         scroll anchoring (and Safari without it); tailwindcss-animate.
