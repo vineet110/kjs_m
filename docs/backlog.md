@@ -1019,7 +1019,8 @@ R6. Portal pages don't check permissions in the browser  🟢
 
 R7. The backend container receives every secret in `.env`  🟢
 
-   i.    Including the tunnel token it doesn't need. Fix: a separate env file per service.
+   i.    Including the tunnel token it doesn't need. Fix: a separate env file per service. Also includes
+         the superuser password: see `codeReview.md` CR11 for the plan and rollout order.
 
 
 R8. Supply chain hardening  🟢

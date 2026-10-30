@@ -1205,6 +1205,13 @@ Sections:
    Where  Planned: a `rate_key()` helper next to `client_ip()` in `backend/app/core/deps.py`.
 
 
+### id-token: write (GitHub Actions)
+
+   What   A permission that lets a workflow ask GitHub for a short-lived login token (OIDC).
+   Why    Actions use it to log in to outside services. Anything running in that job can request a token,
+          so don't mix it with unpinned code (codeReview CR37).
+
+
 ### IPv4-mapped IPv6 address
 
    What   An IPv4 address written in IPv6 form, like `::ffff:1.2.3.4`. Servers that listen on both kinds
@@ -1537,11 +1544,25 @@ Sections:
           Only matters when testing Linux scripts on Windows.
 
 
+### dash
+
+   What   A small, fast shell. On Debian images like our backend's `python:3.12-slim`, `sh` is dash, not bash,
+          so some bash features may not work there.
+
+
+### Mount point (Docker volume)
+
+   What   The folder inside a container where a Docker volume is attached. It can't be renamed or replaced
+          while it is attached, only the things inside it can.
+   Where  `/srv/kjs_files` in the backend container (codeReview CR1).
+
+
 ### Pipe exit code (pipefail)
 
    What   In `a | b`, the shell normally reports only whether `b` worked. If `a` fails, nobody notices.
-          `set -o pipefail` makes the whole pipe fail when any part fails (bash, and also the Alpine
-          `sh` in our containers).
+          `set -o pipefail` makes the whole pipe fail when any part fails. It works in bash and in the
+          `postgres:17-alpine` db container. Don't rely on it in the backend container's `sh` (dash, see
+          below): use `bash -c` there instead of `sh -c`.
    Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
           pipefail alone doesn't prevent that: it only changes the exit code at the end, after `psql`
           has already run the DROP and committed. The fix is to check the backup before deleting anything.

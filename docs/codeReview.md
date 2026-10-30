@@ -93,12 +93,20 @@ CR1. `restore.sh` can wipe the database and still print "restore done"  🔴
 
    Fix:
 
-   a.  Check both backup files are valid (`pg_restore -l`, `tar tzf`) before deleting anything.
-   b.  Turn the backup into SQL first, and only drop the schema once that worked. Any temp file holds a
-       full copy of the database, so it must be deleted even when a step fails (a shell `trap`).
-   c.  Files: extract into a new folder first, then swap it in.
-   d.  Test: run `restore.sh` with a wrong file and check that the data is still there.
+   a.  Quick first check of both backup files (`pg_restore -l`, `tar tzf`), before deleting anything.
+       This catches a wrong file, but not a cut-off one: `pg_restore -l` only reads the table of
+       contents at the start of the file.
+   b.  The real check: turn the whole backup into SQL first, and only drop the schema once that worked.
+       Any temp file holds a full copy of the database, so it must be deleted even when a step fails
+       (a shell `trap`).
+   c.  Files: `/srv/kjs_files` is a Docker volume's mount point, so it can't be renamed or replaced, and
+       the container's non-root user can't create a folder next to it. Extract into a hidden folder
+       inside the same volume, then swap the contents. Test this in Docker.
+   d.  Test: run `restore.sh` with a wrong file and with a cut-off backup, and check that the data is
+       still there both times.
    e.  `pipefail` alone doesn't fix this: it only changes the exit code after `psql` has committed.
+   f.  `backup.sh:28` has the same weakness, so a cut-off nightly backup is kept as good. Give it the
+       same full check, and send the output to `/dev/null` so it leaves no extra copy of the database.
 
 
 
@@ -281,24 +289,33 @@ CR10. When the mail server is down, emails are lost for good, about one every 3 
 CR11. The running API has the database superuser password  🟠  (adds to R7)
 
    Where: `deploy/docker-compose.prod.yml:39` (`env_file: .env`),
-          `deploy/.env.production.example:19` (`MIGRATION_DATABASE_URL`)
+          `deploy/.env.production.example:16` (`POSTGRES_PASSWORD`), `:19` (`MIGRATION_DATABASE_URL`)
 
-   i.    The API container gets `MIGRATION_DATABASE_URL`, which holds the password of `kjs`, the
+   i.    `env_file: .env` passes the whole file to the API container. That includes both
+         `POSTGRES_PASSWORD` and `MIGRATION_DATABASE_URL`, and each one gives the password of `kjs`, the
          Postgres superuser. This undoes the "least privilege" `kjs_app` user from `grants.sql`.
    ii.   If the app were ever broken into, the attacker would get superuser, and with it shell
          commands on the database container (`COPY ... TO PROGRAM`).
 
-   Fix: only the migration step needs it.
-   a.  Remove it from the long-running container's env file. Keep it in a separate, git-ignored file
-       that only the scripts read, and pass it to the migration step only.
-   b.  **Both** `deploy.sh` and `restore.sh` run migrations, so both need it.
+   Fix: split `.env` by who needs what (this is R7, so do them together). The running API needs
+   neither secret; only the migration step needs `MIGRATION_DATABASE_URL`.
+   a.  Three files, all git-ignored already:
+       i.    `deploy/.env.backend`: everything the app reads (`DATABASE_URL` with `kjs_app`, mail, and so
+             on), and no superuser secret. The backend uses `env_file: .env.backend`.
+       ii.   `deploy/.env.migrate`: `MIGRATION_DATABASE_URL`, readable only by the deploy user
+             (`chmod 600`). Passed to the migration step only.
+       iii.  `deploy/.env`: stays for compose's own `${...}` values (`POSTGRES_PASSWORD`, `TAG`).
+   b.  **Both** `deploy.sh` and `restore.sh` run migrations, so both need `.env.migrate`.
    c.  Both scripts use `set -euo pipefail` and don't read `.env` themselves. Loading the value must
        not stop the script silently (for example when the file is missing): it must print a clear
        message, and in `restore.sh` it must happen before the app is stopped.
    d.  `alembic/env.py` silently falls back to `DATABASE_URL` when the value is empty (see CR24 vi).
        Refuse that only in production (`APP_ENV=production`): `.env.example` leaves it empty and local
        development relies on the fallback.
-   e.  Do this together with R7 (one env file per service). Test a deploy and a restore after it.
+   e.  Rollout order matters. Once compose says `env_file: .env.backend`, a server without that file
+       will most likely fail every compose command, including the 02:30 backup and `deploy.sh`. Create
+       both new files on the server **before** pulling this change. Add example files and README steps.
+   f.  Test a deploy, a restore and a backup after it.
 
 
 
@@ -329,8 +346,11 @@ CR13. "Step done" and "finish board" at the same moment leave open tasks on a fi
    ii.   Result: tasks of a cancelled board stay "todo" and show overdue forever (what A70 was meant
          to stop).
 
-   Fix: lock the board row first in `_step_for_action` (`_board(db, code, lock=True)`), then check
-   membership. Both actions then wait for each other.
+   Fix: give `_visible_board` a `lock` option and use it in `_step_for_action`, so the board row is
+   locked first. Both actions then wait for each other.
+   Not plain `_board(db, code, lock=True)`: it has no member check, so a non-member would get a 403 for
+   a real board and a 404 for a fake one, and could find out which board codes exist. Non-members must
+   still get a 404 before any step check. Add a test.
 
 
 CR14. A night-shift missed punch can't be fixed  🟢
@@ -518,12 +538,16 @@ CR27. Portal stays on "Loading..." forever if the session check fails with anyth
 
 CR28. After login, a portal link loses its query string  🟢
 
-   Where: `frontend/src/proxy.ts:24`
+   Where: `frontend/src/proxy.ts:24` (no cookie), `frontend/src/components/portal/PortalShell.tsx:65`
+          (cookie there, session expired)
 
    i.    `/admin/leads?status=new` becomes `/admin/leads` after the login redirect.
+   ii.   Both places lose it. A returning user with an expired session goes through `PortalShell`, not
+         the proxy, so fixing only the proxy would miss what may be the common case.
 
-   Fix: put the path plus the query string in `next` (`safeNext` already checks it). The copied URL
-   still carries the original query, so clear it first, or `?status=new` also ends up on the login page.
+   Fix: put the path plus the query string in `next` in both places (`safeNext` already checks it). In
+   the proxy, the copied URL still carries the original query, so clear it first, or `?status=new` also
+   ends up on the login page. Test both paths.
 
 
 CR29. Home page: empty banner text when one API call fails  🟢
@@ -613,8 +637,10 @@ CR36. CI tests on Postgres 16, production runs Postgres 17  🟢
 
    Where: `.github/workflows/ci.yml:19` (`pgvector/pgvector:pg16`), `deploy/docker-compose.prod.yml:16`
 
-   Fix: use `pgvector/pgvector:pg17` in CI and in the root `docker-compose.yml`, so the Postgres version
-   matches production.
+   Fix: use `pgvector/pgvector:pg17` in CI and in the root `docker-compose.yml` (both `db` and
+   `test-db`), so the Postgres version matches production.
+   Careful: a Postgres 16 data folder can't start on 17. Anyone with data in the local `pgdata` volume
+   must dump and reload it, or recreate the volume, or `docker compose up -d db` will fail.
    Not plain `postgres:17-alpine`: no migration uses pgvector, but `backend/alembic/init_roles.sql` line 2
    creates the `vector` extension, so the local test database wouldn't start. To move to the plain image
    later, that line has to go first.
@@ -622,14 +648,17 @@ CR36. CI tests on Postgres 16, production runs Postgres 17  🟢
 
 CR37. The AI review workflow fails on PRs from forks and loads an unpinned plugin  🟢
 
-   Where: `.github/workflows/claude-code-review.yml:4`, `:39`
+   Where: `.github/workflows/claude-code-review.yml:4`, `:26`, `:39`, `.github/workflows/claude.yml:25`
 
    i.    It runs on every `pull_request`. Fork and Dependabot PRs get no secrets, so it fails with a red ✗.
          Fix: run it only for PRs from this repo (an `if:` on the job).
    ii.   `plugin_marketplaces` points at another repo's main branch, so it runs whatever is there that
          day. Pin it to a commit (same idea as R8).
-   iii.  Checked and fine: no `pull_request_target`, no untrusted text in `run:` steps, read-only
-         token, only people with write access can trigger the bot.
+         Worth watching together with this: the token is not fully read-only. It can read the repo, and
+         both workflows also have `id-token: write` (the action uses it to log in), so the unpinned
+         plugin runs in a job that can request login tokens.
+   iii.  Checked and fine: no `pull_request_target`, no untrusted text in `run:` steps, only people with
+         write access can trigger the bot.
 
 
 CR38. `superset/` is unused and unsafe if anyone starts it  🟢
@@ -745,7 +774,7 @@ others in section 10); no new entry.
     handling matches the backend, CSP fits our assets.
 
 14. Docker and scripts: containers run as non-root users, no secrets baked into images, Postgres only on
-    127.0.0.1, backups written to a temp file and checked before old ones are deleted, `deploy.sh`
-    records the new version only after the health check (but see CR2).
+    127.0.0.1, backups written to a temp file and checked before old ones are deleted (a quick check
+    only, see CR1 f), `deploy.sh` records the new version only after the health check (but see CR2).
 
 15. CI: `ci.yml` is read-only and has no untrusted input in its steps.
