@@ -96,9 +96,10 @@ CR1. `restore.sh` can wipe the database and still print "restore done"  🔴
    a.  Quick first check of both backup files (`pg_restore -l`, `tar tzf`), before deleting anything.
        This catches a wrong file, but not a cut-off one: `pg_restore -l` only reads the table of
        contents at the start of the file.
-   b.  The real check: turn the whole backup into SQL first, and only drop the schema once that worked.
-       Any temp file holds a full copy of the database, so it must be deleted even when a step fails
-       (a shell `trap`).
+   b.  The real check: read the whole backup first with `pg_restore -f /dev/null` (it goes through every
+       part of the file without saving anything). Only if that works, drop the schema and restore from
+       the file. Don't write the SQL to a temp file: it can fill the disk, and it leaves a plain copy
+       of personal data lying around.
    c.  Files: `/srv/kjs_files` is a Docker volume's mount point, so it can't be renamed or replaced, and
        the container's non-root user can't create a folder next to it. Extract into a hidden folder
        inside the same volume, then swap the contents. Test this in Docker.
@@ -128,6 +129,9 @@ CR2. Health checks pass even when the home page is broken  🟠
 
    Fix: check a page with no `loading.tsx`, or add a tiny route that does the same API call the home
    page needs and answers 500 when it fails. Point `deploy.sh` and the Dockerfile at it.
+   The route must be dynamic (`force-dynamic`) and call the API directly with `cache: "no-store"`.
+   `serverGet` uses Next's cache, so a check through it, or through a cached page, keeps passing with
+   the old answer while the API is down.
    Careful where it goes: `proxy.ts` sends every non-API path through next-intl, which rewrites
    `/healthz` to `/en/healthz`. A route at `app/healthz/` would always answer 404 and every deploy
    would "fail". Put it under `app/[locale]/`, or exclude it in the proxy matcher.
@@ -225,8 +229,10 @@ CR7. The office shares one IP, so the login and sign-up limits will block KJS st
    i.    `login_ip_limiter.check()` counts every login, including successful ones: 30 per network
          per 15 minutes. `signup_limiter` allows 5 sign-ups per network per hour.
    ii.   Everyone in the KJS office reaches us from one public IP.
-   iii.  Go-live day: the 6th person to sign up from the office in an hour gets "Too many requests".
-         A Monday morning with 30+ logins between 09:15 and 09:30: the next person waits 15 minutes.
+   iii.  The real risk is go-live day: everyone signs up at once, and the 6th person from the office
+         in an hour gets "Too many requests".
+   iv.   Logins are a smaller risk: sessions last `SESSION_DAYS` (7), so staff don't all log in each
+         morning, and the 15 minutes is a sliding window, not a fixed wait.
 
    Fix:
    a.  Count only failed logins for the per-IP limit (`blocked()` at the start, `hit()` on failure,
@@ -306,7 +312,8 @@ CR11. The running API has the database superuser password  🟠  (adds to R7)
              (`chmod 600`). Passed to the migration step only.
        iii.  `deploy/.env`: stays for compose's own `${...}` values (`POSTGRES_PASSWORD`, `TAG`).
    b.  **Both** `deploy.sh` and `restore.sh` run migrations, so both need `.env.migrate`.
-   c.  Both scripts use `set -euo pipefail` and don't read `.env` themselves. Loading the value must
+   c.  Both scripts use `set -euo pipefail` and don't load `.env` into the shell. (`deploy.sh:33` does
+       rewrite its `TAG=` line, so `TAG` must stay in `deploy/.env`.) Loading the value must
        not stop the script silently (for example when the file is missing): it must print a clear
        message, and in `restore.sh` it must happen before the app is stopped.
    d.  `alembic/env.py` silently falls back to `DATABASE_URL` when the value is empty (see CR24 vi).
@@ -367,8 +374,10 @@ CR14. A night-shift missed punch can't be fixed  🟢
    i.    Why not "if check-out is before check-in, add a day": someone who types 18:00 / 09:00 by
          mistake (meaning 09:00 to 18:00) would get a 15-hour night shift, which `MAX_SHIFT` (16 h)
          lets through, instead of an error.
-   ii.   The future check is needed because only `day` is checked today: at 23:00, "22:00 to 06:00
-         next day" would make a check-out that hasn't happened yet.
+   ii.   The future check must compare the full date and time with now, for every request, not only
+         with the tick box. Only `day` is checked today, so at 10:00 someone can already ask for
+         09:00 to 18:00 today, and at 23:00 "22:00 to 06:00 next day" would be a check-out that hasn't
+         happened yet.
    iii.  Needs a small frontend change (the tick box) as well. The tick box is a guess at how HR
          wants this: confirm it first (`backlog.md` section 3).
 
@@ -484,7 +493,7 @@ CR24. Smaller backend points  🟢
          emails for one event. Skip `board.added` for them.
    iii.  `attendance_service.py`: the approver can't see the person's real punches for the day being
          corrected. Show the current check-in / check-out next to the request. A "within 30 days"
-         limit needs a decision: log it as an A-item.
+         limit needs a decision: see `backlog.md` A79.
    iv.   `jobs/runner.py:4-7`: the comment says the lock makes each job run once per tick, but the
          lock ends at the first `commit()`. `send_emails` commits often (safe anyway thanks to
          `SKIP LOCKED`). Fix the comment so nobody relies on it.
@@ -532,8 +541,10 @@ CR27. Portal stays on "Loading..." forever if the session check fails with anyth
    ii.   The check also runs again on every page change (`pathname` in the effect's list), which
          costs the slow `/auth/me` call (R30) each time.
 
-   Fix: show "Can't reach the server. Retry" on other errors; run the check once on mount and read the
-   pathname from a ref for the redirect.
+   Fix: show "Can't reach the server. Retry" on other errors, but only while `me` isn't loaded yet.
+   Keep the check on every page change. `PortalShell` is in the layout, so it stays loaded across
+   portal pages, and this check is what sends an expired or disabled user to login. It already runs
+   in the background once `me` is set. To make it cheaper, fix R30.
 
 
 CR28. After login, a portal link loses its query string  🟢
@@ -564,8 +575,9 @@ CR30. Home page: "50+ product families" when there are none  🟢
 
    Where: `frontend/src/app/[locale]/(public)/(home)/page.tsx:133`
 
-   i.    `products.length || '50+'`: with an empty catalogue (fresh setup, or the call failed) the
-         panel says "50+" while the section below says the list is "being published".
+   i.    `products.length || '50+'`: with an empty catalogue (fresh setup, a 404, or during a build) the
+         panel says "50+" while the section below says the list is "being published". When the API
+         fails, `serverGet` throws and the page crashes instead: that's CR4.
 
    Fix: hide that stat when the list is empty.
 

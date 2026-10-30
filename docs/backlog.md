@@ -854,6 +854,11 @@ A78. Night-shift regularization: a "check-out was the next day" tick box  🟢  
          set per person?
 
 
+A79. Should regularization requests be limited to the last 30 days?  🟢  (guess, 30 Oct)
+
+   i.    Today an employee can ask to correct any past day (`codeReview.md` CR24 iii). Confirm with HR.
+
+
 ### Code and setup
 
 A39. Folder names  🟢

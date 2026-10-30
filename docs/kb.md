@@ -1562,7 +1562,7 @@ Sections:
    What   In `a | b`, the shell normally reports only whether `b` worked. If `a` fails, nobody notices.
           `set -o pipefail` makes the whole pipe fail when any part fails. It works in bash and in the
           `postgres:17-alpine` db container. Don't rely on it in the backend container's `sh` (dash, see
-          below): use `bash -c` there instead of `sh -c`.
+          above): use `bash -c` there instead of `sh -c`.
    Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
           pipefail alone doesn't prevent that: it only changes the exit code at the end, after `psql`
           has already run the DROP and committed. The fix is to check the backup before deleting anything.
@@ -1579,7 +1579,7 @@ Sections:
 ### trap (shell)
 
    What   `trap 'command' EXIT` runs the command when the script ends, whether it worked or failed.
-   Why    For cleanup that must always happen, like deleting temp files that hold a full database copy (codeReview CR1).
+   Why    For cleanup that must always happen, like deleting temp files or starting the app again.
    Where  `deploy/restore.sh` already uses one to start the app again.
 
 
