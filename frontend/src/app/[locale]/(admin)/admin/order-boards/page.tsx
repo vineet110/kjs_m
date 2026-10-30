@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BoardList } from '@/components/portal/BoardDetail';
 import { fmtDay, Msg, PageTitle, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type BoardSummary, type Colleague } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type StepDraft = { name: string; size: number; member_ids: number[]; tasks: string; checklist: string };
 const NEW_STEP: StepDraft = { name: '', size: 0, member_ids: [], tasks: '', checklist: '' };
@@ -29,7 +30,7 @@ export default function AdminBoards() {
         </div>
       </PageTitle>
       {creating && <NewBoard onDone={() => { setCreating(false); load(); }} />}
-      {boards === null ? <p className="text-sm text-slate-500">Loading…</p> : <BoardList base="/admin/order-boards" boards={boards} />}
+      {boards === null ? <Loading /> : <BoardList base="/admin/order-boards" boards={boards} />}
     </div>
   );
 }

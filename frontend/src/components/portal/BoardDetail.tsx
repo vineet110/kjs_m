@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Board } from '@/lib/api';
 import FileList from './FileList';
 import { fmtDay, PageTitle, Pill } from './ui';
+import Loading from '@/components/ui/Loading';
 
 const STATE_LABEL: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', late_board: 'Late', finished: 'Finished' };
 
@@ -43,7 +44,7 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
     }
   }
 
-  if (!b) return <p className="text-sm text-slate-500">{err || 'Loading…'}</p>;
+  if (!b) return err ? <p className="text-sm text-slate-500">{err}</p> : <Loading />;
 
   return (
     <div className="space-y-6">

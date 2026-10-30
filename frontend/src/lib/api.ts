@@ -64,28 +64,46 @@ export class ApiFailure extends Error {
   }
 }
 
-export async function api<T = unknown>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`/api/v1${path}`, {
-    method: init.method || 'GET',
-    headers: {
-      'content-type': 'application/json',
-      'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
-      'x-request-id': newRequestId(), // shows up on every backend log line for this click
-    },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    credentials: 'same-origin',
-  });
-  if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiFailure(res.status, {
-      code: data.code || 'error',
-      message: data.message || 'Something went wrong.',
-      details: data.details || {},
-      request_id: data.request_id || null,
+/** timeoutMs (optional): give up after this long, so a server that takes the request but never answers
+ *  ends as an error (ApiFailure, status 0, code "timeout") instead of a wait with no end. */
+export async function api<T = unknown>(
+  path: string,
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
+  const requestId = newRequestId(); // shows up on every backend log line for this click
+  const signal = init.timeoutMs ? AbortSignal.timeout(init.timeoutMs) : undefined;
+  try {
+    const res = await fetch(`/api/v1${path}`, {
+      method: init.method || 'GET',
+      headers: {
+        'content-type': 'application/json',
+        'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
+        'x-request-id': requestId,
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      credentials: 'same-origin',
+      signal,
     });
+    if (res.status === 204) return undefined as T;
+    // An answer that isn't JSON counts as empty; but the time limit running out while it is read is a time-out
+    const data = await res.json().catch((err) => {
+      if (signal?.aborted) throw err;
+      return {};
+    });
+    if (!res.ok) {
+      throw new ApiFailure(res.status, {
+        code: data.code || 'error',
+        message: data.message || 'Something went wrong.',
+        details: data.details || {},
+        request_id: data.request_id || requestId, // also for an error page from a proxy (no JSON)
+      });
+    }
+    return data as T;
+  } catch (err) {
+    if (signal?.aborted)
+      throw new ApiFailure(0, { code: 'timeout', message: 'The server took too long to answer.', details: {}, request_id: requestId });
+    throw err;
   }
-  return data as T;
 }
 
 // ---------- Attendance ----------

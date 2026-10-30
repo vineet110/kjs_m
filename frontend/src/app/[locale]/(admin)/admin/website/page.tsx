@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMe } from '@/components/portal/PortalShell';
 import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
 type OfferRow = { id: number; text: string; link: string; starts_at: string | null; ends_at: string | null; is_active: boolean; sort_order: number };
@@ -163,7 +164,7 @@ function Partners() {
     await api(`/content/partners/${p.id}/status`, { method: 'POST', body: { status } });
     load();
   }
-  if (rows === null) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (rows === null) return <Loading />;
   return (
     <div className="space-y-2">
       {rows.length === 0 && <p className="card p-4 text-sm text-slate-500">No partner applications yet.</p>}

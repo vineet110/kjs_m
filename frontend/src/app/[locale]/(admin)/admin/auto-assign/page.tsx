@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, upload, type Category } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type StaffRow = {
   user_id: number; name: string; categories: string[]; is_available: boolean; checked_in: boolean;
@@ -57,7 +58,7 @@ export default function AutoAssign() {
     load();
   }
 
-  if (!o) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!o) return <Loading />;
   const s = o.settings;
 
   return (

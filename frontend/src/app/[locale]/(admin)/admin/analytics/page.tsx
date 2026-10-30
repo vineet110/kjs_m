@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { fmtDay, PageTitle } from '@/components/portal/ui';
 import { api } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 const C1 = '#2E8A62';
 const C2 = '#B8860B';
@@ -29,7 +30,7 @@ export default function Analytics() {
   useEffect(() => {
     api<Data>('/admin/analytics').then(setD);
   }, []);
-  if (!d) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!d) return <Loading />;
 
   const onTime = d.sla.answered ? Math.round((d.sla.on_time / d.sla.answered) * 100) : null;
   const activeBoards = Object.values(d.boards.active).reduce((a, b) => a + b, 0);

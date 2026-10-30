@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { addDays, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Row = { user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number };
 
@@ -70,7 +71,7 @@ export default function TeamAttendance() {
               <tr><th className="p-3">Name</th><th className="p-3">Status</th><th className="p-3">In</th><th className="p-3">Out</th><th className="p-3">Hours</th><th className="p-3">Receiving tasks</th></tr>
             </thead>
             <tbody>
-              {rows === null && <tr><td className="p-3 text-slate-500" colSpan={6}>Loading…</td></tr>}
+              {rows === null && <tr><td className="p-3" colSpan={6}><Loading /></td></tr>}
               {rows?.map((r) => (
                 <tr key={r.user_id} className="border-t">
                   <td className="p-3 font-medium">{r.name}</td>

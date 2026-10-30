@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMe } from '@/components/portal/PortalShell';
 import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Colleague, type Task } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 const SOURCES = ['own', 'manager', 'lead', 'board', 'batch'];
 
@@ -80,7 +81,7 @@ export default function TasksPage() {
       </div>
 
       <div className="space-y-2">
-        {tasks === null && <p className="text-sm text-slate-500">Loading…</p>}
+        {tasks === null && <Loading />}
         {tasks?.length === 0 && <p className="card p-6 text-sm text-slate-500">No tasks here.</p>}
         {tasks?.map((t) => <TaskRow key={t.id} task={t} showOwner={filter.who !== ''} onChange={load} />)}
       </div>

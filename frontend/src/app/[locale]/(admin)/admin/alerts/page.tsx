@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fmtIST, PageTitle, Pill } from '@/components/portal/ui';
 import { api } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Alerts = {
   rules: { board_thresholds: number[]; channels: string[]; sla: { respond_minutes: number; resolve_minutes: number; escalate_after_minutes: number } };
@@ -15,7 +16,7 @@ export default function AlertsPage() {
   useEffect(() => {
     api<Alerts>('/admin/alerts').then(setA);
   }, []);
-  if (!a) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!a) return <Loading />;
   const r = a.rules;
   return (
     <div className="space-y-6">

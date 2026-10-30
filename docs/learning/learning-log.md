@@ -10,6 +10,20 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct 2026 (PR #12 review, Nishita)
+
+1. (T) Every wait needs an end: a time limit for each request, and a way out on the error screen (Try again
+   AND Log out). A screen with only "Try again" can still be a dead end.
+
+2. (T) A time limit can lie: a slow sign-up may still succeed. Only put a limit where "try again" is harmless
+   (logging in again is fine; creating an account twice is not).
+
+3. (T) Put the test in the repo, not only on my PC, so others can run it and see it fail on the old code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct 2026 (login spinner, Nishita)
 
 1. (T) To keep a "loading" state on while the page changes, don't skip the reset and hope the page goes

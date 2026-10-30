@@ -1288,22 +1288,34 @@ R37. kb.md: short notes for what PR #9 used  🟢 later (docs)
 ---------------------------------------------------------------------------------------------------
 
 
-R38. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
-
-   i.    1 login spinner ✅ (branch feat/uiUpdates). 2 sliding sidebar. 3 home: remove Capabilities and
-         "250+". 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone code and country pickers.
-   ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
-
-
----------------------------------------------------------------------------------------------------
-
-
 R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
 
    i.    The enquiry message and the bar thumbnails follow catalogue order, not the order the visitor added
          products. Where: `ProductExplorer.tsx`
    ii.   `flushSync` and a forced style read run each time cards leave the screen, which could stutter on
          cheap phones. Where: `Reveal.tsx`
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R39. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
+
+   i.    1 login spinner ✅ (PR #12, branch feat/uiUpdates). 2 sliding sidebar. 3 home: remove Capabilities
+         and "250+". 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone code and country pickers.
+   ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R40. Staff pages: a failed or silent request means "Loading…" forever  🟠 next small PR
+
+   i.    About 15 staff pages call `api(...).then(set)` with no error handling and no time limit: a 500, a 403
+         or a server that never answers leaves the Loading spinner on for good. (Found in the PR #12 review;
+         it was like this before, the spinner only makes it look busier.)
+   ii.   Fix: a small shared loader (time limit + "Could not load. Try again" + error code), used by every page.
+         Where: `frontend/src/app/[locale]/(admin|employee)/…/page.tsx`, `components/portal/*`.
 
 
 

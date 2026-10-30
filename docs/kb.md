@@ -747,6 +747,30 @@ Sections:
           useEffect runs code after the screen shows (for example, loading data).
 
 
+### useTransition
+
+   What   A React tool that marks an update as "can wait" and tells you while it is still running (isPending).
+   Why    After logging in, the page change runs inside it, so the spinner stays on exactly until the next page
+          has opened, with no flash back to "Log in". (With a time limit: a stalled page change gives the form back.)
+   Where  `frontend/src/app/[locale]/(auth)/employee/login/page.tsx`.
+
+
+### Spinner / Loading
+
+   What   Spinner: a small spinning ring. Loading: the spinner with the word "Loading…", what a staff page shows
+          while its data comes. Both still for visitors who ask their system for reduced motion.
+   Why    One look everywhere, and a loading state is never silent text that looks stuck.
+   Where  `frontend/src/components/ui/Spinner.tsx`, `frontend/src/components/ui/Loading.tsx`.
+
+
+### Time limit (timeout) / AbortController
+
+   What   Giving up on a request after a set time. AbortController is the browser's way to cancel a fetch.
+   Why    A server can take a request and never answer: without a limit, the screen waits forever. `api()` takes
+          an optional `timeoutMs` and then fails like any other error (code "timeout").
+   Where  `frontend/src/lib/api.ts`; used by the login page and the portal frame (`PortalShell.tsx`).
+
+
 ### TypeScript
 
    What   JavaScript with types. It catches mistakes before the code runs.

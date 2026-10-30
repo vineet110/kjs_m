@@ -4,10 +4,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, type Me } from '@/lib/api';
 import Bell from './Bell';
-import Spinner from '@/components/ui/Spinner';
+import Loading from '@/components/ui/Loading';
 
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
@@ -50,46 +50,72 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ];
 
+// "Who am I", asked on every page: loading, ready (the account), or error (server down, unreachable, or no
+// answer within ME_TIMEOUT_MS: never a wait with no end). "Logged out" goes to the login page instead.
+type Status = { state: 'loading' } | { state: 'ready'; me: Me } | { state: 'error'; requestId: string | null };
+const ME_TIMEOUT_MS = 15_000;
+
 export default function PortalShell({ children, requirePerm }: { children: React.ReactNode; requirePerm?: string }) {
-  const [me, setMe] = useState<Me | null>(null);
+  const [status, setStatus] = useState<Status>({ state: 'loading' });
   const [menuOpen, setMenuOpen] = useState(false);
-  const [failed, setFailed] = useState(false); // "who am I" failed for another reason than "logged out"
-  const [attempt, setAttempt] = useState(0); // "Try again" asks once more
+  const latest = useRef(0); // only the newest answer counts (an older, slower one is ignored)
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    api<Me>('/auth/me')
+  const loadMe = useCallback(() => {
+    const n = ++latest.current;
+    // After an error (a page change, Back, or "Try again"): the spinner while asking again. A page that is
+    // already showing stays as it is while its account is re-checked.
+    setStatus((s) => (s.state === 'error' ? { state: 'loading' } : s));
+    api<Me>('/auth/me', { timeoutMs: ME_TIMEOUT_MS })
       .then((m) => {
+        if (n !== latest.current) return;
         if (requirePerm && !m.permissions.includes(requirePerm)) router.replace('/employee/dashboard');
-        else setMe(m);
+        else setStatus({ state: 'ready', me: m });
       })
       .catch((e) => {
+        if (n !== latest.current) return;
         if (e instanceof ApiFailure && e.status === 401) router.replace(`/employee/login?next=${encodeURIComponent(pathname)}`);
-        else setFailed(true); // server down or unreachable: say so, instead of loading forever
+        // A page already showing keeps showing (one failed re-check); else say so, with the error code
+        else setStatus((s) => (s.state === 'ready' ? s : { state: 'error', requestId: e instanceof ApiFailure ? e.body.request_id : null }));
       });
-  }, [requirePerm, router, pathname, attempt]);
+  }, [requirePerm, router, pathname]);
 
+  useEffect(() => {
+    loadMe();
+  }, [loadMe]);
+
+  // Goes to the login page even if the server is silent or fails (the error screen offers this exactly then)
   async function logout() {
-    await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
+    await api('/auth/logout', { method: 'POST', timeoutMs: 5_000 }).catch(() => undefined);
     router.replace('/employee/login');
   }
 
-  // Also what staff see right after logging in, so the login spinner carries on until the page is ready
-  if (!me && failed)
+  // While the account loads (also right after logging in: the login spinner carries on here). Each page
+  // then shows its own Loading while its data comes.
+  if (status.state === 'loading')
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loading />
+      </div>
+    );
+  // Never a dead end: try again, or log out (the sidebar with Log out isn't shown without the account)
+  if (status.state === 'error')
     return (
       <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 p-4 text-center text-sm text-slate-600">
         <p>Could not load your account. The server may be busy; please try again.</p>
-        <button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }} className="btn-dark">Try again</button>
+        <div className="flex gap-2">
+          <button onClick={loadMe} className="btn-dark">Try again</button>
+          <button onClick={logout} className="btn-ghost">Log out</button>
+        </div>
+        {status.requestId && (
+          <p className="text-xs text-slate-400">
+            If this keeps happening, send this code to the admin: <span className="select-all font-mono">{status.requestId}</span>
+          </p>
+        )}
       </div>
     );
-  if (!me)
-    return (
-      <div role="status" className="flex min-h-screen items-center justify-center gap-2 text-sm text-slate-500">
-        <Spinner />
-        Loading…
-      </div>
-    );
+  const me = status.me;
 
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions)) }))
     .filter((g) => g.items.length > 0);
