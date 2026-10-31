@@ -291,6 +291,9 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  New `deploy/test-restore.sh`: 27 checks failed before the fix, all 49 pass after, on a local Docker copy.
    iv.   Rule: the test refuses to run if `deploy/.env` exists, so it can't touch the server.
    v.    Nishita has claimed files for 7 steps and migration 0012: agree before touching those or adding a migration.
+   vi.   PR #13 review (Nishita, 31 Oct): three real bugs, all fixed with a test first. "Nothing changed" is now said
+         only when `psql` proves the rollback, "restore done" only after the app restarts, and `.restore-new` is
+         cleaned up. `deploy/test-restore.sh` is now the check for any change to these scripts.
 
 
 1b. 30 Oct 2026 (code review PR redone, Vineet)

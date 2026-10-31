@@ -1312,6 +1312,14 @@ CR1. `restore.sh` can empty the database and still say "restore done"  🔴
          anything saved between it and the app stopping is lost if you undo the restore. Fixing that needs
          `backup.sh` to read files without the backend running, which is CR3. Until then, `restore.sh` and
          its undo command can't run while the backend is down.
+   iv.   From the PR #13 review, small improvements for later:
+         a.  The undo message should say to start the backend first, if it isn't running.
+         b.  `restore.sh` reads the safety backup paths by word position from `backup.sh`'s log line. Changing
+             that line would break it.
+         c.  Files are unpacked after the app stops, which adds downtime.
+         d.  The `tar` checks use a container where the server's own `tar` would do.
+         e.  If the script is killed during the database step, `.restore-new` stays until the next restore
+             (the printed undo command removes it).
 
 
 CR2–CR11. Should fix before go-live  🟠

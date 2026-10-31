@@ -42,21 +42,39 @@ backup_line="$(KEEP_DAYS=36500 ./backup.sh)"
 echo "$backup_line"
 read -r _ _ safety_db _ safety_files _ <<< "$backup_line"
 
-data_replaced=no
-restart_app() {
+data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
+finish() {
   local status=$?
-  $COMPOSE start backend frontend >/dev/null 2>&1 \
-    || echo "WARNING: the app did not start again. Check with: $COMPOSE ps"  # always bring the app back
-  [ "$status" -eq 0 ] && return
-  if [ "$data_replaced" = yes ]; then
-    echo "restore FAILED after the data was replaced. The site may be broken until you go back."
-    echo "To go back to how it was before this restore, run:"
-    echo "  ./restore.sh $safety_db $safety_files"
+  local app_started=yes
+  if [ "$data_state" = unchanged ] && [ -n "$files_file" ]; then
+    $COMPOSE run --rm -T --no-deps --entrypoint sh backend -c 'rm -rf /srv/kjs_files/.restore-new' \
+      >/dev/null 2>&1 || true
+  fi
+  $COMPOSE start backend frontend >/dev/null 2>&1 || app_started=no  # always bring the app back
+  [ "$app_started" = yes ] || echo "WARNING: the app did not start again. Check with: $COMPOSE ps"
+  if [ "$status" -ne 0 ]; then
+    case "$data_state" in
+      unchanged) echo "restore FAILED, nothing was changed." ;;
+      unknown)
+        echo "restore STOPPED during the database step. It may still finish inside the db container."
+        echo "Wait a few minutes and check the data. To go back to how it was before this restore, run:"
+        echo "  ./restore.sh $safety_db $safety_files" ;;
+      replaced)
+        echo "restore FAILED after the data was replaced. The site may be broken until you go back."
+        echo "To go back to how it was before this restore, run:"
+        echo "  ./restore.sh $safety_db $safety_files" ;;
+    esac
+  elif [ "$app_started" = yes ]; then
+    echo "restore done from $db_file${files_file:+ and $files_file}"
   else
-    echo "restore FAILED, nothing was changed."
+    exit 1
   fi
 }
-trap restart_app EXIT
+trap finish EXIT
+# Ctrl+C, a kill or a dropped SSH session must still run finish
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 echo "3/7 stopping the app (the database keeps running)"
 $COMPOSE stop frontend backend
@@ -81,11 +99,20 @@ echo "5/7 replacing the database (all or nothing)"
 # a statement that always errors, which makes psql cancel the whole transaction. The "\." comes
 # first: if pg_restore died inside a table's data, it ends the rows, or our statement would be
 # stored as one more row and nothing would fail.
-$COMPOSE exec -T db sh -c \
-  '{ echo "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+# Only psql's own exit code 3 proves the transaction was cancelled. Anything else (Ctrl+C, a lost
+# connection) means we lost sight of it: psql can keep running in the container and still commit.
+# lock_timeout: if another session holds a table, give up after 60 s and don't wait with the site down.
+data_state=unknown
+if $COMPOSE exec -T db sh -c \
+  '{ echo "SET lock_timeout = '\''60s'\''; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
      pg_restore --no-owner --no-privileges -f - || printf "\n%s\nSELECT 1/0;\n" "\\."; } \
-   | psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"
-data_replaced=yes
+   | psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"; then
+  data_state=replaced
+else
+  status=$?
+  [ "$status" -ne 3 ] || data_state=unchanged
+  exit "$status"
+fi
 
 if [ -n "$files_file" ]; then
   echo "6/7 replacing uploaded files"
@@ -102,5 +129,3 @@ fi
 echo "7/7 matching the tables to this code version, then access rights"
 $COMPOSE run --rm --no-deps backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql
-
-echo "restore done from $db_file${files_file:+ and $files_file}"

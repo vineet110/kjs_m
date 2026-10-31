@@ -25,6 +25,9 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 4. (V) 49 passing checks still missed a bug, because the fake crash was too easy: it stopped before any data.
    The review found the hard case (a crash inside a table's rows). A test proves only what it really tries.
 
+5. (V) Stopping a script doesn't stop what it started: after the kill, the restore still finished inside the
+   container. So a script must say "I don't know" when it lost sight of a step, not guess "nothing changed".
+
 
 
 ---------------------------------------------------------------------------------------------------
