@@ -3,7 +3,7 @@
 // purpose (DevTools "Fetch"), so slow or silent servers can be tested; nothing is changed on the server.
 // To see it catch a bug: run it on code without the spinner (git stash, rebuild): checks fail.
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,7 +20,11 @@ const check = (name, ok, info = '') => { if (!ok) failed++; console.log(`${ok ? 
 
 const profile = mkdtempSync(join(tmpdir(), 'kjs-login-e2e-'));
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--window-size=1280,900', 'about:blank'], { stdio: 'ignore' });
-process.on('exit', () => chrome.kill()); // also when a step crashes: no Chrome left running on the port
+// Also when a step crashes: no Chrome left running on the port, and its profile folder deleted
+process.on('exit', () => {
+  chrome.kill();
+  try { rmSync(profile, { recursive: true, force: true, maxRetries: 3 }); } catch { /* Chrome may still hold a file */ }
+});
 for (let i = 0; i < 40; i++) { try { await fetch(`http://127.0.0.1:${PORT}/json/version`); break; } catch { await sleep(250); } }
 
 const t = await (await fetch(`http://127.0.0.1:${PORT}/json/new?about:blank`, { method: 'PUT' })).json();

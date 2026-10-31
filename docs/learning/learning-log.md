@@ -10,6 +10,20 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 31 Oct 2026 (PR #12 second review, Nishita)
+
+1. (T) Check a URL AFTER it is cleaned up, not before: "/..//evil.com" looks like our site, but becomes
+   "//evil.com", which a browser opens as another website (open redirect).
+
+2. (T) An answer we can't read is not "empty": for a success it is an error. `{}` passed off as data crashes
+   later, far from the real cause.
+
+3. (T) Node has a test runner built in (`node --test`): unit tests without adding a package.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct 2026 (PR #12 review, Nishita)
 
 1. (T) Every wait needs an end: a time limit for each request, and a way out on the error screen (Try again

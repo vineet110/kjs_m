@@ -29,6 +29,14 @@ function LoginInner() {
   const [slowTo, setSlowTo] = useState<string | null>(null);
   const slowTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(slowTimer.current), []);
+  // The page change ended but this page is still here (e.g. the server sent us back to log in): no "you are
+  // logged in, slow to open" notice, now or later
+  useEffect(() => {
+    if (navigating) return;
+    window.clearTimeout(slowTimer.current);
+    setPageOpening(false);
+    setSlowTo(null);
+  }, [navigating]);
   const working = busy || (navigating && pageOpening);
   const router = useRouter();
   const next = useSearchParams().get('next');

@@ -1316,6 +1316,24 @@ R40. Staff pages: a failed or silent request means "Loading…" forever  🟠 ne
          it was like this before, the spinner only makes it look busier.)
    ii.   Fix: a small shared loader (time limit + "Could not load. Try again" + error code), used by every page.
          Where: `frontend/src/app/[locale]/(admin|employee)/…/page.tsx`, `components/portal/*`.
+   iii.  (Vineet, PR #12 second review) Simplest way: a DEFAULT time limit in `api()` (longer value or an opt-out
+         where needed), so no caller has to remember it. Covers the Bell too.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R41. Login and portal follow-ups from the PR #12 second review  🟡 next small PR (with the sidebar step)
+
+   i.    No error code when the server can't be reached: `api()` rethrows a network error as it is; wrap it as
+         `ApiFailure(0, …)` with the request id (like time-outs). Where: `lib/api.ts`, `PortalShell.tsx`.
+   ii.   Sign-up can lock the form on a silent server: a long limit with "this may have worked, try logging in".
+   iii.  Log out can look done when it wasn't (the cookie may remain on a shared PC): warn when it couldn't be
+         confirmed, and a busy state on the button.
+   iv.   The old page change isn't cancelled: if it opens after the form came back, it can replace what the user
+         started (e.g. typing in Sign up). Check it in scenario 5 of `login_e2e.mjs`.
+   v.    Simplify the login state: one status (idle, submitting, opening, slow) instead of busy, navigating,
+         pageOpening, slowTo and slowTimer.
 
 
 

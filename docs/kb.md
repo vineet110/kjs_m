@@ -763,6 +763,21 @@ Sections:
    Where  `frontend/src/components/ui/Spinner.tsx`, `frontend/src/components/ui/Loading.tsx`.
 
 
+### Unit test / `npm test` (frontend)
+
+   What   A small test of one function on its own (no browser, no server). Ours use Node's built-in test runner.
+   Why    Fast, and they run in CI on every PR: e.g. `safeNext` refusing "/..//evil.com", `api()` turning an
+          unreadable answer into an error.
+   Where  `frontend/tests/lib.test.mjs`; run `npm test` in `frontend/`.
+
+
+### Open redirect
+
+   What   A link on our site that sends people on to ANOTHER website chosen by whoever made the link. Used for
+          phishing: after a real login, staff land on a fake "log in again" page.
+   Where  `safeNext` in `frontend/src/lib/safe-url.ts` only allows paths on our own site.
+
+
 ### Time limit (timeout) / AbortController
 
    What   Giving up on a request after a set time. AbortController is the browser's way to cancel a fetch.

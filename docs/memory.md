@@ -292,7 +292,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    ii.   Step 1 done: a spinner on the login button, kept on until the next page has opened (useTransition), and
          on the portal's loading screen; "Try again" when the account can't be loaded (server error), instead of
          loading forever; tabs locked while busy. Shared `components/ui/Spinner.tsx`.
-   iii.  Tested: login checks 15/15 (the old code fails 5 of them), e2e API 114/114 and browser 38/38.
+   iii.  Tested (first version): login checks 15/15 (the code before fails 5 of them); now 24, see v.
    iv.   PR #12 review (Vineet, 10 points, all real, fixed): `api()` takes a time limit (`timeoutMs`, built-in
          AbortSignal.timeout); the portal frame never loads forever (one status: loading / ready / error; 15 s
          limit; the error screen has Try again, Log out and an error code for support); the login gives the form
@@ -301,6 +301,16 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    The login checks are now in the repo: `scripts/e2e/login_e2e.mjs` (24 checks; on the PR's first version
          8 of them fail). Independent review of the fixes: 9 real, fixed; staff pages without error handling
          or a time limit go to backlog R40.
+   vi.   Second review (Vineet, 31 Oct; the last round for this PR): 3 fixed before merge. `safeNext` refuses a
+         path that becomes "//evil.com" once cleaned up (open redirect: "/..//evil.com"), and "/employee//login";
+         `api()` turns a "success" it can't read (HTML from a proxy, a cut connection) into an error, never `{}`.
+         First frontend unit tests: `frontend/tests/lib.test.mjs` (`npm test`, Node's built-in runner, no
+         package; now also in CI): 12 checks, 5 of them fail on the code before the fix. His 7 follow-ups:
+         backlog R40 and R41.
+   vii.  Independent review of these fixes: 7 real, fixed. `upload()` had the same "unreadable success" bug:
+         one shared answer reader now; the login-page check also catches encoded letters ("/employee/%6Cogin");
+         no false "slow to open" notice when the page change ends but the login page stays.
+   viii. Tested: unit 12/12, login checks 24/24, e2e API 114/114 and browser 38/38.
 
 
 2. 30 Oct 2026 (code review PR redone, Vineet)
