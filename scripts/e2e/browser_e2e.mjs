@@ -59,10 +59,24 @@ await send('Network.enable');
 
 // ---- Public pages ----
 const PUBLIC = { '/': 'Explore the range', '/products': 'Masala Tea Premix', '/private-label': 'Build your product', '/partners': 'Apply to become a partner', '/contact': 'Send an enquiry', '/categories/coffee': 'Instant Coffee', '/employee/login': 'Log in' };
+// Everything the page shows, also parts hidden at this width (innerText skips those); scripts left out, as
+// they hold the product data and could contain any text
+const allText = () => evaluate('(() => { const b = document.body.cloneNode(true); b.querySelectorAll("script, style").forEach((e) => e.remove()); return b.textContent; })()');
+let homeAll = '';
 for (const [path, needle] of Object.entries(PUBLIC)) {
   const t = await open(path);
   check(`browser ${path}`, t.includes(needle) && errors.length === 0, errors.join(' | ') || `missing "${needle}"`);
+  if (path === '/') homeAll = (await allText()) ?? '';
 }
+
+// Home: no Capabilities section and no "250+" line (UI step 3)
+const leftOver = ['One partner from blend to pallet', '250+', 'products our two units can make'].filter((s) => homeAll.includes(s));
+check('home: Capabilities section and "250+" removed', homeAll !== '' && leftOver.length === 0, homeAll ? `still there: ${leftOver.join(', ')}` : 'could not read the home page');
+// The capability pages themselves stay (header, footer and sitemap link to them). The footer also says
+// "Stick Pack Factory", so look at this page's own heading
+await open('/capabilities/stick-pack-factory');
+const capTitle = (await evaluate('document.querySelector("h1")?.textContent')) ?? '';
+check('capability page still opens', capTitle.includes('Stick') && errors.length === 0, errors.join(' | ') || `heading: "${capTitle}"`);
 
 // Product page: gated "Get a quote" opens the form (or the one-click view)
 await open('/products/instant-coffee-3-in-1-stick');

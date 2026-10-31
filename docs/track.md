@@ -55,11 +55,11 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 4d. UI requests from Nishita (30 Oct): 7 small PRs, lowest risk first
 
-   i.    Step 1 login spinner: PR #12 (branch feat/uiUpdates), both review rounds fixed (31 Oct); not merged yet.
-         Login checks in the repo: `scripts/e2e/login_e2e.mjs`.
-   ii.   Step 2 sliding sidebar: branch feat/uiUpdates-sidebar (on top of #12), review fixed, 25 checks in
-         `scripts/e2e/sidebar_e2e.mjs` (31 Oct).
-   iii.  Next: 3 home removals (Capabilities, "250+"), 4 partner page ("Referral partner",
+   i.    Steps 1 login spinner and 2 sliding sidebar: merged in PR #12 (31 Oct). Checks in the repo:
+         `scripts/e2e/login_e2e.mjs`, `scripts/e2e/sidebar_e2e.mjs`.
+   ii.   Step 3 home removals: branch feat/uiUpdates-home. Capabilities section and the "250+" line gone from the
+         home page; the capability pages stay (header, footer, sitemap link them). Checked in `browser_e2e.mjs`.
+   iii.  Next: 4 partner page ("Referral partner",
          real content only), 5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and
          country pickers with flags (flags copied into public/flags, no package; country picker only, the site
          stays English: D2).

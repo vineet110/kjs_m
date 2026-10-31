@@ -283,7 +283,15 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 31 Oct 2026 (sliding sidebar, Nishita, branch feat/uiUpdates-sidebar)
+1. 31 Oct 2026 (home removals, Nishita, branch feat/uiUpdates-home)
+
+   i.    PR #12 (steps 1 and 2) merged. UI step 3: the home page no longer shows the Capabilities section or the
+         "250+ products" line. The capability pages stay, linked from the header, footer and sitemap.
+   ii.   New check in `browser_e2e.mjs` (failed on the old code). Browser 40, API 114, unit 12 pass. The e2e
+         database must be reset before a re-run (`reset_e2e_db.sh`), or the API test hits its own old products.
+
+
+2. 31 Oct 2026 (sliding sidebar, Nishita, branch feat/uiUpdates-sidebar)
 
    i.    UI step 2: the staff sidebar is hidden until the menu button slides it in; the next click hides it.
          Computer: pushes the page aside, remembered per tab. Phone: slides over the page with a backdrop and
@@ -292,7 +300,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          failed 13 on the old code. Unit 12, API 114, browser 38, login all pass.
 
 
-2. 30 Oct 2026 (login spinner, Nishita, branch feat/uiUpdates)
+3. 30 Oct 2026 (login spinner, Nishita, branch feat/uiUpdates)
 
    i.    Nishita's UI list split into 7 small PRs, lowest risk first (track 4d). Decisions: "Broker" becomes
          "Referral partner" (label only; the saved value stays `broker`); partner page uses real content only (no
@@ -322,7 +330,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. Tested: unit 12/12, login checks 24/24, e2e API 114/114 and browser 38/38.
 
 
-3. 30 Oct 2026 (code review PR redone, Vineet)
+4. 30 Oct 2026 (code review PR redone, Vineet)
 
    i.    PR #10 was closed and the same work redone on top of PR #9 as PR #11, to avoid conflicts in the docs.
    ii.   Nishita's reviews of it found mistakes in the fix directions (CR1, CR2, CR11, CR13, CR27 and more), all
@@ -330,7 +338,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Anything found after this goes straight into the real fix PRs. Next: CR1 as real code, failing test first.
 
 
-4. 30 Oct 2026 (PR #9 fifth review, Nishita)
+5. 30 Oct 2026 (PR #9 fifth review, Nishita)
 
    i.    Vineet's fifth review: 1 blocking point, real, fixed. Products taken off the site stayed in the saved
          enquiry list and used up slots; adding a product could then silently remove one the visitor sees.
@@ -347,7 +355,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          phone) + 30/30 + 20/20 + 12/12, e2e API 114/114 and browser 38/38. Independent review: 4 real, fixed.
 
 
-5. 29 Oct 2026 (whole-repo code review, Vineet)
+6. 29 Oct 2026 (whole-repo code review, Vineet)
 
    i.    Full review of the repo at `7d117aa`, written up in `codeReview.md` (CR1–CR39). No security holes.
    ii.   One must-fix: `restore.sh` can empty the database and still say "restore done" (CR1).
@@ -359,7 +367,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          direction. New process in `prompt.md` section 6 (failing test first, at most 2 review rounds per PR).
 
 
-6. 29 Oct 2026 (PR #9 fourth review, Nishita)
+7. 29 Oct 2026 (PR #9 fourth review, Nishita)
 
    i.    Vineet's fourth review: 9 points, all real, all fixed; his cleanups went to the backlog (R34).
    ii.   (REPLACED on 30 Oct, see the fifth review) Enquiry list rule: products this page doesn't
@@ -377,7 +385,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          + 20/20 + 12/12 (incl. zoom 90%/110% and phone 390px), e2e API 114/114 and browser 38/38.
 
 
-7. 29 Oct 2026 (PR #9 third review, Nishita)
+8. 29 Oct 2026 (PR #9 third review, Nishita)
 
    i.    Vineet's third review: 7 points, all real, all fixed. Back on home after visiting another page shows
          the latest list (cached snapshot dropped when nothing listens); the first-load fade keeps going when
@@ -392,7 +400,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Tested: browser checks 30/30 (this round) + 20/20 + 12/12, e2e API 114/114 and browser 38/38.
 
 
-8. 29 Oct 2026 (PR #9 review, Nishita)
+9. 29 Oct 2026 (PR #9 review, Nishita)
 
    i.    Vineet's review of PR #9: 7 points, all real, all fixed. Private window now personalises for the visit
          (history kept in memory per key when storage is blocked or full); one shared hook `useHistory` for the
@@ -405,7 +413,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Tested: logic 6/6, browser checks 12/12 (review fixes) + 20/20, e2e API 114/114 and browser 38/38.
 
 
-9. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
+10. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
 
    i.    "Recommended" section on the home page. Personal picks come from what the visitor opened (product page,
          quick view) or put in their enquiry list, kept in THEIR browser only (localStorage `kjs_viewed`,
@@ -420,7 +428,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Still to decide (R31–R33): deals strip, best sellers, frequently searched (no made-up claims).
 
 
-10. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
+11. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
 
    i.    New Neon project in Singapore (aws-ap-southeast-1). Migrations to 0011, `app.seed`, `app.seed_catalogue`
          (58 products). v1 and v2 `.env` both point to it; old US lines kept as comments. The URL must stay
@@ -433,7 +441,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          still uses only the connection string (decision 13).
 
 
-11. 28 Oct 2026 (PR #6 third review, Nishita)
+12. 28 Oct 2026 (PR #6 third review, Nishita)
 
    i.    e2e `browser_e2e.mjs` expected the old home text ("Explore products"): now "Explore the range".
    ii.   Home texts come from the backend defaults (`content_service.TEXTS`), which always win over a frontend
@@ -444,7 +452,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Follow-ups R21–R24 added; R20 closed (the API already checks image_path).
 
 
-12. 28 Oct 2026 (PR #6 second review, Nishita)
+13. 28 Oct 2026 (PR #6 second review, Nishita)
 
    i.    4 blockers fixed: category panel gap (padding, not margin), search results stay open while focus is in
          the search box (no timer), one progress bar inside the header (CSS: <html data-navigating> or a
@@ -458,7 +466,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Safari, Firefox. Follow-ups R17–R20 in backlog.
 
 
-13. 28 Oct 2026 (PR #6 review fixes, Nishita)
+14. 28 Oct 2026 (PR #6 review fixes, Nishita)
 
    i.    Vineet's review of PR #6: 4 blocking + 6 follow-ups, all fixed. Enquiry form now opens in a portal
          (a CSS transform on the bar squeezed it), stale saved products dropped, list emptied after sending,
@@ -474,7 +482,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          missing pages answer 200 instead of 404. Rule: no loading.tsx above pages that call notFound().
 
 
-14. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
+15. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
 
    i.    Read the 50-page catalogue PDF (pictures only, no text): 58 product families, 156 items.
    ii.   New `backend/app/seed_catalogue.py`: 4 new categories (old ones kept) and 58 products. Only file
@@ -488,7 +496,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  New assumptions A73–A77, inputs I13, I14 (phone number mismatch).
 
 
-15. 27 Oct 2026 (production-readiness review)
+16. 27 Oct 2026 (production-readiness review)
 
    i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
          own from `.env.example`.
@@ -506,7 +514,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
-16. 26 Oct 2026 (merge, speed, Smart App Control)
+17. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -522,7 +530,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-17. 25 Oct 2026 (senior review)
+18. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -544,7 +552,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-18. 25 Oct 2026
+19. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -558,7 +566,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-19. 24 Oct 2026 (morning)
+20. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -579,21 +587,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-21. 23 Oct 2026 (5)
+22. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-22. 23 Oct 2026 (4)
+23. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-23. 23 Oct 2026 (2 and 3)
+24. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-24. 23 Oct 2026 (1)
+25. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

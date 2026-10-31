@@ -195,4 +195,5 @@ Add changes here, newest at the bottom, like this:
 6. 31 Oct
 
    The staff menu is now hidden until staff click the menu button; it slides in, and the next click hides it.
-   On phones it slides over the page and closes with a tap outside it.
+   On phones it slides over the page and closes with a tap outside it. The home page is shorter: the
+   capabilities list and the "250+ products" line are gone (the capability pages are still in the menu).
