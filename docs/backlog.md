@@ -1320,6 +1320,8 @@ CR1. `restore.sh` can empty the database and still say "restore done"  🔴
          d.  The `tar` checks use a container where the server's own `tar` would do.
          e.  If the script is killed during the database step, `.restore-new` stays until the next restore
              (the printed undo command removes it).
+         f.  A second Ctrl+C while the script is cleaning up can stop it before the app restarts. Nishita's
+             reverted commit `70c8c05` blocked this with `trap '' HUP INT TERM` at the start of `finish`.
 
 
 CR2–CR11. Should fix before go-live  🟠
