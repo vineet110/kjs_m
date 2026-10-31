@@ -55,7 +55,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
-   i.    🔴 CR1 fixed on branch `fix/cr1-restore-safety` (30 Oct): 49 checks pass in `deploy/test-restore.sh`
+   i.    🔴 CR1 fixed on branch `fix/cr1-restore-safety` (30 Oct, review fixes 31 Oct): 66 checks pass in `deploy/test-restore.sh`
          on a local Docker copy. Not merged yet. The restore drill on the real server is still to do.
    ii.   🟠 CR2–CR11 should be fixed before go-live: health check, backups, public error page, rate limits,
          feature flags, disabled user's batch, lost emails, superuser password in the API container.

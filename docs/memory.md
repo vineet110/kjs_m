@@ -291,6 +291,9 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  New `deploy/test-restore.sh`: 27 checks failed before the fix, all 49 pass after, on a local Docker copy.
    iv.   Rule: the test refuses to run if `deploy/.env` exists, so it can't touch the server.
    v.    Nishita has claimed files for 7 steps and migration 0012: agree before touching those or adding a migration.
+   vi.   31 Oct, PR review fixes: `restore.sh` no longer says "nothing was changed" if stopped during the database
+         step, fails if the app won't start, and removes `.restore-new` after a failed database step. 9 of 66
+         checks failed before the fix, all 66 pass after. Not committed yet.
 
 
 1b. 30 Oct 2026 (code review PR redone, Vineet)
