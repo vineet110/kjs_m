@@ -1,6 +1,7 @@
 'use client';
 // Shared frame for /employee and /admin pages: loads "who am I", shows a sidebar
-// filtered by permissions, and sends people to login when their session has ended.
+// filtered by permissions (hidden until the ☰ button slides it in), and sends people to login when
+// their session has ended.
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -55,9 +56,42 @@ const NAV: { group: string; items: NavItem[] }[] = [
 type Status = { state: 'loading' } | { state: 'ready'; me: Me } | { state: 'error'; requestId: string | null };
 const ME_TIMEOUT_MS = 15_000;
 
+// The sidebar. Phone = below Tailwind's `md` (768 px): there it slides OVER the page like a dialog; on a
+// computer it moves the page aside. One constant for every check in code (the classes use `md:`).
+const PHONE = '(max-width: 767px)';
+const MENU_KEY = 'kjs_menu_open'; // this browser tab only: a new tab or a new visit starts hidden
+
+/** Whether the screen is phone-sized, kept up to date when the window is resized. */
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia(PHONE);
+    setPhone(q.matches);
+    const change = () => setPhone(q.matches);
+    q.addEventListener('change', change);
+    return () => q.removeEventListener('change', change);
+  }, []);
+  return phone;
+}
+
 export default function PortalShell({ children, requirePerm }: { children: React.ReactNode; requirePerm?: string }) {
   const [status, setStatus] = useState<Status>({ state: 'loading' });
-  const [menuOpen, setMenuOpen] = useState(false);
+  // The sidebar: hidden by default on every screen; the ☰ button slides it in and out (see the render below).
+  // On a computer, an open sidebar stays open in this tab (also between admin and employee pages, which each
+  // have their own frame, and after a reload); it is never reopened on a phone, where it would cover the page.
+  // Read once when the frame starts, so a remembered sidebar is simply there (no slide on every page load).
+  // The server has no window and gives false; the sidebar isn't drawn until the account has loaded anyway.
+  const [menuOpen, setMenuOpen] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && !window.matchMedia(PHONE).matches && sessionStorage.getItem(MENU_KEY) === '1';
+    } catch {
+      return false; // storage blocked (private mode): start hidden
+    }
+  });
+  const isPhone = useIsPhone();
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
+  const focusButtonAfterClose = useRef(false);
   const latest = useRef(0); // only the newest answer counts (an older, slower one is ignored)
   const router = useRouter();
   const pathname = usePathname();
@@ -84,6 +118,48 @@ export default function PortalShell({ children, requirePerm }: { children: React
   useEffect(() => {
     loadMe();
   }, [loadMe]);
+
+  // Opens or closes it, and remembers the choice for this tab (computer only; storage can be blocked in
+  // private mode: then it just isn't remembered)
+  function setMenu(open: boolean, { focusButton = false } = {}) {
+    setMenuOpen(open);
+    focusButtonAfterClose.current = !open && focusButton;
+    try {
+      if (!window.matchMedia(PHONE).matches) sessionStorage.setItem(MENU_KEY, open ? '1' : '0');
+    } catch {}
+  }
+  // Closed from inside the sidebar (a link, the ✕, the backdrop, Escape): the keyboard focus would fall to the
+  // top of the page as the sidebar becomes unreachable, so it goes to the ☰ button. After the close is drawn:
+  // on a phone the button is unreachable (`inert`) while the menu is open.
+  useEffect(() => {
+    if (menuOpen || !focusButtonAfterClose.current) return;
+    focusButtonAfterClose.current = false;
+    menuButton.current?.focus();
+  }, [menuOpen]);
+
+  // Escape closes the sidebar, but only when it is "in use": the focus is in it or on its button, or it covers
+  // the page (phone). Not for an Escape meant for something else (a form field, the Bell list).
+  const overlay = menuOpen && isPhone;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const at = document.activeElement;
+      if (overlay || sidebar.current?.contains(at) || at === menuButton.current) setMenu(false, { focusButton: true });
+    };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menuOpen, overlay]);
+
+  // Phone, menu open: the page behind it can't be scrolled (it is also `inert`, see the render)
+  useEffect(() => {
+    if (!overlay) return;
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = before;
+    };
+  }, [overlay]);
 
   // Goes to the login page even if the server is silent or fails (the error screen offers this exactly then)
   async function logout() {
@@ -119,11 +195,29 @@ export default function PortalShell({ children, requirePerm }: { children: React
 
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions)) }))
     .filter((g) => g.items.length > 0);
+  // Sidebar: always on the page, slid out of view when closed (a smooth slide both ways; none for "reduce
+  // motion"). Closed, it is `inert`: its links can't be reached with Tab or a screen reader. On a computer the
+  // page moves aside at once to make room (only the sidebar is animated: animating the page's width would make
+  // big tables stutter); on a phone it slides OVER the page, with a backdrop and its own ✕, and the page
+  // behind it is `inert` until it closes.
   return (
     <MeContext.Provider value={me}>
-      <div className="flex min-h-screen bg-slate-50">
-        <aside className={`${menuOpen ? 'fixed inset-y-0 left-0 z-40 flex' : 'hidden'} w-64 shrink-0 flex-col bg-forest text-emerald-50 md:static md:flex md:w-60`}>
-          <div className="p-4">
+      <div className="min-h-screen bg-slate-50">
+        <aside
+          ref={sidebar}
+          id="portal-sidebar"
+          inert={!menuOpen}
+          className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-forest text-emerald-50 transition-transform duration-300 ease-out motion-reduce:transition-none md:w-60 ${menuOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}`}
+        >
+          <div className="relative p-4">
+            {/* Phone: the open sidebar covers the ☰/✕ button in the top bar, so it has its own */}
+            <button
+              onClick={() => setMenu(false, { focusButton: true })}
+              aria-label="Close menu"
+              className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-lg text-emerald-100 hover:bg-white/10 md:hidden"
+            >
+              <span aria-hidden>✕</span>
+            </button>
             <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={120} height={28} className="h-7 w-auto" />
             <p className="mt-1 text-[11px] uppercase tracking-widest text-emerald-300">{me.role === 'admin' ? 'Admin console' : 'Employee portal'}</p>
           </div>
@@ -135,7 +229,8 @@ export default function PortalShell({ children, requirePerm }: { children: React
                   <Link
                     key={n.href}
                     href={n.href}
-                    onClick={() => setMenuOpen(false)}
+                    // On a phone the open menu covers the page: close it. On a computer it stays open.
+                    onClick={() => isPhone && setMenu(false, { focusButton: true })}
                     className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${pathname.startsWith(n.href) ? 'bg-white/15 font-semibold text-white' : 'text-emerald-100 hover:bg-white/10'}`}
                   >
                     {n.label}
@@ -151,14 +246,24 @@ export default function PortalShell({ children, requirePerm }: { children: React
             <button onClick={logout} className="mt-2 text-emerald-200 underline hover:text-white">Log out</button>
           </div>
         </aside>
-        {menuOpen && <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setMenuOpen(false)} />}
-        <div className="min-w-0 flex-1">
+        {menuOpen && <div aria-hidden className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setMenu(false, { focusButton: true })} />}
+        <div inert={overlay} className={`min-w-0 ${menuOpen ? 'md:pl-60' : ''}`}>
           <header className="flex items-center justify-between gap-2 border-b bg-white px-4 py-2">
-            <button onClick={() => setMenuOpen(true)} className="rounded p-2 hover:bg-slate-100 md:hidden" aria-label="Open menu">☰</button>
-            <span className="font-semibold md:hidden">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
+            <button
+              ref={menuButton}
+              onClick={() => setMenu(!menuOpen)}
+              aria-expanded={menuOpen}
+              aria-controls="portal-sidebar"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              className="flex h-9 w-9 items-center justify-center rounded text-lg hover:bg-slate-100"
+            >
+              <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
+            </button>
+            <span className="font-semibold">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
             <div className="ml-auto flex items-center gap-2">
               <Bell />
-              <button onClick={logout} className="text-sm underline md:hidden">Log out</button>
+              {/* Log out is here on every screen too: the sidebar (with its own Log out) starts hidden */}
+              <button onClick={logout} className="text-sm underline">Log out</button>
             </div>
           </header>
           <div className="mx-auto max-w-6xl p-4 md:p-8">{children}</div>

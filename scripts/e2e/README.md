@@ -16,5 +16,6 @@ These click through the whole platform the way people do. They use a **separate 
 7. Login loading states (spinner, time limits, error screen; about 1.5 min): `node scripts/e2e/login_e2e.mjs`.
    It holds some requests back on purpose to fake a slow or silent server. Restart the backend first if you
    ran it more than a few times (it uses 3 wrong passwords per run; 10 lock the account for 15 minutes).
+8. Staff sidebar (hidden by default, slides in and out, computer and phone; about 1 min): `node scripts/e2e/sidebar_e2e.mjs`
 
 Restart the backend before re-running (it resets the 5-enquiries-per-hour limit). Koko uses the real Groq key from `.env`.

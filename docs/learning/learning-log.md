@@ -10,6 +10,15 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 31 Oct 2026 (sliding sidebar, Nishita)
+
+1. (T) Animate `transform` (slide), not width or padding: the browser moves it cheaply, no page re-layout.
+
+2. (T) A hidden menu must also be unreachable: `inert` stops Tab and screen readers from finding it.
+
+3. (T) An overlay on a phone must lock the page behind it and give focus back to the button when it closes.
+
+
 ## 31 Oct 2026 (PR #12 second review, Nishita)
 
 1. (T) Check a URL AFTER it is cleaned up, not before: "/..//evil.com" looks like our site, but becomes

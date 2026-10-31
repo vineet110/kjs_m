@@ -191,3 +191,8 @@ Add changes here, newest at the bottom, like this:
    as visitors scroll. Staff now see a loading spinner when they log in; if the server is slow or down, they
    get a clear message with "Try again" and "Log out" instead of an endless wait. Next: a sidebar that slides
    in and out, partner page updates, best-seller offers, and country and phone-code pickers with flags.
+
+6. 31 Oct
+
+   The staff menu is now hidden until staff click the menu button; it slides in, and the next click hides it.
+   On phones it slides over the page and closes with a tap outside it.

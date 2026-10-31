@@ -57,11 +57,13 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
    i.    Step 1 login spinner: PR #12 (branch feat/uiUpdates), both review rounds fixed (31 Oct); not merged yet.
          Login checks in the repo: `scripts/e2e/login_e2e.mjs`.
-   ii.   Next: 2 sliding sidebar, 3 home removals (Capabilities, "250+"), 4 partner page ("Referral partner",
+   ii.   Step 2 sliding sidebar: branch feat/uiUpdates-sidebar (on top of #12), review fixed, 25 checks in
+         `scripts/e2e/sidebar_e2e.mjs` (31 Oct).
+   iii.  Next: 3 home removals (Capabilities, "250+"), 4 partner page ("Referral partner",
          real content only), 5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and
          country pickers with flags (flags copied into public/flags, no package; country picker only, the site
          stays English: D2).
-   iii.  Best seller stays a tick box per product (not a category): a product keeps its real category.
+   iv.   Best seller stays a tick box per product (not a category): a product keeps its real category.
 
 
 4c. Whole-repo code review (29 Oct): `codeReview.md`, nothing fixed yet
