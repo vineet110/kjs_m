@@ -2,7 +2,7 @@
 
 A simple version of our project plan for the KJS team.
 
-Last updated: 24 Oct 2026.
+Last updated: 30 Oct 2026.
 
 
 
@@ -183,3 +183,16 @@ Add changes here, newest at the bottom, like this:
    The new home page is ready: a catalogue of 58 KJS products with pictures, search, a category menu and an
    enquiry list buyers can send in one go. Our development database moved from the USA to Singapore, so pages
    that read data answer several times faster from India.
+
+
+5. 30 Oct
+
+   The home page now suggests products to returning visitors, and product cards appear with a short animation
+   as visitors scroll. Staff now see a loading spinner when they log in; if the server is slow or down, they
+   get a clear message with "Try again" and "Log out" instead of an endless wait. Next: a sidebar that slides
+   in and out, partner page updates, best-seller offers, and country and phone-code pickers with flags.
+
+6. 31 Oct
+
+   The staff menu is now hidden until staff click the menu button; it slides in, and the next click hides it.
+   On phones it slides over the page and closes with a tap outside it.

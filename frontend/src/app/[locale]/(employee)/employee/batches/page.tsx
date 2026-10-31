@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDay, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type BatchInfo, type BuyerRecord } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 export default function MyBatches() {
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
@@ -13,7 +14,7 @@ export default function MyBatches() {
     load();
   }, [load]);
 
-  if (batches === null) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (batches === null) return <Loading />;
   const open = batches.find((b) => b.status === 'open');
   const past = batches.filter((b) => b.status !== 'open');
 

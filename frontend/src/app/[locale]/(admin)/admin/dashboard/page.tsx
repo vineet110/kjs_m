@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser as User } from '@/components/portal/ApproveCard';
 import { api, ApiFailure } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Stats = { leads_total: number; leads_new: number; staff_pending: number; staff_active: number; products: number; categories: number };
 
@@ -26,7 +27,7 @@ export default function AdminDashboard() {
   useEffect(() => { load(); }, [load]);
 
   if (error) return <div className="card p-6 text-sm text-red-700">{error}</div>;
-  if (!stats) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!stats) return <Loading />;
 
   const pending = users.filter((u) => u.status === 'pending');
   const others = users.filter((u) => u.status !== 'pending');

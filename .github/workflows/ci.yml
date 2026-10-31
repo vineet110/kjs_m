@@ -50,4 +50,5 @@ jobs:
       # or type checks that need Next's types (e.g. importing an image) would fail here
       - run: npx next typegen
       - run: npx tsc --noEmit
+      - run: npm test # unit tests for src/lib (Node's built-in runner, tests/)
       - run: npm run build

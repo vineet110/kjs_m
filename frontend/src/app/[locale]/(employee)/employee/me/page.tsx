@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Msg, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Profile = { id: number; name: string; email: string; phone: string; role: string; categories: string[]; notify_email: boolean; notify_whatsapp: boolean };
 
@@ -42,7 +43,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (!p) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!p) return <Loading />;
   return (
     <div className="max-w-2xl space-y-6">
       <PageTitle title="Profile" sub={`${p.email} · ${p.role}${p.categories.length ? ` · categories: ${p.categories.join(', ')}` : ''}`} />

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser } from '@/components/portal/ApproveCard';
 import { fmtDay, fmtIST, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization, type StoredFile } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Inbox = { signups: StaffUser[] | null; regularizations: Regularization[] | null; file_deletes: StoredFile[] | null };
 
@@ -32,7 +33,7 @@ export default function Approvals() {
     }
   }
 
-  if (!inbox) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!inbox) return <Loading />;
   const count = (inbox.signups?.length ?? 0) + (inbox.regularizations?.length ?? 0) + (inbox.file_deletes?.length ?? 0);
 
   return (
