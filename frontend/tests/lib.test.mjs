@@ -96,5 +96,12 @@ test('api: a JSON error keeps the server message and request id', async () => {
 
 test('api: a server that never answers ends as a time-out (timeoutMs)', async () => {
   globalThis.fetch = (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
-  await assert.rejects(api('/auth/me', { timeoutMs: 50 }), (err) => err instanceof ApiFailure && err.status === 0 && err.body.code === 'timeout');
+  // AbortSignal.timeout's timer doesn't keep Node running (a page in a browser does): with nothing else to
+  // do, Node would stop before it fires and cancel this test (seen in CI on Node 22). Keep Node running.
+  const keepAlive = setTimeout(() => {}, 5_000);
+  try {
+    await assert.rejects(api('/auth/me', { timeoutMs: 50 }), (err) => err instanceof ApiFailure && err.status === 0 && err.body.code === 'timeout');
+  } finally {
+    clearTimeout(keepAlive);
+  }
 });

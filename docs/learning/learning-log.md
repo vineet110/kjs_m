@@ -20,6 +20,9 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 3. (T) Node has a test runner built in (`node --test`): unit tests without adding a package.
 
+4. (T) A test can pass on my PC and fail in CI: different Node versions (24 here, 22 in CI). Node stops when
+   nothing keeps it busy, and an AbortSignal.timeout timer doesn't; the time-out test now keeps Node running.
+
 
 
 ---------------------------------------------------------------------------------------------------
