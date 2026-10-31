@@ -24,12 +24,15 @@ trap 'rm -f "$db_file.tmp" "$files_file.tmp"' EXIT
 # 1. Database. -Fc = Postgres "custom" format: compressed, restores table by table.
 #    Written to .tmp first, so a half-finished file is never mistaken for a good backup.
 $COMPOSE exec -T db pg_dump -U kjs -d kjs -Fc > "$db_file.tmp"
-# Check the file is a readable backup before keeping it
-$COMPOSE exec -T db pg_restore -l < "$db_file.tmp" > /dev/null
+# Read the whole file before keeping it (-f /dev/null saves nothing). pg_restore -l is not enough:
+# it reads only the list at the start, so it passes a backup that was cut off.
+$COMPOSE exec -T db pg_restore -f /dev/null < "$db_file.tmp"
 mv "$db_file.tmp" "$db_file"
 
 # 2. Uploaded files (only matters when STORAGE_DRIVER=local; with R2, Cloudflare keeps them)
-$COMPOSE exec -T backend tar czf - -C /srv/kjs_files . > "$files_file.tmp"
+# (.restore-new = work folder restore.sh leaves behind if it is killed halfway)
+$COMPOSE exec -T backend tar czf - --exclude=./.restore-new -C /srv/kjs_files . > "$files_file.tmp"
+$COMPOSE exec -T backend tar tzf - < "$files_file.tmp" > /dev/null  # same check: read it all
 mv "$files_file.tmp" "$files_file"
 
 # 3. Delete backups older than KEEP_DAYS days

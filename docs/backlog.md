@@ -1306,7 +1306,12 @@ headline items here.
 
 CR1. `restore.sh` can empty the database and still say "restore done"  🔴
 
-   i.    Must fix before go-live. See `codeReview.md` CR1.
+   i.    Fixed on branch `fix/cr1-restore-safety` (30 Oct), tested by `deploy/test-restore.sh`. See `codeReview.md` CR1.
+   ii.   Still open: a restore drill on the real server, once there is one.
+   iii.  Left for CR3 (found in the CR1 review): the safety backup runs while the app is still live, so
+         anything saved between it and the app stopping is lost if you undo the restore. Fixing that needs
+         `backup.sh` to read files without the backend running, which is CR3. Until then, `restore.sh` and
+         its undo command can't run while the backend is down.
 
 
 CR2–CR11. Should fix before go-live  🟠

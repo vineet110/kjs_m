@@ -10,6 +10,25 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct 2026 (CR1 restore fix)
+
+1. (V) A check can pass without proving what you think. `pg_restore -l` passed backups cut in half, because
+   it reads only the list at the start. Only reading the whole file proved they were bad: even 1 missing
+   byte was caught.
+
+2. (V) In a pipe, the second program can't see that the first one failed. So we send it something that
+   always errors, and the database cancels the whole transaction.
+
+3. (V) Write the test first and watch it fail: 27 checks failed on the old script, which proved the bug
+   was real. Then all 49 passed after the fix.
+
+4. (V) 49 passing checks still missed a bug, because the fake crash was too easy: it stopped before any data.
+   The review found the hard case (a crash inside a table's rows). A test proves only what it really tries.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct 2026 (PR #9 fifth review, Nishita)
 
 1. (T) Fixing a rare case can create a common one: keeping "unknown" products (for two tabs on different

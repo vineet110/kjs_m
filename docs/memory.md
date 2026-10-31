@@ -283,7 +283,17 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 30 Oct 2026 (code review PR redone, Vineet)
+1. 30 Oct 2026 (CR1 restore fix, Vineet, branch `fix/cr1-restore-safety`)
+
+   i.    `restore.sh` now reads both backups in full before anything changes, cancels the transaction if
+         `pg_restore` fails, unpacks files aside, keeps old backups, and says how to undo a failure.
+   ii.   `backup.sh` reads the whole dump before keeping it.
+   iii.  New `deploy/test-restore.sh`: 27 checks failed before the fix, all 49 pass after, on a local Docker copy.
+   iv.   Rule: the test refuses to run if `deploy/.env` exists, so it can't touch the server.
+   v.    Nishita has claimed files for 7 steps and migration 0012: agree before touching those or adding a migration.
+
+
+1b. 30 Oct 2026 (code review PR redone, Vineet)
 
    i.    PR #10 was closed and the same work redone on top of PR #9 as PR #11, to avoid conflicts in the docs.
    ii.   Nishita's reviews of it found mistakes in the fix directions (CR1, CR2, CR11, CR13, CR27 and more), all
