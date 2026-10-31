@@ -8,8 +8,7 @@
 #   2. a backup of the CURRENT state is taken (so a wrong restore can be undone);
 #   3. the database is replaced in ONE transaction: if anything fails, it stays as it was;
 #   4. new files are unpacked aside BEFORE that, and old ones are deleted only after it;
-#   5. the app is started again even if the restore failed or was stopped, and the script says how
-#      to undo it. If the app can't start, the script fails, even after a good restore;
+#   5. the app is started again even if the restore failed, and a failure says how to undo it;
 #   6. afterwards the tables are brought up to the current code version (alembic upgrade head).
 # Tested by ./test-restore.sh
 set -euo pipefail
@@ -43,45 +42,21 @@ backup_line="$(KEEP_DAYS=36500 ./backup.sh)"
 echo "$backup_line"
 read -r _ _ safety_db _ safety_files _ <<< "$backup_line"
 
-data_replaced=no  # no, yes, or unknown: stopped during step 5, the restore may still finish in the db
-finish() {
+data_replaced=no
+restart_app() {
   local status=$?
-  trap '' HUP INT TERM  # a second Ctrl+C must not stop the app from coming back
-  if [ -n "$files_file" ] && [ "$data_replaced" != yes ]; then
-    # Step 6 never ran, so the old files are all still there and this copy is not needed
-    $COMPOSE run --rm -T --no-deps --entrypoint sh backend -c 'rm -rf /srv/kjs_files/.restore-new' >/dev/null 2>&1 \
-      || echo "WARNING: could not delete the work folder .restore-new in the uploaded files"
+  $COMPOSE start backend frontend >/dev/null 2>&1 \
+    || echo "WARNING: the app did not start again. Check with: $COMPOSE ps"  # always bring the app back
+  [ "$status" -eq 0 ] && return
+  if [ "$data_replaced" = yes ]; then
+    echo "restore FAILED after the data was replaced. The site may be broken until you go back."
+    echo "To go back to how it was before this restore, run:"
+    echo "  ./restore.sh $safety_db $safety_files"
+  else
+    echo "restore FAILED, nothing was changed."
   fi
-  local app_up=yes
-  $COMPOSE start backend frontend >/dev/null 2>&1 || app_up=no  # always bring the app back
-  [ "$app_up" = yes ] || echo "WARNING: the app did not start again. Check with: $COMPOSE ps"
-  if [ "$status" -eq 0 ]; then
-    if [ "$app_up" = yes ]; then
-      echo "restore done from $db_file${files_file:+ and $files_file}"
-      return
-    fi
-    echo "The backup was put back, but the app is DOWN, so the site is too."
-    exit 1
-  fi
-  case "$data_replaced" in
-    yes)
-      echo "restore FAILED after the data was replaced. The site may be broken until you go back."
-      echo "To go back to how it was before this restore, run:" ;;
-    unknown)
-      echo "restore STOPPED during the database step. It may still finish inside the database."
-      echo "Check the data. If it was replaced, the tables and access rights were NOT updated."
-      echo "To go back to how it was before this restore, run:" ;;
-    *)
-      echo "restore FAILED, nothing was changed."
-      return ;;
-  esac
-  echo "  ./restore.sh $safety_db $safety_files"
 }
-trap finish EXIT
-# Without these, a signal ends the script without running finish, and the app stays stopped.
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap restart_app EXIT
 
 echo "3/7 stopping the app (the database keeps running)"
 $COMPOSE stop frontend backend
@@ -106,20 +81,11 @@ echo "5/7 replacing the database (all or nothing)"
 # a statement that always errors, which makes psql cancel the whole transaction. The "\." comes
 # first: if pg_restore died inside a table's data, it ends the rows, or our statement would be
 # stored as one more row and nothing would fail.
-data_replaced=unknown
-if $COMPOSE exec -T db sh -c \
+$COMPOSE exec -T db sh -c \
   '{ echo "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
      pg_restore --no-owner --no-privileges -f - || printf "\n%s\nSELECT 1/0;\n" "\\."; } \
    | psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"
-then
-  data_replaced=yes
-else
-  status=$?
-  # 3 = psql hit an error and cancelled the transaction. Any other code (the docker client was
-  # stopped, the connection was lost): psql may still be running, so we can't say what happened.
-  [ "$status" -eq 3 ] && data_replaced=no
-  exit "$status"
-fi
+data_replaced=yes
 
 if [ -n "$files_file" ]; then
   echo "6/7 replacing uploaded files"
@@ -136,4 +102,5 @@ fi
 echo "7/7 matching the tables to this code version, then access rights"
 $COMPOSE run --rm --no-deps backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql
-# "restore done" is printed by finish, once the app is back up
+
+echo "restore done from $db_file${files_file:+ and $files_file}"

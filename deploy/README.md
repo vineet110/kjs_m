@@ -206,9 +206,6 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    viii. starts the app again (also when something failed).
 
    If it fails after step v, it prints the exact `./restore.sh` command that puts the safety backup back.
-   If it is stopped during step v (Ctrl+C, dropped SSH), the restore may still finish inside the database:
-   it prints the same command and tells you to check the data.
-   If the app won't start again, the script fails, even after a good restore.
    Changes to `restore.sh` or `backup.sh`: run `./test-restore.sh` on your own machine, never on the server.
 
 

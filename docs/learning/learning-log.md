@@ -25,12 +25,6 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 4. (V) 49 passing checks still missed a bug, because the fake crash was too easy: it stopped before any data.
    The review found the hard case (a crash inside a table's rows). A test proves only what it really tries.
 
-5. (N) A bash `trap ... EXIT` does not always run when the script gets a signal: our test showed the script
-   simply died on TERM. So we trap the signals too, and they call `exit`, which runs the clean-up.
-
-6. (N) "It failed" and "we don't know what happened" are different. Only psql's exit code 3 proves the database
-   cancelled the change. Any other failure gets the honest message: check the data.
-
 
 
 ---------------------------------------------------------------------------------------------------

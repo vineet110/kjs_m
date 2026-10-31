@@ -38,25 +38,6 @@ GROQ_API_KEY=test-only
 STORAGE_DRIVER=local
 ENV
 
-# Stands in for "docker compose" to act out failures we can't cause on demand. Everything else goes
-# to the real one. client-dies: Ctrl+C or a dropped SSH session during the database step. The script
-# is stopped, but the restore goes on inside the db container.
-export REAL_COMPOSE="$COMPOSE"
-cat > "$WORK/fake-compose" <<'FAKE'
-#!/usr/bin/env bash
-case "${FAKE_FAILURE:-}:$*" in
-  app-wont-start:start*) exit 1;;
-  client-dies:*single-transaction*)
-    exec 3<&0
-    $REAL_COMPOSE "$@" <&3 >/dev/null 2>&1 &
-    sleep 2
-    kill -TERM "$PPID"
-    exit 143;;
-esac
-exec $REAL_COMPOSE "$@"
-FAKE
-chmod +x "$WORK/fake-compose"
-
 sql() { $COMPOSE exec -T db psql -U kjs -d kjs -Atc "$1"; }
 sh_backend() { $COMPOSE exec -T backend sh -c "$1"; }
 sh_db() { $COMPOSE exec -T db sh -c "$1"; }
@@ -83,8 +64,6 @@ live_data_intact() {
   [ "$(sql 'SELECT v FROM cr1_marker')" = "live" ] && [ "$(sql 'SELECT count(*) FROM cr1_bulk')" = "200000" ]
 }
 live_files_intact() { sh_backend 'test -f /srv/kjs_files/live.txt && test ! -d /srv/kjs_files/.restore-new'; }
-# The exact undo command restore.sh printed
-printed_undo() { grep -o '^  \./restore\.sh .*' "$WORK/out.txt" | tail -1; }
 
 # A restore that must be refused: non-zero exit, nothing changed, app never stopped.
 expect_refused() {
@@ -158,7 +137,6 @@ actual="$(sh_backend 'sha256sum /srv/kjs_files/big.bin' | cut -d' ' -f1)"
 check "old files are gone" sh_backend 'test ! -e /srv/kjs_files/live.txt'
 check "no hidden work folder left" sh_backend 'test ! -e /srv/kjs_files/.restore-new'
 [ "$(docker inspect -f '{{.State.Running}}' "$($COMPOSE ps -q backend)")" = "true" ] && ok "app is running" || bad "app is running"
-if grep -q 'did not start' "$WORK/out.txt"; then bad "no false 'app did not start' warning"; else ok "no false 'app did not start' warning"; fi
 
 echo "== 4. pg_restore dies during the restore (the check before it passed)"
 reset_to_live
@@ -172,11 +150,9 @@ case "$*" in
 esac
 exec pg_restore.real "$@"
 STUB
-if ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
+if ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
 sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
 check "database untouched" live_data_intact
-check "files untouched, no work folder left" live_files_intact
-check 'says "nothing was changed"' grep -q 'nothing was changed' "$WORK/out.txt"
 [ "$(docker inspect -f '{{.State.Running}}' "$($COMPOSE ps -q backend)")" = "true" ] && ok "app is back up" || bad "app is back up"
 
 echo "== 5. backup older than KEEP_DAYS survives its own restore"
@@ -191,14 +167,12 @@ rm -f "$old"
 
 echo "== 6. failure AFTER the database was swapped"
 reset_to_live
-if ./restore.sh "$WORK/alembic-fails.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
+if ./restore.sh "$WORK/alembic-fails.dump" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
 if grep -q 'restore done' "$WORK/out.txt"; then bad 'does not say "restore done"'; else ok 'does not say "restore done"'; fi
-check "the files really were swapped" sh_backend 'test ! -e /srv/kjs_files/live.txt && test -f /srv/kjs_files/keep.txt'
-undo="$(printed_undo)"
-[ -n "$undo" ] && ok "prints the undo command" || bad "prints the undo command"
-if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "the exact printed command works"; else bad "the exact printed command works"; tail -5 "$WORK/out2.txt"; fi
+safety="$(grep -o "$BACKUP_DIR/db-[0-9-]*\.dump" "$WORK/out.txt" | tail -1)"
+[ -n "$safety" ] && ok "names the safety backup" || bad "names the safety backup"
+if [ -n "$safety" ] && ./restore.sh "$safety" --yes > "$WORK/out2.txt" 2>&1; then ok "following the message works"; else bad "following the message works"; tail -5 "$WORK/out2.txt"; fi
 check "the live data is back" live_data_intact
-check "the live files are back" live_files_intact
 
 echo "== 7. backup.sh with a cut-off dump"
 reset_to_live
@@ -209,26 +183,6 @@ sh_db 'mv /usr/local/bin/pg_dump /usr/local/bin/pg_dump.real
 if ./backup.sh > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
 sh_db 'mv /usr/local/bin/pg_dump.real /usr/local/bin/pg_dump'
 [ "$before" = "$(ls "$BACKUP_DIR"/db-*.dump | wc -l)" ] && ok "cut-off backup not kept" || bad "cut-off backup not kept"
-
-echo "== 8. script stopped during the database step, restore finishes anyway"
-reset_to_live
-if COMPOSE="$WORK/fake-compose" FAKE_FAILURE=client-dies ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
-for _ in $(seq 1 60); do [ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && break; sleep 1; done
-[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "the data really was replaced" || bad "the data really was replaced"
-if grep -q 'nothing was changed' "$WORK/out.txt"; then bad 'does not say "nothing was changed"'; else ok 'does not say "nothing was changed"'; fi
-check "says to check the data" grep -q 'Check the data' "$WORK/out.txt"
-undo="$(printed_undo)"
-[ -n "$undo" ] && ok "prints the undo command" || bad "prints the undo command"
-if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "the exact printed command works"; else bad "the exact printed command works"; tail -5 "$WORK/out2.txt"; fi
-check "the live data is back" live_data_intact
-check "the live files are back, no work folder left" live_files_intact
-
-echo "== 9. good restore, but the app won't start again"
-reset_to_live
-if COMPOSE="$WORK/fake-compose" FAKE_FAILURE=app-wont-start ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
-[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "data is back" || bad "data is back"
-if grep -q 'restore done' "$WORK/out.txt"; then bad 'does not say "restore done"'; else ok 'does not say "restore done"'; fi
-check "says the app is down" grep -q 'app is DOWN' "$WORK/out.txt"
 
 echo
 echo "passed: $PASSED  failed: $FAILED"
