@@ -50,3 +50,26 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   visitor who opened only a best seller got the generic picks. Now `recommend()` (`lib/history.ts`) takes an
   `exclude` list: interests come from all products, and only the cards leave the best sellers out. Unit tests
   for both (one failed on the old code). Unit 18, browser 52 pass.
+
+
+## UI step 6: offer % and badge (2 Nov 2026, branch feat/uiUpdates-part2)
+
+- Track (4d): step 6 done on `feat/uiUpdates-part2`. Migration 0012 used (Vineet told).
+- What changed: staff can set an optional offer % (1 to 90, whole numbers) per product in Admin > Products. The
+  website then shows "Up to X% OFF" on that product's cards (home, products page, category pages) and on its
+  product page. Empty = no badge. Hide / Show in Admin keeps the offer (it sends every field back).
+- Where:
+  - Database: `products.offer_percent` (nullable), migration `backend/alembic/versions/0012_product_offer.py`,
+    with a check (1 to 90) in the database too.
+  - API: `schemas/catalog.py` (`offer_percent` in and out), `services/catalog_service.py`.
+  - Frontend: `components/public/OfferBadge.tsx` (new), `lib/catalogue.ts` (`offerLabel`, `productPayload`),
+    `HomeProductCard.tsx`, `ProductCard.tsx`, `ProductExplorer.tsx`, the product page, Admin > Products.
+- Tests: backend `test_product_offer_percent_is_optional_and_checked`; 3 unit tests (badge text, home cards,
+  Hide/Show payload); API e2e gives the coffee product 15 %; a browser check that only it shows the badge.
+  All failed first. Backend 170, unit 21, API 114, browser 53 pass. Migration tested down and up.
+- Review: 10 points; 8 fixed. An edit that leaves the offer out now keeps it (backend, not just the Hide
+  button; new test); badges sit in one top-left column; the quick view shows the offer; screen readers hear
+  it; the 1-90 check is also in the model. Not real: a duplicate name gets "409 duplicate", never a new slug;
+  shared docs aren't edited on task branches (new rule).
+- Backlog: the offer % is a business promise like a price: KJS must approve any offer before staff set it.
+- Learning: a "save as it is" button must send every field back, or a new field is cleared by accident.

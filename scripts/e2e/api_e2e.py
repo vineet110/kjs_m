@@ -39,8 +39,9 @@ check("cookie is httpOnly", "httponly" in r.headers.get("set-cookie", "").lower(
 
 r = admin.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Instant Coffee 3-in-1 Stick",
                                                "pack_formats": "Stick 18 g", "moq": "100,000 sticks", "is_best_seller": True,
+                                               "offer_percent": 15,
                                                "description": "Classic 3-in-1."}, headers=H)
-check("create product", r.status_code == 201, j(r))
+check("create product (with a 15 % offer)", r.status_code == 201 and j(r).get("offer_percent") == 15, j(r))
 prod = j(r)
 r = admin.post("/api/v1/admin/products", json={"category_slug": "tea", "name": "Masala Tea Premix"}, headers=H)
 check("create 2nd product", r.status_code == 201, j(r))

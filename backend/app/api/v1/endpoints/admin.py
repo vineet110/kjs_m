@@ -97,7 +97,7 @@ async def update_product(
     user: User = Depends(require_permission("catalog.edit")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await catalog_service.update_product(db, user, product_id, ProductIn(**data.model_dump(exclude={"is_active"})), data.is_active)
+    return await catalog_service.update_product(db, user, product_id, ProductIn(**data.model_dump(exclude={"is_active"}, exclude_unset=True)), data.is_active)
 
 
 @router.get("/leads", response_model=list[LeadOut])

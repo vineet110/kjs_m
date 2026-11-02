@@ -4,17 +4,20 @@
 //   buttons under the text.
 // - without it (Recommended): the WHOLE card opens the product page. The name's link is stretched over
 //   the card (an invisible ::after layer), so there is still one link for keyboards and screen readers.
-// - overlay: badges drawn over the picture.
+// - overlay: badges drawn over the picture. topLeft: badges stacked under the offer badge ("Up to X% OFF",
+//   when set) in one top-left column, so they never overlap whatever their size.
 // Every card has the same height (fixed picture box; category, name and pack sizes always one line: a
 // name is required, and an empty category or pack sizes keeps its line), so swapping cards never changes
 // the page's height (Safari has no scroll anchoring).
 import Link from 'next/link';
-import type { HomeProduct } from '@/lib/catalogue';
+import OfferBadge from '@/components/public/OfferBadge';
+import { offerLabel, type HomeProduct } from '@/lib/catalogue';
 import CardImage from './CardImage';
 
-type Props = { p: HomeProduct; onQuickView?: () => void; overlay?: React.ReactNode; children?: React.ReactNode };
+type Props = { p: HomeProduct; onQuickView?: () => void; overlay?: React.ReactNode; topLeft?: React.ReactNode; children?: React.ReactNode };
 
-export default function HomeProductCard({ p, onQuickView, overlay, children }: Props) {
+export default function HomeProductCard({ p, onQuickView, overlay, topLeft, children }: Props) {
+  const offer = offerLabel(p.offerPercent);
   const picture = (
     <>
       {p.image ? (
@@ -22,6 +25,10 @@ export default function HomeProductCard({ p, onQuickView, overlay, children }: P
       ) : (
         <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">{p.categoryName}</span>
       )}
+      <span className="absolute left-2 top-2 flex flex-col items-start gap-1">
+        <OfferBadge percent={p.offerPercent} />
+        {topLeft}
+      </span>
       {overlay}
     </>
   );
@@ -30,7 +37,7 @@ export default function HomeProductCard({ p, onQuickView, overlay, children }: P
   return (
     <article className="card group relative flex w-full flex-col overflow-hidden transition-shadow hover:shadow-lg">
       {onQuickView ? (
-        <button onClick={onQuickView} className={box} aria-label={`Quick view: ${p.name}`}>{picture}</button>
+        <button onClick={onQuickView} className={box} aria-label={`Quick view: ${p.name}${offer ? `, ${offer}` : ''}`}>{picture}</button>
       ) : (
         <div className={box}>{picture}</div>
       )}

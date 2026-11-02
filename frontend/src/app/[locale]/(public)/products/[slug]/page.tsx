@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/public/JsonLd';
 import GatedActions from '@/components/public/GatedActions';
+import OfferBadge from '@/components/public/OfferBadge';
 import TrackView from '@/components/public/TrackView';
 import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
 import { imageOf, summary } from '@/lib/catalogue';
@@ -63,9 +64,10 @@ export default async function ProductPage({ params }: Props) {
           )}
         </div>
         <div className="space-y-5">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <span className="rounded bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-dark">{p.category_name}</span>
             {p.private_label && <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Available with your brand</span>}
+            <OfferBadge percent={p.offer_percent} />
           </div>
           <h1 className="text-3xl font-bold">{p.name}</h1>
           <p className="text-sm text-slate-500">Made in Hyderabad, India</p>

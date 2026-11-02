@@ -127,3 +127,31 @@ async def test_edit_and_hide_product(client):
     assert r.json()["name"] == "Filter Coffee 80:20" and r.json()["slug"] == p["slug"]
     await client.patch(f"/api/v1/admin/products/{p['id']}", json=body | {"is_active": False}, headers=HDR)
     assert (await client.get(f"/api/v1/public/products/{p['slug']}")).status_code == 404
+
+
+async def test_product_offer_percent_is_optional_and_checked(client):
+    # UI step 6: an "Up to X% OFF" badge, only when staff set an offer (1 to 90 %)
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    plain = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Filter Coffee"}, headers=HDR)).json()
+    assert plain["offer_percent"] is None  # no offer unless someone sets one
+    body = {"category_slug": "coffee", "name": "Cold Coffee Premix", "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=body, headers=HDR)).json()
+    assert (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["offer_percent"] == 20
+    for bad in (0, 91, -5, 12.5):
+        r = await client.post("/api/v1/admin/products", json=body | {"name": f"Bad offer {bad}", "offer_percent": bad}, headers=HDR)
+        assert r.status_code == 422, bad
+    # Clearing the offer removes the badge
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json=body | {"offer_percent": None}, headers=HDR)
+    assert r.json()["offer_percent"] is None
+
+
+async def test_product_edit_without_offer_keeps_it(client):
+    # An older admin tab or a script that doesn't know the offer field must not clear it by accident
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    body = {"category_slug": "coffee", "name": "Cold Coffee Premix", "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=body, headers=HDR)).json()
+    no_offer = {"category_slug": "coffee", "name": "Cold Coffee Premix", "moq": "5,000 units"}
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json=no_offer | {"is_active": False}, headers=HDR)
+    assert r.json()["offer_percent"] == 20 and r.json()["moq"] == "5,000 units"

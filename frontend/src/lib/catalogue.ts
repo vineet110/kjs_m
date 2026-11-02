@@ -31,13 +31,29 @@ export function imageOf(p: Pick<Product, 'image_path'>): string | null {
 export type HomeProduct = {
   slug: string; name: string; categorySlug: string; categoryName: string; image: string | null;
   summary: string; packFormats: string; moq: string; privateLabel: boolean; items: CatalogueItem[];
+  offerPercent: number | null;
 };
 
 export function toHomeProduct(p: Product): HomeProduct {
   return {
     slug: p.slug, name: p.name, categorySlug: p.category_slug, categoryName: p.category_name, image: imageOf(p),
     summary: summary(p.description), packFormats: p.pack_formats, moq: p.moq, privateLabel: p.private_label,
-    items: parseItems(p.description),
+    items: parseItems(p.description), offerPercent: p.offer_percent ?? null,
+  };
+}
+
+/** The offer badge text, or null when there is no offer (staff set it in Admin > Products). */
+export function offerLabel(percent: number | null | undefined): string | null {
+  return percent ? `Up to ${percent}% OFF` : null;
+}
+
+/** Everything Admin > Products sends back when it saves a product as it is (Hide / Show), so no field
+ *  (like the offer) is cleared by accident. */
+export function productPayload(p: Product) {
+  return {
+    category_slug: p.category_slug, name: p.name, description: p.description, pack_formats: p.pack_formats,
+    moq: p.moq, image_path: p.image_path, private_label: p.private_label, is_best_seller: p.is_best_seller,
+    offer_percent: p.offer_percent,
   };
 }
 

@@ -19,7 +19,8 @@ def _product_out(p: Product, c: Category) -> ProductOut:
     return ProductOut(
         id=p.id, slug=p.slug, name=p.name, description=p.description, pack_formats=p.pack_formats,
         moq=p.moq, image_path=p.image_path, private_label=p.private_label,
-        is_best_seller=p.is_best_seller, category_slug=c.slug, category_name=c.name, is_active=p.is_active,
+        is_best_seller=p.is_best_seller, offer_percent=p.offer_percent, category_slug=c.slug, category_name=c.name,
+        is_active=p.is_active,
     )
 
 
@@ -87,7 +88,8 @@ async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> Prod
     p = Product(
         category_id=category.id, slug=slug, name=data.name.strip(), description=data.description,
         pack_formats=data.pack_formats, moq=data.moq, image_path=data.image_path,
-        private_label=data.private_label, is_best_seller=data.is_best_seller, is_active=True,
+        private_label=data.private_label, is_best_seller=data.is_best_seller, offer_percent=data.offer_percent,
+        is_active=True,
     )
     db.add(p)
     await db.flush()
@@ -103,10 +105,15 @@ async def update_product(db: AsyncSession, actor: User, product_id: int, data: P
     if p is None:
         raise AppError(404, "not_found", "Product not found.")
     category = await get_category(db, data.category_slug)
-    before = {"name": p.name, "category_id": p.category_id, "moq": p.moq, "is_active": p.is_active}
+    before = {"name": p.name, "category_id": p.category_id, "moq": p.moq, "is_active": p.is_active,
+              "offer_percent": p.offer_percent}
     p.category_id, p.name, p.description = category.id, data.name.strip(), data.description
     p.pack_formats, p.moq, p.image_path = data.pack_formats, data.moq, data.image_path
     p.private_label, p.is_best_seller, p.is_active = data.private_label, data.is_best_seller, is_active
+    # An edit that leaves the offer out keeps it (an older admin tab or a script must not clear it by
+    # accident); sending "offer_percent": null removes it
+    if "offer_percent" in data.model_fields_set:
+        p.offer_percent = data.offer_percent
     audit_service.record(db, actor=actor, action="product.updated", entity_type="product", entity_id=p.id,
                          before=before, after=data.model_dump() | {"is_active": is_active})
     await db.commit()

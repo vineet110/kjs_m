@@ -149,3 +149,24 @@ test('recommend: excluded products are never shown, even to fill up the row', ()
   assert.ok(!picks.products.some((p) => p.slug === 'best-coffee'));
   assert.equal(picks.products.length, CATALOGUE.length - 1);
 });
+
+// ---------- offer badge (UI step 6): "Up to X% OFF", only when staff set an offer ----------
+const catalogueLib = await load('catalogue');
+const { offerLabel, toHomeProduct } = catalogueLib;
+
+test('offerLabel: "Up to X% OFF" for a set offer, nothing otherwise', () => {
+  assert.equal(offerLabel(20), 'Up to 20% OFF');
+  for (const none of [null, undefined, 0]) assert.equal(offerLabel(none), null, String(none));
+});
+
+test('toHomeProduct keeps the offer for the home cards', () => {
+  const api = { slug: 'x', name: 'X', description: '', pack_formats: '', moq: '', image_path: '', private_label: true, is_best_seller: false, category_slug: 'c', category_name: 'C', offer_percent: 15 };
+  assert.equal(toHomeProduct(api).offerPercent, 15);
+  assert.equal(toHomeProduct({ ...api, offer_percent: null }).offerPercent, null);
+});
+
+test('productPayload (Admin > Products, Hide/Show): sends every field back, so hiding never clears the offer', () => {
+  const { productPayload } = catalogueLib;
+  const row = { id: 3, slug: 'x', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, category_slug: 'c', category_name: 'C', offer_percent: 25, is_active: true };
+  assert.deepEqual(productPayload(row), { category_slug: 'c', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, offer_percent: 25 });
+});

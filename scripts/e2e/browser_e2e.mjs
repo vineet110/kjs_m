@@ -105,6 +105,28 @@ for (const [href, name] of capLinks) {
   check(`capability page ${href} still opens`, h1.includes(name) && errors.length === 0, errors.join(' | ') || `heading: "${h1}"`);
 }
 
+// Offer badge (UI step 6): "Up to 15% OFF" on the coffee product (the API suite sets 15 %), on no other card,
+// on the home page, the products page and the product page
+const badgesOn = (name) => evaluate(`[...document.querySelectorAll("article, a.card")].filter((c) => c.textContent.includes(${JSON.stringify(name)})).map((c) => c.textContent.includes("Up to 15% OFF"))`);
+const offerProblems = [];
+for (const path of ['/', '/products']) {
+  await open(path, path === '/' ? 2500 : 1000);
+  const coffee = (await badgesOn('Instant Coffee 3-in-1 Stick')) ?? [];
+  const tea = (await badgesOn('Masala Tea Premix')) ?? [];
+  if (!coffee.length || !coffee.every(Boolean)) offerProblems.push(`${path}: coffee card badges ${JSON.stringify(coffee)}`);
+  if (tea.some(Boolean)) offerProblems.push(`${path}: tea card has a badge`);
+}
+// The home range card's quick-view button tells screen readers about the offer, and the quick view shows it
+await open('/', 2500);
+const quickLabel = await evaluate('document.querySelector("button[aria-label^=\'Quick view: Instant Coffee 3-in-1 Stick\']")?.getAttribute("aria-label") ?? null');
+if (quickLabel !== 'Quick view: Instant Coffee 3-in-1 Stick, Up to 15% OFF') offerProblems.push(`quick-view label: ${JSON.stringify(quickLabel)}`);
+await evaluate('document.querySelector("button[aria-label^=\'Quick view: Instant Coffee 3-in-1 Stick\']")?.click()');
+if (!(await waitFor('Up to 15% OFF', 3000)) || !(await evaluate('document.querySelector("[role=dialog]")?.textContent.includes("Up to 15% OFF") ?? false'))) offerProblems.push('quick view: no badge');
+const productPage = await open('/products/instant-coffee-3-in-1-stick', 1000);
+if (!productPage.includes('Up to 15% OFF')) offerProblems.push('product page: no badge');
+if ((await open('/products/masala-tea-premix', 1000)).includes('% OFF')) offerProblems.push('tea product page has a badge');
+check('offer badge shows only on the product with an offer', offerProblems.length === 0, offerProblems.join('; '));
+
 // Partner page (UI step 4): "Broker" is shown as "Referral partner" (saved value still "broker"), no promise of
 // a referral link we don't have, and the new sections built from real content
 await open('/partners');

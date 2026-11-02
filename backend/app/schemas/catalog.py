@@ -19,6 +19,7 @@ class ProductOut(BaseModel):
     image_path: str
     private_label: bool
     is_best_seller: bool
+    offer_percent: int | None = None
     category_slug: str
     category_name: str
     is_active: bool = True
@@ -35,6 +36,8 @@ class ProductIn(BaseModel):
     image_path: str = Field(default="", max_length=255, pattern=r"^(/[A-Za-z0-9_-][A-Za-z0-9._/-]*)?$")
     private_label: bool = True
     is_best_seller: bool = False
+    # "Up to X% OFF" on the website; None = no offer. Whole numbers 1 to 90 (12.5 is refused, not rounded)
+    offer_percent: int | None = Field(default=None, ge=1, le=90)
 
     @field_validator("image_path")
     @classmethod
