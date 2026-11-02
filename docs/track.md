@@ -57,8 +57,9 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
    i.    Steps 1 login spinner and 2 sliding sidebar: merged in PR #12 (31 Oct). Checks in the repo:
          `scripts/e2e/login_e2e.mjs`, `scripts/e2e/sidebar_e2e.mjs`.
-   ii.   Step 3 home removals: branch feat/uiUpdates-home. Capabilities section and the "250+" line gone from the
-         home page; the capability pages stay (header, footer, sitemap link them). Checked in `browser_e2e.mjs`.
+   ii.   Step 3 home removals: PR #14 (branch feat/uiUpdates-home), two review rounds fixed (2 Nov). Capabilities
+         section and the "250+" line gone from the home page; the capability pages stay (footer, private-label,
+         sitemap link them; header dropdown for all five: backlog R39.iii). Checked in `browser_e2e.mjs`.
    iii.  Next: 4 partner page ("Referral partner",
          real content only), 5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and
          country pickers with flags (flags copied into public/flags, no package; country picker only, the site

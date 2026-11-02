@@ -10,6 +10,16 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 2 Nov 2026 (PR #14 review, Nishita)
+
+1. (T) Removing a block can remove spacing too: check the space between what is left, not just that it's gone.
+
+2. (T) A test can't always break the code for real (the API down); break it on purpose instead (reverse the
+   condition) and see the test fail. Then put the code back.
+
+3. (T) Read the list to test from the page itself (the footer links), not a copy in the test that can drift.
+
+
 ## 31 Oct 2026 (home removals, Nishita)
 
 1. (T) `innerText` skips parts hidden at this screen width; `textContent` reads them too. A "removed" check must
