@@ -13,7 +13,7 @@ import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
 import { toHomeProduct, type HomeProduct } from '@/lib/catalogue';
-import { CAPABILITIES, SITE } from '@/lib/site';
+import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
 export async function generateMetadata(): Promise<Metadata> {
@@ -89,6 +89,11 @@ export default async function HomePage() {
     .slice(0, 6);
   const stocked = cats.filter((c) => c.product_count > 0);
   const onRequest = cats.filter((c) => c.product_count === 0);
+  // Dark stats box: real facts only. It needs the product list (no made-up count if the API is down)
+  const stats = [
+    [String(products.length), 'product families in the catalogue'],
+    ['0.9–3 g', 'precise stick-pack fills'],
+  ];
 
   return (
     <CatalogueProvider products={products}>
@@ -121,24 +126,23 @@ export default async function HomePage() {
           <CategoryMenu categories={cats} />
           <HeroCarousel slides={slides} />
           <aside className="hidden flex-col gap-4 lg:flex">
-            <div className="card p-5">
+            {/* Without the stats box this card fills the column, so no empty gap under it */}
+            <div className={`card p-5 ${products.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
               <p className="font-semibold">Buying for your brand or store?</p>
               <p className="mt-1 text-xs text-slate-600">Prices, samples and pack options from our sales team.</p>
               <EnquiryButton label="Request a quote" source="quote" title="Request a quote" className="btn-gold mt-4 w-full" />
               <EnquiryButton label="Request a sample" source="sample" title="Request a sample" className="btn-ghost mt-2 w-full" />
             </div>
-            <div className="card flex flex-1 flex-col justify-center gap-3 bg-ink p-5 text-white">
-              {[
-                ['250+', 'products our two units can make'],
-                [String(products.length || '50+'), 'product families in the catalogue'],
-                ['0.9–3 g', 'precise stick-pack fills'],
-              ].map(([big, small]) => (
-                <div key={small}>
-                  <p className="text-2xl font-extrabold text-gold">{big}</p>
-                  <p className="text-xs text-slate-300">{small}</p>
-                </div>
-              ))}
-            </div>
+            {products.length > 0 && (
+              <div className="card flex flex-1 flex-col justify-center gap-3 bg-ink p-5 text-white">
+                {stats.map(([big, small]) => (
+                  <div key={small}>
+                    <p className="text-2xl font-extrabold text-gold">{big}</p>
+                    <p className="text-xs text-slate-300">{small}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </aside>
         </div>
       </section>
@@ -248,27 +252,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Capabilities */}
-      <section className="py-14">
-        <div className="mx-auto max-w-7xl space-y-6 px-4">
-          <div>
-            <p className="eyebrow">What we do</p>
-            <h2 className="mt-2 text-3xl font-bold">One partner from blend to pallet</h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-            {CAPABILITIES.map((c, i) => (
-              <Reveal key={c.slug} delay={i * 80} className="flex">
-                <Link href={`/capabilities/${c.slug}`} className="card w-full p-5 hover:border-gold">
-                  <h3 className="font-semibold">{c.title.split(':')[0]}</h3>
-                  <p className="mt-2 text-sm text-slate-600">{c.summary}</p>
-                </Link>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <Reveal as="section" className="mx-auto max-w-7xl px-4 pb-20">
+      <Reveal as="section" className="mx-auto max-w-7xl px-4 pb-20 pt-14">
         <div className="flex flex-col items-start justify-between gap-6 rounded-2xl bg-forest p-8 text-white md:flex-row md:items-center">
           <div>
             <h2 className="text-2xl font-bold">Launching a product or scaling a SKU?</h2>

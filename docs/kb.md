@@ -1381,6 +1381,15 @@ Sections:
    Why    Could check `deploy/*.sh` in CI (codeReview section 4).
 
 
+### innerText / textContent
+
+   What   Two ways to read the text of a page in JavaScript. `innerText` gives what you can see right now (it
+          skips parts hidden at this screen width). `textContent` gives all text, hidden parts and scripts too.
+   Why    A "this text is gone" check must use `textContent` (with scripts left out), or it passes just
+          because the window is small.
+   Where  `scripts/e2e/browser_e2e.mjs` (home page checks).
+
+
 
 ===================================================================================================
 

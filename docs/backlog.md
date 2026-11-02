@@ -1301,10 +1301,13 @@ R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
 
 R39. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
 
-   i.    1 login spinner ✅ (PR #12, branch feat/uiUpdates). 2 sliding sidebar ✅ (branch
-         feat/uiUpdates-sidebar). 3 home: remove Capabilities
-         and "250+". 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone code and country pickers.
+   i.    1 login spinner ✅ and 2 sliding sidebar ✅ (both merged in PR #12). 3 home: remove
+         Capabilities and "250+" ✅ (PR #14). 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone
+         code and country pickers.
    ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
+   iii.  (PR #14 review) The header "Capabilities" link opens only Stick Pack Factory; the other four pages are
+         now linked only from the footer, the capability sidebar and private-label. Next small PR after step 4:
+         a "Capabilities" dropdown in the header listing all five. Where: `components/public/SiteHeader.tsx`.
 
 
 ---------------------------------------------------------------------------------------------------
