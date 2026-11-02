@@ -37,14 +37,8 @@ Project rules, and ready-made prompts to copy and paste.
 5. Something unclear? Build the most sensible version, and write the guess in `backlog.md` section 3
    (assumptions), so it can be checked later.
 
-6. End of every session, update:
-
-   i.    `checklist.md` (ticks)
-   ii.   `track.md` (status)
-   iii.  `memory.md` (decisions + session log)
-   iv.   `backlog.md` (blockers, guesses)
-   v.    `learning/learning-log.md` (what we learned)
-   vi.   `kb.md` (any new word or tool)
+6. End of every session, write your notes only in your own temp file (`docs/tempV.md` or
+   `docs/tempS.md`). They move into the shared docs after the PR merges. See section 7.
 
 
 
@@ -153,7 +147,7 @@ Don't rewrite. Point and explain.
 ### End of a session
 
 ```
-End of session. Update the docs listed in docs/prompt.md section 2 point 6.
+End of session. Write my notes in my temp file, following docs/prompt.md section 7.
 Then give me a 3-line summary I can send to my manager.
 ```
 
@@ -218,6 +212,34 @@ Say plainly what you ran and what you didn't.
 
 ---------------------------------------------------------------------------------------------------
 
-## 7. Your own prompts (add below)
+## 7. Docs rules (added 2 Nov)
+
+Why: we both edited the shared docs on our task branches, so our PRs kept clashing.
+
+1. Vineet writes session notes only in `docs/tempV.md`, and Nishita only in `docs/tempS.md`,
+   with one subheading per task. Commit them on the task branch.
+
+2. Do not edit `track.md`, `memory.md`, `backlog.md` or `learning/learning-log.md` on a task branch.
+
+3. After your PR merges, pull `main` and make a short `docs/fold-` branch. Move your notes into the
+   right docs and delete them from your temp file. Then open a PR and merge it the same day, with no
+   review needed. If you both do this on the same day, go one at a time, and the second person pulls
+   first.
+
+4. Pick backlog numbers when moving your notes, after pulling the latest `main`.
+   Don't use numbers in the temp files.
+
+5. Anything that affects the other person, like a new migration number or a changed decision, gets
+   told to them straight away, not just written in the temp file.
+
+6. Write each fact in one doc only. Other docs link to it.
+
+7. Small doc mistakes don't block a PR. Fix them, and only stop for a doc that would mislead someone.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 8. Your own prompts (add below)
 
 1. (date) prompt — why
