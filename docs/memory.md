@@ -288,7 +288,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    i.    `restore.sh` now reads both backups in full before anything changes, cancels the transaction if
          `pg_restore` fails, unpacks files aside, keeps old backups, and says how to undo a failure.
    ii.   `backup.sh` reads the whole dump before keeping it.
-   iii.  New `deploy/test-restore.sh`: 27 checks failed before the fix, all 49 pass after, on a local Docker copy.
+   iii.  New `deploy/test-restore.sh`: 27 of the first 49 checks failed before the fix. All 155 pass on the final code, on a local Docker copy.
    iv.   Rule: the test refuses to run if `deploy/.env` exists, so it can't touch the server.
    v.    Nishita has claimed files for 7 steps and migration 0012: agree before touching those or adding a migration.
    vi.   PR #13 review (Nishita, 31 Oct): three real bugs, all fixed with a test first. "Nothing changed" is now said

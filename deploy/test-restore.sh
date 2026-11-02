@@ -220,6 +220,10 @@ sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
 echo "  (after the kill the database says: $(sql 'SELECT v FROM cr1_marker'))"
 if grep -q 'nothing was changed' "$WORK/out.txt"; then bad 'does not claim "nothing was changed"'; else ok 'does not claim "nothing was changed"'; fi
 if grep -q '^  \./restore\.sh ' "$WORK/out.txt"; then ok "prints the undo command"; else bad "prints the undo command"; fi
+if [ -z "$($COMPOSE ps -q backend)" ]; then ok "app is left stopped"; else bad "app is left stopped"; fi
+undo="$(grep '^  \./restore\.sh ' "$WORK/out.txt" | tail -1)"
+if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "the printed command works with the app stopped"; else bad "the printed command works with the app stopped"; tail -5 "$WORK/out2.txt"; fi
+check "the live data is back" live_data_intact
 
 # Edge cases. fake_compose makes a stand-in for docker compose that misbehaves on matching commands:
 #   COMPOSE="$WORK/fake" ./restore.sh ...
@@ -388,12 +392,13 @@ check "db down: data intact" live_data_intact
 
 reset_to_live
 $COMPOSE stop backend >/dev/null 2>&1
-if ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "backend down: script must fail (CR3)"; else ok "backend down: script fails (CR3)"; fi
-check "backend down: data intact" live_data_intact
+if ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then ok "backend down: restore works"; else bad "backend down: restore works"; tail -5 "$WORK/out.txt"; fi
+[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "backend down: data is back" || bad "backend down: data is back"
+[ -n "$($COMPOSE ps -q backend)" ] && backend_running && ok "backend down: app is up after" || bad "backend down: app is up after"
 
 reset_to_live
 files_before="$(ls "$BACKUP_DIR"/files-*.tgz | wc -l)"
-fake_compose "*'tar czf'*) $COMPOSE \"\$@\" | head -c 50; exit 0;;"
+fake_compose "*czf*) $COMPOSE \"\$@\" | head -c 50; exit 0;;"
 if COMPOSE="$WORK/fake" ./backup.sh > "$WORK/out.txt" 2>&1; then bad "backup.sh with a cut-off archive must fail"; else ok "backup.sh with a cut-off archive fails"; fi
 [ "$files_before" = "$(ls "$BACKUP_DIR"/files-*.tgz | wc -l)" ] && ok "cut-off archive not kept" || bad "cut-off archive not kept"
 
@@ -417,6 +422,29 @@ says_not "during alembic: does not say nothing changed" 'nothing was changed'
 says_not "during alembic: does not say restore done" 'restore done'
 says_ok "during alembic: prints the undo command" '^  \./restore\.sh '
 check "during alembic: app is back up" backend_running
+
+echo "== 19. a second hangup during the clean-up"
+fake_compose "'stop frontend backend') sleep 5;;
+'start backend frontend') sleep 8;;"
+reset_to_live
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1 &
+pid=$!
+for _ in $(seq 1 120); do grep -q '^3/7' "$WORK/out.txt" && break; sleep 1; done
+sleep 1
+kill -HUP "$pid"
+sleep 7
+kill -HUP "$pid" 2>/dev/null
+wait "$pid" 2>/dev/null
+sleep 3
+says_ok "still reports the result" 'nothing was changed'
+check "app is back up" backend_running
+
+echo "== 20. the app starts but crashes"
+reset_to_live
+fake_compose "*api/health/ready*) exit 1;;"
+if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
+says_not 'does not say "restore done"' 'restore done'
+says_ok "warns the app is down" 'did not start'
 
 echo
 echo "passed: $PASSED  failed: $FAILED"

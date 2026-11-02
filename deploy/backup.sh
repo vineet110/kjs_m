@@ -31,8 +31,10 @@ mv "$db_file.tmp" "$db_file"
 
 # 2. Uploaded files (only matters when STORAGE_DRIVER=local; with R2, Cloudflare keeps them)
 # (.restore-new = work folder restore.sh leaves behind if it is killed halfway)
-$COMPOSE exec -T backend tar czf - --exclude=./.restore-new -C /srv/kjs_files . > "$files_file.tmp"
-$COMPOSE exec -T backend tar tzf - < "$files_file.tmp" > /dev/null  # same check: read it all
+# run, not exec: backups and restores must work while the backend is down
+$COMPOSE run --rm -T --no-deps --entrypoint tar backend czf - --exclude=./.restore-new -C /srv/kjs_files . \
+  > "$files_file.tmp"
+$COMPOSE run --rm -T --no-deps --entrypoint tar backend tzf - < "$files_file.tmp" > /dev/null  # same check: read it all
 mv "$files_file.tmp" "$files_file"
 
 # 3. Delete backups older than KEEP_DAYS days

@@ -1308,20 +1308,23 @@ CR1. `restore.sh` can empty the database and still say "restore done"  🔴
 
    i.    Fixed on branch `fix/cr1-restore-safety` (30 Oct), tested by `deploy/test-restore.sh`. See `codeReview.md` CR1.
    ii.   Still open: a restore drill on the real server, once there is one.
-   iii.  Left for CR3 (found in the CR1 review): the safety backup runs while the app is still live, so
-         anything saved between it and the app stopping is lost if you undo the restore. Fixing that needs
-         `backup.sh` to read files without the backend running, which is CR3. Until then, `restore.sh` and
-         its undo command can't run while the backend is down.
-   iv.   From the PR #13 review, small improvements for later:
-         a.  The undo message should say to start the backend first, if it isn't running.
-         b.  `restore.sh` reads the safety backup paths by word position from `backup.sh`'s log line. Changing
+   iii.  `backup.sh` and `restore.sh` no longer need the backend running (PR #13). Check what is left of CR3.
+         Still open: the safety backup runs while the app is live, so anything saved between it and the app
+         stopping is lost if you undo the restore.
+   iv.   From the PR #13 reviews, small improvements for later:
+         a.  `restore.sh` reads the safety backup paths by word position from `backup.sh`'s log line. Changing
              that line would break it.
-         c.  Files are unpacked after the app stops, which adds downtime.
-         d.  The `tar` checks use a container where the server's own `tar` would do.
-         e.  If the script is killed during the database step, `.restore-new` stays until the next restore
+         b.  Files are unpacked after the app stops, which adds downtime.
+         c.  The `tar` checks use a container where the server's own `tar` would do.
+         d.  If the script is killed during the database step, `.restore-new` stays until the next restore
              (the printed undo command removes it).
-         f.  A second Ctrl+C while the script is cleaning up can stop it before the app restarts. Nishita's
-             reverted commit `70c8c05` blocked this with `trap '' HUP INT TERM` at the start of `finish`.
+         e.  A valid dump of an empty or wrong database passes the read check. It needs an operator mistake and
+             can be undone. A table check in `pg_restore -l` would catch a wrong database, not empty tables.
+         f.  The result and undo command only go to the terminal, so a dropped session loses them. Write them
+             to a file in `BACKUP_DIR` too.
+         g.  A backup from newer code is only caught at step 7, after the data is replaced (the undo works).
+             Read the dump's alembic revision in step 1 and refuse it there.
+         h.  No lock: two restores, or a restore and the 02:30 backup, can clash. Add `flock` to both scripts.
 
 
 CR2–CR11. Should fix before go-live  🟠

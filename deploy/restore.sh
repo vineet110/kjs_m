@@ -8,7 +8,8 @@
 #   2. a backup of the CURRENT state is taken (so a wrong restore can be undone);
 #   3. the database is replaced in ONE transaction: if anything fails, it stays as it was;
 #   4. new files are unpacked aside BEFORE that, and old ones are deleted only after it;
-#   5. the app is started again even if the restore failed, and a failure says how to undo it;
+#   5. the app is started again and checked, even if the restore failed (only if the script was
+#      stopped during the database step does the app stay stopped), and a failure says how to undo it;
 #   6. afterwards the tables are brought up to the current code version (alembic upgrade head).
 # Tested by ./test-restore.sh
 set -euo pipefail
@@ -43,22 +44,36 @@ echo "$backup_line"
 read -r _ _ safety_db _ safety_files _ <<< "$backup_line"
 
 data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
+app_is_healthy() {  # up to 60 s. "compose start" only shows that the container started.
+  for _ in $(seq 1 30); do
+    $COMPOSE exec -T backend python -c \
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=4)" \
+      >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  return 1
+}
 finish() {
   local status=$?
+  trap '' HUP INT TERM  # a second Ctrl+C must not stop the clean-up
   local app_started=yes
+  if [ "$data_state" = unknown ]; then
+    # Don't start the app: if psql commits, migrations and rights never ran, and every call would fail
+    echo "restore STOPPED during the database step. It may still finish inside the db container."
+    echo "The app was left STOPPED. Wait a few minutes, then to go back to how it was before this restore, run:"
+    echo "  ./restore.sh $safety_db $safety_files"
+    return
+  fi
   if [ "$data_state" = unchanged ] && [ -n "$files_file" ]; then
     $COMPOSE run --rm -T --no-deps --entrypoint sh backend -c 'rm -rf /srv/kjs_files/.restore-new' \
       >/dev/null 2>&1 || true
   fi
   $COMPOSE start backend frontend >/dev/null 2>&1 || app_started=no  # always bring the app back
-  [ "$app_started" = yes ] || echo "WARNING: the app did not start again. Check with: $COMPOSE ps"
+  if [ "$status" -eq 0 ] && [ "$app_started" = yes ]; then app_is_healthy || app_started=no; fi
+  [ "$app_started" = yes ] || echo "WARNING: the app did not start properly. Check with: $COMPOSE ps"
   if [ "$status" -ne 0 ]; then
     case "$data_state" in
       unchanged) echo "restore FAILED, nothing was changed." ;;
-      unknown)
-        echo "restore STOPPED during the database step. It may still finish inside the db container."
-        echo "Wait a few minutes and check the data. To go back to how it was before this restore, run:"
-        echo "  ./restore.sh $safety_db $safety_files" ;;
       replaced)
         echo "restore FAILED after the data was replaced. The site may be broken until you go back."
         echo "To go back to how it was before this restore, run:"
