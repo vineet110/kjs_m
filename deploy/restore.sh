@@ -82,6 +82,10 @@ finish() {
   elif [ "$app_started" = yes ]; then
     echo "restore done from $db_file${files_file:+ and $files_file}"
   else
+    # Every step worked, so the data IS replaced: the undo matters here too
+    echo "The backup was put back, but the app is not working, so the site is down."
+    echo "To go back to how it was before this restore, run:"
+    echo "  ./restore.sh $safety_db $safety_files"
     exit 1
   fi
 }

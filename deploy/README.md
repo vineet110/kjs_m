@@ -203,9 +203,11 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    v.    replaces the database in one transaction (if this fails, the database stays as it was),
    vi.   swaps in the new files,
    vii.  updates the tables to the current code version and re-applies the app user's rights,
-   viii. starts the app again (also when something failed).
+   viii. starts the app again (also when something failed) and checks that the API answers. If the
+         script was stopped during step v, the app stays stopped, because the restore may still finish.
 
-   If it fails after step v, it prints the exact `./restore.sh` command that puts the safety backup back.
+   If it fails after step v, or the app doesn't work afterwards, it prints the exact `./restore.sh` command
+   that puts the safety backup back.
    Changes to `restore.sh` or `backup.sh`: run `./test-restore.sh` on your own machine, never on the server.
 
 

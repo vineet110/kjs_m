@@ -445,6 +445,12 @@ fake_compose "*api/health/ready*) exit 1;;"
 if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "script must fail"; else ok "script fails"; fi
 says_not 'does not say "restore done"' 'restore done'
 says_ok "warns the app is down" 'did not start'
+says_ok "says the data was replaced" 'backup was put back'
+undo="$(grep '^  \./restore\.sh ' "$WORK/out.txt" | tail -1)"
+[ -n "$undo" ] && ok "prints the undo command" || bad "prints the undo command"
+if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "the printed command works"; else bad "the printed command works"; tail -5 "$WORK/out2.txt"; fi
+check "the live data is back" live_data_intact
+check "app is back up" backend_running
 
 echo
 echo "passed: $PASSED  failed: $FAILED"
