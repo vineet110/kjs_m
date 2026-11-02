@@ -105,3 +105,20 @@ test('api: a server that never answers ends as a time-out (timeoutMs)', async ()
     clearTimeout(keepAlive);
   }
 });
+
+// ---------- partner types: "broker" is shown as "Referral partner" (UI step 4) ----------
+const { PARTNER_TYPES, partnerLabel } = await load('partners');
+
+test('partnerLabel shows "Referral partner" for the saved value "broker"', () => {
+  assert.equal(partnerLabel('broker'), 'Referral partner');
+  assert.equal(partnerLabel('forwarder'), 'Freight forwarder');
+});
+
+test('partnerLabel shows an unknown saved value as it is (never blank)', () => {
+  assert.equal(partnerLabel('reseller'), 'reseller');
+});
+
+test('partner types keep the values the API accepts, and no label says "Broker"', () => {
+  assert.deepEqual(PARTNER_TYPES.map(([value]) => value), ['agent', 'broker', 'forwarder', 'distributor', 'other']);
+  assert.ok(PARTNER_TYPES.every(([, label]) => !/broker/i.test(label)));
+});

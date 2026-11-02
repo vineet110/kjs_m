@@ -95,6 +95,25 @@ for (const [href, name] of capLinks) {
   check(`capability page ${href} still opens`, h1.includes(name) && errors.length === 0, errors.join(' | ') || `heading: "${h1}"`);
 }
 
+// Partner page (UI step 4): "Broker" is shown as "Referral partner" (saved value still "broker"), no promise of
+// a referral link we don't have, and the new sections built from real content
+await open('/partners');
+// Only the page's own content (not the header, footer, offers ticker or Koko), scripts left out
+const partnersAll = (await evaluate('(() => { const m = document.querySelector("main")?.cloneNode(true); if (!m) return ""; m.querySelectorAll("script, style").forEach((e) => e.remove()); return m.textContent; })()')) ?? '';
+const brokerOption = await evaluate('document.querySelector("select[name=partner_type] option[value=broker]")?.textContent ?? null');
+const partnerProblems = [
+  partnersAll === '' && 'could not read the page',
+  /broker/i.test(partnersAll) && 'the word "broker" is still shown',
+  partnersAll.includes('Your own referral link') && 'the referral-link promise is still there',
+  brokerOption !== 'Referral partner' && `the "broker" option says ${JSON.stringify(brokerOption)}`,
+].filter(Boolean);
+check('partners: "Broker" shown as "Referral partner", no referral-link promise', partnerProblems.length === 0, partnerProblems.join('; '));
+const partnerSections = ['Who can apply', 'How it works', 'What your buyers can order'].filter((s) => !partnersAll.includes(s));
+check('partners: new sections are there', partnerSections.length === 0, `missing: ${partnerSections.join(', ')}`);
+// Links inside the "What your buyers can order" section itself
+const buyerLinks = await evaluate('[...document.querySelectorAll("main section")].find((s) => s.querySelector("h2")?.textContent === "What your buyers can order")?.querySelectorAll("a[href*=\'/categories/\']").length ?? 0');
+check('partners: buyers section links to real categories', buyerLinks > 0, 'no category links in that section');
+
 // Product page: gated "Get a quote" opens the form (or the one-click view)
 await open('/products/instant-coffee-3-in-1-stick');
 check('click "Get a quote" opens the form', (await click('Get a quote')) && (await waitFor('Full name')), errors.join(' | '));

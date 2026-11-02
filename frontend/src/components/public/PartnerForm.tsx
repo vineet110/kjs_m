@@ -1,10 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { api, ApiFailure } from '@/lib/api';
-
-const TYPES = [
-  ['agent', 'Sales agent'], ['broker', 'Broker'], ['forwarder', 'Freight forwarder'], ['distributor', 'Distributor'], ['other', 'Other'],
-];
+import { PARTNER_TYPES } from '@/lib/partners';
 
 export default function PartnerForm() {
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
@@ -36,7 +33,7 @@ export default function PartnerForm() {
         <div><label className="label" htmlFor="p-company">Company</label><input id="p-company" name="company" className="input" /></div>
         <div>
           <label className="label" htmlFor="p-type">You are a *</label>
-          <select id="p-type" name="partner_type" required className="input">{TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select id="p-type" name="partner_type" required className="input">{PARTNER_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </div>
         <div><label className="label" htmlFor="p-country">Country *</label><input id="p-country" name="country" required minLength={2} className="input" /></div>
         <div><label className="label" htmlFor="p-email">Email *</label><input id="p-email" name="email" type="email" required className="input" /></div>

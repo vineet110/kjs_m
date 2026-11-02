@@ -35,7 +35,8 @@ TEXTS: dict[str, tuple[str, str]] = {
                                  "Coffee, tea, health drink and confectionery products for private label and export."),
     "contact.intro": ("Contact page: intro", "For brands, distributors, retailers and importers. Bulk and export orders."),
     "partners.intro": ("Partners page: intro",
-                       "Agents, brokers, freight forwarders and distributors: refer buyers to KJS India and grow with us."),
+                       "Sales agents, referral partners, freight forwarders and distributors: refer buyers to KJS India "
+                       "and grow with us."),
     "koko.facts": ("Koko: facts it may use (everything else it won't claim)", ""),
 }
 PUBLIC_KEYS = [k for k in TEXTS if not k.startswith("koko.")]
@@ -127,6 +128,11 @@ async def delete_offer(db: AsyncSession, user: User, offer_id: int) -> None:
 
 
 # ---------- Partner programme ----------
+# What staff see for each saved partner type ("broker" is shown as "Referral partner"; the value stays)
+PARTNER_LABELS = {"agent": "Sales agent", "broker": "Referral partner", "forwarder": "Freight forwarder",
+                  "distributor": "Distributor", "other": "Other"}
+
+
 async def apply_partner(db: AsyncSession, data, ip_hash: str | None) -> None:
     if data.website:  # honeypot
         return
@@ -140,7 +146,7 @@ async def apply_partner(db: AsyncSession, data, ip_hash: str | None) -> None:
     audit_service.record(db, actor=None, action="partner.applied", entity_type="partner", entity_id=p.id,
                          after={"type": p.partner_type, "country": p.country}, ip_hash=ip_hash)
     notification_service.notify(db, await notification_service.users_with(db, "leads.view_all"), "partner.applied",
-                                f"Partner application: {p.name} ({p.partner_type}, {p.country})", p.message[:300],
+                                f"Partner application: {p.name} ({PARTNER_LABELS.get(p.partner_type, p.partner_type)}, {p.country})", p.message[:300],
                                 "/admin/website")
     await db.commit()
 

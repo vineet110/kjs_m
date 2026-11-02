@@ -32,7 +32,7 @@ class SiteText(Base, TimestampMixin):
 
 
 class PartnerApplication(Base, TimestampMixin):
-    """Agents, brokers, freight forwarders and distributors who want to refer buyers."""
+    """Sales agents, referral partners (saved as "broker"), freight forwarders and distributors who refer buyers."""
 
     __tablename__ = "partner_applications"
 

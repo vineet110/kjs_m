@@ -51,6 +51,27 @@ async def test_partner_application_and_review(client):
     assert (await client.get("/api/v1/employee/notifications")).json()["unread"] == 1
 
 
+async def test_referral_partner_keeps_saved_value_broker(client):
+    # "Broker" is shown as "Referral partner"; the saved value stays "broker", so older applications still match
+    await make_user("m@kjsindia.com", permissions=["leads.view", "leads.view_all"])
+    assert (await client.post("/api/v1/public/partners", json=PARTNER | {"partner_type": "broker"}, headers=HDR)).status_code == 201
+    await login(client, "m@kjsindia.com")
+    assert [a["partner_type"] for a in (await client.get("/api/v1/content/partners")).json()] == ["broker"]
+    bell = (await client.get("/api/v1/employee/notifications")).json()["items"]
+    assert bell[0]["title"] == "Partner application: Ravi (Referral partner, UAE)"
+    assert "broker" not in (await client.get("/api/v1/public/texts")).json()["partners.intro"].lower()
+
+
+def test_partner_labels_match_the_types_the_api_accepts():
+    # One label per accepted type, so a new type can't reach staff as a raw value
+    # (the frontend keeps the same list in lib/partners.ts)
+    from typing import get_args
+
+    from app.api.v1.endpoints.public import PartnerIn
+    from app.services.content_service import PARTNER_LABELS
+    assert set(get_args(PartnerIn.model_fields["partner_type"].annotation)) == set(PARTNER_LABELS)
+
+
 async def test_koko_saves_transcript_and_uses_edited_facts(client):
     # LLM is off in tests -> fallback reply, but the transcript is still kept
     body = {"messages": [{"role": "user", "content": "Do you make tea premix?"}], "chat_id": "abc-123", "page": "/"}
