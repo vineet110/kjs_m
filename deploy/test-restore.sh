@@ -452,6 +452,33 @@ if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "the printed c
 check "the live data is back" live_data_intact
 check "app is back up" backend_running
 
+fake_compose "*api/health/ready*) sleep 5; exit 1;;"
+reset_to_live
+started="$(date +%s)"
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+took=$(( $(date +%s) - started ))
+echo "  (took $took s)"
+[ "$took" -lt 150 ] && ok "a slow health check gives up after about 60 s" || bad "a slow health check gives up after about 60 s"
+
+echo "== 21. relative paths, a backup folder with a space, the saved undo"
+here="$(pwd)"
+reset_to_live
+if (cd "$WORK" && "$here/restore.sh" good.dump good.tgz --yes) > "$WORK/out.txt" 2>&1; then ok "relative paths work"; else bad "relative paths work"; tail -5 "$WORK/out.txt"; fi
+[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "relative paths: data is back" || bad "relative paths: data is back"
+
+reset_to_live
+spaced="$WORK/my backups"
+fake_compose "*'-v ON_ERROR_STOP=1 -q'*) exit 1;;"  # grants fail, after the data was replaced
+if BACKUP_DIR="$spaced" COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then
+  bad "folder with a space: script must fail"; else ok "folder with a space: script fails"; fi
+undo="$(grep '^  \./restore\.sh ' "$WORK/out.txt" | tail -1)"
+saved="$(grep '^  \./restore\.sh ' "$spaced/restore-undo.txt" 2>/dev/null | tail -1)"
+[ -n "$undo" ] && [ "$saved" = "$undo" ] && ok "the undo is also saved in restore-undo.txt" || bad "the undo is also saved in restore-undo.txt"
+if [ -n "$undo" ] && (export BACKUP_DIR="$spaced"; eval "$undo --yes") > "$WORK/out2.txt" 2>&1; then
+  ok "folder with a space: undo works"; else bad "folder with a space: undo works"; tail -5 "$WORK/out2.txt"; fi
+check "folder with a space: live data back" live_data_intact
+check "folder with a space: live files back" live_files_intact
+
 echo
 echo "passed: $PASSED  failed: $FAILED"
 [ "$FAILED" -eq 0 ]

@@ -1350,25 +1350,7 @@ headline items here.
 
 CR1. `restore.sh` can empty the database and still say "restore done"  🔴
 
-   i.    Fixed on branch `fix/cr1-restore-safety` (30 Oct), tested by `deploy/test-restore.sh`. See `codeReview.md` CR1.
-   ii.   Still open: a restore drill on the real server, once there is one.
-   iii.  `backup.sh` and `restore.sh` no longer need the backend running (PR #13). Check what is left of CR3.
-         Still open: the safety backup runs while the app is live, so anything saved between it and the app
-         stopping is lost if you undo the restore.
-   iv.   From the PR #13 reviews, small improvements for later:
-         a.  `restore.sh` reads the safety backup paths by word position from `backup.sh`'s log line. Changing
-             that line would break it.
-         b.  Files are unpacked after the app stops, which adds downtime.
-         c.  The `tar` checks use a container where the server's own `tar` would do.
-         d.  If the script is killed during the database step, `.restore-new` stays until the next restore
-             (the printed undo command removes it).
-         e.  A valid dump of an empty or wrong database passes the read check. It needs an operator mistake and
-             can be undone. A table check in `pg_restore -l` would catch a wrong database, not empty tables.
-         f.  The result and undo command only go to the terminal, so a dropped session loses them. Write them
-             to a file in `BACKUP_DIR` too.
-         g.  A backup from newer code is only caught at step 7, after the data is replaced (the undo works).
-             Read the dump's alembic revision in step 1 and refuse it there.
-         h.  No lock: two restores, or a restore and the 02:30 backup, can clash. Add `flock` to both scripts.
+   i.    Must fix before go-live. See `codeReview.md` CR1.
 
 
 CR2–CR11. Should fix before go-live  🟠

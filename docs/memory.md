@@ -339,21 +339,6 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. Tested: unit 12/12, login checks 24/24, e2e API 114/114 and browser 38/38.
 
 
-4b. 30 Oct 2026 (CR1 restore fix, Vineet, branch `fix/cr1-restore-safety`)
-
-   i.    `restore.sh` now reads both backups in full before anything changes, cancels the transaction if
-         `pg_restore` fails, unpacks files aside, keeps old backups, and says how to undo a failure.
-   ii.   `backup.sh` reads the whole dump before keeping it.
-   iii.  New `deploy/test-restore.sh`: 27 of the first 49 checks failed before the fix. All 155 pass on the final code, on a local Docker copy.
-   iv.   Rule: the test refuses to run if `deploy/.env` exists, so it can't touch the server.
-   v.    Nishita has claimed files for 7 steps and migration 0012: agree before touching those or adding a migration.
-   vi.   PR #13 review (Nishita, 31 Oct): three real bugs, all fixed with a test first. "Nothing changed" is now said
-         only when `psql` proves the rollback, "restore done" only after the app restarts, and `.restore-new` is
-         cleaned up. `deploy/test-restore.sh` is now the check for any change to these scripts.
-   vii.  Second review (Nishita, 31 Oct): if the database step ends unknown the app stays stopped, "restore done" needs a
-         passing health check, `backup.sh` works with the backend down, and a second signal can't stop the clean-up.
-
-
 5. 30 Oct 2026 (code review PR redone, Vineet)
 
    i.    PR #10 was closed and the same work redone on top of PR #9 as PR #11, to avoid conflicts in the docs.

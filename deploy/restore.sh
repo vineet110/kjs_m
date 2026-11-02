@@ -13,15 +13,20 @@
 #   6. afterwards the tables are brought up to the current code version (alembic upgrade head).
 # Tested by ./test-restore.sh
 set -euo pipefail
-cd "$(dirname "$0")"
 
 db_file="${1:?usage: ./restore.sh <db-backup.dump> [files-backup.tgz] [--yes]}"
 files_file="${2:-}"
 [ "$files_file" = "--yes" ] && files_file=""
-COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
 
+# Checked and made full paths BEFORE the cd below, so ../backups/x.dump works from any folder
 [ -f "$db_file" ] || { echo "no such file: $db_file"; exit 1; }
 [ -z "$files_file" ] || [ -f "$files_file" ] || { echo "no such file: $files_file"; exit 1; }
+db_file="$(realpath "$db_file")"
+[ -z "$files_file" ] || files_file="$(realpath "$files_file")"
+cd "$(dirname "$0")"
+COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
+BACKUP_DIR="${BACKUP_DIR:-/srv/kjs/backups}"  # same default as backup.sh
+
 if [ "${!#}" != "--yes" ]; then
   read -r -p "This REPLACES the live database with $db_file. Type RESTORE to continue: " answer
   [ "$answer" = "RESTORE" ] || { echo "cancelled"; exit 1; }
@@ -38,14 +43,24 @@ if [ -n "$files_file" ]; then
 fi
 
 echo "2/7 safety backup of the current state"
+# We pick the file names (STAMP), so we never have to read them back out of backup.sh's message.
+# "-before-restore": can't clash with a nightly backup, and shows what the files are.
 # KEEP_DAYS: no clean-up now, or backup.sh could delete an old backup we are about to restore
-backup_line="$(KEEP_DAYS=36500 ./backup.sh)"
-echo "$backup_line"
-read -r _ _ safety_db _ safety_files _ <<< "$backup_line"
+stamp="$(date +%Y%m%d-%H%M%S)-before-restore"
+safety_db="$BACKUP_DIR/db-$stamp.dump"
+safety_files="$BACKUP_DIR/files-$stamp.tgz"
+BACKUP_DIR="$BACKUP_DIR" STAMP="$stamp" KEEP_DAYS=36500 ./backup.sh
+# %q: quoted, so it can be copied and run even if the folder name has a space
+undo_cmd="$(printf './restore.sh %q %q' "$safety_db" "$safety_files")"
+# Also in a file: if the SSH session drops, the terminal and the command on it are gone
+undo_file="$BACKUP_DIR/restore-undo.txt"
+printf '%s\n' "Restore of $db_file started $(date)." \
+  "To go back to how it was before it, run this in the deploy folder:" "  $undo_cmd" > "$undo_file"
 
 data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
-app_is_healthy() {  # up to 60 s. "compose start" only shows that the container started.
-  for _ in $(seq 1 30); do
+app_is_healthy() {  # about 60 s. "compose start" only shows that the container started.
+  local end=$((SECONDS + 60))  # by the clock: one try can take up to ~7 s
+  while [ "$SECONDS" -lt "$end" ]; do
     $COMPOSE exec -T backend python -c \
       "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=4)" \
       >/dev/null 2>&1 && return 0
@@ -61,7 +76,7 @@ finish() {
     # Don't start the app: if psql commits, migrations and rights never ran, and every call would fail
     echo "restore STOPPED during the database step. It may still finish inside the db container."
     echo "The app was left STOPPED. Wait a few minutes, then to go back to how it was before this restore, run:"
-    echo "  ./restore.sh $safety_db $safety_files"
+    echo "  $undo_cmd"; echo "(also saved in $undo_file)"
     return
   fi
   if [ "$data_state" = unchanged ] && [ -n "$files_file" ]; then
@@ -77,7 +92,7 @@ finish() {
       replaced)
         echo "restore FAILED after the data was replaced. The site may be broken until you go back."
         echo "To go back to how it was before this restore, run:"
-        echo "  ./restore.sh $safety_db $safety_files" ;;
+        echo "  $undo_cmd"; echo "(also saved in $undo_file)" ;;
     esac
   elif [ "$app_started" = yes ]; then
     echo "restore done from $db_file${files_file:+ and $files_file}"
@@ -85,7 +100,7 @@ finish() {
     # Every step worked, so the data IS replaced: the undo matters here too
     echo "The backup was put back, but the app is not working, so the site is down."
     echo "To go back to how it was before this restore, run:"
-    echo "  ./restore.sh $safety_db $safety_files"
+    echo "  $undo_cmd"; echo "(also saved in $undo_file)"
     exit 1
   fi
 }

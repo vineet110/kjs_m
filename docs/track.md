@@ -67,10 +67,9 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iv.   Best seller stays a tick box per product (not a category): a product keeps its real category.
 
 
-4c. Whole-repo code review (29 Oct): `codeReview.md`
+4c. Whole-repo code review (29 Oct): `codeReview.md`, nothing fixed yet
 
-   i.    🔴 CR1 fixed in PR #13 (branch `fix/cr1-restore-safety`): all checks pass in `deploy/test-restore.sh`
-         on a local Docker copy. Not merged yet. The restore drill on the real server is still to do.
+   i.    🔴 CR1 must be fixed before go-live: `restore.sh` can empty the database and still say "restore done".
    ii.   🟠 CR2–CR11 should be fixed before go-live: health check, backups, public error page, rate limits,
          feature flags, disabled user's batch, lost emails, superuser password in the API container.
    iii.  Plan: 5 small code PRs, each with a failing test first (`codeReview.md` section 2, `prompt.md` section 6).
@@ -81,7 +80,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
    ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
-   iii.  Vineet + Nishita: merge the CR1 fix, then the should-fix list CR2–CR11.
+   iii.  Vineet + Nishita: CR1 `restore.sh` fix before go-live, then the should-fix list CR2–CR11.
 
 
 6. Can be done without KJS
