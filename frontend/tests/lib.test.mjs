@@ -129,3 +129,23 @@ test('partner types keep the values the API accepts, and no label says "Broker"'
   assert.deepEqual(PARTNER_TYPES.map(([value]) => value), ['agent', 'broker', 'forwarder', 'distributor', 'other']);
   assert.ok(PARTNER_TYPES.every(([, label]) => !/broker/i.test(label)));
 });
+
+// ---------- recommend(): best sellers left out of Recommended, but still count as the visitor's interest ----------
+const { recommend } = await load('history', 'const useSyncExternalStore = () => {};');
+const product = (slug, categorySlug) => ({ slug, name: slug, categorySlug, categoryName: categorySlug, image: `/${slug}.jpg`, summary: '', packFormats: '', moq: '', privateLabel: true, items: [] });
+const CATALOGUE = [
+  product('best-coffee', 'coffee'), product('coffee-2', 'coffee'), product('coffee-3', 'coffee'),
+  product('tea-1', 'tea'), product('tea-2', 'tea'), product('wafer-1', 'wafers'), product('wafer-2', 'wafers'),
+];
+
+test('recommend: a visitor who only opened a best seller still gets "Recommended for you" from its category', () => {
+  const picks = recommend(CATALOGUE, ['best-coffee'], [], 2, ['best-coffee']);
+  assert.equal(picks.reason, 'viewed');
+  assert.deepEqual(picks.products.map((p) => p.slug).sort(), ['coffee-2', 'coffee-3']);
+});
+
+test('recommend: excluded products are never shown, even to fill up the row', () => {
+  const picks = recommend(CATALOGUE, ['best-coffee'], [], 10, ['best-coffee']);
+  assert.ok(!picks.products.some((p) => p.slug === 'best-coffee'));
+  assert.equal(picks.products.length, CATALOGUE.length - 1);
+});

@@ -46,3 +46,7 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   label lists compared, shorter line).
 - Backlog: which products really sell best is still a fact KJS must give (the best-sellers row item); until then
   the section stays hidden on the live site unless someone ticks products.
+- Fix (PR #16 review): Recommended used to drop the best sellers BEFORE reading the visitor's history, so a
+  visitor who opened only a best seller got the generic picks. Now `recommend()` (`lib/history.ts`) takes an
+  `exclude` list: interests come from all products, and only the cards leave the best sellers out. Unit tests
+  for both (one failed on the old code). Unit 18, browser 52 pass.

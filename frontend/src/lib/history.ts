@@ -195,10 +195,15 @@ export type Reason = 'viewed' | 'listed' | 'both' | null;
  * across categories, and (only if needed) with products they already saw, so there are always `count`
  * picks when the catalogue has that many (the section never changes size). With no history it is
  * just the mix. The reason says what really produced the personal picks.
+ * exclude: products never shown here (the Best sellers section above). They still count as the visitor's
+ * interest: opening a best seller still brings more of its category.
  */
-export function recommend(products: HomeProduct[], viewed: string[], listed: string[], count: number): { products: HomeProduct[]; reason: Reason } {
+export function recommend(
+  products: HomeProduct[], viewed: string[], listed: string[], count: number, exclude: string[] = [],
+): { products: HomeProduct[]; reason: Reason } {
+  // Interests are worked out from ALL products; only the cards below leave out the excluded ones
   const bySlug = new Map(products.map((p) => [p.slug, p]));
-  const seen = new Set([...viewed, ...listed]);
+  const seen = new Set([...viewed, ...listed, ...exclude]);
   const weight = new Map<string, number>();
   const add = (slug: string, w: number) => {
     const p = bySlug.get(slug);
@@ -225,7 +230,8 @@ export function recommend(products: HomeProduct[], viewed: string[], listed: str
   if (out.length < count) {
     // Visitor saw (almost) everything: top up with seen products, pictures first
     const inOut = new Set(out);
-    const seenProducts = products.filter((p) => seen.has(p.slug) && !inOut.has(p));
+    const hidden = new Set(exclude);
+    const seenProducts = products.filter((p) => seen.has(p.slug) && !inOut.has(p) && !hidden.has(p.slug));
     out = [...out, ...seenProducts.filter((p) => p.image), ...seenProducts.filter((p) => !p.image)].slice(0, count);
   }
 
