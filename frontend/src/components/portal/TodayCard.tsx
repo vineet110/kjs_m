@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Today } from '@/lib/api';
 import { Pill } from './ui';
+import Loading from '@/components/ui/Loading';
 
 export default function TodayCard({ onChange }: { onChange?: () => void }) {
   const [t, setT] = useState<Today | null>(null);
@@ -31,7 +32,7 @@ export default function TodayCard({ onChange }: { onChange?: () => void }) {
     }
   }
 
-  if (!t) return <div className="card p-4 text-sm text-slate-500">{err || 'Loading attendance…'}</div>;
+  if (!t) return <div className="card p-4 text-sm text-slate-500">{err || <Loading />}</div>;
 
   return (
     <div className="card flex flex-wrap items-center gap-4 p-4">

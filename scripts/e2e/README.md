@@ -13,5 +13,9 @@ These click through the whole platform the way people do. They use a **separate 
    `NEXT_DIST_DIR=.next-e2e API_INTERNAL_URL=http://127.0.0.1:8001 npx next build && NEXT_DIST_DIR=.next-e2e API_INTERNAL_URL=http://127.0.0.1:8001 npx next start -p 3002`
 5. API flows (from `backend/`): `.venv/Scripts/python ../scripts/e2e/api_e2e.py` (about 2 min; waits 1 min to prove the page cache refreshes)
 6. Real Chrome (needs step 5's data): `node scripts/e2e/browser_e2e.mjs`
+7. Login loading states (spinner, time limits, error screen; about 1.5 min): `node scripts/e2e/login_e2e.mjs`.
+   It holds some requests back on purpose to fake a slow or silent server. Restart the backend first if you
+   ran it more than a few times (it uses 3 wrong passwords per run; 10 lock the account for 15 minutes).
+8. Staff sidebar (hidden by default, slides in and out, computer and phone; about 1 min): `node scripts/e2e/sidebar_e2e.mjs`
 
 Restart the backend before re-running (it resets the 5-enquiries-per-hour limit). Koko uses the real Groq key from `.env`.

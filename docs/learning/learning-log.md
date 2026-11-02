@@ -10,6 +10,60 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 31 Oct 2026 (sliding sidebar, Nishita)
+
+1. (T) Animate `transform` (slide), not width or padding: the browser moves it cheaply, no page re-layout.
+
+2. (T) A hidden menu must also be unreachable: `inert` stops Tab and screen readers from finding it.
+
+3. (T) An overlay on a phone must lock the page behind it and give focus back to the button when it closes.
+
+
+## 31 Oct 2026 (PR #12 second review, Nishita)
+
+1. (T) Check a URL AFTER it is cleaned up, not before: "/..//evil.com" looks like our site, but becomes
+   "//evil.com", which a browser opens as another website (open redirect).
+
+2. (T) An answer we can't read is not "empty": for a success it is an error. `{}` passed off as data crashes
+   later, far from the real cause.
+
+3. (T) Node has a test runner built in (`node --test`): unit tests without adding a package.
+
+4. (T) A test can pass on my PC and fail in CI: different Node versions (24 here, 22 in CI). Node stops when
+   nothing keeps it busy, and an AbortSignal.timeout timer doesn't; the time-out test now keeps Node running.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 30 Oct 2026 (PR #12 review, Nishita)
+
+1. (T) Every wait needs an end: a time limit for each request, and a way out on the error screen (Try again
+   AND Log out). A screen with only "Try again" can still be a dead end.
+
+2. (T) A time limit can lie: a slow sign-up may still succeed. Only put a limit where "try again" is harmless
+   (logging in again is fine; creating an account twice is not).
+
+3. (T) Put the test in the repo, not only on my PC, so others can run it and see it fail on the old code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 30 Oct 2026 (login spinner, Nishita)
+
+1. (T) To keep a "loading" state on while the page changes, don't skip the reset and hope the page goes
+   away: React's useTransition says when the page change is really done, in every case.
+
+2. (T) A loading screen needs an end: if the request fails (not "logged out"), show an error and "Try again",
+   or the visitor watches a spinner forever.
+
+3. (T) Prove a test can fail: run it on the old code first (git stash), then on the new code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct 2026 (CR1 restore fix)
 
 1. (V) A check can pass without proving what you think. `pg_restore -l` passed backups cut in half, because

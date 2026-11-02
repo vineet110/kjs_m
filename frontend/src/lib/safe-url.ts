@@ -11,12 +11,26 @@ export function safeLink(link: string | null | undefined): string | null {
 }
 
 /** Where to go after login (?next=...). Only a path on this same site, never another website
- *  (otherwise a phishing link could send staff to a fake "log in again" page). */
+ *  (otherwise a phishing link could send staff to a fake "log in again" page), and never the login page
+ *  itself (logging in would just show the form again, as if it had failed): null = go to the dashboard. */
 export function safeNext(next: string | null): string | null {
   if (!next || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return null;
   try {
     const u = new URL(next, window.location.origin);
-    return u.origin === window.location.origin ? u.pathname + u.search + u.hash : null;
+    if (u.origin !== window.location.origin) return null;
+    // Checked AFTER the URL is cleaned up: "/..//evil.com" (or "/.//", "/%2e%2e//") becomes "//evil.com",
+    // which a browser reads as ANOTHER website
+    if (u.pathname.startsWith('//')) return null;
+    // The login page, however it is written: "/employee//login" (repeated slashes) or "/employee/%6Cogin"
+    // (letters percent-encoded) are caught too
+    let path = u.pathname;
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      return null; // broken encoding: not a link we made
+    }
+    if (/^\/([a-z]{2}\/)?employee\/login\/?$/i.test(path.replace(/\/{2,}/g, '/'))) return null;
+    return u.pathname + u.search + u.hash;
   } catch {
     return null;
   }

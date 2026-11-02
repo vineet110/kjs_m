@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Colleague, type Lead, type LeadNote } from '@/lib/api';
 import { fmtIST, Pill } from './ui';
+import Loading from '@/components/ui/Loading';
 
 const SOURCE_LABEL: Record<string, string> = { enquiry_form: 'Enquiry', price_sheet: 'Price sheet', koko: 'Koko chat', gated: 'Gated form' };
 const OUTCOMES = ['quote_sent', 'sample_sent', 'order_won', 'not_interested', 'no_reply', 'spam'];
@@ -55,7 +56,7 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
           </>
         )}
       </div>
-      {leads === null && <p className="text-sm text-slate-500">Loading…</p>}
+      {leads === null && <Loading />}
       {leads?.length === 0 && <div className="card p-6 text-sm text-slate-500">No leads here. New ones appear as soon as a visitor sends an enquiry or talks to Koko.</div>}
       {leads?.map((l) => (
         <div key={l.id} className={`card space-y-2 p-4 ${l.sla_state === 'overdue' ? 'border-red-300' : ''}`}>

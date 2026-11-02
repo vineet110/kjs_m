@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { PageTitle, Pill } from '@/components/portal/ui';
 import { api } from '@/lib/api';
+import Loading from '@/components/ui/Loading';
 
 type Row = { key: string; value: unknown; default: unknown; source: 'env' | 'ini' | 'default'; file: string; env_var: string };
 
@@ -20,7 +21,7 @@ export default function SettingsPage() {
     setRows(await api<Row[]>('/admin/config/reload', { method: 'POST' }));
   }
 
-  if (!rows) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!rows) return <Loading />;
   const shown = rows.filter((r) => r.key.includes(filter.toLowerCase()));
   const groups = Array.from(new Set(shown.map((r) => r.key.split('.')[0])));
 

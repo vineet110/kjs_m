@@ -64,28 +64,59 @@ export class ApiFailure extends Error {
   }
 }
 
-export async function api<T = unknown>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`/api/v1${path}`, {
-    method: init.method || 'GET',
-    headers: {
-      'content-type': 'application/json',
-      'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
-      'x-request-id': newRequestId(), // shows up on every backend log line for this click
-    },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    credentials: 'same-origin',
-  });
+/** Turns an answer into the data or an ApiFailure (shared by api() and upload()). The answer must be
+ *  readable JSON. Not readable: fine for an error (e.g. a proxy's HTML error page; the status is still
+ *  reported), but a "success" we can't read (HTML from a proxy, a connection cut while reading) is an
+ *  error, never an empty `{}` passed off as the data. Error code for support: the server's, else ours
+ *  (the server logs the X-Request-ID we send, so both lead to the same log lines). */
+async function readAnswer<T>(res: Response, requestId: string, signal: AbortSignal | undefined, fallback: string): Promise<T> {
   if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => ({}));
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (signal?.aborted) throw err; // the time limit ran out while reading: a time-out (see api())
+    if (res.ok)
+      throw new ApiFailure(res.status, { code: 'bad_response', message: 'The server sent an answer that could not be read.', details: {}, request_id: requestId });
+    data = {};
+  }
   if (!res.ok) {
     throw new ApiFailure(res.status, {
       code: data.code || 'error',
-      message: data.message || 'Something went wrong.',
+      message: data.message || fallback,
       details: data.details || {},
-      request_id: data.request_id || null,
+      request_id: data.request_id || requestId,
     });
   }
   return data as T;
+}
+
+/** timeoutMs (optional): give up after this long, so a server that takes the request but never answers
+ *  ends as an error (ApiFailure, status 0, code "timeout") instead of a wait with no end. */
+export async function api<T = unknown>(
+  path: string,
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
+  const requestId = newRequestId(); // shows up on every backend log line for this click
+  const signal = init.timeoutMs ? AbortSignal.timeout(init.timeoutMs) : undefined;
+  try {
+    const res = await fetch(`/api/v1${path}`, {
+      method: init.method || 'GET',
+      headers: {
+        'content-type': 'application/json',
+        'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
+        'x-request-id': requestId,
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      credentials: 'same-origin',
+      signal,
+    });
+    return await readAnswer<T>(res, requestId, signal, 'Something went wrong.');
+  } catch (err) {
+    if (signal?.aborted)
+      throw new ApiFailure(0, { code: 'timeout', message: 'The server took too long to answer.', details: {}, request_id: requestId });
+    throw err;
+  }
 }
 
 // ---------- Attendance ----------
@@ -101,17 +132,15 @@ export type Regularization = {
 };
 export type Holiday = { id: number; day: string; name: string };
 
-/** Multipart upload (files). Same CSRF header as api(); the browser sets the content type. */
+/** Multipart upload (files). Same CSRF header and answer rules as api(); the browser sets the content type.
+ *  No time limit: a big file on a slow line may take long. */
 export async function upload<T = unknown>(path: string, form: FormData): Promise<T> {
+  const requestId = newRequestId();
   const res = await fetch(`/api/v1${path}`, {
     method: 'POST', body: form, credentials: 'same-origin',
-    headers: { 'x-requested-with': 'kjs', 'x-request-id': newRequestId() },
+    headers: { 'x-requested-with': 'kjs', 'x-request-id': requestId },
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiFailure(res.status, { code: data.code || 'error', message: data.message || 'Upload failed.', details: data.details || {}, request_id: data.request_id || null });
-  }
-  return data as T;
+  return readAnswer<T>(res, requestId, undefined, 'Upload failed.');
 }
 
 export type StoredFile = {

@@ -1296,6 +1296,47 @@ R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
          cheap phones. Where: `Reveal.tsx`
 
 
+---------------------------------------------------------------------------------------------------
+
+
+R39. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
+
+   i.    1 login spinner ✅ (PR #12, branch feat/uiUpdates). 2 sliding sidebar ✅ (branch
+         feat/uiUpdates-sidebar). 3 home: remove Capabilities
+         and "250+". 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone code and country pickers.
+   ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R40. Staff pages: a failed or silent request means "Loading…" forever  🟠 next small PR
+
+   i.    About 15 staff pages call `api(...).then(set)` with no error handling and no time limit: a 500, a 403
+         or a server that never answers leaves the Loading spinner on for good. (Found in the PR #12 review;
+         it was like this before, the spinner only makes it look busier.)
+   ii.   Fix: a small shared loader (time limit + "Could not load. Try again" + error code), used by every page.
+         Where: `frontend/src/app/[locale]/(admin|employee)/…/page.tsx`, `components/portal/*`.
+   iii.  (Vineet, PR #12 second review) Simplest way: a DEFAULT time limit in `api()` (longer value or an opt-out
+         where needed), so no caller has to remember it. Covers the Bell too.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R41. Login and portal follow-ups from the PR #12 second review  🟡 next small PR (with the sidebar step)
+
+   i.    No error code when the server can't be reached: `api()` rethrows a network error as it is; wrap it as
+         `ApiFailure(0, …)` with the request id (like time-outs). Where: `lib/api.ts`, `PortalShell.tsx`.
+   ii.   Sign-up can lock the form on a silent server: a long limit with "this may have worked, try logging in".
+   iii.  Log out can look done when it wasn't (the cookie may remain on a shared PC): warn when it couldn't be
+         confirmed, and a busy state on the button.
+   iv.   The old page change isn't cancelled: if it opens after the form came back, it can replace what the user
+         started (e.g. typing in Sign up). Check it in scenario 5 of `login_e2e.mjs`.
+   v.    Simplify the login state: one status (idle, submitting, opening, slow) instead of busy, navigating,
+         pageOpening, slowTo and slowTimer.
+
+
 
 ---------------------------------------------------------------------------------------------------
 
