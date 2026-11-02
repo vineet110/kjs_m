@@ -59,9 +59,40 @@ await send('Network.enable');
 
 // ---- Public pages ----
 const PUBLIC = { '/': 'Explore the range', '/products': 'Masala Tea Premix', '/private-label': 'Build your product', '/partners': 'Apply to become a partner', '/contact': 'Send an enquiry', '/categories/coffee': 'Instant Coffee', '/employee/login': 'Log in' };
+// Everything the page shows, also parts hidden at this width (innerText skips those); scripts left out, as
+// they hold the product data and could contain any text
+const allText = () => evaluate('(() => { const b = document.body.cloneNode(true); b.querySelectorAll("script, style").forEach((e) => e.remove()); return b.textContent; })()');
+let homeAll = '';
+let homeCount = null;
+let homeGap = null;
+let capLinks = [];
 for (const [path, needle] of Object.entries(PUBLIC)) {
   const t = await open(path);
   check(`browser ${path}`, t.includes(needle) && errors.length === 0, errors.join(' | ') || `missing "${needle}"`);
+  if (path === '/') {
+    homeAll = (await allText()) ?? '';
+    // Space between the "How it works" section and the green "Launching a product" card below it
+    homeGap = await evaluate('(() => { const card = [...document.querySelectorAll("h2")].find((h) => h.textContent.startsWith("Launching a product"))?.closest(".rounded-2xl"); const above = card?.closest("section")?.previousElementSibling; return card && above ? card.getBoundingClientRect().top - above.getBoundingClientRect().bottom : null; })()');
+    // The number above "product families in the catalogue" in the dark stats box (null if the line is missing)
+    homeCount = await evaluate('[...document.querySelectorAll("p")].find((p) => p.textContent === "product families in the catalogue")?.previousElementSibling?.textContent ?? null');
+    capLinks = (await evaluate('[...document.querySelectorAll("footer a[href*=\'/capabilities/\']")].map((a) => [a.getAttribute("href"), a.textContent.trim()])')) ?? [];
+  }
+}
+
+// Home: no Capabilities section and no "250+" line (UI step 3). Whole sentences only: a bare "250+" could
+// be in a product's text
+const leftOver = ['One partner from blend to pallet', 'products our two units can make'].filter((s) => homeAll.includes(s));
+check('home: Capabilities section and "250+" removed', homeAll !== '' && leftOver.length === 0, homeAll ? `still there: ${leftOver.join(', ')}` : 'could not read the home page');
+check('home: space above the green "Launching a product" card', homeGap !== null && homeGap >= 40, `gap: ${homeGap}px`);
+// The stats box shows the real product count (the API is up here), never a made-up "50+"
+check('home: stats box shows the real product count', /^[1-9]\d*$/.test(homeCount ?? ''), `shows: ${JSON.stringify(homeCount)}`);
+// The capability pages themselves stay: every one the footer links to opens with its own heading. The list
+// comes from the footer, so a new or renamed page is checked without editing this test
+check('footer links to the capability pages', capLinks.length >= 5, `found ${capLinks.length}`);
+for (const [href, name] of capLinks) {
+  await open(href, 300); // fixed pages, nothing to load after the page itself
+  const h1 = (await evaluate('document.querySelector("h1")?.textContent')) ?? '';
+  check(`capability page ${href} still opens`, h1.includes(name) && errors.length === 0, errors.join(' | ') || `heading: "${h1}"`);
 }
 
 // Product page: gated "Get a quote" opens the form (or the one-click view)
