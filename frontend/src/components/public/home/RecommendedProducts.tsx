@@ -8,7 +8,7 @@
 // - Later changes (a quick view, the enquiry list, another tab, back/forward) are applied only while
 //   the section is off screen, so nothing reshuffles under the visitor's eyes.
 // - Always the same number of cards (recommend() tops up), so nothing below ever jumps.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Reveal from '@/components/public/Reveal';
 import { recommend, sameList, useHistory, type Reason } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
@@ -25,8 +25,15 @@ type Picks = ReturnType<typeof recommend>;
 const slugs = (p: Picks) => p.products.map((x) => x.slug);
 const same = (a: Picks, b: Picks) => a.reason === b.reason && sameList(slugs(a), slugs(b));
 
-export default function RecommendedProducts() {
-  const products = useCatalogue();
+/** exclude: products already shown just above (the Best sellers section), so no card appears twice in a row. */
+export default function RecommendedProducts({ exclude = [] }: { exclude?: string[] }) {
+  const catalogue = useCatalogue();
+  const excludeKey = exclude.join(',');
+  // Same list object between renders (the effects below depend on it)
+  const products = useMemo(() => {
+    const skip = new Set(excludeKey.split(','));
+    return catalogue.filter((p) => !skip.has(p.slug));
+  }, [catalogue, excludeKey]);
   const { viewed, listed, ready } = useHistory();
   const section = useRef<HTMLElement>(null);
   const onScreen = useRef(false);

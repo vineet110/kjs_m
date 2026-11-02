@@ -28,3 +28,21 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Learning: show one label, keep the saved value. Renaming a saved value needs a migration and breaks old
   rows; renaming only the label is safe.
 - kb: "Saved value vs label": the value the database keeps vs the words people see.
+
+
+## UI step 5: best-seller section (2 Nov 2026, branch feat/uiUpdates-part2)
+
+- Track (4d): step 5 done on `feat/uiUpdates-part2`.
+- What changed: a "Best sellers" section on the home page (above Recommended), with the same product cards as
+  the rest of the home page. It shows every product ticked "Best seller" in Admin > Products, and is hidden
+  until any are ticked: no fallback list, no cut-off, no "buyers order most" claim. Recommended no longer
+  repeats those products. Best seller stays a tick box per product, not a category.
+- Where: `frontend/src/app/[locale]/(public)/(home)/page.tsx` and `components/public/home/RecommendedProducts.tsx`
+  (new `exclude` prop). The tick box is saved in `products.is_best_seller` (no backend change).
+- Tests: browser checks (the section shows only the ticked product; Recommended doesn't repeat it); a unit test
+  that the partner labels match between `lib/partners.ts` and `content_service.PARTNER_LABELS`. All failed
+  first. API 114, browser 52, unit 16 pass.
+- Review: 7 points, all fixed (animation per real column, no alphabetical cut-off, no repeats, simpler filter,
+  label lists compared, shorter line).
+- Backlog: which products really sell best is still a fact KJS must give (the best-sellers row item); until then
+  the section stays hidden on the live site unless someone ticks products.

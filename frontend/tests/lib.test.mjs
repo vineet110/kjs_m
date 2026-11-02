@@ -118,6 +118,13 @@ test('partnerLabel shows an unknown saved value as it is (never blank)', () => {
   assert.equal(partnerLabel('reseller'), 'reseller');
 });
 
+test('partner labels are the same here and in the backend (content_service.PARTNER_LABELS)', () => {
+  const py = readFileSync(fileURLToPath(new URL('../../backend/app/services/content_service.py', import.meta.url)), 'utf8');
+  const dict = py.match(/PARTNER_LABELS = \{([\s\S]*?)\}/)?.[1] ?? '';
+  const backend = Object.fromEntries([...dict.matchAll(/"(\w+)": "([^"]+)"/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(backend, Object.fromEntries(PARTNER_TYPES));
+});
+
 test('partner types keep the values the API accepts, and no label says "Broker"', () => {
   assert.deepEqual(PARTNER_TYPES.map(([value]) => value), ['agent', 'broker', 'forwarder', 'distributor', 'other']);
   assert.ok(PARTNER_TYPES.every(([, label]) => !/broker/i.test(label)));

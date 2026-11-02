@@ -145,8 +145,9 @@ async def apply_partner(db: AsyncSession, data, ip_hash: str | None) -> None:
     await db.flush()
     audit_service.record(db, actor=None, action="partner.applied", entity_type="partner", entity_id=p.id,
                          after={"type": p.partner_type, "country": p.country}, ip_hash=ip_hash)
+    label = PARTNER_LABELS.get(p.partner_type, p.partner_type)
     notification_service.notify(db, await notification_service.users_with(db, "leads.view_all"), "partner.applied",
-                                f"Partner application: {p.name} ({PARTNER_LABELS.get(p.partner_type, p.partner_type)}, {p.country})", p.message[:300],
+                                f"Partner application: {p.name} ({label}, {p.country})", p.message[:300],
                                 "/admin/website")
     await db.commit()
 

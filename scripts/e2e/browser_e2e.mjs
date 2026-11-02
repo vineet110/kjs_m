@@ -66,6 +66,8 @@ let homeAll = '';
 let homeCount = null;
 let homeGap = null;
 let capLinks = [];
+let homeBest = null;
+let homeRecommended = null;
 for (const [path, needle] of Object.entries(PUBLIC)) {
   const t = await open(path);
   check(`browser ${path}`, t.includes(needle) && errors.length === 0, errors.join(' | ') || `missing "${needle}"`);
@@ -73,6 +75,9 @@ for (const [path, needle] of Object.entries(PUBLIC)) {
     homeAll = (await allText()) ?? '';
     // Space between the "How it works" section and the green "Launching a product" card below it
     homeGap = await evaluate('(() => { const card = [...document.querySelectorAll("h2")].find((h) => h.textContent.startsWith("Launching a product"))?.closest(".rounded-2xl"); const above = card?.closest("section")?.previousElementSibling; return card && above ? card.getBoundingClientRect().top - above.getBoundingClientRect().bottom : null; })()');
+    // The text of the "Best sellers" section (null if there is none)
+    homeBest = await evaluate('document.getElementById("best-sellers-title")?.closest("section")?.textContent ?? null');
+    homeRecommended = await evaluate('document.getElementById("recommended-title")?.closest("section")?.textContent ?? null');
     // The number above "product families in the catalogue" in the dark stats box (null if the line is missing)
     homeCount = await evaluate('[...document.querySelectorAll("p")].find((p) => p.textContent === "product families in the catalogue")?.previousElementSibling?.textContent ?? null');
     capLinks = (await evaluate('[...document.querySelectorAll("footer a[href*=\'/capabilities/\']")].map((a) => [a.getAttribute("href"), a.textContent.trim()])')) ?? [];
@@ -84,6 +89,11 @@ for (const [path, needle] of Object.entries(PUBLIC)) {
 const leftOver = ['One partner from blend to pallet', 'products our two units can make'].filter((s) => homeAll.includes(s));
 check('home: Capabilities section and "250+" removed', homeAll !== '' && leftOver.length === 0, homeAll ? `still there: ${leftOver.join(', ')}` : 'could not read the home page');
 check('home: space above the green "Launching a product" card', homeGap !== null && homeGap >= 40, `gap: ${homeGap}px`);
+// Best sellers (UI step 5): only the products ticked "Best seller" in Admin > Products. The API suite ticks
+// "Instant Coffee 3-in-1 Stick" and not "Masala Tea Premix"
+check('home: best sellers section shows only ticked products', homeBest !== null && homeBest.includes('Instant Coffee 3-in-1 Stick') && !homeBest.includes('Masala Tea Premix'), `section: ${JSON.stringify(homeBest?.slice(0, 120) ?? null)}`);
+// ...and Recommended, right below, doesn't show them again
+check('home: Recommended does not repeat the best sellers', homeRecommended !== null && !homeRecommended.includes('Instant Coffee 3-in-1 Stick'), `recommended: ${JSON.stringify(homeRecommended?.slice(0, 120) ?? null)}`);
 // The stats box shows the real product count (the API is up here), never a made-up "50+"
 check('home: stats box shows the real product count', /^[1-9]\d*$/.test(homeCount ?? ''), `shows: ${JSON.stringify(homeCount)}`);
 // The capability pages themselves stay: every one the footer links to opens with its own heading. The list
