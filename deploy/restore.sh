@@ -186,7 +186,10 @@ if $COMPOSE exec -T db sh -c \
 else
   status=$?
   if [ "$status" -eq 3 ]; then data_state=unchanged; else ask_database; fi
-  exit "$status"
+  # Committed (ON_ERROR_STOP: so every statement worked): finish the files and migrations too,
+  # or the database and the uploaded files would come from different times
+  [ "$data_state" = replaced ] || exit "$status"
+  echo "psql reported an error ($status), but the database shows the backup was put in: going on"
 fi
 
 if [ -n "$files_file" ]; then

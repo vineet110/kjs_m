@@ -510,11 +510,12 @@ if grep -q '^  \./restore\.sh ' "$BACKUP_DIR/restore-undo.txt"; then bad "psql e
 
 reset_to_live
 fake_compose "*single-transaction*) $COMPOSE \"\$@\"; exit 2;;"  # it committed, then psql reports an error
-if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "commit then exit 2: script must fail"; else ok "commit then exit 2: script fails"; fi
-says_ok "commit then exit 2: says the data was replaced" 'after the data was replaced'
-undo="$(grep '^  \./restore\.sh ' "$WORK/out.txt" | tail -1)"
-if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "commit then exit 2: undo works"; else bad "commit then exit 2: undo works"; tail -5 "$WORK/out2.txt"; fi
-check "commit then exit 2: live data back" live_data_intact
+if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then ok "commit then exit 2: the restore is finished"; else bad "commit then exit 2: the restore is finished"; tail -5 "$WORK/out.txt"; fi
+says_ok "commit then exit 2: says restore done" 'restore done'
+[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "commit then exit 2: data is the backup's" || bad "commit then exit 2: data is the backup's"
+check "commit then exit 2: files are the backup's, no work folder" \
+  sh_backend 'test -f /srv/kjs_files/keep.txt && test ! -e /srv/kjs_files/live.txt && test ! -e /srv/kjs_files/.restore-new'
+check "commit then exit 2: app is back up" backend_running
 
 reset_to_live
 sh_db 'mv /usr/local/bin/pg_restore /usr/local/bin/pg_restore.real'
@@ -526,7 +527,7 @@ STUB
 fake_compose "*single-transaction*) $COMPOSE \"\$@\" <&0 & sleep 2; exit 1;;"  # gives up while psql still runs
 COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
 sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
-says_ok "psql still running: waits, then says the data was replaced" 'after the data was replaced'
+says_ok "psql still running: waits, then finishes the restore" 'restore done'
 [ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "psql still running: it did commit" || bad "psql still running: it did commit"
 check "psql still running: app is back up" backend_running
 

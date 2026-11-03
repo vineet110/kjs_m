@@ -103,3 +103,20 @@ were taken out and are kept here, to fold in after the merge.
 
 6. Laptop: 16 GB RAM, both slots full. Most listings say 16 GB is this model's maximum (Inspiron 14 7440
    2-in-1), so check Dell's manual before buying RAM. Close Chrome and VS Code windows before long Docker tests.
+
+
+## CR1 restore fix, PR #13, sixth review (3 Nov)
+
+1. Fixed (4 checks failed before, 19 of 19 in section 22 pass after): if psql fails with a code other
+   than 3 but the database shows the restore committed, the script now goes on with the files and
+   migrations, instead of stopping with new data and old files.
+2. For the backlog, on fold:
+   i.    Script killed with `kill` (not Ctrl+C or a dropped session) during the database step: says
+         "unknown" although it waited for the result. Safe side: app stays stopped, undo works.
+   ii.   Safety backups are deleted after KEEP_DAYS while `restore-undo.txt` still names them. Running it
+         then just says "no such file".
+   iii.  Write the SQL to a file in the db container and run it with `psql -f` (simpler, but a redesign).
+   iv.   The marker table stays after an "unknown" ending (harmless, the next restore replaces it).
+   v.    The safety backup's read-back adds downtime.
+   vi.   One shared helper for the dump and tgz checks in backup.sh and restore.sh.
+3. Not re-run in full (the laptop is short on memory): the change only touches that one path.
