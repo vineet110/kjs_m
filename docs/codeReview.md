@@ -508,6 +508,7 @@ CR24. Smaller backend points  🟢
          fail. Require the direct URL, or use the same `connect_args` as the app.
    vii.  `auth.py:61`: `ProfileIn.phone` is a plain `str`; sign-up uses `OneLine`. Use `OneLine` so a
          line break can't get into a phone number that ends up in emails.
+         ✅ Fixed in PR #16 (3 Nov): every phone input uses the `Phone` type (`schemas/common.py`).
 
 
 

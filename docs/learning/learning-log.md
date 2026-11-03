@@ -10,6 +10,35 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 3 Nov 2026 (admin redesign, PR #17, Nishita)
+
+1. (T) A slow answer can arrive after the user has moved on (logged out, someone else logged in). Count the
+   changes and keep only answers asked after the last one.
+
+2. (T) When React moves an element, it can lose the pointer capture and the focus it had. Listen on the window
+   during a drag, and give the focus back after the move.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 2–3 Nov 2026 (UI steps 4 to 7, PR #16, Nishita)
+
+1. (T) Show one label, keep the saved value. Renaming a saved value needs a migration and breaks old rows;
+   renaming only the label is safe.
+
+2. (T) A "save as it is" button that sends every field back can undo someone else's change. An edit should
+   send only what changed, and the server should change only what it was sent.
+
+3. (T) A picker that saves the same text as before needs no database change. Make data lists from a trusted
+   library instead of typing them by hand, and read its output as UTF-8 (Windows guessed wrong: "TÃ¼rkiye").
+
+4. (T) Python's `\d` also takes Arabic and full-width digits. Write `[0-9]` when you mean 0 to 9.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 30 Oct – 3 Nov 2026 (CR1 restore fix, PR #13, Vineet)
 
 1. (V) A check can pass without proving what you think. `pg_restore -l` passed backups cut in half, because

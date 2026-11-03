@@ -198,3 +198,11 @@ Add changes here, newest at the bottom, like this:
    On phones it slides over the page and closes with a tap outside it. The home page is shorter: the
    capabilities list and the "250+ products" line are gone (the capability pages are still linked at the bottom
    of every page).
+
+7. 2–3 Nov
+
+   Website: the partner page now says "Referral partner" and shows only real information. The home page can
+   show a "Best sellers" row and an "Up to X% OFF" badge on products, but only for products KJS staff mark
+   in the admin (nothing shows until then). Every phone field has a country code picker with flags, and the
+   forms have a country picker. Staff portal: a new look in the KJS charcoal and gold, a clearer start page,
+   a tidier menu, and a safe "Log out" button.

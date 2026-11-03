@@ -60,11 +60,19 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    ii.   Step 3 home removals: PR #14 (branch feat/uiUpdates-home), two review rounds fixed (2 Nov). Capabilities
          section and the "250+" line gone from the home page; the capability pages stay (footer, private-label,
          sitemap link them; header dropdown for all five: backlog R39.iii). Checked in `browser_e2e.mjs`.
-   iii.  Next: 4 partner page ("Referral partner",
-         real content only), 5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and
-         country pickers with flags (flags copied into public/flags, no package; country picker only, the site
-         stays English: D2).
+   iii.  Steps 4 to 7 merged in PR #16 (3 Nov): 4 partner page ("Referral partner", real content only),
+         5 best-seller section, 6 offer % + badge (migration 0012), 7 phone code and country pickers with flags
+         (flags copied into public/flags, no package; the site stays English: D2). Decisions: `memory.md`
+         section 4, items 20–22. Follow-ups: `backlog.md` R39.
    iv.   Best seller stays a tick box per product (not a category): a product keeps its real category.
+   v.    Left from this list: the header "Capabilities" dropdown (`backlog.md` R39.iii).
+
+
+4e. Admin redesign (Nishita): merged in PR #17 (3 Nov)
+
+   i.    Account menu with a safe log out, a new Overview, a sidebar with groups (open / close, drag to
+         reorder), toasts, empty states, and charcoal + gold colours for the whole portal.
+   ii.   Follow-ups (browser checks with a login, dev speed): `backlog.md` R42.
 
 
 4c. Whole-repo code review (29 Oct): `codeReview.md`
@@ -178,3 +186,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 9. 30 Oct – 3 Nov: CR1 (`restore.sh`) fixed, reviewed 8 times and merged (PR #13). New `deploy/test-restore.sh`
    (192 checks). Since 2 Nov, session notes go in `docs/tempV.md` / `tempS.md` first (`prompt.md` section 7).
+
+10. 2–3 Nov: UI steps 4 to 7 merged (PR #16, migration 0012) and the admin redesign merged (PR #17).
+    Backend 177, unit 34, API 114, browser 55 checks pass.

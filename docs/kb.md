@@ -991,6 +991,29 @@ Sections:
    Why    Stops popups being taller than a phone held sideways (codeReview CR26).
 
 
+### Combobox / listbox
+
+   What   A search box with a list under it that you move through with the arrow keys. The roles `combobox`
+          and `listbox` tell screen readers what it is.
+   Why    The phone code and country pickers (search 245 countries by name or code).
+   Where  `frontend/src/components/public/CountryPicker.tsx`.
+
+
+### Saved value vs label
+
+   What   The value the database keeps (`broker`) vs the words people see ("Referral partner").
+   Why    Changing only the label needs no migration and old rows still match.
+   Where  `frontend/src/lib/partners.ts`, `content_service.PARTNER_LABELS`.
+
+
+### Partial update (PATCH)
+
+   What   An edit that sends only the fields that changed; the server leaves the others alone
+          (`model_dump(exclude_unset=True)` in Pydantic).
+   Why    Two tabs or a script can't undo each other's changes by sending old values back.
+   Where  `ProductPatchIn` in `backend/app/schemas/catalog.py`, `catalog_service.update_product`.
+
+
 
 ===================================================================================================
 
