@@ -29,3 +29,9 @@ async def test_signup_and_profile_phone_are_checked(client):
     assert (await client.patch("/api/v1/auth/profile", json={"phone": "not a phone"}, headers=HDR)).status_code == 422
     assert (await client.patch("/api/v1/auth/profile", json={"phone": "+91 90000 00000"}, headers=HDR)).status_code < 300
     assert (await client.patch("/api/v1/auth/profile", json={"phone": ""}, headers=HDR)).status_code < 300  # clearing it
+
+
+async def test_phone_takes_only_plain_digits(client):
+    # Arabic-Indic or full-width digits pass Python's \d but staff can't dial them (review)
+    for odd in ["+٩١ ٩٨٧٦٥ ٤٣٢١٠", "９８７６５４３２１０"]:
+        assert (await client.post("/api/v1/public/leads", json=LEAD | {"phone": odd})).status_code == 422, odd

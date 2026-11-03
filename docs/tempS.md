@@ -120,3 +120,17 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   was really saved. The special rule for the offer is gone (the general rule covers it). Backend test
   `test_product_edit_changes_only_what_was_sent` (failed first).
 - Backend 174, unit 29, API 114, browser 55 pass.
+- Own review after the second review (10 points, 9 fixed):
+  - 7 country names were garbled ("TÃ¼rkiye"): the generator read Node's output as cp1252 on Windows. Now
+    read as UTF-8, names sorted without accents (Åland with the A), and a unit test checks for it.
+  - The server phone check took Arabic-Indic and full-width digits (Python's \d): plain 0-9 only now.
+  - A product name of only spaces passed: the name is trimmed before its length is checked. The product
+    field rules are written once and shared by add and edit (no copy to drift).
+  - The enquiry form no longer saves the cleared phone early (closing the form lost it and then offered a
+    one-click send with no contact); one-click only with an email or a valid phone.
+  - Admin > Products: Hide/Show sends only hidden/shown, and saving an edit doesn't send it, so neither
+    can undo a change made in another tab. `productPayload` is gone.
+  - One copy of the phone rule in the browser (`phoneLooksValid` uses `savedPhoneOk`).
+  - The picker measures the nearest scrolling box (Koko, the enquiry pop-up) to open up or down.
+  - Kept: passing the best-seller list to Recommended stays as it is (works and is tested; tidier only).
+  - Backend 176, unit 29, API 114, browser 55 pass.

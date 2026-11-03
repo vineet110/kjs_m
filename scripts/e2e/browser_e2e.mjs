@@ -208,14 +208,18 @@ await open('/products/instant-coffee-3-in-1-stick');
 check('click "Get a quote" opens the form', (await click('Get a quote')) && (await waitFor('Full name')), errors.join(' | '));
 
 // A returning visitor whose remembered phone is free text from before the phone check (PR #16 review):
-// no one-click send (the server would refuse it), the form asks for the number again, the bad phone is forgotten
+// no one-click send (the server would refuse it), the form asks for the number again; closing it and
+// coming back asks again (never a one-click send with no way to reach them)
 await evaluate(`localStorage.setItem('kjs_visitor', JSON.stringify({ name: 'Old Visitor', company: '', email: '', phone: 'call me after 6', country: '' }))`);
-await open('/products/instant-coffee-3-in-1-stick');
-const badPhoneClicked = await click('Get a quote');
-const askedAgain = badPhoneClicked && (await waitFor('Please re-enter your phone number', 4000));
-const oneClick = await evaluate('document.body.innerText.includes("We will send this request as")');
-const remembered = await evaluate(`JSON.parse(localStorage.getItem('kjs_visitor') || 'null')?.phone ?? null`);
-check('old remembered phone: asks again instead of a one-click send that would fail', askedAgain && !oneClick && remembered === '', `asked again: ${askedAgain}, one-click shown: ${oneClick}, remembered phone: ${JSON.stringify(remembered)}`);
+const badPhoneTries = [];
+for (let visit = 1; visit <= 2; visit++) {
+  await open('/products/instant-coffee-3-in-1-stick');
+  const clicked = await click('Get a quote');
+  const askedAgain = clicked && (await waitFor('Please re-enter your phone number', 4000));
+  const oneClick = await evaluate('document.body.innerText.includes("We will send this request as")');
+  if (!askedAgain || oneClick) badPhoneTries.push(`visit ${visit}: asked again ${askedAgain}, one-click ${oneClick}`);
+}
+check('old remembered phone: asks again instead of a one-click send that would fail', badPhoneTries.length === 0, badPhoneTries.join('; '));
 await evaluate(`localStorage.removeItem('kjs_visitor')`);
 
 // Koko opens and answers

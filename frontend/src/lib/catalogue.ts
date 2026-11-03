@@ -47,16 +47,6 @@ export function offerLabel(percent: number | null | undefined): string | null {
   return percent ? `Up to ${percent}% OFF` : null;
 }
 
-/** Everything Admin > Products sends back when it saves a product as it is (Hide / Show), so no field
- *  (like the offer) is cleared by accident. */
-export function productPayload(p: Product) {
-  return {
-    category_slug: p.category_slug, name: p.name, description: p.description, pack_formats: p.pack_formats,
-    moq: p.moq, image_path: p.image_path, private_label: p.private_label, is_best_seller: p.is_best_seller,
-    offer_percent: p.offer_percent,
-  };
-}
-
 const SPLIT = /[\s,.;:!?()&/'"+–-]+/;
 
 /** Lowercase without accents, so "kremali" finds "Kremalı" and "nestle" finds "Nestlé". */

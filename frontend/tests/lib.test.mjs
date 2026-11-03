@@ -166,12 +166,6 @@ test('toHomeProduct keeps the offer for the home cards', () => {
   assert.equal(toHomeProduct({ ...api, offer_percent: null }).offerPercent, null);
 });
 
-test('productPayload (Admin > Products, Hide/Show): sends every field back, so hiding never clears the offer', () => {
-  const { productPayload } = catalogueLib;
-  const row = { id: 3, slug: 'x', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, category_slug: 'c', category_name: 'C', offer_percent: 25, is_active: true };
-  assert.deepEqual(productPayload(row), { category_slug: 'c', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, offer_percent: 25 });
-});
-
 // ---------- phone code and country pickers (UI step 7) ----------
 const countriesData = readFileSync(join(SRC, 'countries-data.ts'), 'utf8').replace('export const', 'const');
 const countriesLib = await load('countries', '', countriesData);
@@ -233,4 +227,10 @@ test('savedPhoneOk: a remembered phone passes the same rule as the server, or mu
   const { savedPhoneOk } = countriesLib;
   for (const ok of ['', '+91 98765 43210', '9876543210', '+44 (020) 7946 0958']) assert.ok(savedPhoneOk(ok), ok);
   for (const bad of ['call me after 6', '12345', '+1 2345 6789 0123 4567']) assert.ok(!savedPhoneOk(bad), bad);
+});
+
+test('country names are stored right, accents included (no garbled text), and are found by search', () => {
+  assert.ok(!COUNTRIES.some((c) => /Ã|â€/.test(c.name)), COUNTRIES.filter((c) => /Ã|â€/.test(c.name)).map((c) => c.name).join());
+  assert.ok(names(filterCountries('türk')).includes('Türkiye'));
+  assert.ok(names(filterCountries('reunion')).includes('Réunion'));
 });

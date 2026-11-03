@@ -7,6 +7,7 @@ names from Node's built-in Intl.DisplayNames. Run it again when phonenumbers is 
 """
 import json
 import subprocess
+import unicodedata
 from pathlib import Path
 
 import phonenumbers
@@ -18,12 +19,12 @@ names = json.loads(subprocess.run(
     ["node", "-e", "const d = new Intl.DisplayNames(['en'], { type: 'region' });"
                    "process.stdout.write(JSON.stringify(Object.fromEntries(JSON.parse(process.argv[1]).map((c) => [c, d.of(c)]))))",
      json.dumps(list(codes))],
-    check=True, capture_output=True, text=True).stdout)
+    check=True, capture_output=True, text=True, encoding="utf-8").stdout)  # utf-8: Windows would read it as cp1252
 
 # The main country of a shared code (+1 is the United States, +44 the United Kingdom, +7 Russia)
 main = {d: phonenumbers.region_code_for_country_code(d) for d in set(codes.values())}
 rows = sorted(({"code": c, "name": names[c], "dial": str(d), "main": main[d] == c} for c, d in codes.items()),
-              key=lambda r: r["name"])
+              key=lambda r: "".join(ch for ch in unicodedata.normalize("NFD", r["name"]) if not unicodedata.combining(ch)))  # Å with the A
 lines = [f"  ['{r['code']}', {json.dumps(r['name'], ensure_ascii=False)}, '{r['dial']}', {str(r['main']).lower()}],"
          for r in rows]
 OUT.write_text(

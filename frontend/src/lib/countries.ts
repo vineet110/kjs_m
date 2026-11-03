@@ -71,8 +71,8 @@ export function splitPhone(value: string, picked: string = DEFAULT_COUNTRY): { c
 export function savedPhoneOk(value: string): boolean {
   const v = value.trim();
   if (!v) return true;
-  const digits = v.replace(/\D/g, '').length;
-  return /^\+?[\d\s()-]+$/.test(v) && digits >= 6 && digits <= 15;
+  const digits = v.replace(/[^0-9]/g, '').length;
+  return /^\+?[0-9 ()-]+$/.test(v) && digits >= 6 && digits <= 15;
 }
 
 /**
@@ -80,8 +80,6 @@ export function savedPhoneOk(value: string): boolean {
  * the same rule as the server (schemas/common.py, Phone). Empty is fine.
  */
 export function phoneLooksValid(number: string, dial: string): boolean {
-  const n = number.trim();
-  if (!n) return true;
-  const digits = n.replace(/\D/g, '').length + dial.length;
-  return /^[\d\s()-]+$/.test(n) && digits >= 6 && digits <= 15;
+  // The typed part has no + of its own; the rule itself lives once, in savedPhoneOk
+  return !number.trim() || (!number.includes('+') && savedPhoneOk(composePhone(dial, number)));
 }

@@ -95,6 +95,26 @@ function CountryList({ selected, showDial, up, onPick, onClose }: {
   );
 }
 
+/**
+ * Whether the list should open upward: not enough room below the button, and more room above. Room is
+ * measured inside the nearest box that scrolls or cuts off its content (Koko's chat area, the enquiry
+ * pop-up), not just the window, so the list never opens past that box's edge.
+ */
+function opensUp(button: HTMLElement): boolean {
+  let top = 0;
+  let bottom = window.innerHeight;
+  for (let el = button.parentElement; el; el = el.parentElement) {
+    if (/auto|scroll|hidden/.test(getComputedStyle(el).overflowY)) {
+      const box = el.getBoundingClientRect();
+      top = Math.max(top, box.top);
+      bottom = Math.min(bottom, box.bottom);
+      break;
+    }
+  }
+  const r = button.getBoundingClientRect();
+  return bottom - r.bottom < 330 && r.top - top > bottom - r.bottom;
+}
+
 /** A button that opens the list; closes on a click outside. */
 function Picker({ id, label, selected, showDial, buttonClass, children, onPick, buttonRef }: {
   id?: string; label: string; selected: string | null; showDial: boolean; buttonClass: string; children: React.ReactNode;
@@ -120,9 +140,7 @@ function Picker({ id, label, selected, showDial, buttonClass, children, onPick, 
   return (
     <div ref={box} className="relative">
       <button type="button" id={id} ref={button} onClick={() => {
-          // Not enough room below (e.g. low in Koko's small window): open the list upward instead
-          const r = button.current?.getBoundingClientRect();
-          setUp(!!r && window.innerHeight - r.bottom < 330 && r.top > window.innerHeight - r.bottom);
+          if (button.current) setUp(opensUp(button.current));
           setOpen(!open);
         }} aria-haspopup="listbox" aria-expanded={open} aria-label={label} className={buttonClass}>
         {children}

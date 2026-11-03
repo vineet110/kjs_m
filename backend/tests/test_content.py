@@ -183,3 +183,13 @@ async def test_product_edit_changes_only_what_was_sent(client):
     async with AsyncSessionLocal() as db:
         last = (await db.scalars(select(AuditLog).where(AuditLog.action == "product.updated").order_by(AuditLog.id.desc()))).first()
     assert last.after == {"name": "Cold Coffee Premix 2"}
+
+
+async def test_product_name_of_only_spaces_is_refused(client):
+    # The name is trimmed BEFORE its length is checked, on create and on edit (review)
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    assert (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "   "}, headers=HDR)).status_code == 422
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Filter Coffee"}, headers=HDR)).json()
+    for bad in ("   ", "  x "):
+        assert (await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": bad}, headers=HDR)).status_code == 422, bad

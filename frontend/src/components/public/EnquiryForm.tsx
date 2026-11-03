@@ -52,15 +52,14 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
   useEffect(() => {
     let v = loadVisitor();
     // A phone remembered before the phone check (e.g. "call me after 6") would be refused by the server:
-    // forget it, skip the one-click send, and ask for the number again (PR #16 review)
+    // leave it out of the form and ask for the number again (PR #16 review). The saved details are only
+    // replaced when a send succeeds, so closing the form without sending doesn't lose anything.
     const badPhone = !!v?.phone && !savedPhoneOk(v.phone);
-    if (v && badPhone) {
-      v = { ...v, phone: '' };
-      try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* storage blocked */ }
-    }
+    if (v && badPhone) v = { ...v, phone: '' };
     setPhoneAgain(badPhone);
     setSaved(v);
-    if (v && source !== 'enquiry_form' && !badPhone) setState('quick');
+    // One-click send only when the server will take it: a valid phone and some way to reach them
+    if (v && source !== 'enquiry_form' && !badPhone && (v.email || v.phone)) setState('quick');
   }, [source]);
 
   function forget() {

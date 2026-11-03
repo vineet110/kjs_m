@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from 'react';
 import FileList from '@/components/portal/FileList';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Category, type Product } from '@/lib/api';
-import { productPayload } from '@/lib/catalogue';
 
 type Row = Product & { is_active: boolean };
 
@@ -35,7 +34,8 @@ export default function AdminProducts() {
     };
     try {
       if (editing) {
-        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body: { ...body, is_active: editing.is_active } });
+        // Hidden / shown is left out: an edit never shows a product someone hid in the meantime
+        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body });
         setMsg({ ok: true, text: `Saved "${f.name}". The website shows it within a minute.` });
         setEditing(null);
       } else {
@@ -50,8 +50,9 @@ export default function AdminProducts() {
   }
 
   async function toggleHidden(p: Row) {
-    // Every field goes back as it is (productPayload), so hiding never clears the offer
-    await api(`/admin/products/${p.id}`, { method: 'PATCH', body: { ...productPayload(p), is_active: !p.is_active } });
+    // Only hidden / shown is sent (an edit changes only what it sends), so this can't undo a change made
+    // since the list loaded, in another tab or by someone else
+    await api(`/admin/products/${p.id}`, { method: 'PATCH', body: { is_active: !p.is_active } });
     load();
   }
 

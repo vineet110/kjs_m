@@ -26,14 +26,15 @@ def _one_line(v: str) -> str:
 OneLine = Annotated[str, AfterValidator(_one_line)]
 
 
-_PHONE_RE = re.compile(r"^\+?[\d\s()-]+$")
+# Plain 0-9 only: Python's \d also takes Arabic-Indic and full-width digits, which staff can't dial
+_PHONE_RE = re.compile(r"^\+?[0-9 ()-]+$")
 
 
 def _check_phone(v: str) -> str:
     # Light check (UI step 7): an optional +, then digits, spaces, - ( ); 6 to 15 digits. Empty = no phone.
     # The pickers save "+91 98765 43210"; older numbers without a code still pass.
     v = " ".join(v.split())
-    if v and (not _PHONE_RE.match(v) or not 6 <= sum(ch.isdigit() for ch in v) <= 15):
+    if v and (not _PHONE_RE.match(v) or not 6 <= sum(ch in "0123456789" for ch in v) <= 15):
         raise ValueError("Please enter a valid phone number (digits only, with the country code).")
     return v
 

@@ -110,8 +110,6 @@ async def update_product(db: AsyncSession, actor: User, product_id: int, changes
         changes["category_id"] = category.id
     else:
         category = await db.get(Category, p.category_id)
-    if "name" in changes:
-        changes["name"] = changes["name"].strip()
     before = {k: getattr(p, k) for k in changes}
     for k, v in changes.items():
         setattr(p, k, v)
