@@ -155,3 +155,31 @@ async def test_product_edit_without_offer_keeps_it(client):
     no_offer = {"category_slug": "coffee", "name": "Cold Coffee Premix", "moq": "5,000 units"}
     r = await client.patch(f"/api/v1/admin/products/{p['id']}", json=no_offer | {"is_active": False}, headers=HDR)
     assert r.json()["offer_percent"] == 20 and r.json()["moq"] == "5,000 units"
+
+
+async def test_product_edit_changes_only_what_was_sent(client):
+    # PR #16 review: a script or an old tab that sends only the name must not blank the other fields or
+    # unhide a hidden product; the audit log records what was really saved
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    full = {"category_slug": "coffee", "name": "Cold Coffee Premix", "description": "Iced coffee mix.",
+            "pack_formats": "Pouch 1 kg", "moq": "5,000 units", "image_path": "/images/products/cold.jpg",
+            "private_label": False, "is_best_seller": True, "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=full, headers=HDR)).json()
+    await client.patch(f"/api/v1/admin/products/{p['id']}", json=full | {"is_active": False}, headers=HDR)  # hide it
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": "Cold Coffee Premix 2"}, headers=HDR)
+    assert r.status_code == 200, r.text
+    after = r.json()
+    assert after["name"] == "Cold Coffee Premix 2"
+    for field in ("description", "pack_formats", "moq", "image_path", "private_label", "is_best_seller", "offer_percent"):
+        assert after[field] == full[field], field
+    assert after["is_active"] is False  # still hidden
+    # Fields that can't be empty refuse an explicit null
+    assert (await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": None}, headers=HDR)).status_code == 422
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.models.audit import AuditLog
+    async with AsyncSessionLocal() as db:
+        last = (await db.scalars(select(AuditLog).where(AuditLog.action == "product.updated").order_by(AuditLog.id.desc()))).first()
+    assert last.after == {"name": "Cold Coffee Premix 2"}

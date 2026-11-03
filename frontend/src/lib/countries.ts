@@ -65,6 +65,17 @@ export function splitPhone(value: string, picked: string = DEFAULT_COUNTRY): { c
 }
 
 /**
+ * A whole saved phone ("+91 98765 43210", or older text remembered by the browser) checked with exactly the
+ * server's rule (schemas/common.py, Phone): optional +, digits, spaces, - ( ), 6 to 15 digits. Empty is fine.
+ */
+export function savedPhoneOk(value: string): boolean {
+  const v = value.trim();
+  if (!v) return true;
+  const digits = v.replace(/\D/g, '').length;
+  return /^\+?[\d\s()-]+$/.test(v) && digits >= 6 && digits <= 15;
+}
+
+/**
  * Light check (decision 5a): only digits, spaces, - ( ), and 6 to 15 digits counting the country code,
  * the same rule as the server (schemas/common.py, Phone). Empty is fine.
  */

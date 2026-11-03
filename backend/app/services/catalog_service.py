@@ -99,23 +99,25 @@ async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> Prod
     return _product_out(p, category)
 
 
-async def update_product(db: AsyncSession, actor: User, product_id: int, data: ProductIn, is_active: bool = True) -> ProductOut:
-    """Edit a product. The slug (web address) stays the same so links and files keep working."""
+async def update_product(db: AsyncSession, actor: User, product_id: int, changes: dict) -> ProductOut:
+    """Edit a product: only the fields in `changes` (the ones the client sent); the rest stay as they are.
+    The slug (web address) stays the same so links and files keep working."""
     p = await db.get(Product, product_id)
     if p is None:
         raise AppError(404, "not_found", "Product not found.")
-    category = await get_category(db, data.category_slug)
-    before = {"name": p.name, "category_id": p.category_id, "moq": p.moq, "is_active": p.is_active,
-              "offer_percent": p.offer_percent}
-    p.category_id, p.name, p.description = category.id, data.name.strip(), data.description
-    p.pack_formats, p.moq, p.image_path = data.pack_formats, data.moq, data.image_path
-    p.private_label, p.is_best_seller, p.is_active = data.private_label, data.is_best_seller, is_active
-    # An edit that leaves the offer out keeps it (an older admin tab or a script must not clear it by
-    # accident); sending "offer_percent": null removes it
-    if "offer_percent" in data.model_fields_set:
-        p.offer_percent = data.offer_percent
+    if "category_slug" in changes:
+        category = await get_category(db, changes.pop("category_slug"))
+        changes["category_id"] = category.id
+    else:
+        category = await db.get(Category, p.category_id)
+    if "name" in changes:
+        changes["name"] = changes["name"].strip()
+    before = {k: getattr(p, k) for k in changes}
+    for k, v in changes.items():
+        setattr(p, k, v)
+    # The audit log keeps what was really saved, field by field
     audit_service.record(db, actor=actor, action="product.updated", entity_type="product", entity_id=p.id,
-                         before=before, after=data.model_dump() | {"is_active": is_active})
+                         before=before, after={k: getattr(p, k) for k in changes})
     await db.commit()
     return _product_out(p, category)
 

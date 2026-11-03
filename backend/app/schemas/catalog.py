@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class CategoryOut(BaseModel):
@@ -45,3 +45,32 @@ class ProductIn(BaseModel):
         if ".." in v or "//" in v:
             raise ValueError("must be a plain path like /images/products/coffee.jpg")
         return v
+
+
+class ProductPatchIn(BaseModel):
+    """An edit: only the fields sent are changed (PR #16 review). A script or an older admin tab that sends
+    just the name can't blank the rest or show a hidden product again. Same rules as ProductIn per field;
+    only offer_percent may be null (null removes the offer)."""
+
+    category_slug: str | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
+    pack_formats: str | None = Field(default=None, max_length=255)
+    moq: str | None = Field(default=None, max_length=120)
+    image_path: str | None = Field(default=None, max_length=255, pattern=r"^(/[A-Za-z0-9_-][A-Za-z0-9._/-]*)?$")
+    private_label: bool | None = None
+    is_best_seller: bool | None = None
+    offer_percent: int | None = Field(default=None, ge=1, le=90)
+    is_active: bool | None = None  # false = hidden from the website
+
+    @field_validator("image_path")
+    @classmethod
+    def _no_dot_dot(cls, v: str | None) -> str | None:
+        return v if v is None else ProductIn._no_dot_dot(v)
+
+    @model_validator(mode="after")
+    def _no_null_for_required(self):
+        empty = [f for f in self.model_fields_set if f != "offer_percent" and getattr(self, f) is None]
+        if empty:
+            raise ValueError(f"{', '.join(sorted(empty))} can't be empty")
+        return self

@@ -5,6 +5,7 @@
 // (localStorage, with the visitor's consent), so the next request is one click.
 import { useEffect, useState } from 'react';
 import { CountrySelect, PhoneInput } from '@/components/public/CountryPicker';
+import { savedPhoneOk } from '@/lib/countries';
 import { api, ApiFailure } from '@/lib/api';
 
 export type LeadSource = 'enquiry_form' | 'price_sheet' | 'spec_pdf' | 'sample' | 'quote' | 'configurator';
@@ -46,11 +47,20 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
   const [error, setError] = useState('');
   const [saved, setSaved] = useState<Visitor | null>(null);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null); // the phone code follows it
+  const [phoneAgain, setPhoneAgain] = useState(false); // the remembered phone couldn't be used
 
   useEffect(() => {
-    const v = loadVisitor();
+    let v = loadVisitor();
+    // A phone remembered before the phone check (e.g. "call me after 6") would be refused by the server:
+    // forget it, skip the one-click send, and ask for the number again (PR #16 review)
+    const badPhone = !!v?.phone && !savedPhoneOk(v.phone);
+    if (v && badPhone) {
+      v = { ...v, phone: '' };
+      try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* storage blocked */ }
+    }
+    setPhoneAgain(badPhone);
     setSaved(v);
-    if (v && source !== 'enquiry_form') setState('quick');
+    if (v && source !== 'enquiry_form' && !badPhone) setState('quick');
   }, [source]);
 
   function forget() {
@@ -135,7 +145,9 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         <div><label className="label" htmlFor="name">Full name *</label><input id="name" name="name" defaultValue={saved?.name} required minLength={2} className="input" /></div>
         <div><label className="label" htmlFor="company">Company</label><input id="company" name="company" defaultValue={saved?.company} className="input" /></div>
         <div><label className="label" htmlFor="email">Work email</label><input id="email" name="email" defaultValue={saved?.email} type="email" className="input" /></div>
-        <div><label className="label" htmlFor="phone">Phone / WhatsApp</label><PhoneInput id="phone" defaultValue={saved?.phone} linkedCountry={pickedCountry} /></div>
+        <div><label className="label" htmlFor="phone">Phone / WhatsApp</label><PhoneInput id="phone" defaultValue={saved?.phone} linkedCountry={pickedCountry} />
+          {phoneAgain && <p role="alert" className="mt-1 text-xs text-red-600">Please re-enter your phone number.</p>}
+        </div>
         <div><label className="label" htmlFor="country">Country</label><CountrySelect id="country" defaultValue={saved?.country} onChange={setPickedCountry} /></div>
         <div>
           <label className="label" htmlFor="buyer_type">You are</label>

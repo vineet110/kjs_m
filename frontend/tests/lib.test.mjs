@@ -174,7 +174,8 @@ test('productPayload (Admin > Products, Hide/Show): sends every field back, so h
 
 // ---------- phone code and country pickers (UI step 7) ----------
 const countriesData = readFileSync(join(SRC, 'countries-data.ts'), 'utf8').replace('export const', 'const');
-const { filterCountries, composePhone, splitPhone, phoneLooksValid, countryByName, COUNTRIES } = await load('countries', '', countriesData);
+const countriesLib = await load('countries', '', countriesData);
+const { filterCountries, composePhone, splitPhone, phoneLooksValid, countryByName, COUNTRIES } = countriesLib;
 const names = (list) => list.map((c) => c.name);
 
 test('countries: every country / region once, with a phone code', () => {
@@ -226,4 +227,10 @@ test('phoneLooksValid: digits and spaces, 6 to 15 digits counting the code, like
 test('countryByName finds a saved country (the country field stores the name)', () => {
   assert.equal(countryByName('United Arab Emirates')?.code, 'AE');
   assert.equal(countryByName('Atlantis'), undefined);
+});
+
+test('savedPhoneOk: a remembered phone passes the same rule as the server, or must be typed again (PR #16 review)', () => {
+  const { savedPhoneOk } = countriesLib;
+  for (const ok of ['', '+91 98765 43210', '9876543210', '+44 (020) 7946 0958']) assert.ok(savedPhoneOk(ok), ok);
+  for (const bad of ['call me after 6', '12345', '+1 2345 6789 0123 4567']) assert.ok(!savedPhoneOk(bad), bad);
 });

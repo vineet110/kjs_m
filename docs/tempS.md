@@ -106,3 +106,17 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   reads back right; too long after a code change is caught; "Please choose a country" shows next to the
   picker; the list opens upward when there's no room below (Koko); the flag check really loads a flag.
   Kept: the light check (5a) instead of the full `phonenumbers` check (5b), as decided.
+
+
+## PR #16 second review (3 Nov 2026, branch feat/uiUpdates-part2)
+
+- Old remembered phones: a phone the browser remembered from before the phone check ("call me after 6")
+  is now checked with the server's rule (`savedPhoneOk`, `lib/countries.ts`). If it fails, it is forgotten,
+  the one-click send is skipped, and the form says "Please re-enter your phone number". Browser check (failed
+  on the old build) and a unit test.
+- Product edits change only what was sent: `ProductPatchIn` (`schemas/catalog.py`, every field optional,
+  null refused except offer_percent) and `catalog_service.update_product(changes)`. A script or an old tab
+  sending just the name no longer blanks other fields or shows a hidden product. The audit log records what
+  was really saved. The special rule for the offer is gone (the general rule covers it). Backend test
+  `test_product_edit_changes_only_what_was_sent` (failed first).
+- Backend 174, unit 29, API 114, browser 55 pass.
