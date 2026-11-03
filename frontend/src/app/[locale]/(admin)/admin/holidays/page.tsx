@@ -1,6 +1,7 @@
 'use client';
 // Holiday calendar: used by attendance, order-board deadlines and auto-assign.
 import { useCallback, useEffect, useState } from 'react';
+import { useToast } from '@/components/portal/Toast';
 import { fmtDay, Msg, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Holiday } from '@/lib/api';
 
@@ -8,6 +9,7 @@ export default function HolidaysPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [rows, setRows] = useState<Holiday[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const toast = useToast();
 
   const load = useCallback(() => {
     api<Holiday[]>(`/admin/holidays?year=${year}`).then(setRows);
@@ -22,7 +24,8 @@ export default function HolidaysPage() {
     const f = Object.fromEntries(new FormData(form));
     try {
       await api('/admin/holidays', { method: 'POST', body: f });
-      setMsg({ ok: true, text: `Added ${f.name}.` });
+      setMsg(null);
+      toast(`Added ${f.name} to the holidays`);
       form.reset();
       load();
     } catch (err) {

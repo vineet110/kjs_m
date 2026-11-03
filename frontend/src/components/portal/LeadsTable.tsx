@@ -40,7 +40,7 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {['', 'new', 'contacted', 'closed'].map((s) => (
-          <button key={s} onClick={() => setStatus(s)} className={`rounded-full px-3 py-1 ${status === s ? 'bg-forest text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>
+          <button key={s} onClick={() => setStatus(s)} className={`rounded-full px-3 py-1 ${status === s ? 'bg-ink text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>
             {s || 'All'}
           </button>
         ))}

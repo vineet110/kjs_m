@@ -1,13 +1,16 @@
 'use client';
 // Team attendance: who is in today (or any day), and missed-punch requests to approve.
 import { useCallback, useEffect, useState } from 'react';
-import { addDays, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
+import { addDays, EmptyState, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
+import { useToast } from '@/components/portal/Toast';
 import { api, ApiFailure, type Regularization } from '@/lib/api';
+import { approvalsChanged } from '@/lib/portal-session';
 import Loading from '@/components/ui/Loading';
 
 type Row = { user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number };
 
 export default function TeamAttendance() {
+  const toast = useToast();
   const [day, setDay] = useState(todayIST());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [pending, setPending] = useState<Regularization[]>([]);
@@ -25,6 +28,8 @@ export default function TeamAttendance() {
     setErr('');
     try {
       await api(`/attendance/approvals/${id}`, { method: 'POST', body: { approve } });
+      toast(approve ? 'Missed punch approved' : 'Request rejected');
+      approvalsChanged(); // the sidebar badge counts these too
       load();
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Could not save.');
@@ -46,7 +51,7 @@ export default function TeamAttendance() {
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Missed-punch requests ({pending.length})</h2>
         {err && <p className="text-sm text-red-700">{err}</p>}
-        {pending.length === 0 && <p className="card p-4 text-sm text-slate-500">Nothing waiting.</p>}
+        {pending.length === 0 && <EmptyState tone="done" title="Nothing waiting" text="Missed-punch requests from the team show here." />}
         {pending.map((r) => (
           <div key={r.id} className="card flex flex-wrap items-center gap-3 p-4 text-sm">
             <span className="font-semibold">{r.user_name}</span>

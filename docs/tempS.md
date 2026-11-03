@@ -134,3 +134,51 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   - The picker measures the nearest scrolling box (Koko, the enquiry pop-up) to open up or down.
   - Kept: passing the best-seller list to Recommended stays as it is (works and is tested; tidier only).
   - Backend 176, unit 29, API 114, browser 55 pass.
+
+
+## Admin redesign (3 Nov 2026, branch feat/admin-redesign)
+
+- Step 1, log out: avatar with initials in the top bar opens a menu (name, email, role badge, My profile,
+  Log out). Log out asks first ("See you soon", native <dialog>: Esc and focus handled by the browser),
+  shows "Logging out…", and the login page says "You've logged out safely" once (`?bye=1`, then removed
+  from the address). Sidebar bottom: profile card + Log out button. New `components/portal/AccountMenu.tsx`.
+- Step 2, Overview: greeting by India time, today's date, one line on what needs attention, "Live" dot,
+  quick actions (only the ones you may use), 6 tiles with icons, count-up numbers and links to the right
+  pages (lead tiles now go to /admin/leads). Trend on "Leads this week": `/admin/stats` sends
+  `leads_this_week` and `leads_last_week` (rolling 7 days, `lead_service.weekly_counts`, test added).
+  New `components/portal/StatTile.tsx`.
+- Step 3, sidebar: groups My work / Admin / People / Sales / Website / System, an icon per link, the
+  current page has a gold bar, and Approvals shows a count badge (asked in the background, never holds
+  up the page). Icons in one file: `components/portal/icons.tsx` (plain SVG, no package).
+- Step 4: toasts (`components/portal/Toast.tsx`) after approve / reject / enable / disable / save;
+  form errors stay next to the form. Friendly empty states (`EmptyState` in `portal/ui.tsx`). Pages fade in.
+  ApproveCard no longer gets stuck when approving fails.
+- New colours for the whole portal: charcoal (`ink`) + gold on a warm page (`paper`), from the logo.
+  Dark green (`forest`) is gone from the portal; small greens stay where they mean "good" (Present, ✓).
+- Speed: the portal remembers the loaded account for the tab, so admin <-> employee pages no longer show
+  the full-screen spinner. Measured why pages feel slow in dev: every database trip to Neon Singapore is
+  ~100 ms (one API call ~0.5 s) and dev mode builds each page on first visit (~1.3 s). Not fixed in code;
+  a local Docker database for development would fix it (to decide with Vineet, memory.md says Neon).
+- Checks: tsc clean, unit 29, backend 177 pass. Not checked in a browser yet (no login on this PC).
+
+- Sidebar dropdowns + drag and drop (same branch): each group opens / closes (only the current page's group
+  open at first; a closed group shows the Approvals count on its name), and groups can be dragged by their
+  grip (pointer events: mouse, touch, pen) or moved with arrow keys on the grip; "Reset order" goes back.
+  Order and open groups are saved in this browser (localStorage). New `components/portal/SidebarNav.tsx`
+  (the list moved out of PortalShell) and `lib/nav-order.ts` (sortByOrder, moveGroup, 2 unit tests).
+- PR #17 review (Vineet, 3 must-fix), all fixed:
+  1. A new login on the same tab could briefly show the previous person: the remembered account now lives
+     in `lib/portal-session.ts` and is forgotten when the login page opens and when someone logs in.
+  2. Approvals badge kept the old count after approving: pages call `approvalsChanged()` (Approvals,
+     Overview's ApproveCard, Team attendance) and the badge asks again; only the newest answer counts.
+  3. Log out popup could get stuck: Chrome closes a <dialog> by force on a quick second Escape; `onClose`
+     now tells the screen (reopened only while logging out).
+  Unit 33 pass, tsc clean. Still not checked in a browser here.
+- PR #17 second review (3 points), all fixed:
+  1. A slow "who am I" answer arriving after log out could put the old account back: `portal-session.ts`
+     now counts forgets (epoch) and only remembers an answer asked after the last forget; PortalShell
+     also ignores answers after log out or when the frame is gone. Unit test (fails on the old code).
+  2. Dragging a group down got stuck: React moves the dragged group's block, which drops pointer capture,
+     so "let go" never arrived. The drag now listens on the window instead.
+  3. Arrow down on the grip lost the focus (same block move): the focus is put back on the grip after the move.
+  Unit 34 pass, tsc clean. 2 and 3 need a browser check (no login here).

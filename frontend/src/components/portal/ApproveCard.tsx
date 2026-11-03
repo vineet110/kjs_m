@@ -1,7 +1,9 @@
 'use client';
 // Approve a new staff sign-up and choose what they may do (per-person permissions, backlog D5).
 import { useState } from 'react';
-import { api } from '@/lib/api';
+import { api, ApiFailure } from '@/lib/api';
+import { approvalsChanged } from '@/lib/portal-session';
+import { useToast } from './Toast';
 
 export type StaffUser = { id: number; name: string; email: string; phone: string | null; role: string; status: string; permissions: string[]; created_at: string };
 export type Perm = { key: string; label: string };
@@ -9,11 +11,19 @@ export type Perm = { key: string; label: string };
 export default function ApproveCard({ user, perms, onDone }: { user: StaffUser; perms: Perm[]; onDone: () => void }) {
   const [chosen, setChosen] = useState<string[]>(['leads.view']);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function approve() {
     setBusy(true);
-    await api(`/admin/users/${user.id}/approve`, { method: 'POST', body: { permissions: chosen } });
-    onDone();
+    try {
+      await api(`/admin/users/${user.id}/approve`, { method: 'POST', body: { permissions: chosen } });
+      toast(`${user.name} is approved and can log in now`);
+      approvalsChanged();
+      onDone();
+    } catch (e) {
+      toast(e instanceof ApiFailure ? e.message : 'Could not approve. Please try again.', 'error');
+      setBusy(false); // the button works again (before, a failure left it stuck)
+    }
   }
 
   return (

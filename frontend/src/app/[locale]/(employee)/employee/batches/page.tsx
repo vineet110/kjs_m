@@ -27,7 +27,7 @@ export default function MyBatches() {
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold">Batch of {fmtDay(open.day)}</h2>
             <span className="text-sm text-slate-500">{open.done} of {open.size} done</span>
-            <div className="h-2 flex-1 overflow-hidden rounded bg-slate-100"><div className="h-2 bg-forest" style={{ width: `${(open.done / open.size) * 100}%` }} /></div>
+            <div className="h-2 flex-1 overflow-hidden rounded bg-slate-100"><div className="h-2 bg-gold" style={{ width: `${(open.done / open.size) * 100}%` }} /></div>
           </div>
           {open.records.map((r) => <RecordCard key={r.id} r={r} onDone={load} />)}
         </section>

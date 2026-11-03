@@ -27,9 +27,12 @@ router = APIRouter()
 async def stats(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
     users = dict((await db.execute(select(User.status, func.count()).group_by(User.status))).all())
     leads = await lead_service.counts(db)
+    this_week, last_week = await lead_service.weekly_counts(db)
     return {
         "leads_total": sum(leads.values()),
         "leads_new": leads.get("new", 0),
+        "leads_this_week": this_week,
+        "leads_last_week": last_week,
         "staff_pending": users.get("pending", 0),
         "staff_active": users.get("active", 0),
         "products": await db.scalar(select(func.count()).select_from(Product).where(Product.is_active)),

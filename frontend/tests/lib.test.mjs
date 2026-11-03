@@ -234,3 +234,57 @@ test('country names are stored right, accents included (no garbled text), and ar
   assert.ok(names(filterCountries('türk')).includes('Türkiye'));
   assert.ok(names(filterCountries('reunion')).includes('Réunion'));
 });
+
+// ---------- Sidebar group order (drag and drop, saved in the browser) ----------
+const { sortByOrder, moveGroup } = await load('nav-order');
+const GROUPS = ['My work', 'Admin', 'People', 'Sales', 'Website', 'System'];
+
+test('sidebar groups follow the saved order; a group the saved order does not know goes to the end', () => {
+  assert.deepEqual(sortByOrder(GROUPS, [], GROUPS), GROUPS);
+  assert.deepEqual(sortByOrder(['My work', 'Sales', 'System'], ['System', 'My work'], GROUPS), ['System', 'My work', 'Sales']);
+});
+
+test('moving a group puts it at the chosen place, and keeps the places of groups this person cannot see', () => {
+  // Admin sees all six: Sales to the top
+  assert.deepEqual(moveGroup(GROUPS, GROUPS, GROUPS, 'Sales', 0), ['Sales', 'My work', 'Admin', 'People', 'Website', 'System']);
+  // An employee sees only My work and Sales: the hidden groups stay in the saved list, after them
+  const next = moveGroup(['My work', 'Sales'], GROUPS, GROUPS, 'Sales', 0);
+  assert.deepEqual(next.slice(0, 2), ['Sales', 'My work']);
+  assert.deepEqual([...next].sort(), [...GROUPS].sort());
+  // Past the end: last place
+  assert.deepEqual(moveGroup(GROUPS, GROUPS, GROUPS, 'My work', 99).at(-1), 'My work');
+});
+
+// ---------- Portal session: remembered account + approvals signal (PR #17 review) ----------
+const session = await load('portal-session');
+
+test('the remembered account is forgotten (login page, log out), so a new person never sees the old one', () => {
+  const A = { id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] };
+  session.rememberAccount(A, session.accountEpoch());
+  assert.equal(session.rememberedAccount()?.name, 'A');
+  session.forgetAccount();
+  assert.equal(session.rememberedAccount(), null);
+});
+
+test('a "who am I" answer asked before a log out cannot bring the old account back (PR #17 review)', () => {
+  const A = { id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] };
+  const askedAt = session.accountEpoch(); // the question leaves
+  session.forgetAccount(); // log out while it is on its way
+  session.rememberAccount(A, askedAt); // the slow answer arrives
+  assert.equal(session.rememberedAccount(), null);
+});
+
+test('approvalsChanged() reaches the sidebar badge listener, and stops after it is removed', () => {
+  const before = globalThis.window;
+  globalThis.window = new EventTarget(); // what the functions use: addEventListener / dispatchEvent
+  try {
+    let calls = 0;
+    const stop = session.onApprovalsChanged(() => calls++);
+    session.approvalsChanged();
+    stop();
+    session.approvalsChanged();
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.window = before;
+  }
+});
