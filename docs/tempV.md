@@ -138,3 +138,26 @@ were taken out and are kept here, to fold in after the merge.
    iii.  Run `tar tzf` on the host, not in a backend container.
 3. Not a rule break: `prompt.md` section 7 bans only track.md, memory.md, backlog.md and learning-log.md
    on a task branch. kb.md and codeReview.md may be edited.
+
+
+## CR1 restore fix, PR #13, code review round 8 (3 Nov)
+
+Nothing must-fix: all go to the backlog on fold. Do 1 first in the follow-up PR.
+
+1. When a restore fails after the database was replaced, the app is started anyway, without migrations
+   or rights. Users get errors (the app user has no rights, so nothing is saved or lost), and the undo
+   fixes it. Keep the app stopped there, like the "unknown" case.
+2. The "earlier restore still running?" check treats a failed query as "none running", and the read
+   after it never connects to the database. Refuse when the database can't be asked.
+3. The unpack step (4) has no `set -e`: if `cd /srv/kjs_files` fails, files are unpacked into the
+   container's workdir. Add `|| exit 1`.
+4. Two restores started within seconds of each other both pass the check (it only sees step 5). Same-second
+   starts also share a safety backup name. Needs the shared lock (`flock`) for the whole run.
+5. `ask_database` gives up after 120 s; a big restore can take longer, and it ends "unknown" (safe side).
+   Wait until the session is gone, or set the time from the dump size.
+6. `restore-undo.txt` keeps growing and points at safety backups deleted after KEEP_DAYS. Trim it, or mark
+   old entries.
+7. `app_is_healthy` checks only the backend from inside its container. Use deploy.sh's check (nginx, API
+   and the website) as one shared helper.
+8. Downtime: the safety backup is read back in full and starts 2 extra containers while the app is stopped.
+9. The `kjs-restore` session query is written 5 times (restore.sh and the test). Make one helper.
