@@ -78,7 +78,10 @@ Suggested order of work (one PR each, small and testable):
 ### 🔴 Must fix
 
 
-CR1. `restore.sh` can wipe the database and still print "restore done"  🔴
+CR1. `restore.sh` can wipe the database and still print "restore done"  🔴  FIXED (30 Oct), tested by
+     `deploy/test-restore.sh`. Beyond a to f: the files path is checked first, a restore no longer deletes
+     old backups, a failure prints how to undo it, and if `pg_restore` fails during the restore the
+     transaction is cancelled.
 
    Where: `deploy/restore.sh:35-37` (database), `deploy/restore.sh:42` (files)
 

@@ -1473,14 +1473,25 @@ Sections:
 
 ### backup.sh / restore.sh
 
-   What   backup.sh saves the database (pg_dump) and uploaded files, checks the file, keeps 14 days.
-          restore.sh puts a backup back (asks you to type RESTORE first).
+   What   backup.sh saves the database (pg_dump) and uploaded files, reads the whole dump to check it, keeps
+          14 days. restore.sh puts a backup back (asks you to type RESTORE first).
+          `test-restore.sh` tests both on a throwaway copy. Never run it on the server.
+
+
+### Rollback (transaction)
+
+   What   Cancelling a transaction, so the database is exactly as it was before it started.
+   Why    `restore.sh` deletes and reloads the database in one transaction. If that step fails, the delete
+          is cancelled too, so the old data stays. The later steps (files, migrations, rights) are not in
+          the transaction: if one of them fails, the old data is already gone, and the printed undo
+          command puts it back from the safety backup.
 
 
 ### pg_dump / pg_restore
 
    What   Postgres's own tools to save a whole database to one file, and to load it back.
-          `-Fc` = custom format: compressed, and can be checked with `pg_restore -l`.
+          `-Fc` = custom format: compressed. `pg_restore -l` only lists the contents, so it passes a cut-off
+          file. `pg_restore -f /dev/null` reads the whole file and saves nothing: that is the real check.
 
 
 ### cron / crontab
@@ -1611,9 +1622,10 @@ Sections:
           `set -o pipefail` makes the whole pipe fail when any part fails. It works in bash and in the
           `postgres:17-alpine` db container. Don't rely on it in the backend container's `sh` (dash, see
           above): use `bash -c` there instead of `sh -c`.
-   Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file can empty the database (codeReview CR1).
+   Why    `restore.sh` pipes `pg_restore` into `psql`; a bad backup file could empty the database (codeReview CR1).
           pipefail alone doesn't prevent that: it only changes the exit code at the end, after `psql`
-          has already run the DROP and committed. The fix is to check the backup before deleting anything.
+          has already run the DROP and committed. The fix checks the backup before deleting anything, and
+          if `pg_restore` still fails, sends `psql` a statement that errors, so the transaction is cancelled.
 
 
 ### pg_isready

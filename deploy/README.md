@@ -195,12 +195,24 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
 
    It asks you to type RESTORE, then:
 
-   i.    backs up the CURRENT state first (so a wrong restore can be undone),
+   i.    reads both backups in full (a bad one stops here: nothing changed, the app never stopped),
    ii.   stops the app,
-   iii.  replaces the database in one transaction (if anything fails, nothing changes),
-   iv.   replaces the files (if you gave a files backup),
-   v.    updates the tables to the current code version and re-applies the app user's rights,
-   vi.   starts the app again (also when something failed).
+   iii.  backs up the CURRENT state (so a wrong restore can be undone, with nothing missing),
+   iv.   unpacks the new files aside (if you gave a files backup), so the disk needs room for both the
+         old and the new files during the restore,
+   v.    replaces the database in one transaction (if this fails, the database stays as it was),
+   vi.   swaps in the new files,
+   vii.  updates the tables to the current code version and re-applies the app user's rights,
+   viii. starts the app again (also when something failed) and checks that the API answers. If the
+         script was stopped during step v, the app stays stopped, because the restore may still finish.
+
+   If it fails after step v, or the app doesn't work afterwards, it prints the exact `./restore.sh` command
+   that puts the safety backup back. That command is also added to `/srv/kjs/backups/restore-undo.txt`
+   (in case the SSH session drops), one entry per restore, newest at the end. Safety backups are named
+   `...-before-restore`. When the restore ends, its entry says so: running that command later also
+   throws away everything saved since then. If nothing was changed, the entry says there is nothing to undo.
+   If an earlier restore is still running inside the database, it refuses to start: wait, then run it again.
+   Changes to `restore.sh` or `backup.sh`: run `./test-restore.sh` on your own machine, never on the server.
 
 
 3. Restore drill (once a month, and before go-live)

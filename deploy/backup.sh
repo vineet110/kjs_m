@@ -12,7 +12,9 @@ umask 077
 BACKUP_DIR="${BACKUP_DIR:-/srv/kjs/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
-stamp="$(date +%Y%m%d-%H%M%S)"
+# restore.sh sets KJS_BACKUP_STAMP, so it knows the file names. (Not "STAMP": a common name that may
+# already be set in the shell, and then every backup would get the same name and overwrite the last.)
+stamp="${KJS_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
@@ -24,12 +26,17 @@ trap 'rm -f "$db_file.tmp" "$files_file.tmp"' EXIT
 # 1. Database. -Fc = Postgres "custom" format: compressed, restores table by table.
 #    Written to .tmp first, so a half-finished file is never mistaken for a good backup.
 $COMPOSE exec -T db pg_dump -U kjs -d kjs -Fc > "$db_file.tmp"
-# Check the file is a readable backup before keeping it
-$COMPOSE exec -T db pg_restore -l < "$db_file.tmp" > /dev/null
+# Read the whole file before keeping it (-f /dev/null saves nothing). pg_restore -l is not enough:
+# it reads only the list at the start, so it passes a backup that was cut off.
+$COMPOSE exec -T db pg_restore -f /dev/null < "$db_file.tmp"
 mv "$db_file.tmp" "$db_file"
 
 # 2. Uploaded files (only matters when STORAGE_DRIVER=local; with R2, Cloudflare keeps them)
-$COMPOSE exec -T backend tar czf - -C /srv/kjs_files . > "$files_file.tmp"
+# (.restore-new = work folder restore.sh leaves behind if it is killed halfway)
+# run, not exec: backups and restores must work while the backend is down
+$COMPOSE run --rm -T --no-deps --entrypoint tar backend czf - --exclude=./.restore-new -C /srv/kjs_files . \
+  > "$files_file.tmp"
+$COMPOSE run --rm -T --no-deps --entrypoint tar backend tzf - < "$files_file.tmp" > /dev/null  # same check: read it all
 mv "$files_file.tmp" "$files_file"
 
 # 3. Delete backups older than KEEP_DAYS days
