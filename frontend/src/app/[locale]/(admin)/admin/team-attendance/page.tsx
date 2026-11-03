@@ -1,7 +1,7 @@
 'use client';
 // Team attendance: who is in today (or any day), and missed-punch requests to approve.
 import { useCallback, useEffect, useState } from 'react';
-import { addDays, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
+import { addDays, EmptyState, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 
@@ -46,7 +46,7 @@ export default function TeamAttendance() {
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Missed-punch requests ({pending.length})</h2>
         {err && <p className="text-sm text-red-700">{err}</p>}
-        {pending.length === 0 && <p className="card p-4 text-sm text-slate-500">Nothing waiting.</p>}
+        {pending.length === 0 && <EmptyState tone="done" title="Nothing waiting" text="Missed-punch requests from the team show here." />}
         {pending.map((r) => (
           <div key={r.id} className="card flex flex-wrap items-center gap-3 p-4 text-sm">
             <span className="font-semibold">{r.user_name}</span>

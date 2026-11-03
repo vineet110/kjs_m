@@ -141,3 +141,12 @@ async def test_send_emails_job_skips_without_smtp(client):
     await make_user("admin@kjsindia.com", role="admin")
     await _new_lead(client, ist("2026-10-26", "10:00"))
     assert await run_job("send_emails") == {"sent": 0, "skipped": 1, "failed": 0}
+
+
+async def test_weekly_counts_for_overview_trend(client):
+    # Rolling windows from "now": 2 leads in the last 7 days, 1 in the 7 days before, 1 older (not counted)
+    now = ist("2026-11-03", "12:00")
+    for d in ("2026-11-02", "2026-10-28", "2026-10-25", "2026-10-10"):
+        await _new_lead(client, ist(d, "10:00"))
+    async with AsyncSessionLocal() as db:
+        assert await lead_service.weekly_counts(db, now=now) == (2, 1)

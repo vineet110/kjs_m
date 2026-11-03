@@ -40,12 +40,24 @@ function LoginInner() {
   }, [navigating]);
   const working = busy || (navigating && pageOpening);
   const router = useRouter();
-  const next = useSearchParams().get('next');
+  const params = useSearchParams();
+  const next = params.get('next');
+  // Just logged out (the portal sends `?bye=1`): say so once, then drop it from the address, so a reload
+  // or a bookmark doesn't show it again
+  const [bye, setBye] = useState(false);
+  useEffect(() => {
+    if (params.get('bye') !== '1') return;
+    setBye(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('bye');
+    window.history.replaceState(window.history.state, '', url);
+  }, [params]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget));
     setBusy(true);
+    setBye(false);
     setError('');
     setNotice('');
     setSlowTo(null);
@@ -83,6 +95,12 @@ function LoginInner() {
           <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={160} height={36} className="h-9 w-auto" />
         </Link>
         <div className="card space-y-5 p-6">
+          {bye && (
+            <p role="status" className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-800 animate-in fade-in slide-in-from-top-2 motion-reduce:animate-none">
+              <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-xs text-white">✓</span>
+              You&apos;ve logged out safely. See you soon!
+            </p>
+          )}
           <div>
             <h1 className="text-xl font-bold">Staff portal</h1>
             <p className="text-sm text-slate-500">Approved KJS staff only.</p>

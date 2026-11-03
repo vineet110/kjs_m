@@ -241,6 +241,19 @@ async def counts(db: AsyncSession) -> dict[str, int]:
     return {s: n for s, n in rows.all()}
 
 
+async def weekly_counts(db: AsyncSession, now: datetime | None = None) -> tuple[int, int]:
+    """Leads received in the last 7 days, and in the 7 days before that (rolling windows, so no
+    week-start or time zone question). Feeds the trend arrow on the admin overview."""
+    now = now or datetime.now(timezone.utc)
+    week_ago, two_weeks_ago = now - timedelta(days=7), now - timedelta(days=14)
+
+    async def between(start: datetime, end: datetime) -> int:
+        q = select(func.count()).select_from(Lead).where(Lead.created_at >= start, Lead.created_at < end)
+        return await db.scalar(q) or 0
+
+    return await between(week_ago, now), await between(two_weeks_ago, week_ago)
+
+
 # ---------- Escalation job ----------
 @job("sla_check")
 async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:

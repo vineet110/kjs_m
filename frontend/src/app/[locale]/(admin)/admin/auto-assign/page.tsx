@@ -108,7 +108,7 @@ export default function AutoAssign() {
                     <div className="flex flex-wrap gap-1">
                       {cats.map((c) => (
                         <button key={c.slug} onClick={() => toggleCat(r, c.slug)}
-                          className={`rounded-full px-2 py-0.5 text-xs ${r.categories.includes(c.slug) ? 'bg-forest text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}>
+                          className={`rounded-full px-2 py-0.5 text-xs ${r.categories.includes(c.slug) ? 'bg-ink text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}>
                           {c.name}
                         </button>
                       ))}

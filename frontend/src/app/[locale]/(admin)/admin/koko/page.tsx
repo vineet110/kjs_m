@@ -3,7 +3,7 @@
 // Model, tone and languages: model in .env, temperature/length in config/koko.ini; it always
 // replies in the visitor's language.
 import { useCallback, useEffect, useState } from 'react';
-import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
+import { EmptyState, fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
@@ -56,7 +56,7 @@ export default function KokoAdmin() {
 
       <section className="space-y-2">
         <h2 className="text-lg font-bold">Recent chats {chats && <span className="text-sm font-normal text-slate-500">({chats.total} in total)</span>}</h2>
-        {chats?.items.length === 0 && <p className="card p-4 text-sm text-slate-500">No chats yet.</p>}
+        {chats?.items.length === 0 && <EmptyState icon="chat" title="No chats yet" text="When visitors talk to Koko on the website, the chats show here." />}
         {chats?.items.map((c) => (
           <div key={c.id} className="card p-3 text-sm">
             <button onClick={() => setOpen(open === c.id ? null : c.id)} className="flex w-full flex-wrap items-center gap-2 text-left">
@@ -67,7 +67,7 @@ export default function KokoAdmin() {
             {open === c.id && (
               <div className="mt-3 space-y-2">
                 {c.messages.map((m, i) => (
-                  <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-forest text-white' : 'bg-slate-100'}`}>{m.content}</div>
+                  <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-ink text-white' : 'bg-slate-100'}`}>{m.content}</div>
                 ))}
               </div>
             )}

@@ -142,7 +142,7 @@ function Timeline({ checkIn, checkOut }: { checkIn: string | null; checkOut: str
   const right = checkOut ? toPct(checkOut) : left + 2;
   return (
     <div className="relative h-2 rounded bg-slate-100" title={`${checkIn}–${checkOut ?? 'now'}`}>
-      <div className="absolute h-2 rounded bg-forest" style={{ left: `${left}%`, width: `${Math.max(2, right - left)}%` }} />
+      <div className="absolute h-2 rounded bg-gold" style={{ left: `${left}%`, width: `${Math.max(2, right - left)}%` }} />
     </div>
   );
 }

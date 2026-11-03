@@ -24,7 +24,7 @@ export default function WebsiteAdmin() {
       <PageTitle title="Website" sub="Changes show on the website within a minute." />
       <div className="flex gap-2 text-sm">
         {tabs.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? 'bg-forest text-white' : 'bg-white ring-1 ring-slate-200'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? 'bg-ink text-white' : 'bg-white ring-1 ring-slate-200'}`}>
             {t === 'texts' ? 'Text & SEO' : t}
           </button>
         ))}

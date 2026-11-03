@@ -134,3 +134,29 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   - The picker measures the nearest scrolling box (Koko, the enquiry pop-up) to open up or down.
   - Kept: passing the best-seller list to Recommended stays as it is (works and is tested; tidier only).
   - Backend 176, unit 29, API 114, browser 55 pass.
+
+
+## Admin redesign (3 Nov 2026, branch feat/admin-redesign)
+
+- Step 1, log out: avatar with initials in the top bar opens a menu (name, email, role badge, My profile,
+  Log out). Log out asks first ("See you soon", native <dialog>: Esc and focus handled by the browser),
+  shows "Logging out…", and the login page says "You've logged out safely" once (`?bye=1`, then removed
+  from the address). Sidebar bottom: profile card + Log out button. New `components/portal/AccountMenu.tsx`.
+- Step 2, Overview: greeting by India time, today's date, one line on what needs attention, "Live" dot,
+  quick actions (only the ones you may use), 6 tiles with icons, count-up numbers and links to the right
+  pages (lead tiles now go to /admin/leads). Trend on "Leads this week": `/admin/stats` sends
+  `leads_this_week` and `leads_last_week` (rolling 7 days, `lead_service.weekly_counts`, test added).
+  New `components/portal/StatTile.tsx`.
+- Step 3, sidebar: groups My work / Admin / People / Sales / Website / System, an icon per link, the
+  current page has a gold bar, and Approvals shows a count badge (asked in the background, never holds
+  up the page). Icons in one file: `components/portal/icons.tsx` (plain SVG, no package).
+- Step 4: toasts (`components/portal/Toast.tsx`) after approve / reject / enable / disable / save;
+  form errors stay next to the form. Friendly empty states (`EmptyState` in `portal/ui.tsx`). Pages fade in.
+  ApproveCard no longer gets stuck when approving fails.
+- New colours for the whole portal: charcoal (`ink`) + gold on a warm page (`paper`), from the logo.
+  Dark green (`forest`) is gone from the portal; small greens stay where they mean "good" (Present, ✓).
+- Speed: the portal remembers the loaded account for the tab, so admin <-> employee pages no longer show
+  the full-screen spinner. Measured why pages feel slow in dev: every database trip to Neon Singapore is
+  ~100 ms (one API call ~0.5 s) and dev mode builds each page on first visit (~1.3 s). Not fixed in code;
+  a local Docker database for development would fix it (to decide with Vineet, memory.md says Neon).
+- Checks: tsc clean, unit 29, backend 177 pass. Not checked in a browser yet (no login on this PC).

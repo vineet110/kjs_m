@@ -1,4 +1,5 @@
 // Small shared bits for portal screens. Status colours always come with a text label.
+import { Icon, type IconName } from './icons';
 
 const PILL: Record<string, string> = {
   present: 'bg-emerald-100 text-emerald-800', late: 'bg-amber-100 text-amber-800', absent: 'bg-red-100 text-red-700',
@@ -56,4 +57,20 @@ export function addDays(iso: string, n: number) {
 export function Msg({ msg }: { msg: { ok: boolean; text: string } | null }) {
   if (!msg) return null;
   return <p className={`rounded p-2 text-sm ${msg.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>{msg.text}</p>;
+}
+
+/** A friendly "nothing here" box: an icon, a short title and one line of help (instead of a bare grey
+ * sentence). `tone="done"` = a good thing (nothing waiting): green tick. */
+export function EmptyState({ title, text, icon = 'inbox', tone = 'plain' }: {
+  title: string; text?: string; icon?: IconName; tone?: 'plain' | 'done';
+}) {
+  return (
+    <div className="card flex flex-col items-center gap-2 px-4 py-8 text-center animate-in fade-in duration-300 motion-reduce:animate-none">
+      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tone === 'done' ? 'bg-emerald-50 text-emerald-600' : 'bg-stone-100 text-stone-400'}`}>
+        <Icon name={tone === 'done' ? 'check' : icon} className="h-6 w-6" />
+      </span>
+      <p className="font-semibold text-stone-800">{title}</p>
+      {text && <p className="max-w-sm text-sm text-stone-500">{text}</p>}
+    </div>
+  );
 }

@@ -15,7 +15,7 @@ export function BoardStatePill({ state }: { state: string }) {
 }
 
 export function UsedBar({ pct }: { pct: number }) {
-  const colour = pct >= 100 ? 'bg-red-600' : pct >= 85 ? 'bg-amber-500' : 'bg-forest';
+  const colour = pct >= 100 ? 'bg-red-600' : pct >= 85 ? 'bg-amber-500' : 'bg-ink';
   return (
     <div className="flex items-center gap-2" title={`${pct}% of planned time used`}>
       <div className="h-2 flex-1 overflow-hidden rounded bg-slate-100"><div className={`h-2 ${colour}`} style={{ width: `${Math.min(100, pct)}%` }} /></div>
@@ -59,7 +59,7 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
         {b.steps.map((s) => {
           const mine = b.my_step_ids.includes(s.id) || b.can_manage;
           return (
-            <li key={s.id} className={`card space-y-2 p-4 ${s.status === 'active' ? 'border-forest' : ''}`}>
+            <li key={s.id} className={`card space-y-2 p-4 ${s.status === 'active' ? 'border-gold' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold">{s.position}</span>
                 <span className="font-semibold">{s.name}</span>
@@ -115,7 +115,7 @@ export function BoardList({ base, boards }: { base: string; boards: import('@/li
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {boards.map((b) => (
-        <Link key={b.code} href={`${base}/${b.code}`} className="card space-y-2 p-4 hover:border-forest">
+        <Link key={b.code} href={`${base}/${b.code}`} className="card space-y-2 p-4 hover:border-gold">
           <div className="flex items-center gap-2">
             <span className="font-bold">{b.code}</span>
             <BoardStatePill state={b.state} />

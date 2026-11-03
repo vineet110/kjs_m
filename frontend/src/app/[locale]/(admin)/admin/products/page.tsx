@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import FileList from '@/components/portal/FileList';
+import { useToast } from '@/components/portal/Toast';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Category, type Product } from '@/lib/api';
 
@@ -15,6 +16,7 @@ export default function AdminProducts() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [filesFor, setFilesFor] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const toast = useToast();
 
   const load = useCallback(() => {
     api<Category[]>('/public/categories').then(setCats);
@@ -36,11 +38,13 @@ export default function AdminProducts() {
       if (editing) {
         // Hidden / shown is left out: an edit never shows a product someone hid in the meantime
         await api(`/admin/products/${editing.id}`, { method: 'PATCH', body });
-        setMsg({ ok: true, text: `Saved "${f.name}". The website shows it within a minute.` });
+        setMsg(null);
+        toast(`Saved "${f.name}". The website shows it within a minute`);
         setEditing(null);
       } else {
         await api('/admin/products', { method: 'POST', body });
-        setMsg({ ok: true, text: `Added "${f.name}". It is live on the website within a minute.` });
+        setMsg(null);
+        toast(`Added "${f.name}". It is live on the website within a minute`);
       }
       form.reset();
       load();

@@ -57,7 +57,7 @@ export default function TodayCard({ onChange }: { onChange?: () => void }) {
           aria-checked={t.is_available}
           disabled={busy}
           onClick={() => act('/attendance/availability', { available: !t.is_available })}
-          className={`relative h-6 w-11 rounded-full transition-colors ${t.is_available ? 'bg-forest' : 'bg-slate-300'}`}
+          className={`relative h-6 w-11 rounded-full transition-colors ${t.is_available ? 'bg-gold' : 'bg-slate-300'}`}
         >
           <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${t.is_available ? 'left-[22px]' : 'left-0.5'}`} />
         </button>
