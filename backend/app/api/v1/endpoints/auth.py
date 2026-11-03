@@ -9,7 +9,7 @@ from app.core.permissions import effective_permissions
 from app.core.security import hash_ip, hash_token
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut, SignupIn
-from app.schemas.common import OneLine
+from app.schemas.common import OneLine, Phone
 from app.services import auth_service
 
 router = APIRouter()
@@ -53,7 +53,7 @@ async def me(user: User = Depends(current_user)):
 
 class ProfileIn(BaseModel):
     name: OneLine | None = Field(default=None, min_length=2, max_length=100)
-    phone: str | None = Field(default=None, max_length=20)
+    phone: Phone | None = Field(default=None, max_length=20)
     notify_email: bool | None = None
     notify_whatsapp: bool | None = None
 

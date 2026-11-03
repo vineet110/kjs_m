@@ -8,7 +8,7 @@
 // - Later changes (a quick view, the enquiry list, another tab, back/forward) are applied only while
 //   the section is off screen, so nothing reshuffles under the visitor's eyes.
 // - Always the same number of cards (recommend() tops up), so nothing below ever jumps.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Reveal from '@/components/public/Reveal';
 import { recommend, sameList, useHistory, type Reason } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
@@ -25,8 +25,16 @@ type Picks = ReturnType<typeof recommend>;
 const slugs = (p: Picks) => p.products.map((x) => x.slug);
 const same = (a: Picks, b: Picks) => a.reason === b.reason && sameList(slugs(a), slugs(b));
 
-export default function RecommendedProducts() {
+/**
+ * exclude: products already shown just above (the Best sellers section), so no card appears twice in a row.
+ * They are left out by recommend() itself, AFTER it reads the visitor's interests (opening a best seller
+ * still counts).
+ */
+export default function RecommendedProducts({ exclude = [] }: { exclude?: string[] }) {
   const products = useCatalogue();
+  const excludeKey = exclude.join(',');
+  // Same list object between renders (the effects below depend on it)
+  const hidden = useMemo(() => (excludeKey ? excludeKey.split(',') : []), [excludeKey]);
   const { viewed, listed, ready } = useHistory();
   const section = useRef<HTMLElement>(null);
   const onScreen = useRef(false);
@@ -34,7 +42,7 @@ export default function RecommendedProducts() {
   const personalised = useRef(false);
   const fadeTo = useRef<Picks | null>(null); // while the first-load fade runs: the picks it ends with
   const fadeTimer = useRef(0);
-  const [picks, setPicks] = useState<Picks>(() => recommend(products, [], [], COUNT));
+  const [picks, setPicks] = useState<Picks>(() => recommend(products, [], [], COUNT, hidden));
   const [fading, setFading] = useState(false);
   // What is on screen, kept in step with every change (compared against before any update)
   const shown = useRef(picks);
@@ -74,7 +82,7 @@ export default function RecommendedProducts() {
   // History changed (or was read for the first time): work out the picks
   useEffect(() => {
     if (!ready) return;
-    const next = recommend(products, viewed, listed, COUNT);
+    const next = recommend(products, viewed, listed, COUNT, hidden);
     const first = !personalised.current;
     personalised.current = true; // the first load is over, whatever it found (also with no history)
     if (first || fadeTo.current) {
@@ -104,7 +112,7 @@ export default function RecommendedProducts() {
     // Later changes: only while the section is off screen (else they wait for it to leave)
     if (onScreen.current) pending.current = next;
     else { pending.current = null; show(next); }
-  }, [ready, viewed, listed, products]);
+  }, [ready, viewed, listed, products, hidden]);
 
   if (!picks.products.length) return null; // no products at all: same on the server and in the browser
   return (

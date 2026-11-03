@@ -15,7 +15,7 @@ from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
 from app.schemas.auth import ApproveIn, UserOut
-from app.schemas.catalog import ProductIn, ProductOut
+from app.schemas.catalog import ProductIn, ProductOut, ProductPatchIn
 from app.schemas.lead import LeadOut
 from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
                           catalog_service, file_service, lead_service)
@@ -87,17 +87,14 @@ async def all_products(_: User = Depends(require_permission("catalog.edit")), db
     return await catalog_service.list_products(db, include_hidden=True)
 
 
-class ProductUpdateIn(ProductIn):
-    is_active: bool = True  # false = hidden from the website
-
-
 @router.patch("/products/{product_id}", response_model=ProductOut)
 async def update_product(
-    product_id: int, data: ProductUpdateIn,
+    product_id: int, data: ProductPatchIn,
     user: User = Depends(require_permission("catalog.edit")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await catalog_service.update_product(db, user, product_id, ProductIn(**data.model_dump(exclude={"is_active"})), data.is_active)
+    # Only the fields sent are changed (the rest stay as they are)
+    return await catalog_service.update_product(db, user, product_id, data.model_dump(exclude_unset=True))
 
 
 @router.get("/leads", response_model=list[LeadOut])

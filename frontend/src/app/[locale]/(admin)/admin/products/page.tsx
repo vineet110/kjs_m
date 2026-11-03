@@ -28,10 +28,14 @@ export default function AdminProducts() {
     e.preventDefault();
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form));
-    const body = { ...f, private_label: f.private_label === 'on', is_best_seller: f.is_best_seller === 'on' };
+    const body = {
+      ...f, private_label: f.private_label === 'on', is_best_seller: f.is_best_seller === 'on',
+      offer_percent: f.offer_percent ? Number(f.offer_percent) : null, // empty = no offer
+    };
     try {
       if (editing) {
-        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body: { ...body, is_active: editing.is_active } });
+        // Hidden / shown is left out: an edit never shows a product someone hid in the meantime
+        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body });
         setMsg({ ok: true, text: `Saved "${f.name}". The website shows it within a minute.` });
         setEditing(null);
       } else {
@@ -46,11 +50,9 @@ export default function AdminProducts() {
   }
 
   async function toggleHidden(p: Row) {
-    await api(`/admin/products/${p.id}`, {
-      method: 'PATCH',
-      body: { category_slug: p.category_slug, name: p.name, description: p.description, pack_formats: p.pack_formats, moq: p.moq,
-        image_path: p.image_path, private_label: p.private_label, is_best_seller: p.is_best_seller, is_active: !p.is_active },
-    });
+    // Only hidden / shown is sent (an edit changes only what it sends), so this can't undo a change made
+    // since the list loaded, in another tab or by someone else
+    await api(`/admin/products/${p.id}`, { method: 'PATCH', body: { is_active: !p.is_active } });
     load();
   }
 
@@ -68,6 +70,10 @@ export default function AdminProducts() {
         <div><label className="label">Minimum order</label><input name="moq" defaultValue={e?.moq} className="input" placeholder="100,000 units" /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea name="description" defaultValue={e?.description} rows={3} className="input" /></div>
         <div><label className="label">Image path (optional; or upload a photo below)</label><input name="image_path" defaultValue={e?.image_path} className="input" placeholder="/images/products/coffee-stick.jpg" /></div>
+        <div>
+          <label className="label" htmlFor="offer_percent">Offer % (optional): shows &quot;Up to X% OFF&quot;</label>
+          <input id="offer_percent" name="offer_percent" type="number" min={1} max={90} step={1} defaultValue={e?.offer_percent ?? ''} className="input" placeholder="Leave empty for no offer" />
+        </div>
         <div className="flex items-end gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="private_label" defaultChecked={e ? e.private_label : true} /> Private label</label>
           <label className="flex items-center gap-2"><input type="checkbox" name="is_best_seller" defaultChecked={e?.is_best_seller} /> Best seller</label>
@@ -85,7 +91,7 @@ export default function AdminProducts() {
           <div key={p.id} className="space-y-2 p-3 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{p.name}</span>
-              <span className="text-slate-500">· {p.category_name}{p.is_best_seller ? ' · best seller' : ''}</span>
+              <span className="text-slate-500">· {p.category_name}{p.is_best_seller ? ' · best seller' : ''}{p.offer_percent ? ` · up to ${p.offer_percent}% off` : ''}</span>
               {!p.is_active && <Pill value="off" label="hidden" />}
               <span className="ml-auto flex gap-3 text-xs">
                 <button onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="underline">Edit</button>

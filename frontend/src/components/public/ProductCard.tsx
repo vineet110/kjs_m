@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import OfferBadge from '@/components/public/OfferBadge';
 import type { Product } from '@/lib/api';
 import { imageOf } from '@/lib/catalogue';
 
@@ -13,6 +14,7 @@ export default function ProductCard({ p }: { p: Product }) {
         ) : (
           <span className="text-xs text-slate-400">{p.category_name}</span>
         )}
+        <OfferBadge percent={p.offer_percent} className="absolute left-2 top-2" />
       </div>
       <div className="space-y-1 p-4">
         <p className="text-xs font-semibold text-gold-dark">{p.category_name}</p>

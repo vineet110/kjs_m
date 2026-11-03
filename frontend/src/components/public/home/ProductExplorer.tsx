@@ -8,6 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import EnquiryButton from '@/components/public/EnquiryButton';
+import OfferBadge from '@/components/public/OfferBadge';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
@@ -121,13 +122,15 @@ export default function ProductExplorer({ categories }: { categories: Category[]
               <HomeProductCard
                 p={p}
                 onQuickView={() => { setQuick(p); rememberViewed(p.slug); }}
+                topLeft={
+                  p.items.length > 1 && (
+                    <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
+                      {p.items.length} variants
+                    </span>
+                  )
+                }
                 overlay={
                   <>
-                    {p.items.length > 1 && (
-                      <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
-                        {p.items.length} variants
-                      </span>
-                    )}
                     {p.privateLabel && (
                       <span className="absolute right-2 top-2 hidden rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold text-ink shadow-sm sm:inline">Private label</span>
                     )}
@@ -186,6 +189,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
                 <div>
                   <p className="eyebrow">{quick.categoryName}</p>
                   <h3 className="mt-1 text-2xl font-bold">{quick.name}</h3>
+                  <OfferBadge percent={quick.offerPercent} className="mt-2 inline-block" />
                 </div>
                 <button onClick={() => setQuick(null)} className="text-slate-500 hover:text-slate-900" aria-label="Close">✕</button>
               </div>

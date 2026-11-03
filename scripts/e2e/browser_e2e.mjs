@@ -66,6 +66,8 @@ let homeAll = '';
 let homeCount = null;
 let homeGap = null;
 let capLinks = [];
+let homeBest = null;
+let homeRecommended = null;
 for (const [path, needle] of Object.entries(PUBLIC)) {
   const t = await open(path);
   check(`browser ${path}`, t.includes(needle) && errors.length === 0, errors.join(' | ') || `missing "${needle}"`);
@@ -73,6 +75,9 @@ for (const [path, needle] of Object.entries(PUBLIC)) {
     homeAll = (await allText()) ?? '';
     // Space between the "How it works" section and the green "Launching a product" card below it
     homeGap = await evaluate('(() => { const card = [...document.querySelectorAll("h2")].find((h) => h.textContent.startsWith("Launching a product"))?.closest(".rounded-2xl"); const above = card?.closest("section")?.previousElementSibling; return card && above ? card.getBoundingClientRect().top - above.getBoundingClientRect().bottom : null; })()');
+    // The text of the "Best sellers" section (null if there is none)
+    homeBest = await evaluate('document.getElementById("best-sellers-title")?.closest("section")?.textContent ?? null');
+    homeRecommended = await evaluate('document.getElementById("recommended-title")?.closest("section")?.textContent ?? null');
     // The number above "product families in the catalogue" in the dark stats box (null if the line is missing)
     homeCount = await evaluate('[...document.querySelectorAll("p")].find((p) => p.textContent === "product families in the catalogue")?.previousElementSibling?.textContent ?? null');
     capLinks = (await evaluate('[...document.querySelectorAll("footer a[href*=\'/capabilities/\']")].map((a) => [a.getAttribute("href"), a.textContent.trim()])')) ?? [];
@@ -84,6 +89,11 @@ for (const [path, needle] of Object.entries(PUBLIC)) {
 const leftOver = ['One partner from blend to pallet', 'products our two units can make'].filter((s) => homeAll.includes(s));
 check('home: Capabilities section and "250+" removed', homeAll !== '' && leftOver.length === 0, homeAll ? `still there: ${leftOver.join(', ')}` : 'could not read the home page');
 check('home: space above the green "Launching a product" card', homeGap !== null && homeGap >= 40, `gap: ${homeGap}px`);
+// Best sellers (UI step 5): only the products ticked "Best seller" in Admin > Products. The API suite ticks
+// "Instant Coffee 3-in-1 Stick" and not "Masala Tea Premix"
+check('home: best sellers section shows only ticked products', homeBest !== null && homeBest.includes('Instant Coffee 3-in-1 Stick') && !homeBest.includes('Masala Tea Premix'), `section: ${JSON.stringify(homeBest?.slice(0, 120) ?? null)}`);
+// ...and Recommended, right below, doesn't show them again
+check('home: Recommended does not repeat the best sellers', homeRecommended !== null && !homeRecommended.includes('Instant Coffee 3-in-1 Stick'), `recommended: ${JSON.stringify(homeRecommended?.slice(0, 120) ?? null)}`);
 // The stats box shows the real product count (the API is up here), never a made-up "50+"
 check('home: stats box shows the real product count', /^[1-9]\d*$/.test(homeCount ?? ''), `shows: ${JSON.stringify(homeCount)}`);
 // The capability pages themselves stay: every one the footer links to opens with its own heading. The list
@@ -95,9 +105,122 @@ for (const [href, name] of capLinks) {
   check(`capability page ${href} still opens`, h1.includes(name) && errors.length === 0, errors.join(' | ') || `heading: "${h1}"`);
 }
 
+// Offer badge (UI step 6): "Up to 15% OFF" on the coffee product (the API suite sets 15 %), on no other card,
+// on the home page, the products page and the product page
+const badgesOn = (name) => evaluate(`[...document.querySelectorAll("article, a.card")].filter((c) => c.textContent.includes(${JSON.stringify(name)})).map((c) => c.textContent.includes("Up to 15% OFF"))`);
+const offerProblems = [];
+for (const path of ['/', '/products']) {
+  await open(path, path === '/' ? 2500 : 1000);
+  const coffee = (await badgesOn('Instant Coffee 3-in-1 Stick')) ?? [];
+  const tea = (await badgesOn('Masala Tea Premix')) ?? [];
+  if (!coffee.length || !coffee.every(Boolean)) offerProblems.push(`${path}: coffee card badges ${JSON.stringify(coffee)}`);
+  if (tea.some(Boolean)) offerProblems.push(`${path}: tea card has a badge`);
+}
+// The home range card's quick-view button tells screen readers about the offer, and the quick view shows it
+await open('/', 2500);
+const quickLabel = await evaluate('document.querySelector("button[aria-label^=\'Quick view: Instant Coffee 3-in-1 Stick\']")?.getAttribute("aria-label") ?? null');
+if (quickLabel !== 'Quick view: Instant Coffee 3-in-1 Stick, Up to 15% OFF') offerProblems.push(`quick-view label: ${JSON.stringify(quickLabel)}`);
+await evaluate('document.querySelector("button[aria-label^=\'Quick view: Instant Coffee 3-in-1 Stick\']")?.click()');
+if (!(await waitFor('Up to 15% OFF', 3000)) || !(await evaluate('document.querySelector("[role=dialog]")?.textContent.includes("Up to 15% OFF") ?? false'))) offerProblems.push('quick view: no badge');
+const productPage = await open('/products/instant-coffee-3-in-1-stick', 1000);
+if (!productPage.includes('Up to 15% OFF')) offerProblems.push('product page: no badge');
+if ((await open('/products/masala-tea-premix', 1000)).includes('% OFF')) offerProblems.push('tea product page has a badge');
+check('offer badge shows only on the product with an offer', offerProblems.length === 0, offerProblems.join('; '));
+
+// Partner page (UI step 4): "Broker" is shown as "Referral partner" (saved value still "broker"), no promise of
+// a referral link we don't have, and the new sections built from real content
+await open('/partners');
+// Only the page's own content (not the header, footer, offers ticker or Koko), scripts left out
+const partnersAll = (await evaluate('(() => { const m = document.querySelector("main")?.cloneNode(true); if (!m) return ""; m.querySelectorAll("script, style").forEach((e) => e.remove()); return m.textContent; })()')) ?? '';
+const brokerOption = await evaluate('document.querySelector("select[name=partner_type] option[value=broker]")?.textContent ?? null');
+const partnerProblems = [
+  partnersAll === '' && 'could not read the page',
+  /broker/i.test(partnersAll) && 'the word "broker" is still shown',
+  partnersAll.includes('Your own referral link') && 'the referral-link promise is still there',
+  brokerOption !== 'Referral partner' && `the "broker" option says ${JSON.stringify(brokerOption)}`,
+].filter(Boolean);
+check('partners: "Broker" shown as "Referral partner", no referral-link promise', partnerProblems.length === 0, partnerProblems.join('; '));
+const partnerSections = ['Who can apply', 'How it works', 'What your buyers can order'].filter((s) => !partnersAll.includes(s));
+check('partners: new sections are there', partnerSections.length === 0, `missing: ${partnerSections.join(', ')}`);
+// Links inside the "What your buyers can order" section itself
+const buyerLinks = await evaluate('[...document.querySelectorAll("main section")].find((s) => s.querySelector("h2")?.textContent === "What your buyers can order")?.querySelectorAll("a[href*=\'/categories/\']").length ?? 0');
+check('partners: buyers section links to real categories', buyerLinks > 0, 'no category links in that section');
+
+// Phone code and country pickers (UI step 7), on the contact page's enquiry form and the partner form
+const typeInto = (selector, text) => evaluate(`(() => { const i = document.querySelector(${JSON.stringify(selector)}); if (!i) return false; i.focus(); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const options = () => evaluate('[...document.querySelectorAll("[role=listbox] [role=option]")].map((o) => o.textContent)');
+const hiddenValue = (name, form = 'form') => evaluate(`document.querySelector(${JSON.stringify(`${form} input[name=${name}]`)})?.value ?? null`);
+const pressEnter = () => evaluate('(() => { const i = document.activeElement; i.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()');
+const pickerProblems = [];
+await open('/contact', 1500);
+const codeButton = 'button[aria-label^="Country code"]';
+const startLabel = await evaluate(`document.querySelector('${codeButton}')?.getAttribute("aria-label") ?? null`);
+if (!startLabel?.endsWith('India +91')) pickerProblems.push(`starts on ${JSON.stringify(startLabel)}, not India`);
+await evaluate(`document.querySelector('${codeButton}')?.click()`);
+await sleep(300);
+// A flag picture really loaded (a missing file has no width)
+const flagOk = await evaluate('new Promise((r) => { let n = 0; const t = setInterval(() => { const img = document.querySelector("[role=listbox] img"); if ((img && img.complete && img.naturalWidth > 0) || ++n > 20) { clearInterval(t); r(!!img && img.naturalWidth > 0); } }, 150); })');
+if (!flagOk) pickerProblems.push('no flag pictures in the list');
+await typeInto('[role=combobox]', 'a');
+await sleep(200);
+const aList = (await options()) ?? [];
+if (aList.length < 5 || !aList.every((t) => t.normalize('NFD').toLowerCase().startsWith('a'))) pickerProblems.push(`"a" shows: ${aList.slice(0, 5).join(', ')}`);
+await typeInto('[role=combobox]', '9');
+await sleep(200);
+const nineList = (await options()) ?? [];
+if (nineList.length < 5 || !nineList.every((t) => /\+9\d*$/.test(t))) pickerProblems.push(`"9" shows: ${nineList.slice(0, 5).join(', ')}`);
+await typeInto('[role=combobox]', 'united arab');
+await sleep(200);
+await pressEnter();
+await sleep(200);
+await typeInto('#phone', '50 123 4567');
+await sleep(200);
+const phoneSent = await hiddenValue('phone');
+if (phoneSent !== '+971 50 123 4567') pickerProblems.push(`phone sent as ${JSON.stringify(phoneSent)}`);
+await typeInto('#phone', 'call me');
+if (await evaluate('document.querySelector("#phone").checkValidity()')) pickerProblems.push('"call me" accepted as a phone');
+// Partner form: picking the country also sets the phone code (until the visitor picks a code)
+await open('/partners', 1500);
+await evaluate('document.querySelector("#p-country")?.click()');
+await sleep(300);
+await typeInto('[role=combobox]', 'germ');
+await sleep(200);
+await pressEnter();
+await sleep(300);
+const countrySent = await hiddenValue('country');
+const codeNow = await evaluate(`document.querySelector('${codeButton}')?.getAttribute("aria-label") ?? null`);
+if (countrySent !== 'Germany') pickerProblems.push(`country sent as ${JSON.stringify(countrySent)}`);
+if (!codeNow?.endsWith('Germany +49')) pickerProblems.push(`phone code didn't follow the country: ${JSON.stringify(codeNow)}`);
+// Sending the partner form without a country says so next to the picker
+await open('/partners', 1500);
+await evaluate('document.querySelector("form button.btn-gold")?.click()');
+await sleep(300);
+if (!(await evaluate('[...document.querySelectorAll("[role=alert]")].some((a) => a.textContent.includes("Please choose a country"))'))) pickerProblems.push('no "Please choose a country" message');
+// Staff sign-up has the phone picker too
+await open('/employee/login', 1000);
+await click('Sign up');
+await sleep(300);
+if (!(await evaluate(`!!document.querySelector('${codeButton}')`))) pickerProblems.push('sign-up has no phone code picker');
+check('phone code and country pickers work (search, codes, flags, linked code, light check)', pickerProblems.length === 0 && errors.length === 0, [...pickerProblems, ...errors].join('; '));
+
 // Product page: gated "Get a quote" opens the form (or the one-click view)
 await open('/products/instant-coffee-3-in-1-stick');
 check('click "Get a quote" opens the form', (await click('Get a quote')) && (await waitFor('Full name')), errors.join(' | '));
+
+// A returning visitor whose remembered phone is free text from before the phone check (PR #16 review):
+// no one-click send (the server would refuse it), the form asks for the number again; closing it and
+// coming back asks again (never a one-click send with no way to reach them)
+await evaluate(`localStorage.setItem('kjs_visitor', JSON.stringify({ name: 'Old Visitor', company: '', email: '', phone: 'call me after 6', country: '' }))`);
+const badPhoneTries = [];
+for (let visit = 1; visit <= 2; visit++) {
+  await open('/products/instant-coffee-3-in-1-stick');
+  const clicked = await click('Get a quote');
+  const askedAgain = clicked && (await waitFor('Please re-enter your phone number', 4000));
+  const oneClick = await evaluate('document.body.innerText.includes("We will send this request as")');
+  if (!askedAgain || oneClick) badPhoneTries.push(`visit ${visit}: asked again ${askedAgain}, one-click ${oneClick}`);
+}
+check('old remembered phone: asks again instead of a one-click send that would fail', badPhoneTries.length === 0, badPhoneTries.join('; '));
+await evaluate(`localStorage.removeItem('kjs_visitor')`);
 
 // Koko opens and answers
 await open('/');

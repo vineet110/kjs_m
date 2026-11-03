@@ -6,6 +6,7 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import { CatalogueProvider } from '@/components/public/home/CatalogueContext';
 import CategoryMenu from '@/components/public/home/CategoryMenu';
 import HeroCarousel, { type Slide } from '@/components/public/home/HeroCarousel';
+import HomeProductCard from '@/components/public/home/HomeProductCard';
 import HomeSearch from '@/components/public/home/HomeSearch';
 import ProductExplorer from '@/components/public/home/ProductExplorer';
 import RecommendedProducts from '@/components/public/home/RecommendedProducts';
@@ -83,6 +84,9 @@ export default async function HomePage() {
   ];
 
   const bestSellers = all.filter((p) => p.is_best_seller).map((p) => p.slug);
+  // "Best sellers" section: every product really ticked in Admin > Products (no fallback list, no cut-off;
+  // `products` is `all` mapped, so the same index is the same product)
+  const bestSellerCards = products.filter((_, i) => all[i].is_best_seller);
   const popular = (bestSellers.length ? bestSellers : POPULAR_FALLBACK)
     .map((s) => products.find((p) => p.slug === s))
     .filter((p): p is HomeProduct => !!p)
@@ -212,8 +216,23 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Best sellers: the products ticked in Admin > Products; hidden until any are ticked */}
+      {bestSellerCards.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 pt-14" aria-labelledby="best-sellers-title">
+          <p className="eyebrow">From our range</p>
+          <h2 id="best-sellers-title" className="mt-2 text-3xl font-bold">Best sellers</h2>
+          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {bestSellerCards.map((p) => (
+              <Reveal key={p.slug} stagger repeat className="flex">
+                <HomeProductCard p={p} />
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Recommended: personal picks from this browser's history, or a mix for first-time visitors */}
-      <RecommendedProducts />
+      <RecommendedProducts exclude={bestSellerCards.map((p) => p.slug)} />
 
       {/* Product range */}
       <section id="range" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-14">

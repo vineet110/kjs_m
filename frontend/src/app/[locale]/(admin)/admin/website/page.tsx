@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMe } from '@/components/portal/PortalShell';
 import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
+import { partnerLabel } from '@/lib/partners';
 import Loading from '@/components/ui/Loading';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
@@ -172,7 +173,7 @@ function Partners() {
         <div key={p.id} className="card space-y-1 p-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{p.name}</span>
-            <span className="text-slate-500">{p.company && `${p.company} · `}{p.partner_type} · {p.country}</span>
+            <span className="text-slate-500">{p.company && `${p.company} · `}{partnerLabel(p.partner_type)} · {p.country}</span>
             <Pill value={p.status === 'new' ? 'pending' : p.status} label={p.status} />
             <span className="ml-auto text-xs text-slate-400">{fmtIST(p.created_at)} IST</span>
           </div>

@@ -51,6 +51,27 @@ async def test_partner_application_and_review(client):
     assert (await client.get("/api/v1/employee/notifications")).json()["unread"] == 1
 
 
+async def test_referral_partner_keeps_saved_value_broker(client):
+    # "Broker" is shown as "Referral partner"; the saved value stays "broker", so older applications still match
+    await make_user("m@kjsindia.com", permissions=["leads.view", "leads.view_all"])
+    assert (await client.post("/api/v1/public/partners", json=PARTNER | {"partner_type": "broker"}, headers=HDR)).status_code == 201
+    await login(client, "m@kjsindia.com")
+    assert [a["partner_type"] for a in (await client.get("/api/v1/content/partners")).json()] == ["broker"]
+    bell = (await client.get("/api/v1/employee/notifications")).json()["items"]
+    assert bell[0]["title"] == "Partner application: Ravi (Referral partner, UAE)"
+    assert "broker" not in (await client.get("/api/v1/public/texts")).json()["partners.intro"].lower()
+
+
+def test_partner_labels_match_the_types_the_api_accepts():
+    # One label per accepted type, so a new type can't reach staff as a raw value
+    # (the frontend keeps the same list in lib/partners.ts)
+    from typing import get_args
+
+    from app.api.v1.endpoints.public import PartnerIn
+    from app.services.content_service import PARTNER_LABELS
+    assert set(get_args(PartnerIn.model_fields["partner_type"].annotation)) == set(PARTNER_LABELS)
+
+
 async def test_koko_saves_transcript_and_uses_edited_facts(client):
     # LLM is off in tests -> fallback reply, but the transcript is still kept
     body = {"messages": [{"role": "user", "content": "Do you make tea premix?"}], "chat_id": "abc-123", "page": "/"}
@@ -106,3 +127,69 @@ async def test_edit_and_hide_product(client):
     assert r.json()["name"] == "Filter Coffee 80:20" and r.json()["slug"] == p["slug"]
     await client.patch(f"/api/v1/admin/products/{p['id']}", json=body | {"is_active": False}, headers=HDR)
     assert (await client.get(f"/api/v1/public/products/{p['slug']}")).status_code == 404
+
+
+async def test_product_offer_percent_is_optional_and_checked(client):
+    # UI step 6: an "Up to X% OFF" badge, only when staff set an offer (1 to 90 %)
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    plain = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Filter Coffee"}, headers=HDR)).json()
+    assert plain["offer_percent"] is None  # no offer unless someone sets one
+    body = {"category_slug": "coffee", "name": "Cold Coffee Premix", "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=body, headers=HDR)).json()
+    assert (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["offer_percent"] == 20
+    for bad in (0, 91, -5, 12.5):
+        r = await client.post("/api/v1/admin/products", json=body | {"name": f"Bad offer {bad}", "offer_percent": bad}, headers=HDR)
+        assert r.status_code == 422, bad
+    # Clearing the offer removes the badge
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json=body | {"offer_percent": None}, headers=HDR)
+    assert r.json()["offer_percent"] is None
+
+
+async def test_product_edit_without_offer_keeps_it(client):
+    # An older admin tab or a script that doesn't know the offer field must not clear it by accident
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    body = {"category_slug": "coffee", "name": "Cold Coffee Premix", "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=body, headers=HDR)).json()
+    no_offer = {"category_slug": "coffee", "name": "Cold Coffee Premix", "moq": "5,000 units"}
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json=no_offer | {"is_active": False}, headers=HDR)
+    assert r.json()["offer_percent"] == 20 and r.json()["moq"] == "5,000 units"
+
+
+async def test_product_edit_changes_only_what_was_sent(client):
+    # PR #16 review: a script or an old tab that sends only the name must not blank the other fields or
+    # unhide a hidden product; the audit log records what was really saved
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    full = {"category_slug": "coffee", "name": "Cold Coffee Premix", "description": "Iced coffee mix.",
+            "pack_formats": "Pouch 1 kg", "moq": "5,000 units", "image_path": "/images/products/cold.jpg",
+            "private_label": False, "is_best_seller": True, "offer_percent": 20}
+    p = (await client.post("/api/v1/admin/products", json=full, headers=HDR)).json()
+    await client.patch(f"/api/v1/admin/products/{p['id']}", json=full | {"is_active": False}, headers=HDR)  # hide it
+    r = await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": "Cold Coffee Premix 2"}, headers=HDR)
+    assert r.status_code == 200, r.text
+    after = r.json()
+    assert after["name"] == "Cold Coffee Premix 2"
+    for field in ("description", "pack_formats", "moq", "image_path", "private_label", "is_best_seller", "offer_percent"):
+        assert after[field] == full[field], field
+    assert after["is_active"] is False  # still hidden
+    # Fields that can't be empty refuse an explicit null
+    assert (await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": None}, headers=HDR)).status_code == 422
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.models.audit import AuditLog
+    async with AsyncSessionLocal() as db:
+        last = (await db.scalars(select(AuditLog).where(AuditLog.action == "product.updated").order_by(AuditLog.id.desc()))).first()
+    assert last.after == {"name": "Cold Coffee Premix 2"}
+
+
+async def test_product_name_of_only_spaces_is_refused(client):
+    # The name is trimmed BEFORE its length is checked, on create and on edit (review)
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    assert (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "   "}, headers=HDR)).status_code == 422
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Filter Coffee"}, headers=HDR)).json()
+    for bad in ("   ", "  x "):
+        assert (await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": bad}, headers=HDR)).status_code == 422, bad

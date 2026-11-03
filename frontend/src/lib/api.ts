@@ -6,6 +6,7 @@ export type Category = { id: number; slug: string; name: string; description: st
 export type Product = {
   id: number; slug: string; name: string; description: string; pack_formats: string; moq: string;
   image_path: string; private_label: boolean; is_best_seller: boolean; category_slug: string; category_name: string;
+  offer_percent: number | null; // "Up to X% OFF" badge; null = no offer
 };
 
 export type Lead = {

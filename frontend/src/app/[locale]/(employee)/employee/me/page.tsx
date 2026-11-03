@@ -2,6 +2,7 @@
 // Profile: my details, notification settings, password.
 import { useEffect, useState } from 'react';
 import { Msg, PageTitle } from '@/components/portal/ui';
+import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 
@@ -21,7 +22,13 @@ export default function ProfilePage() {
     try {
       setP(await api<Profile>('/auth/profile', {
         method: 'PATCH',
-        body: { name: f.get('name'), phone: f.get('phone'), notify_email: f.get('notify_email') === 'on', notify_whatsapp: f.get('notify_whatsapp') === 'on' },
+        body: {
+          name: f.get('name'),
+          // Only a changed phone is sent (left out = unchanged), so an older number saved before the phone
+          // check can never block saving the other settings
+          ...(f.get('phone') !== (p?.phone ?? '') && { phone: f.get('phone') }),
+          notify_email: f.get('notify_email') === 'on', notify_whatsapp: f.get('notify_whatsapp') === 'on',
+        },
       }));
       setMsg({ ok: true, text: 'Saved.' });
     } catch (err) {
@@ -50,7 +57,7 @@ export default function ProfilePage() {
       <form onSubmit={save} className="card space-y-3 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label">Name</label><input name="name" defaultValue={p.name} required minLength={2} className="input" /></div>
-          <div><label className="label">Phone / WhatsApp</label><input name="phone" defaultValue={p.phone} maxLength={20} className="input" /></div>
+          <div><label className="label" htmlFor="me-phone">Phone / WhatsApp</label><PhoneInput id="me-phone" defaultValue={p.phone} maxLength={20} /></div>
         </div>
         <fieldset className="space-y-1 text-sm">
           <legend className="label">Notifications (the bell always shows them)</legend>
