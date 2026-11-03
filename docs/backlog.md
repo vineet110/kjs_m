@@ -1348,9 +1348,39 @@ R41. Login and portal follow-ups from the PR #12 second review  🟡 next small 
 The full list, with where, why and the direction of each fix, is in `codeReview.md` (CR1–CR39). Only the
 headline items here.
 
-CR1. `restore.sh` can empty the database and still say "restore done"  🔴
+CR1. `restore.sh` can empty the database and still say "restore done"  ✅ fixed (PR #13, merged 3 Nov)
 
-   i.    Must fix before go-live. See `codeReview.md` CR1.
+   i.    Fixed and tested by `deploy/test-restore.sh` (192 checks). See `codeReview.md` CR1.
+   ii.   Still open: a restore drill on the real server, once there is one (`track.md` go-live checklist, item 2).
+   iii.  `backup.sh` and `restore.sh` no longer need the backend running. Check what is left of CR3.
+   iv.   Do first, in the follow-up PR: when a restore fails after the database was replaced, the app is
+         started anyway, without migrations or rights. Users get errors (nothing is saved or lost) until
+         the undo runs. Keep the app stopped there, like the "unknown" case.
+   v.    Follow-ups from the 8 PR #13 reviews (none must-fix):
+         a.  The "earlier restore still running?" check treats a failed query as "none running", and the
+             read after it never connects to the database. Refuse when the database can't be asked.
+         b.  The unpack step (4) has no `set -e`: if `cd /srv/kjs_files` fails, files go into the
+             container's workdir. Add `|| exit 1`.
+         c.  No lock: two restores started within seconds, or a restore and the 02:30 `backup.sh`, can clash
+             (same-second starts also share a safety backup name). Add one `flock` held for the whole run of
+             both scripts. `flock` isn't on Windows: test it on Linux.
+         d.  "Unknown" endings: a `kill` sent to the script alone during step 5 is handled only after psql
+             finishes, so a known result is reported as unknown. On unknown, ask the database what happened.
+             The marker table stays after an unknown ending (harmless).
+         e.  `ask_database` gives up after 120 s; a big restore can take longer (ends unknown, safe side).
+         f.  `restore-undo.txt` keeps growing and points at safety backups deleted after KEEP_DAYS.
+         g.  A backup from newer code is caught only at step 7, after the data is replaced (the undo works).
+             Read the dump's alembic revision in step 1 and refuse it there.
+         h.  A valid dump of an empty or wrong database passes the read check.
+         i.  If the script is killed during the database step, `.restore-new` stays until the next restore.
+         j.  The health check asks only the backend, from inside its container. Use `deploy.sh`'s check
+             (nginx, API and the website) as one shared helper.
+         k.  Downtime: files are unpacked after the app stops, and the safety backup is read back in full
+             with 2 extra containers. Run `tar tzf` on the host instead of in a backend container.
+         l.  `compose run` builds the image if the live `TAG` image was deleted.
+         m.  Simpler design: `pg_restore -f` to a file in the db container, then `psql -f` (drops the
+             `\.` + `SELECT 1/0` trick).
+         n.  Tidy-ups: one shared helper for the dump and tgz checks, and one for the `kjs-restore` session query.
 
 
 CR2–CR11. Should fix before go-live  🟠
