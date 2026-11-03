@@ -10,6 +10,30 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 30 Oct – 3 Nov 2026 (CR1 restore fix, PR #13, Vineet)
+
+1. (V) A check can pass without proving what you think. `pg_restore -l` passed backups cut in half, because
+   it reads only the list at the start. Only reading the whole file caught them.
+
+2. (V) In a pipe, the second program can't see that the first one failed. So we send it something that
+   always errors, and the database cancels the whole transaction.
+
+3. (V) Write the test first and watch it fail: that proves the bug is real. And a test proves only what it
+   really tries: an easy fake crash missed the hard case (a crash inside a table's rows).
+
+4. (V) Stopping a script doesn't stop what it started. When a script loses sight of a step, it must say
+   "I don't know", not guess "nothing changed". Better still, ask the system that knows (the database).
+
+5. (V) A warning alone is not enough after the data changed: every way out must say what changed and how
+   to undo it. Pick file names yourself; don't read them back out of a message meant for people.
+
+6. (V) AI reviews always find something new. Decide what blocks a merge with a fixed rule (real input, wrong
+   result, realistic harm, a test can show it), and put the rest in the backlog.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 2 Nov 2026 (PR #14 review, Nishita)
 
 1. (T) Removing a block can remove spacing too: check the space between what is left, not just that it's gone.

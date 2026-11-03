@@ -67,9 +67,11 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iv.   Best seller stays a tick box per product (not a category): a product keeps its real category.
 
 
-4c. Whole-repo code review (29 Oct): `codeReview.md`, nothing fixed yet
+4c. Whole-repo code review (29 Oct): `codeReview.md`
 
-   i.    🔴 CR1 must be fixed before go-live: `restore.sh` can empty the database and still say "restore done".
+   i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
+         "restore done". 192 checks pass in `deploy/test-restore.sh` on a local Docker copy. Still to do:
+         the restore drill on the real server. Follow-ups: `backlog.md` CR1.
    ii.   🟠 CR2–CR11 should be fixed before go-live: health check, backups, public error page, rate limits,
          feature flags, disabled user's batch, lost emails, superuser password in the API container.
    iii.  Plan: 5 small code PRs, each with a failing test first (`codeReview.md` section 2, `prompt.md` section 6).
@@ -80,7 +82,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
    ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
-   iii.  Vineet + Nishita: CR1 `restore.sh` fix before go-live, then the should-fix list CR2–CR11.
+   iii.  Vineet + Nishita: the should-fix list CR2–CR11 (CR1 merged 3 Nov).
 
 
 6. Can be done without KJS
@@ -173,3 +175,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 8. 29 Oct: whole-repo code review in `codeReview.md` (CR1–CR39). No security holes; 1 must-fix (`restore.sh`)
    and 10 should-fix. Not fixed yet: 5 small PRs planned (`codeReview.md` section 2).
+
+9. 30 Oct – 3 Nov: CR1 (`restore.sh`) fixed, reviewed 8 times and merged (PR #13). New `deploy/test-restore.sh`
+   (192 checks). Since 2 Nov, session notes go in `docs/tempV.md` / `tempS.md` first (`prompt.md` section 7).
