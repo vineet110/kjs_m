@@ -1229,12 +1229,17 @@ R31. Deals strip ("up to 15% off", like Alibaba)  🟠 needs KJS
 
    i.    We have no prices or discounts from KJS (I3), so a discount on the site would be a made-up offer.
    ii.   Proposal: show only offers an admin enters (Admin > Website, offers exist already); hidden when none.
+   iii.  (3 Nov, PR #16) Built per product: an optional offer % (1 to 90) in Admin > Products shows "Up to X% OFF".
+         Still needs KJS: an offer is a business promise like a price, so KJS must approve each one before
+         staff set it.
 
 
 R32. Best sellers row  🟠 needs KJS
 
    i.    The "best seller" tick box exists per product, but which products sell best is a business fact (I2).
    ii.   Proposal: label it "Featured" until KJS confirms, or KJS / Vineet tick the real best sellers.
+   iii.  (3 Nov, PR #16) The "Best sellers" row is built: it shows only ticked products and is hidden until any are
+         ticked. Still needs KJS to say which products really sell best before anyone ticks them on the live site.
 
 
 R33. Frequently searched  🟢 needs a decision
@@ -1302,12 +1307,18 @@ R38. Home cards: small points from the last PR #9 review  🟢 later (not bugs)
 R39. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
 
    i.    1 login spinner ✅ and 2 sliding sidebar ✅ (both merged in PR #12). 3 home: remove
-         Capabilities and "250+" ✅ (PR #14). 4 partner page. 5 best-seller section. 6 offer % + badge. 7 phone
-         code and country pickers.
+         Capabilities and "250+" ✅ (PR #14). 4 partner page ✅, 5 best-seller section ✅, 6 offer % + badge ✅,
+         7 phone code and country pickers ✅ (all four merged in PR #16, 3 Nov).
    ii.   Commission numbers and testimonials on the partner page wait for real ones from KJS (no made-up data).
    iii.  (PR #14 review) The header "Capabilities" link opens only Stick Pack Factory; the other four pages are
          now linked only from the footer, the capability sidebar and private-label. Next small PR after step 4:
          a "Capabilities" dropdown in the header listing all five. Where: `components/public/SiteHeader.tsx`.
+   iv.   (Step 4) If the partners intro text was ever edited in Admin > Website, the saved copy may still say
+         "brokers": check it after deploy and reset it there.
+   v.    (Step 7) Kept on purpose: the light phone check (decision 5a), not the full `phonenumbers` check per
+         country. Revisit only if staff get many wrong numbers.
+   vi.   (PR #16 own review) Kept: the home page passes the best-seller list to Recommended as it is (works and
+         is tested; a tidier way exists).
 
 
 ---------------------------------------------------------------------------------------------------
@@ -1338,6 +1349,19 @@ R41. Login and portal follow-ups from the PR #12 second review  🟡 next small 
          started (e.g. typing in Sign up). Check it in scenario 5 of `login_e2e.mjs`.
    v.    Simplify the login state: one status (idle, submitting, opening, slow) instead of busy, navigating,
          pageOpening, slowTo and slowTimer.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+R42. Admin redesign follow-ups (PR #17, 3 Nov)  🟡 next small PR
+
+   i.    Not checked in a real browser with a login yet (no login on Nishita's PC): log out menu and popup,
+         dragging a sidebar group down, arrow keys on the grip keeping the focus. Add them to an e2e script.
+   ii.   Pages feel slow in development: every database trip to Neon Singapore is about 100 ms (one API call
+         about 0.5 s), and dev mode builds each page on first visit (about 1.3 s). A local Docker database for
+         development would fix it. Needs a decision with Vineet (`memory.md` says Neon, D15).
+   iii.  The sidebar order and open groups are saved per browser (localStorage), not per account.
 
 
 
