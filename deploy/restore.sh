@@ -5,7 +5,8 @@
 #
 # Safe by design:
 #   1. both backups are read in full first: a bad one stops here, with the app still running;
-#   2. a backup of the CURRENT state is taken (so a wrong restore can be undone);
+#   2. the app is stopped, then a backup of the CURRENT state is taken (so a wrong restore can be
+#      undone, with nothing missing); the undo command is also saved in BACKUP_DIR/restore-undo.txt;
 #   3. the database is replaced in ONE transaction: if anything fails, it stays as it was;
 #   4. new files are unpacked aside BEFORE that, and old ones are deleted only after it;
 #   5. the app is started again and checked, even if the restore failed (only if the script was
@@ -42,22 +43,37 @@ if [ -n "$files_file" ]; then
     || { echo "restore stopped: could not read $files_file (bad file, or a container is down). Nothing was changed."; exit 1; }
 fi
 
-echo "2/7 safety backup of the current state"
-# We pick the file names (STAMP), so we never have to read them back out of backup.sh's message.
+# We pick the safety backup's file names, so we never have to read them back out of backup.sh's message.
 # "-before-restore": can't clash with a nightly backup, and shows what the files are.
-# KEEP_DAYS: no clean-up now, or backup.sh could delete an old backup we are about to restore
 stamp="$(date +%Y%m%d-%H%M%S)-before-restore"
 safety_db="$BACKUP_DIR/db-$stamp.dump"
 safety_files="$BACKUP_DIR/files-$stamp.tgz"
-BACKUP_DIR="$BACKUP_DIR" STAMP="$stamp" KEEP_DAYS=36500 ./backup.sh
 # %q: quoted, so it can be copied and run even if the folder name has a space
 undo_cmd="$(printf './restore.sh %q %q' "$safety_db" "$safety_files")"
-# Also in a file: if the SSH session drops, the terminal and the command on it are gone
 undo_file="$BACKUP_DIR/restore-undo.txt"
-printf '%s\n' "Restore of $db_file started $(date)." \
-  "To go back to how it was before it, run this in the deploy folder:" "  $undo_cmd" > "$undo_file"
+undo_saved=no
 
 data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
+db_query() { $COMPOSE exec -T db psql -U kjs -d kjs -Atqc "$1"; }
+# After psql failed with something other than 3: don't guess, ask the database. Wait until our
+# session ("kjs-restore") is gone, then look for the marker made just before the database step:
+# still there = the transaction was cancelled; gone = it committed (DROP SCHEMA removed it).
+# If the database can't tell us, data_state stays unknown.
+ask_database() {
+  local end=$((SECONDS + 120)) n
+  while n="$(db_query "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'kjs-restore'")" \
+        && [ "$n" != 0 ] && [ "$SECONDS" -lt "$end" ]; do
+    sleep 2
+  done
+  [ "$n" = 0 ] || return 0
+  case "$(db_query "SELECT to_regclass('public.kjs_restore_marker') IS NOT NULL")" in
+    f) data_state=replaced ;;
+    t) case "$(db_query "SELECT count(*) FROM public.kjs_restore_marker WHERE run = '$stamp'")" in
+         1) data_state=unchanged ;;
+         0) data_state=replaced ;;  # a marker from an older run came back with the backup
+       esac ;;
+  esac
+}
 app_is_healthy() {  # about 60 s. "compose start" only shows that the container started.
   local end=$((SECONDS + 60))  # by the clock: one try can take up to ~7 s
   while [ "$SECONDS" -lt "$end" ]; do
@@ -82,6 +98,18 @@ finish() {
   if [ "$data_state" = unchanged ] && [ -n "$files_file" ]; then
     $COMPOSE run --rm -T --no-deps --entrypoint sh backend -c 'rm -rf /srv/kjs_files/.restore-new' \
       >/dev/null 2>&1 || true
+  fi
+  db_query 'DROP TABLE IF EXISTS public.kjs_restore_marker' >/dev/null 2>&1 || true
+  # The saved undo must not be run by mistake later: once the app runs again, it would also throw
+  # away everything saved since. Running it is still safe (it takes its own safety backup first).
+  if [ "$undo_saved" = yes ]; then
+    if [ "$data_state" = unchanged ]; then
+      echo "Restore of $db_file failed at $(date), nothing was changed: there is nothing to undo." \
+        > "$undo_file" 2>/dev/null || true
+    else
+      echo "Restore ended at $(date). Running the command above after this also throws away everything saved after this time." \
+        >> "$undo_file" 2>/dev/null || true
+    fi
   fi
   $COMPOSE start backend frontend >/dev/null 2>&1 || app_started=no  # always bring the app back
   if [ "$status" -eq 0 ] && [ "$app_started" = yes ]; then app_is_healthy || app_started=no; fi
@@ -110,8 +138,17 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-echo "3/7 stopping the app (the database keeps running)"
+echo "2/7 stopping the app (the database keeps running)"
 $COMPOSE stop frontend backend
+
+echo "3/7 safety backup of the current state"
+# After the stop: nothing saved by a user can be missing from the undo.
+# KEEP_DAYS: no clean-up now, or backup.sh could delete an old backup we are about to restore
+BACKUP_DIR="$BACKUP_DIR" KJS_BACKUP_STAMP="$stamp" KEEP_DAYS=36500 ./backup.sh
+# Also in a file: if the SSH session drops, the terminal and the command on it are gone
+printf '%s\n' "Restore of $db_file started $(date)." \
+  "To go back to how it was before it, run this in the deploy folder:" "  $undo_cmd" > "$undo_file"
+undo_saved=yes
 
 if [ -n "$files_file" ]; then
   echo "4/7 unpacking uploaded files aside"
@@ -133,18 +170,22 @@ echo "5/7 replacing the database (all or nothing)"
 # a statement that always errors, which makes psql cancel the whole transaction. The "\." comes
 # first: if pg_restore died inside a table's data, it ends the rows, or our statement would be
 # stored as one more row and nothing would fail.
-# Only psql's own exit code 3 proves the transaction was cancelled. Anything else (Ctrl+C, a lost
-# connection) means we lost sight of it: psql can keep running in the container and still commit.
+# psql's own exit code 3 proves the transaction was cancelled. Any other failure: ask the database
+# (ask_database). Ctrl+C or a dropped session leaves it unknown: psql can keep running in the
+# container and still commit, and we are not there to wait for it.
 # lock_timeout: if another session holds a table, give up after 60 s and don't wait with the site down.
+db_query "DROP TABLE IF EXISTS public.kjs_restore_marker;
+          CREATE TABLE public.kjs_restore_marker (run text); INSERT INTO public.kjs_restore_marker VALUES ('$stamp');" \
+  >/dev/null
 data_state=unknown
 if $COMPOSE exec -T db sh -c \
   '{ echo "SET lock_timeout = '\''60s'\''; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
      pg_restore --no-owner --no-privileges -f - || printf "\n%s\nSELECT 1/0;\n" "\\."; } \
-   | psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"; then
+   | PGAPPNAME=kjs-restore psql -U kjs -d kjs -v ON_ERROR_STOP=1 --single-transaction -q' < "$db_file"; then
   data_state=replaced
 else
   status=$?
-  [ "$status" -ne 3 ] || data_state=unchanged
+  if [ "$status" -eq 3 ]; then data_state=unchanged; else ask_database; fi
   exit "$status"
 fi
 

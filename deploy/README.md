@@ -196,8 +196,8 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    It asks you to type RESTORE, then:
 
    i.    reads both backups in full (a bad one stops here: nothing changed, the app never stopped),
-   ii.   backs up the CURRENT state (so a wrong restore can be undone),
-   iii.  stops the app,
+   ii.   stops the app,
+   iii.  backs up the CURRENT state (so a wrong restore can be undone, with nothing missing),
    iv.   unpacks the new files aside (if you gave a files backup), so the disk needs room for both the
          old and the new files during the restore,
    v.    replaces the database in one transaction (if this fails, the database stays as it was),
@@ -209,6 +209,8 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    If it fails after step v, or the app doesn't work afterwards, it prints the exact `./restore.sh` command
    that puts the safety backup back. That command is also saved in `/srv/kjs/backups/restore-undo.txt`
    (in case the SSH session drops). Safety backups are named `...-before-restore`.
+   When the restore ends, the file says so: running that command later also throws away everything
+   saved since then. If nothing was changed, the file says there is nothing to undo.
    Changes to `restore.sh` or `backup.sh`: run `./test-restore.sh` on your own machine, never on the server.
 
 

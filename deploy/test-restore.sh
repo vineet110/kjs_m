@@ -374,7 +374,11 @@ fake_compose "*'-v ON_ERROR_STOP=1 -q'*) exit 1;;"
 expect_undo "grants fail"
 
 fake_compose "*pg_dump*) exit 1;;"
-COMPOSE="$WORK/fake" expect_refused "safety backup fails" "$WORK/good.dump"
+reset_to_live
+if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "safety backup fails: script must fail"; else ok "safety backup fails: script fails"; fi
+says_ok "safety backup fails: says nothing was changed" 'nothing was changed'
+check "safety backup fails: database untouched" live_data_intact
+check "safety backup fails: app is back up" backend_running
 
 reset_to_live
 fake_compose "'stop frontend backend') exit 1;;"
@@ -404,7 +408,7 @@ if COMPOSE="$WORK/fake" ./backup.sh > "$WORK/out.txt" 2>&1; then bad "backup.sh 
 
 echo "== 18. the SSH session drops at each stage"
 fake_compose "'stop frontend backend') sleep 5;;"
-hangup_during 3
+hangup_during 2
 says_ok "during stop: says nothing was changed" 'nothing was changed'
 check "during stop: data intact" live_data_intact
 check "during stop: app is back up" backend_running
@@ -429,7 +433,7 @@ fake_compose "'stop frontend backend') sleep 5;;
 reset_to_live
 COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1 &
 pid=$!
-for _ in $(seq 1 120); do grep -q '^3/7' "$WORK/out.txt" && break; sleep 1; done
+for _ in $(seq 1 120); do grep -q '^2/7' "$WORK/out.txt" && break; sleep 1; done
 sleep 1
 kill -HUP "$pid"
 sleep 7
@@ -478,6 +482,53 @@ if [ -n "$undo" ] && (export BACKUP_DIR="$spaced"; eval "$undo --yes") > "$WORK/
   ok "folder with a space: undo works"; else bad "folder with a space: undo works"; tail -5 "$WORK/out2.txt"; fi
 check "folder with a space: live data back" live_data_intact
 check "folder with a space: live files back" live_files_intact
+
+echo "== 22. fifth review: app stopped before the safety backup, STAMP, the saved undo, other psql errors"
+reset_to_live
+rm -f "$WORK/running.txt"
+fake_compose "*pg_dump*) $COMPOSE ps --status running -q backend > \"$WORK/running.txt\";;"
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+[ -f "$WORK/running.txt" ] && [ ! -s "$WORK/running.txt" ] && ok "the app is stopped before the safety backup" \
+  || bad "the app is stopped before the safety backup"
+check "the saved undo warns after the restore ends" grep -q 'throws away everything saved after' "$BACKUP_DIR/restore-undo.txt"
+
+before="$(ls "$BACKUP_DIR"/db-*.dump | wc -l)"
+STAMP=same ./backup.sh >/dev/null; sleep 1; STAMP=same ./backup.sh >/dev/null
+[ $(( $(ls "$BACKUP_DIR"/db-*.dump | wc -l) - before )) = 2 ] && ok "a STAMP set in the shell doesn't overwrite backups" \
+  || bad "a STAMP set in the shell doesn't overwrite backups"
+
+reset_to_live
+fake_compose "*single-transaction*) exit 1;;"  # psql fails before it did anything
+if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" "$WORK/good.tgz" --yes > "$WORK/out.txt" 2>&1; then bad "psql exit 1: script must fail"; else ok "psql exit 1: script fails"; fi
+says_ok "psql exit 1: says nothing was changed" 'nothing was changed'
+check "psql exit 1: data intact" live_data_intact
+check "psql exit 1: files intact, no work folder" live_files_intact
+check "psql exit 1: app is back up" backend_running
+check "psql exit 1: marker removed" test "$(sql "SELECT to_regclass('public.kjs_restore_marker') IS NULL")" = t
+check "psql exit 1: saved undo says nothing to undo" grep -q 'nothing to undo' "$BACKUP_DIR/restore-undo.txt"
+if grep -q '^  \./restore\.sh ' "$BACKUP_DIR/restore-undo.txt"; then bad "psql exit 1: no undo command left in the file"; else ok "psql exit 1: no undo command left in the file"; fi
+
+reset_to_live
+fake_compose "*single-transaction*) $COMPOSE \"\$@\"; exit 2;;"  # it committed, then psql reports an error
+if COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "commit then exit 2: script must fail"; else ok "commit then exit 2: script fails"; fi
+says_ok "commit then exit 2: says the data was replaced" 'after the data was replaced'
+undo="$(grep '^  \./restore\.sh ' "$WORK/out.txt" | tail -1)"
+if [ -n "$undo" ] && $undo --yes > "$WORK/out2.txt" 2>&1; then ok "commit then exit 2: undo works"; else bad "commit then exit 2: undo works"; tail -5 "$WORK/out2.txt"; fi
+check "commit then exit 2: live data back" live_data_intact
+
+reset_to_live
+sh_db 'mv /usr/local/bin/pg_restore /usr/local/bin/pg_restore.real'
+sh_db 'cat > /usr/local/bin/pg_restore; chmod +x /usr/local/bin/pg_restore' <<'STUB'
+#!/bin/sh
+case "$*" in *"-f -"*) sleep 8;; esac
+exec pg_restore.real "$@"
+STUB
+fake_compose "*single-transaction*) $COMPOSE \"\$@\" <&0 & sleep 2; exit 1;;"  # gives up while psql still runs
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
+says_ok "psql still running: waits, then says the data was replaced" 'after the data was replaced'
+[ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "psql still running: it did commit" || bad "psql still running: it did commit"
+check "psql still running: app is back up" backend_running
 
 echo
 echo "passed: $PASSED  failed: $FAILED"

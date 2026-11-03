@@ -54,6 +54,24 @@ were taken out and are kept here, to fold in after the merge.
    vi.   Don't read file names back out of a message meant for people: pick the names yourself.
 
 
+## CR1 restore fix, PR #13, fifth review (2 Nov)
+
+1. Fixed, each with a test that failed first (12 of 18 new checks failed before):
+   i.    The app is stopped BEFORE the safety backup, so the undo misses nothing. Costs a little more
+         downtime. A bad backup file still stops at step 1 with the app running.
+   ii.   `backup.sh` takes `KJS_BACKUP_STAMP`, not `STAMP` (a common name: every backup could overwrite the last).
+   iii.  `restore-undo.txt` says when the restore ended, and that running it later loses newer data.
+         If nothing changed, it says there is nothing to undo.
+   iv.   psql exit codes other than 3: the script now asks the database. A marker table (with this run's
+         id) is made just before the database step. After the restore's session ends: marker there =
+         nothing changed, app restarts; marker gone = data replaced, undo printed. A Ctrl+C or dropped
+         session still leaves it "unknown".
+2. In the backlog notes above, 3.iii.a (safety backup while the app is live) and h (exit codes other than 3)
+   are now fixed: leave them out on fold.
+3. Learning: when a result is unclear, ask the system that knows (the database), don't guess from an exit code.
+4. Full suite: 186 of 186 pass (run in 2 parts, sections 1–17 and 18–22, because the laptop ran low on memory).
+
+
 ## CR1 restore fix, PR #13, fourth review (2 Nov)
 
 1. Fixed, each with a test that failed first (7 of 8 failed before, 8 of 8 pass after):

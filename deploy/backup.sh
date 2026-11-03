@@ -12,7 +12,9 @@ umask 077
 BACKUP_DIR="${BACKUP_DIR:-/srv/kjs/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
-stamp="${STAMP:-$(date +%Y%m%d-%H%M%S)}"  # restore.sh sets STAMP, so it knows the file names
+# restore.sh sets KJS_BACKUP_STAMP, so it knows the file names. (Not "STAMP": a common name that may
+# already be set in the shell, and then every backup would get the same name and overwrite the last.)
+stamp="${KJS_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
