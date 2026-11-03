@@ -3,7 +3,7 @@
 // put in any order by dragging their grip (⋮⋮) or with the arrow keys on it. Both choices are remembered in
 // this browser (localStorage: a per-person convenience, nothing on the server).
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Me } from '@/lib/api';
 import { moveGroup, sortByOrder } from '@/lib/nav-order';
 import { onApprovalsChanged } from '@/lib/portal-session';
@@ -163,13 +163,30 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
   // Drag with the grip: pointer events work the same for mouse, touch and pen. While the pointer moves
   // over another group past its middle, the dragged group takes that group's place (the list changes
   // live, so you see where it will land). Saved when you let go.
+  // The moves are followed on the whole window, not with pointer capture on the grip: when a group moves
+  // down, React moves its block in the page, and a moved element loses its capture, so letting go was
+  // never seen and the drag got stuck (PR #17 review).
   function onGripDown(e: React.PointerEvent<HTMLButtonElement>, g: string) {
     if (e.button !== 0) return;
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(g);
   }
-  function onGripMove(e: React.PointerEvent<HTMLButtonElement>) {
+  const dragRef = useRef<{ move: (e: PointerEvent) => void; up: () => void }>(null!);
+  dragRef.current = { move: onDragMove, up: onDragUp }; // the newest versions (they read the current order)
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e: PointerEvent) => dragRef.current.move(e);
+    const up = () => dragRef.current.up();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [dragging]);
+  function onDragMove(e: PointerEvent) {
     if (!dragging) return;
     const over = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-nav-group]');
     const target = over?.dataset.navGroup;
@@ -181,19 +198,28 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
     // Only past the middle of the other group, so two groups of different heights don't flip back and forth
     if ((to > from && e.clientY > middle) || (to < from && e.clientY < middle)) moveTo(dragging, to);
   }
-  function onGripUp() {
+  function onDragUp() {
     if (!dragging) return;
     save(ORDER_KEY, order);
     setSaid(`${dragging} moved to place ${orderNow.current.indexOf(dragging) + 1} of ${orderNow.current.length}.`);
     setDragging(null);
   }
-  // Keyboard: arrow up / down on the grip moves the group one place (and keeps the focus on its grip)
+  // Keyboard: arrow up / down on the grip moves the group one place. Moving its block in the page takes the
+  // focus away, so the focus is put back on the same grip right after the move is drawn (PR #17 review).
+  const grips = useRef<Record<string, HTMLButtonElement | null>>({});
+  const refocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!refocus.current) return;
+    grips.current[refocus.current]?.focus();
+    refocus.current = null;
+  }, [order]);
   function onGripKey(e: React.KeyboardEvent<HTMLButtonElement>, g: string) {
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
     const from = orderNow.current.indexOf(g);
     const to = e.key === 'ArrowUp' ? from - 1 : from + 1;
     if (to < 0 || to >= orderNow.current.length) return;
+    refocus.current = g;
     save(ORDER_KEY, moveTo(g, to));
     setSaid(`${g} moved to place ${to + 1} of ${orderNow.current.length}.`);
   }
@@ -221,10 +247,10 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                 <button
                   type="button"
                   aria-label={`Move ${g.group}. Drag, or use the up and down arrow keys.`}
+                  ref={(el) => {
+                    grips.current[g.group] = el;
+                  }}
                   onPointerDown={(e) => onGripDown(e, g.group)}
-                  onPointerMove={onGripMove}
-                  onPointerUp={onGripUp}
-                  onPointerCancel={onGripUp}
                   onKeyDown={(e) => onGripKey(e, g.group)}
                   // touch-none: on a phone, dragging the grip moves the group instead of scrolling the sidebar
                   className="flex h-8 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-stone-600 opacity-60 hover:text-stone-300 hover:opacity-100 focus-visible:opacity-100 group-hover/head:opacity-100"

@@ -174,3 +174,11 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   3. Log out popup could get stuck: Chrome closes a <dialog> by force on a quick second Escape; `onClose`
      now tells the screen (reopened only while logging out).
   Unit 33 pass, tsc clean. Still not checked in a browser here.
+- PR #17 second review (3 points), all fixed:
+  1. A slow "who am I" answer arriving after log out could put the old account back: `portal-session.ts`
+     now counts forgets (epoch) and only remembers an answer asked after the last forget; PortalShell
+     also ignores answers after log out or when the frame is gone. Unit test (fails on the old code).
+  2. Dragging a group down got stuck: React moves the dragged group's block, which drops pointer capture,
+     so "let go" never arrived. The drag now listens on the window instead.
+  3. Arrow down on the grip lost the focus (same block move): the focus is put back on the grip after the move.
+  Unit 34 pass, tsc clean. 2 and 3 need a browser check (no login here).

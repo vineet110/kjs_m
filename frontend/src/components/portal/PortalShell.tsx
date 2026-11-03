@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, type Me } from '@/lib/api';
-import { forgetAccount, rememberAccount, rememberedAccount } from '@/lib/portal-session';
+import { accountEpoch, forgetAccount, rememberAccount, rememberedAccount } from '@/lib/portal-session';
 import AccountMenu, { Avatar, LogoutDialog, LogoutIcon, RoleBadge } from './AccountMenu';
 import Bell from './Bell';
 import SidebarNav from './SidebarNav';
@@ -74,10 +74,11 @@ export default function PortalShell({ children, requirePerm }: { children: React
     // After an error (a page change, Back, or "Try again"): the spinner while asking again. A page that is
     // already showing stays as it is while its account is re-checked.
     setStatus((s) => (s.state === 'error' ? { state: 'loading' } : s));
+    const askedAt = accountEpoch();
     api<Me>('/auth/me', { timeoutMs: ME_TIMEOUT_MS })
       .then((m) => {
-        if (n !== latest.current) return;
-        rememberAccount(m);
+        if (n !== latest.current) return; // an older question, or this frame is gone / logging out
+        rememberAccount(m, askedAt);
         if (requirePerm && !m.permissions.includes(requirePerm)) router.replace('/employee/dashboard');
         else setStatus({ state: 'ready', me: m });
       })
@@ -95,6 +96,8 @@ export default function PortalShell({ children, requirePerm }: { children: React
   useEffect(() => {
     loadMe();
   }, [loadMe]);
+  // Frame gone (left the portal): answers still on their way are ignored
+  useEffect(() => () => void latest.current++, []);
 
   // Opens or closes it, and remembers the choice for this tab (computer only; storage can be blocked in
   // private mode: then it just isn't remembered)
@@ -143,6 +146,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
   // `?bye=1` makes the login page say "You've logged out safely".
   async function logout() {
     setLoggingOut(true);
+    latest.current++; // a "who am I" still on its way is ignored (no page update, nothing remembered)
     forgetAccount();
     await api('/auth/logout', { method: 'POST', timeoutMs: 5_000 }).catch(() => undefined);
     router.replace('/employee/login?bye=1');

@@ -259,9 +259,18 @@ test('moving a group puts it at the chosen place, and keeps the places of groups
 const session = await load('portal-session');
 
 test('the remembered account is forgotten (login page, log out), so a new person never sees the old one', () => {
-  session.rememberAccount({ id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] });
+  const A = { id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] };
+  session.rememberAccount(A, session.accountEpoch());
   assert.equal(session.rememberedAccount()?.name, 'A');
   session.forgetAccount();
+  assert.equal(session.rememberedAccount(), null);
+});
+
+test('a "who am I" answer asked before a log out cannot bring the old account back (PR #17 review)', () => {
+  const A = { id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] };
+  const askedAt = session.accountEpoch(); // the question leaves
+  session.forgetAccount(); // log out while it is on its way
+  session.rememberAccount(A, askedAt); // the slow answer arrives
   assert.equal(session.rememberedAccount(), null);
 });
 
