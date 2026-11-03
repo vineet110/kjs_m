@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.common import Email, OneLine
+from app.schemas.common import Email, OneLine, Phone
 
 
 class ChatMessage(BaseModel):
@@ -17,7 +17,7 @@ class LeadIn(BaseModel):
     name: OneLine = Field(min_length=2, max_length=120)
     company: OneLine = Field(default="", max_length=200)
     email: Email | None = None
-    phone: OneLine = Field(default="", max_length=30)
+    phone: Phone = Field(default="", max_length=30)
     country: OneLine = Field(default="", max_length=80)
     buyer_type: OneLine = Field(default="", max_length=40)
     product_slug: str | None = Field(default=None, max_length=120)

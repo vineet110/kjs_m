@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
+import { CountrySelect, PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import { PARTNER_TYPES } from '@/lib/partners';
 
 export default function PartnerForm() {
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
   const [error, setError] = useState('');
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null); // the phone code follows it
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,9 +37,9 @@ export default function PartnerForm() {
           <label className="label" htmlFor="p-type">You are a *</label>
           <select id="p-type" name="partner_type" required className="input">{PARTNER_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </div>
-        <div><label className="label" htmlFor="p-country">Country *</label><input id="p-country" name="country" required minLength={2} className="input" /></div>
+        <div><label className="label" htmlFor="p-country">Country *</label><CountrySelect id="p-country" required onChange={setPickedCountry} /></div>
         <div><label className="label" htmlFor="p-email">Email *</label><input id="p-email" name="email" type="email" required className="input" /></div>
-        <div><label className="label" htmlFor="p-phone">Phone / WhatsApp</label><input id="p-phone" name="phone" className="input" /></div>
+        <div><label className="label" htmlFor="p-phone">Phone / WhatsApp</label><PhoneInput id="p-phone" linkedCountry={pickedCountry} /></div>
       </div>
       <div><label className="label" htmlFor="p-message">Which markets and buyers do you work with?</label><textarea id="p-message" name="message" rows={3} className="input" /></div>
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />

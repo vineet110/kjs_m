@@ -2,6 +2,7 @@
 // Koko: answers from KJS facts only (backend decides). When the visitor looks like a buyer,
 // we show a small contact form; the chat goes with it and becomes a lead with a summary.
 import { useEffect, useRef, useState } from 'react';
+import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import { SITE } from '@/lib/site';
 
@@ -98,7 +99,7 @@ export default function KokoChatWidget() {
                 <input name="name" required minLength={2} placeholder="Name *" className="input" />
                 <input name="company" placeholder="Company" className="input" />
                 <input name="email" type="email" placeholder="Email" className="input" />
-                <input name="phone" placeholder="Phone / WhatsApp" className="input" />
+                <PhoneInput id="koko-phone" />
                 <label className="flex items-start gap-2 text-[11px] text-slate-600">
                   <input type="checkbox" name="consent" required className="mt-0.5" />
                   I agree to be contacted about this request (DPDP Act 2023).

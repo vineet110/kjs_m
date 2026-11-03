@@ -26,6 +26,21 @@ def _one_line(v: str) -> str:
 OneLine = Annotated[str, AfterValidator(_one_line)]
 
 
+_PHONE_RE = re.compile(r"^\+?[\d\s()-]+$")
+
+
+def _check_phone(v: str) -> str:
+    # Light check (UI step 7): an optional +, then digits, spaces, - ( ); 6 to 15 digits. Empty = no phone.
+    # The pickers save "+91 98765 43210"; older numbers without a code still pass.
+    v = " ".join(v.split())
+    if v and (not _PHONE_RE.match(v) or not 6 <= sum(ch.isdigit() for ch in v) <= 15):
+        raise ValueError("Please enter a valid phone number (digits only, with the country code).")
+    return v
+
+
+Phone = Annotated[str, AfterValidator(_check_phone)]
+
+
 def _check_link(v: str) -> str:
     v = v.strip()
     # Only our own pages ("/products/x") or https:// sites. Blocks javascript: links, which would

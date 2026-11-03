@@ -16,9 +16,10 @@ after(() => rmSync(OUT, { recursive: true, force: true }));
 const ORIGIN = 'http://localhost:3002';
 
 /** Compiles src/lib/<name>.ts (with its imports replaced by `stubs`) and imports it. */
-async function load(name, stubs = '') {
-  // Every import (one line or several) is removed; `stubs` defines what the file needs instead
-  const source = readFileSync(join(SRC, `${name}.ts`), 'utf8').replace(/^import\b[\s\S]*?from\s*['"][^'"]+['"];?/gm, '') + '\n' + stubs;
+async function load(name, stubs = '', before = '') {
+  // Every import (one line or several) is removed; `stubs` (added after) and `before` (added first, for what
+  // the file uses as soon as it loads) define what the file needs instead
+  const source = before + '\n' + readFileSync(join(SRC, `${name}.ts`), 'utf8').replace(/^import\b[\s\S]*?from\s*['"][^'"]+['"];?/gm, '') + '\n' + stubs;
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   const file = join(OUT, `${name}.mjs`);
   writeFileSync(file, js);
@@ -169,4 +170,60 @@ test('productPayload (Admin > Products, Hide/Show): sends every field back, so h
   const { productPayload } = catalogueLib;
   const row = { id: 3, slug: 'x', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, category_slug: 'c', category_name: 'C', offer_percent: 25, is_active: true };
   assert.deepEqual(productPayload(row), { category_slug: 'c', name: 'X', description: 'd', pack_formats: 'p', moq: 'm', image_path: '/i.jpg', private_label: false, is_best_seller: true, offer_percent: 25 });
+});
+
+// ---------- phone code and country pickers (UI step 7) ----------
+const countriesData = readFileSync(join(SRC, 'countries-data.ts'), 'utf8').replace('export const', 'const');
+const { filterCountries, composePhone, splitPhone, phoneLooksValid, countryByName, COUNTRIES } = await load('countries', '', countriesData);
+const names = (list) => list.map((c) => c.name);
+
+test('countries: every country / region once, with a phone code', () => {
+  assert.ok(COUNTRIES.length > 240);
+  assert.equal(new Set(COUNTRIES.map((c) => c.code)).size, COUNTRIES.length);
+  assert.ok(COUNTRIES.every((c) => /^[A-Z]{2}$/.test(c.code) && /^\d{1,4}$/.test(c.dial) && c.name));
+});
+
+test('picker search: a letter shows the countries starting with it', () => {
+  const a = filterCountries('a');
+  // Accents don't count (Åland Islands is an A); later words don't count for one letter
+  assert.ok(a.length > 5 && a.every((c) => c.name.normalize('NFD').toLowerCase().startsWith('a')), names(a).join());
+  assert.ok(names(filterCountries('ind')).includes('India'));
+  assert.ok(names(filterCountries('emirates')).includes('United Arab Emirates')); // a later word too
+});
+
+test('picker search: a digit (with or without +) shows the codes starting with it', () => {
+  const nine = filterCountries('9');
+  assert.ok(nine.length > 5 && nine.every((c) => c.dial.startsWith('9')));
+  assert.ok(names(filterCountries('+91')).includes('India'));
+  assert.ok(names(filterCountries('97')).includes('United Arab Emirates'));
+  assert.equal(filterCountries('').length, COUNTRIES.length);
+});
+
+test('composePhone saves "+code number"; an empty number saves nothing', () => {
+  assert.equal(composePhone('91', ' 98765 43210 '), '+91 98765 43210');
+  assert.equal(composePhone('91', '   '), '');
+});
+
+test('splitPhone reads a saved phone back (main country for shared codes)', () => {
+  assert.deepEqual(splitPhone('+971 50 123 4567'), { code: 'AE', number: '50 123 4567' });
+  assert.deepEqual(splitPhone('+1 415 555 0100'), { code: 'US', number: '415 555 0100' });
+  assert.deepEqual(splitPhone('+1 416 555 0100', 'CA'), { code: 'CA', number: '416 555 0100' }); // keeps the picked one
+  assert.deepEqual(splitPhone('98765 43210'), { code: 'IN', number: '98765 43210' }); // old numbers without a code
+  assert.deepEqual(splitPhone(''), { code: 'IN', number: '' });
+  // Saved without a space after the code: the code is found, the number keeps its own digits (review)
+  assert.deepEqual(splitPhone('+919876543210'), { code: 'IN', number: '9876543210' });
+  assert.deepEqual(splitPhone('+971501234567'), { code: 'AE', number: '501234567' });
+});
+
+test('phoneLooksValid: digits and spaces, 6 to 15 digits counting the code, like the server (empty is fine)', () => {
+  for (const ok of ['', '98765 43210', '50-123-4567', '(020) 7946 0958']) assert.ok(phoneLooksValid(ok, '91'), ok);
+  for (const bad of ['abc123', '123', '98765x43210']) assert.ok(!phoneLooksValid(bad, '91'), bad);
+  // 13 digits: fine with +91 (15 in all), too long with +971 (16 in all), as the server counts (review)
+  assert.ok(phoneLooksValid('1234567890123', '91'));
+  assert.ok(!phoneLooksValid('1234567890123', '971'));
+});
+
+test('countryByName finds a saved country (the country field stores the name)', () => {
+  assert.equal(countryByName('United Arab Emirates')?.code, 'AE');
+  assert.equal(countryByName('Atlantis'), undefined);
 });

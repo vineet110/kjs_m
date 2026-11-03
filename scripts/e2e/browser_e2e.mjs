@@ -146,6 +146,63 @@ check('partners: new sections are there', partnerSections.length === 0, `missing
 const buyerLinks = await evaluate('[...document.querySelectorAll("main section")].find((s) => s.querySelector("h2")?.textContent === "What your buyers can order")?.querySelectorAll("a[href*=\'/categories/\']").length ?? 0');
 check('partners: buyers section links to real categories', buyerLinks > 0, 'no category links in that section');
 
+// Phone code and country pickers (UI step 7), on the contact page's enquiry form and the partner form
+const typeInto = (selector, text) => evaluate(`(() => { const i = document.querySelector(${JSON.stringify(selector)}); if (!i) return false; i.focus(); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const options = () => evaluate('[...document.querySelectorAll("[role=listbox] [role=option]")].map((o) => o.textContent)');
+const hiddenValue = (name, form = 'form') => evaluate(`document.querySelector(${JSON.stringify(`${form} input[name=${name}]`)})?.value ?? null`);
+const pressEnter = () => evaluate('(() => { const i = document.activeElement; i.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()');
+const pickerProblems = [];
+await open('/contact', 1500);
+const codeButton = 'button[aria-label^="Country code"]';
+const startLabel = await evaluate(`document.querySelector('${codeButton}')?.getAttribute("aria-label") ?? null`);
+if (!startLabel?.endsWith('India +91')) pickerProblems.push(`starts on ${JSON.stringify(startLabel)}, not India`);
+await evaluate(`document.querySelector('${codeButton}')?.click()`);
+await sleep(300);
+// A flag picture really loaded (a missing file has no width)
+const flagOk = await evaluate('new Promise((r) => { let n = 0; const t = setInterval(() => { const img = document.querySelector("[role=listbox] img"); if ((img && img.complete && img.naturalWidth > 0) || ++n > 20) { clearInterval(t); r(!!img && img.naturalWidth > 0); } }, 150); })');
+if (!flagOk) pickerProblems.push('no flag pictures in the list');
+await typeInto('[role=combobox]', 'a');
+await sleep(200);
+const aList = (await options()) ?? [];
+if (aList.length < 5 || !aList.every((t) => t.normalize('NFD').toLowerCase().startsWith('a'))) pickerProblems.push(`"a" shows: ${aList.slice(0, 5).join(', ')}`);
+await typeInto('[role=combobox]', '9');
+await sleep(200);
+const nineList = (await options()) ?? [];
+if (nineList.length < 5 || !nineList.every((t) => /\+9\d*$/.test(t))) pickerProblems.push(`"9" shows: ${nineList.slice(0, 5).join(', ')}`);
+await typeInto('[role=combobox]', 'united arab');
+await sleep(200);
+await pressEnter();
+await sleep(200);
+await typeInto('#phone', '50 123 4567');
+await sleep(200);
+const phoneSent = await hiddenValue('phone');
+if (phoneSent !== '+971 50 123 4567') pickerProblems.push(`phone sent as ${JSON.stringify(phoneSent)}`);
+await typeInto('#phone', 'call me');
+if (await evaluate('document.querySelector("#phone").checkValidity()')) pickerProblems.push('"call me" accepted as a phone');
+// Partner form: picking the country also sets the phone code (until the visitor picks a code)
+await open('/partners', 1500);
+await evaluate('document.querySelector("#p-country")?.click()');
+await sleep(300);
+await typeInto('[role=combobox]', 'germ');
+await sleep(200);
+await pressEnter();
+await sleep(300);
+const countrySent = await hiddenValue('country');
+const codeNow = await evaluate(`document.querySelector('${codeButton}')?.getAttribute("aria-label") ?? null`);
+if (countrySent !== 'Germany') pickerProblems.push(`country sent as ${JSON.stringify(countrySent)}`);
+if (!codeNow?.endsWith('Germany +49')) pickerProblems.push(`phone code didn't follow the country: ${JSON.stringify(codeNow)}`);
+// Sending the partner form without a country says so next to the picker
+await open('/partners', 1500);
+await evaluate('document.querySelector("form button.btn-gold")?.click()');
+await sleep(300);
+if (!(await evaluate('[...document.querySelectorAll("[role=alert]")].some((a) => a.textContent.includes("Please choose a country"))'))) pickerProblems.push('no "Please choose a country" message');
+// Staff sign-up has the phone picker too
+await open('/employee/login', 1000);
+await click('Sign up');
+await sleep(300);
+if (!(await evaluate(`!!document.querySelector('${codeButton}')`))) pickerProblems.push('sign-up has no phone code picker');
+check('phone code and country pickers work (search, codes, flags, linked code, light check)', pickerProblems.length === 0 && errors.length === 0, [...pickerProblems, ...errors].join('; '));
+
 // Product page: gated "Get a quote" opens the form (or the one-click view)
 await open('/products/instant-coffee-3-in-1-stick');
 check('click "Get a quote" opens the form', (await click('Get a quote')) && (await waitFor('Full name')), errors.join(' | '));

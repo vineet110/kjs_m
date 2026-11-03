@@ -73,3 +73,36 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   shared docs aren't edited on task branches (new rule).
 - Backlog: the offer % is a business promise like a price: KJS must approve any offer before staff set it.
 - Learning: a "save as it is" button must send every field back, or a new field is cleared by accident.
+
+
+## UI step 7: phone code and country pickers (2 Nov 2026, branch feat/uiUpdates-part2)
+
+- Track (4d): step 7 done on `feat/uiUpdates-part2`. Choices (Nishita, 2 Nov): flags as files (1a), India
+  first and the last pick remembered on the device (2a), country from the list only (3a), the phone code
+  follows the country picked (4a), a light phone check (5a). The site stays in English (D2).
+- What changed:
+  - A phone code picker (flag, country, code; letters search names, digits search codes) on every phone
+    field: enquiry form, partner form, Koko chat, staff sign-up, staff profile.
+  - A country picker on the enquiry and partner forms.
+  - Saved data is unchanged: phones as text ("+91 98765 43210"), countries as their English name. No migration.
+  - Backend: one `Phone` check (`schemas/common.py`) on the 4 phone inputs: optional +, digits, spaces,
+    - ( ), 6 to 15 digits; empty is fine.
+- Where:
+  - `frontend/src/components/public/CountryPicker.tsx` (`PhoneInput`, `CountrySelect`), `lib/countries.ts`
+    (search, compose / split, check), `lib/countries-data.ts` (made by `scripts/make_countries.py` from
+    `phonenumbers` + Node's built-in country names; no new package).
+  - Flags: `frontend/public/flags/*.svg` (243 files, 1.7 MB, flag-icons 7.2.3, MIT, see its README). Checked
+    before copying: plain drawings, no scripts or outside links. Ascension Island and Tristan da Cunha have no
+    flag and show their letter code.
+- Tests: backend `tests/test_phone.py` (3); 7 unit tests for the list, search, compose / split and the check;
+  a browser check (India first, "a" and "9" searches, flags, +971 saved, junk refused, Germany sets +49,
+  sign-up has it). All failed first. Backend 173, unit 28, API 114, browser 54 pass.
+- Learning: a picker that saves the same text as before needs no database change; generate data lists
+  from a trusted library instead of typing them by hand.
+- kb: "Combobox / listbox": a search box with a list you move through with the arrow keys (screen readers know it).
+- Review: 10 points; 9 fixed. The browser now counts the code in the 6-15 digits like the server; a saved
+  phone or country is sent back unchanged until the person edits it (older numbers are never rewritten, and
+  never block the profile's other settings: the profile sends the phone only when changed); "+919876543210"
+  reads back right; too long after a code change is caught; "Please choose a country" shows next to the
+  picker; the list opens upward when there's no room below (Koko); the flag check really loads a flag.
+  Kept: the light check (5a) instead of the full `phonenumbers` check (5b), as decided.
