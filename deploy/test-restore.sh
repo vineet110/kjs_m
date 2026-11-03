@@ -215,7 +215,11 @@ for _ in $(seq 1 120); do grep -q '^5/7' "$WORK/out.txt" && break; sleep 1; done
 sleep 3
 kill -TERM "$pid"
 wait "$pid" 2>/dev/null
-sleep 12
+sleep 2
+# "Wait a few minutes": until the restore still running inside the db container has finished
+for _ in $(seq 1 90); do
+  [ "$(sql "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'kjs-restore'")" = 0 ] && break; sleep 1
+done
 sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
 echo "  (after the kill the database says: $(sql 'SELECT v FROM cr1_marker'))"
 if grep -q 'nothing was changed' "$WORK/out.txt"; then bad 'does not claim "nothing was changed"'; else ok 'does not claim "nothing was changed"'; fi
@@ -506,7 +510,8 @@ check "psql exit 1: files intact, no work folder" live_files_intact
 check "psql exit 1: app is back up" backend_running
 check "psql exit 1: marker removed" test "$(sql "SELECT to_regclass('public.kjs_restore_marker') IS NULL")" = t
 check "psql exit 1: saved undo says nothing to undo" grep -q 'nothing to undo' "$BACKUP_DIR/restore-undo.txt"
-if grep -q '^  \./restore\.sh ' "$BACKUP_DIR/restore-undo.txt"; then bad "psql exit 1: no undo command left in the file"; else ok "psql exit 1: no undo command left in the file"; fi
+tail -1 "$BACKUP_DIR/restore-undo.txt" | grep -q 'nothing to undo' && ok "psql exit 1: the last entry says nothing to undo" \
+  || bad "psql exit 1: the last entry says nothing to undo"
 
 reset_to_live
 fake_compose "*single-transaction*) $COMPOSE \"\$@\"; exit 2;;"  # it committed, then psql reports an error
@@ -530,6 +535,29 @@ sh_db 'mv /usr/local/bin/pg_restore.real /usr/local/bin/pg_restore'
 says_ok "psql still running: waits, then finishes the restore" 'restore done'
 [ "$(sql 'SELECT v FROM cr1_marker')" = "original" ] && ok "psql still running: it did commit" || bad "psql still running: it did commit"
 check "psql still running: app is back up" backend_running
+
+echo "== 23. seventh review: an earlier restore still running, the undo history"
+reset_to_live
+# Stands in for an earlier restore whose database step goes on after the script was stopped
+echo "SELECT pg_sleep(40);" | $COMPOSE exec -T db sh -c 'PGAPPNAME=kjs-restore psql -U kjs -d kjs -q' >/dev/null 2>&1 &
+holder=$!
+for _ in $(seq 1 20); do
+  [ "$(sql "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'kjs-restore'")" = 1 ] && break; sleep 1
+done
+before="$(backend_started_at)"
+if ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1; then bad "earlier restore running: refused"; else ok "earlier restore running: refused"; fi
+says_ok "earlier restore running: says to wait" 'still running'
+check "earlier restore running: data intact" live_data_intact
+[ "$before" = "$(backend_started_at)" ] && ok "earlier restore running: app never stopped" || bad "earlier restore running: app never stopped"
+wait "$holder" 2>/dev/null
+
+reset_to_live
+./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+prev="$(grep '^  \./restore\.sh ' "$BACKUP_DIR/restore-undo.txt" | tail -1)"
+fake_compose "*single-transaction*) exit 1;;"
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+[ -n "$prev" ] && grep -qxF -- "$prev" "$BACKUP_DIR/restore-undo.txt" && ok "a failed restore keeps the earlier undo command" \
+  || bad "a failed restore keeps the earlier undo command"
 
 echo
 echo "passed: $PASSED  failed: $FAILED"

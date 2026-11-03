@@ -120,3 +120,21 @@ were taken out and are kept here, to fold in after the merge.
    v.    The safety backup's read-back adds downtime.
    vi.   One shared helper for the dump and tgz checks in backup.sh and restore.sh.
 3. Not re-run in full (the laptop is short on memory): the change only touches that one path.
+
+
+## CR1 restore fix, PR #13, seventh review (3 Nov)
+
+1. Fixed, each with a test that failed first (5 of 5 new checks failed before):
+   i.    A restore refuses to start while an earlier restore is still running inside the database
+         (its `kjs-restore` psql session). So an undo run too early, or a second restore, waits instead of
+         racing it. The app is never stopped in that case.
+   ii.   `restore-undo.txt` keeps one entry per restore, newest at the end, so a failed restore can't wipe
+         an earlier one's undo.
+   iii.  `kb.md` "Rollback": only the database step is in the transaction. Later steps need the undo.
+   iv.   Full suite: 192 of 192 pass (in 2 parts).
+2. For the backlog, on fold:
+   i.    A shared lock with the 02:30 `backup.sh` (`flock` isn't on Windows, so it can't be tested here).
+   ii.   On "unknown", ask the database what happened (now partly covered by 1.i).
+   iii.  Run `tar tzf` on the host, not in a backend container.
+3. Not a rule break: `prompt.md` section 7 bans only track.md, memory.md, backlog.md and learning-log.md
+   on a task branch. kb.md and codeReview.md may be edited.

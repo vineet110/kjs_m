@@ -1481,8 +1481,10 @@ Sections:
 ### Rollback (transaction)
 
    What   Cancelling a transaction, so the database is exactly as it was before it started.
-   Why    `restore.sh` deletes and reloads everything in one transaction. If a step fails, the delete is
-          cancelled too, so the old data stays.
+   Why    `restore.sh` deletes and reloads the database in one transaction. If that step fails, the delete
+          is cancelled too, so the old data stays. The later steps (files, migrations, rights) are not in
+          the transaction: if one of them fails, the old data is already gone, and the printed undo
+          command puts it back from the safety backup.
 
 
 ### pg_dump / pg_restore

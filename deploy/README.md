@@ -207,10 +207,11 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
          script was stopped during step v, the app stays stopped, because the restore may still finish.
 
    If it fails after step v, or the app doesn't work afterwards, it prints the exact `./restore.sh` command
-   that puts the safety backup back. That command is also saved in `/srv/kjs/backups/restore-undo.txt`
-   (in case the SSH session drops). Safety backups are named `...-before-restore`.
-   When the restore ends, the file says so: running that command later also throws away everything
-   saved since then. If nothing was changed, the file says there is nothing to undo.
+   that puts the safety backup back. That command is also added to `/srv/kjs/backups/restore-undo.txt`
+   (in case the SSH session drops), one entry per restore, newest at the end. Safety backups are named
+   `...-before-restore`. When the restore ends, its entry says so: running that command later also
+   throws away everything saved since then. If nothing was changed, the entry says there is nothing to undo.
+   If an earlier restore is still running inside the database, it refuses to start: wait, then run it again.
    Changes to `restore.sh` or `backup.sh`: run `./test-restore.sh` on your own machine, never on the server.
 
 

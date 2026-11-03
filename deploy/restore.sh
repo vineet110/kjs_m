@@ -6,8 +6,9 @@
 # Safe by design:
 #   1. both backups are read in full first: a bad one stops here, with the app still running;
 #   2. the app is stopped, then a backup of the CURRENT state is taken (so a wrong restore can be
-#      undone, with nothing missing); the undo command is also saved in BACKUP_DIR/restore-undo.txt;
-#   3. the database is replaced in ONE transaction: if anything fails, it stays as it was;
+#      undone, with nothing missing); the undo command is also added to BACKUP_DIR/restore-undo.txt;
+#   3. the database is replaced in ONE transaction: if that step fails, it stays as it was (a failure
+#      in a later step can't be cancelled like this: the printed undo command puts it back);
 #   4. new files are unpacked aside BEFORE that, and old ones are deleted only after it;
 #   5. the app is started again and checked, even if the restore failed (only if the script was
 #      stopped during the database step does the app stay stopped), and a failure says how to undo it;
@@ -27,6 +28,7 @@ db_file="$(realpath "$db_file")"
 cd "$(dirname "$0")"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/kjs/backups}"  # same default as backup.sh
+db_query() { $COMPOSE exec -T db psql -U kjs -d kjs -Atqc "$1"; }
 
 if [ "${!#}" != "--yes" ]; then
   read -r -p "This REPLACES the live database with $db_file. Type RESTORE to continue: " answer
@@ -34,6 +36,15 @@ if [ "${!#}" != "--yes" ]; then
 fi
 
 echo "1/7 reading the whole backup (nothing is changed yet)"
+# A stopped restore's database step can go on inside the db container (see step 5). Starting now,
+# for example its undo run too early, would race it: refuse until it has finished.
+# (If the database can't be asked, the read just below fails and says so.)
+running="$(db_query "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'kjs-restore'" 2>/dev/null)" \
+  || running=""
+if [ -n "$running" ] && [ "$running" != 0 ]; then
+  echo "restore stopped: an earlier restore is still running inside the database. Wait a few minutes, then run this again. Nothing was changed."
+  exit 1
+fi
 # -f /dev/null: goes through every part of the file and saves nothing. pg_restore -l is not enough:
 # it reads only the list at the start, so it passes a backup that was cut off.
 $COMPOSE exec -T db pg_restore -f /dev/null < "$db_file" \
@@ -54,7 +65,6 @@ undo_file="$BACKUP_DIR/restore-undo.txt"
 undo_saved=no
 
 data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
-db_query() { $COMPOSE exec -T db psql -U kjs -d kjs -Atqc "$1"; }
 # After psql failed with something other than 3: don't guess, ask the database. Wait until our
 # session ("kjs-restore") is gone, then look for the marker made just before the database step:
 # still there = the transaction was cancelled; gone = it committed (DROP SCHEMA removed it).
@@ -91,7 +101,8 @@ finish() {
   if [ "$data_state" = unknown ]; then
     # Don't start the app: if psql commits, migrations and rights never ran, and every call would fail
     echo "restore STOPPED during the database step. It may still finish inside the db container."
-    echo "The app was left STOPPED. Wait a few minutes, then to go back to how it was before this restore, run:"
+    echo "The app was left STOPPED. Wait a few minutes (it refuses to start while that is still running),"
+    echo "then to go back to how it was before this restore, run:"
     echo "  $undo_cmd"; echo "(also saved in $undo_file)"
     return
   fi
@@ -104,8 +115,8 @@ finish() {
   # away everything saved since. Running it is still safe (it takes its own safety backup first).
   if [ "$undo_saved" = yes ]; then
     if [ "$data_state" = unchanged ]; then
-      echo "Restore of $db_file failed at $(date), nothing was changed: there is nothing to undo." \
-        > "$undo_file" 2>/dev/null || true
+      echo "Restore of $db_file failed at $(date), nothing was changed: there is nothing to undo (don't run the command above)." \
+        >> "$undo_file" 2>/dev/null || true
     else
       echo "Restore ended at $(date). Running the command above after this also throws away everything saved after this time." \
         >> "$undo_file" 2>/dev/null || true
@@ -145,9 +156,10 @@ echo "3/7 safety backup of the current state"
 # After the stop: nothing saved by a user can be missing from the undo.
 # KEEP_DAYS: no clean-up now, or backup.sh could delete an old backup we are about to restore
 BACKUP_DIR="$BACKUP_DIR" KJS_BACKUP_STAMP="$stamp" KEEP_DAYS=36500 ./backup.sh
-# Also in a file: if the SSH session drops, the terminal and the command on it are gone
-printf '%s\n' "Restore of $db_file started $(date)." \
-  "To go back to how it was before it, run this in the deploy folder:" "  $undo_cmd" > "$undo_file"
+# Also in a file: if the SSH session drops, the terminal and the command on it are gone.
+# Added at the end (newest last), so a later failed restore can't wipe an earlier one's undo.
+printf '%s\n' "" "Restore of $db_file started $(date)." \
+  "To go back to how it was before it, run this in the deploy folder:" "  $undo_cmd" >> "$undo_file"
 undo_saved=yes
 
 if [ -n "$files_file" ]; then
