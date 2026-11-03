@@ -2,6 +2,7 @@
 // Approve a new staff sign-up and choose what they may do (per-person permissions, backlog D5).
 import { useState } from 'react';
 import { api, ApiFailure } from '@/lib/api';
+import { approvalsChanged } from '@/lib/portal-session';
 import { useToast } from './Toast';
 
 export type StaffUser = { id: number; name: string; email: string; phone: string | null; role: string; status: string; permissions: string[]; created_at: string };
@@ -17,6 +18,7 @@ export default function ApproveCard({ user, perms, onDone }: { user: StaffUser; 
     try {
       await api(`/admin/users/${user.id}/approve`, { method: 'POST', body: { permissions: chosen } });
       toast(`${user.name} is approved and can log in now`);
+      approvalsChanged();
       onDone();
     } catch (e) {
       toast(e instanceof ApiFailure ? e.message : 'Could not approve. Please try again.', 'error');

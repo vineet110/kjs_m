@@ -2,12 +2,15 @@
 // Team attendance: who is in today (or any day), and missed-punch requests to approve.
 import { useCallback, useEffect, useState } from 'react';
 import { addDays, EmptyState, fmtDay, PageTitle, Pill, todayIST } from '@/components/portal/ui';
+import { useToast } from '@/components/portal/Toast';
 import { api, ApiFailure, type Regularization } from '@/lib/api';
+import { approvalsChanged } from '@/lib/portal-session';
 import Loading from '@/components/ui/Loading';
 
 type Row = { user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number };
 
 export default function TeamAttendance() {
+  const toast = useToast();
   const [day, setDay] = useState(todayIST());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [pending, setPending] = useState<Regularization[]>([]);
@@ -25,6 +28,8 @@ export default function TeamAttendance() {
     setErr('');
     try {
       await api(`/attendance/approvals/${id}`, { method: 'POST', body: { approve } });
+      toast(approve ? 'Missed punch approved' : 'Request rejected');
+      approvalsChanged(); // the sidebar badge counts these too
       load();
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Could not save.');

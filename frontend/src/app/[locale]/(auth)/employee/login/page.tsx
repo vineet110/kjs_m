@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef, useState, useTransition } from 'react';
 import Spinner from '@/components/ui/Spinner';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure, type Me } from '@/lib/api';
+import { forgetAccount } from '@/lib/portal-session';
 import { safeNext } from '@/lib/safe-url';
 
 // Time limits, so the form is never locked with no way out: for the server to answer a login, and for the
@@ -45,6 +46,8 @@ function LoginInner() {
   // Just logged out (the portal sends `?bye=1`): say so once, then drop it from the address, so a reload
   // or a bookmark doesn't show it again
   const [bye, setBye] = useState(false);
+  // A new person may log in on this tab: the portal must not show the previous person, even for a moment
+  useEffect(() => forgetAccount(), []);
   useEffect(() => {
     if (params.get('bye') !== '1') return;
     setBye(true);
@@ -65,6 +68,7 @@ function LoginInner() {
     try {
       if (tab === 'login') {
         const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password }, timeoutMs: LOGIN_TIMEOUT_MS });
+        forgetAccount(); // also if this tab opened the login page without leaving the portal first
         const to = safeNext(next) ?? (me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
         setPageOpening(true);
         startNavigation(() => router.replace(to));

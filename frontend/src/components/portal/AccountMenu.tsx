@@ -147,6 +147,13 @@ export function LogoutDialog({ open, name, busy, onConfirm, onClose }: {
         e.preventDefault(); // Escape: we decide (stay open while busy)
         if (!busy) onClose();
       }}
+      // The browser can still close it by force (Chrome: Escape pressed twice quickly can't be stopped).
+      // Then the screen must know, or `open` stays true and the next "Log out" click does nothing
+      // (PR #17 review). While logging out it is reopened: the log out carries on and shows its progress.
+      onClose={() => {
+        if (busy) ref.current?.showModal();
+        else onClose();
+      }}
       // A click on the dark area around the card (that is the <dialog> itself) means "Stay"
       onClick={(e) => e.target === ref.current && !busy && onClose()}
       className="w-[calc(100vw-2rem)] max-w-sm rounded-2xl p-0 shadow-2xl backdrop:bg-black/40 open:animate-in open:fade-in open:zoom-in-95 motion-reduce:open:animate-none"

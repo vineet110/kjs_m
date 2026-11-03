@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser } from '@/components/portal/ApproveCard';
 import { useToast } from '@/components/portal/Toast';
+import { approvalsChanged } from '@/lib/portal-session';
 import { EmptyState, fmtDay, fmtIST, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization, type StoredFile } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
@@ -31,6 +32,7 @@ export default function Approvals() {
     try {
       await api(path, { method: 'POST', body });
       toast(done);
+      approvalsChanged();
       load();
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Could not save.');

@@ -160,3 +160,17 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   ~100 ms (one API call ~0.5 s) and dev mode builds each page on first visit (~1.3 s). Not fixed in code;
   a local Docker database for development would fix it (to decide with Vineet, memory.md says Neon).
 - Checks: tsc clean, unit 29, backend 177 pass. Not checked in a browser yet (no login on this PC).
+
+- Sidebar dropdowns + drag and drop (same branch): each group opens / closes (only the current page's group
+  open at first; a closed group shows the Approvals count on its name), and groups can be dragged by their
+  grip (pointer events: mouse, touch, pen) or moved with arrow keys on the grip; "Reset order" goes back.
+  Order and open groups are saved in this browser (localStorage). New `components/portal/SidebarNav.tsx`
+  (the list moved out of PortalShell) and `lib/nav-order.ts` (sortByOrder, moveGroup, 2 unit tests).
+- PR #17 review (Vineet, 3 must-fix), all fixed:
+  1. A new login on the same tab could briefly show the previous person: the remembered account now lives
+     in `lib/portal-session.ts` and is forgotten when the login page opens and when someone logs in.
+  2. Approvals badge kept the old count after approving: pages call `approvalsChanged()` (Approvals,
+     Overview's ApproveCard, Team attendance) and the badge asks again; only the newest answer counts.
+  3. Log out popup could get stuck: Chrome closes a <dialog> by force on a quick second Escape; `onClose`
+     now tells the screen (reopened only while logging out).
+  Unit 33 pass, tsc clean. Still not checked in a browser here.
