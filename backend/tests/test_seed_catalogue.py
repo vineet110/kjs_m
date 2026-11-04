@@ -71,3 +71,17 @@ def test_every_catalogue_product_has_its_picture():
         pytest.skip("frontend folder not available (e.g. tests run inside the API image)")
     missing = [p["slug"] for p in PRODUCTS + BEVERAGES if not (IMAGES / f"{p['slug']}.jpg").is_file()]
     assert missing == []
+
+
+async def test_confectionery_includes_its_subcategories(client):
+    # Confectionery has no products of its own: its count and its page show the four subcategories'
+    async with AsyncSessionLocal() as db:
+        await add_catalogue(db)
+    cats = {c["slug"]: c["product_count"] for c in (await client.get("/api/v1/public/categories")).json()}
+    subs = ["chocolate-bars", "wafers", "biscuits", "marshmallow-cakes"]
+    assert cats["confectionery"] == sum(cats[s] for s in subs) > 0
+    assert (await client.get("/api/v1/public/categories/confectionery")).json()["product_count"] == cats["confectionery"]
+    listed = (await client.get("/api/v1/public/products?category=confectionery")).json()
+    assert len(listed) == cats["confectionery"] and {p["category_slug"] for p in listed} <= set(subs)
+    # A subcategory still lists only its own products
+    assert len((await client.get("/api/v1/public/products?category=wafers")).json()) == cats["wafers"]

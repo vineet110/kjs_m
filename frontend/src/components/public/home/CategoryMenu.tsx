@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { Category } from '@/lib/api';
-import { SUBCATEGORIES, groupCount } from '@/lib/catalogue';
+import { SUBCATEGORIES } from '@/lib/catalogue';
 import { useCatalogue } from './CatalogueContext';
 
 const CHILDREN = new Set(Object.values(SUBCATEGORIES).flat());
@@ -24,7 +24,7 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
   const childrenOf = (slug: string) => (SUBCATEGORIES[slug] ?? []).map((s) => categories.find((c) => c.slug === s)).filter((c): c is Category => !!c);
 
   const row = (c: Category, sub = false) => {
-    const count = sub ? c.product_count : groupCount(c, categories);
+    const count = c.product_count; // a parent's count already includes its subcategories (API)
     return (
       <Link
         href={`/categories/${c.slug}`}
@@ -95,8 +95,7 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
             <div className="h-full w-[640px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
               <div className="flex items-baseline justify-between">
                 <h3 className="text-lg font-bold">{active.name}</h3>
-                {/* A dropdown parent has no products of its own: its "View all" opens the full range */}
-                <Link href={SUBCATEGORIES[active.slug] ? '/products' : `/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
+                <Link href={`/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
               </div>
               <p className="mt-1 text-sm text-slate-600">{active.description}</p>
               {inActive.length ? (
