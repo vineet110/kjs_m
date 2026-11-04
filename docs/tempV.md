@@ -120,8 +120,9 @@ Found while checking the image setup. Items that already have a backlog entry ar
 6. Light spam protection (already logged: A31)
    i.    Honeypot + per-IP limit only. Turnstile still to do (needs a Cloudflare account).
 
-7. Big videos in git
+7. Big videos on the website
    i.    About 13 MB of MP4s in `frontend/public/images/kjs/video/` (`banner-video.mp4` alone is 6.8 MB).
+         Not in git (gitignored, downloaded by `scripts/fetch_kjs_assets.py`), but visitors still load them.
    ii.   Fix: compress them, or move them to R2 once we have it.
 
 8. Waiting on KJS, not on code (already logged)
