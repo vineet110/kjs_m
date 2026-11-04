@@ -37,6 +37,23 @@ npm run dev
 Open http://localhost:3000. Staff login: http://localhost:3000/employee/login.
 The frontend expects the backend on port 8000 (`API_INTERNAL_URL` in `.env`).
 
+Production build on your PC (to check it the way the server runs it):
+
+```powershell
+cd C:\VINEET_WORK\KJS_v1\frontend
+npm run build      # must finish without errors first
+npm start          # runs the build from `npm run build` (no build = "Could not find a production build")
+```
+
+If `npm run build` fails with `.next-e2e/types/validator.ts ... Cannot find module`, an old test build
+is left over (the e2e script builds into `.next-e2e`). It is generated and gitignored, so delete it and
+build again:
+
+```powershell
+Remove-Item -Recurse -Force .next-e2e
+npm run build
+```
+
 ## Run it locally (dev, Windows / macOS / Linux)
 
 You need: Node 20+, [uv](https://docs.astral.sh/uv/), Docker Desktop (only for the test database).
