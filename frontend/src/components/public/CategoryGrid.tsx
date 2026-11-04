@@ -8,6 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
+import { groupCount } from '@/lib/catalogue';
 
 const TONES = [
   'from-[#5B3420] to-[#2E1A10]',
@@ -72,7 +73,7 @@ export default function CategoryGrid({ categories, images = {} }: { categories: 
                 className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-gold-light/25 to-transparent opacity-0 group-hover:opacity-100 motion-safe:group-hover:animate-shine"
               />
               <span className="relative text-xs font-semibold uppercase tracking-widest text-white/80">
-                {c.product_count ? `${c.product_count} products` : 'Catalogue on request'}
+                {groupCount(c, categories) ? `${groupCount(c, categories)} products` : ' '}
               </span>
               <div className="relative">
                 <h3 className="text-2xl font-bold">{c.name}</h3>

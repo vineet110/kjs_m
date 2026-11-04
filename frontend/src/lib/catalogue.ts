@@ -21,6 +21,18 @@ export function summary(description: string): string {
   return description.split('\n\n')[0];
 }
 
+/** Categories shown inside another one (a dropdown in the home page menu). Website only: the database
+ *  keeps them as separate categories. */
+export const SUBCATEGORIES: Record<string, string[]> = {
+  confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
+};
+
+/** Products in a category, counting its subcategories too (Confectionery = all four). */
+export function groupCount(c: { slug: string; product_count: number }, all: { slug: string; product_count: number }[]): number {
+  const subs = SUBCATEGORIES[c.slug] ?? [];
+  return c.product_count + all.filter((x) => subs.includes(x.slug)).reduce((n, x) => n + x.product_count, 0);
+}
+
 /** A picture from our own site folder, or null (empty, or an outside address Next.js would refuse). */
 export function imageOf(p: Pick<Product, 'image_path'>): string | null {
   return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? p.image_path : null;

@@ -1,17 +1,42 @@
 'use client';
 // Left-hand category menu. Hovering (or tabbing to) a category opens a panel with its products
 // (desktop); on phones it becomes a row of chips.
+// Confectionery is a dropdown: Chocolate bars, Wafers, Biscuits, Marshmallow & cakes sit inside it
+// (SUBCATEGORIES in lib/catalogue.ts). It opens on hover, or with its arrow button (touch, keyboard).
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { Category } from '@/lib/api';
+import { SUBCATEGORIES, groupCount } from '@/lib/catalogue';
 import { useCatalogue } from './CatalogueContext';
+
+const CHILDREN = new Set(Object.values(SUBCATEGORIES).flat());
 
 export default function CategoryMenu({ categories }: { categories: Category[] }) {
   const products = useCatalogue();
   const [hover, setHover] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null); // the dropdown that is open
   const active = categories.find((c) => c.slug === hover);
-  const inActive = active ? products.filter((p) => p.categorySlug === active.slug) : [];
+  // A parent's panel shows the products of all its subcategories
+  const activeSlugs = active ? [active.slug, ...(SUBCATEGORIES[active.slug] ?? [])] : [];
+  const inActive = products.filter((p) => activeSlugs.includes(p.categorySlug));
+  const top = categories.filter((c) => !CHILDREN.has(c.slug));
+  const childrenOf = (slug: string) => (SUBCATEGORIES[slug] ?? []).map((s) => categories.find((c) => c.slug === s)).filter((c): c is Category => !!c);
+
+  const row = (c: Category, sub = false) => {
+    const count = sub ? c.product_count : groupCount(c, categories);
+    return (
+      <Link
+        href={`/categories/${c.slug}`}
+        onMouseEnter={() => setHover(c.slug)}
+        onFocus={() => setHover(c.slug)}
+        className={`flex flex-1 items-center justify-between py-2 text-sm ${sub ? 'pl-8 pr-4' : 'px-4'} ${hover === c.slug ? 'bg-paper font-semibold text-ink' : 'text-slate-700'}`}
+      >
+        <span>{c.name}</span>
+        {count > 0 && <span className="text-xs text-slate-400">{count}</span>}
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -25,29 +50,41 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
 
       <nav
         className="relative hidden h-full lg:block"
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={() => { setHover(null); setOpen(null); }}
         // Close when keyboard focus moves outside the menu and its panel, or on Escape.
         // (Clicking empty space gives no relatedTarget: the mouse handlers decide then.)
-        onBlur={(e) => e.relatedTarget && !e.currentTarget.contains(e.relatedTarget) && setHover(null)}
-        onKeyDown={(e) => e.key === 'Escape' && setHover(null)}
+        onBlur={(e) => e.relatedTarget && !e.currentTarget.contains(e.relatedTarget) && (setHover(null), setOpen(null))}
+        onKeyDown={(e) => e.key === 'Escape' && (setHover(null), setOpen(null))}
         aria-label="Product categories"
       >
         <div className="card h-full py-2">
           <p className="px-4 pb-2 pt-1 text-xs font-bold uppercase tracking-widest text-slate-500">Categories</p>
           <ul>
-            {categories.map((c) => (
-              <li key={c.slug}>
-                <Link
-                  href={`/categories/${c.slug}`}
-                  onMouseEnter={() => setHover(c.slug)}
-                  onFocus={() => setHover(c.slug)}
-                  className={`flex items-center justify-between px-4 py-2 text-sm ${hover === c.slug ? 'bg-paper font-semibold text-ink' : 'text-slate-700'}`}
-                >
-                  <span>{c.name}</span>
-                  <span className="text-xs text-slate-400">{c.product_count || 'On request'}</span>
-                </Link>
-              </li>
-            ))}
+            {top.map((c) => {
+              const subs = childrenOf(c.slug);
+              if (!subs.length) return <li key={c.slug} className="flex">{row(c)}</li>;
+              const isOpen = open === c.slug;
+              return (
+                <li key={c.slug} onMouseEnter={() => setOpen(c.slug)}>
+                  <div className="flex">
+                    {row(c)}
+                    <button
+                      type="button"
+                      onClick={() => setOpen(isOpen ? null : c.slug)}
+                      aria-expanded={isOpen}
+                      aria-controls={`sub-${c.slug}`}
+                      aria-label={`${isOpen ? 'Hide' : 'Show'} ${c.name} types`}
+                      className={`px-3 text-slate-500 hover:text-ink ${hover === c.slug ? 'bg-paper' : ''}`}
+                    >
+                      <span className={`inline-block text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                    </button>
+                  </div>
+                  <ul id={`sub-${c.slug}`} hidden={!isOpen} className="border-l-2 border-gold/60 ml-4">
+                    {subs.map((s) => <li key={s.slug} className="flex">{row(s, true)}</li>)}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -58,7 +95,8 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
             <div className="h-full w-[640px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
               <div className="flex items-baseline justify-between">
                 <h3 className="text-lg font-bold">{active.name}</h3>
-                <Link href={`/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
+                {/* A dropdown parent has no products of its own: its "View all" opens the full range */}
+                <Link href={SUBCATEGORIES[active.slug] ? '/products' : `/categories/${active.slug}`} className="text-sm font-semibold text-gold-dark hover:underline">View all →</Link>
               </div>
               <p className="mt-1 text-sm text-slate-600">{active.description}</p>
               {inActive.length ? (
