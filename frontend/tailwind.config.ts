@@ -24,12 +24,22 @@ const config: Config = {
         progress: { "0%": { transform: "translateX(-100%)" }, "100%": { transform: "translateX(400%)" } },
         // Loading screen: product packs bobbing up and down
         float: { "0%, 100%": { transform: "translateY(0) rotate(-3deg)" }, "50%": { transform: "translateY(-14px) rotate(3deg)" } },
+        // Products page, Coffee card: a steam wisp rising, widening and fading out
+        steam: {
+          "0%": { transform: "translateY(0) scaleX(1)", opacity: "0" },
+          "25%": { opacity: "0.7" },
+          "100%": { transform: "translateY(-56px) scaleX(1.8)", opacity: "0" },
+        },
+        // Products page, category cards: a gold shine sweeping left to right on hover
+        shine: { from: { transform: "translateX(0) skewX(-12deg)" }, to: { transform: "translateX(400%) skewX(-12deg)" } },
       },
       animation: {
         ticker: "ticker 40s linear infinite",
         shimmer: "shimmer 1.6s ease-in-out infinite",
         progress: "progress 1.4s ease-in-out infinite",
         float: "float 2.2s ease-in-out infinite",
+        steam: "steam 2.7s ease-out infinite",
+        shine: "shine 0.9s ease-out",
       },
     },
   },
