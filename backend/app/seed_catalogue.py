@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.models.catalog import Category, Product
+from app.seed import CATEGORIES as BASE_CATEGORIES
 
 # slug, name, description, sort order. Added next to the original four categories.
 CATALOGUE_CATEGORIES = [
@@ -288,7 +289,9 @@ def _pack_formats(p: dict) -> str:
 
 async def add_catalogue(db: AsyncSession) -> None:
     existing_cats = {c.slug: c for c in (await db.scalars(select(Category))).all()}
-    for slug, name, desc, order in CATALOGUE_CATEGORIES:
+    # BASE_CATEGORIES (Coffee, Health drinks… from app.seed) too: on a fresh database where app.seed
+    # hasn't run yet, the coffee catalogue products would otherwise have no category to go in.
+    for slug, name, desc, order in [*BASE_CATEGORIES, *CATALOGUE_CATEGORIES]:
         if slug not in existing_cats:
             existing_cats[slug] = Category(slug=slug, name=name, description=desc, sort_order=order, is_active=True)
             db.add(existing_cats[slug])
@@ -306,7 +309,7 @@ async def add_catalogue(db: AsyncSession) -> None:
         ))
         added += 1
     for p in BEVERAGES:
-        if p["slug"] in existing or p["cat"] not in existing_cats:  # coffee / health-drinks come from app.seed
+        if p["slug"] in existing:
             continue
         db.add(Product(
             category_id=existing_cats[p["cat"]].id, slug=p["slug"], name=p["name"],
@@ -316,7 +319,7 @@ async def add_catalogue(db: AsyncSession) -> None:
         added += 1
     await db.commit()
     total = len(PRODUCTS) + len(BEVERAGES)
-    print(f"catalogue products: {added} added, {total - added} already there or skipped")
+    print(f"catalogue products: {added} added, {total - added} already there")
 
 
 async def main() -> None:
