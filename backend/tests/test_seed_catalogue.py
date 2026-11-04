@@ -31,6 +31,15 @@ async def test_catalogue_seed_adds_once_and_keeps_old_categories(client):
     assert sum(cats[slug] for slug, *_ in CATALOGUE_CATEGORIES) == len(every) - 5
 
 
+async def test_catalogue_seed_works_on_a_fresh_database(client):
+    # app.seed hasn't run: Coffee and Health drinks are created, so no product is skipped
+    async with AsyncSessionLocal() as db:
+        await add_catalogue(db)
+    cats = {c["slug"]: c["product_count"] for c in (await client.get("/api/v1/public/categories")).json()}
+    assert cats["coffee"] == 4 and cats["health-drinks"] == 1
+    assert len((await client.get("/api/v1/public/products")).json()) == len(PRODUCTS) + len(BEVERAGES)
+
+
 async def test_catalogue_seed_never_overwrites_admin_edits(client):
     async with AsyncSessionLocal() as db:
         await add_catalogue(db)
