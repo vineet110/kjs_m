@@ -16,8 +16,15 @@ const TONES = [
   'from-[#B3242F] to-[#6A1219]',
 ];
 
-// Category pictures kept in frontend/public/images/categories (coffee: cut from the coffee catalogue PDF)
-const CATEGORY_IMAGES: Record<string, string> = { coffee: '/images/categories/coffee.jpg' };
+// Category pictures kept in frontend/public/images/categories. Coffee and health drinks (hot chocolate):
+// cut from the coffee catalogue PDF. Confectionery: three KJS packs from the confectionery catalogue.
+// Tea: a drawn cup until KJS sends a tea photo.
+const CATEGORY_IMAGES: Record<string, string> = {
+  coffee: '/images/categories/coffee.jpg',
+  tea: '/images/categories/tea.jpg',
+  'health-drinks': '/images/categories/health-drinks.jpg',
+  confectionery: '/images/categories/confectionery.jpg',
+};
 
 /** Three soft white wisps rising over the Coffee card. */
 function Steam() {
