@@ -9,6 +9,9 @@ One row per product family. The item numbers, weights and pack sizes go into the
 (the product page shows it line by line); `pack_formats` keeps a short summary for the cards.
 Pictures were cut out of the catalogue pages: frontend/public/images/products/<slug>.jpg.
 No prices and no MOQ: the catalogue has neither (MOQ shows "On request").
+
+BEVERAGES: coffees and instant drink powders from the coffee catalogue ("products (1).pdf", 4 Nov 2026),
+added to the original Coffee / Health drinks categories and a new Instant drink powders one.
 """
 import asyncio
 
@@ -24,6 +27,7 @@ CATALOGUE_CATEGORIES = [
     ("wafers", "Wafers", "Cream-filled wafers: chocolate coated, crispy, big-size and multi-flavour packs.", 6),
     ("marshmallow-cakes", "Marshmallow & cakes", "Chocolate coated marshmallow sandwich biscuits and cocoa cakes.", 7),
     ("biscuits", "Biscuits", "Sandwich biscuits, Petit Beurre, Maria, sesame and finger biscuits, single packs to family packs.", 8),
+    ("instant-drinks", "Instant drink powders", "Instant fruit drink powders: lime, mango, orange, strawberry and more.", 9),
 ]
 
 BAR = "Compound chocolate coated bar with nougat and caramel."
@@ -235,6 +239,38 @@ PRODUCTS = [
 ]
 
 
+# ---------- Coffee & instant beverages ("products (1).pdf", received 4 Nov 2026) ----------
+# No item numbers in this PDF, so no "• Item" lines: the description is plain text.
+COFFEE_PACKS = "Stick packs, tin cans, glass jars, PET jars, stand-up pouches"
+PACKS_NOTE = "Pack formats and SKU sizes can be customised to your market."
+BULK = "Also in bulk: 20 kg, 50 kg and 250 kg."
+BLENDS = "Available blends: 10%, 15%, 33% and 100% coffee."
+FRUIT_PACKS = "Stick packs, sachets, pouches, jars"
+
+
+def _fruit(slug: str, fruit: str) -> dict:
+    return dict(slug=f"instant-{slug}-drink-powder", name=f"Instant {fruit.lower()} drink powder", cat="instant-drinks",
+                text=f"Instant {fruit.lower()} flavoured drink powder.\n\n{PACKS_NOTE}", packs=FRUIT_PACKS)
+
+
+BEVERAGES = [
+    dict(slug="agglomerated-instant-coffee", name="Agglomerated instant coffee", cat="coffee",
+         text=f"Agglomerated instant coffee.\n\n{BLENDS}\nPacks: {COFFEE_PACKS}.\n{BULK}", packs=COFFEE_PACKS),
+    dict(slug="spray-dried-instant-coffee", name="Spray-dried instant coffee", cat="coffee",
+         text=f"Spray-dried instant coffee.\n\n{BLENDS}\nPacks: {COFFEE_PACKS}.\n{BULK}", packs=COFFEE_PACKS),
+    dict(slug="freeze-dried-instant-coffee", name="Freeze-dried instant coffee", cat="coffee",
+         text="Premium instant coffee with rich aroma and superior taste retention, preferred in high-end retail "
+              f"markets.\n\nPacks: {COFFEE_PACKS}.\n{BULK}", packs=COFFEE_PACKS),
+    dict(slug="coffee-3-in-1-premix", name="3-in-1 coffee premix", cat="coffee",
+         text=f"Instant 3-in-1 coffee powder.\n\n{PACKS_NOTE}", packs=FRUIT_PACKS),
+    dict(slug="hot-chocolate-powder", name="Hot chocolate powder", cat="health-drinks",
+         text=f"Instant hot chocolate drink powder.\n\n{PACKS_NOTE}", packs=FRUIT_PACKS),
+    *[_fruit(s, f) for s, f in [("lime", "Lime"), ("watermelon", "Watermelon"), ("pineapple", "Pineapple"),
+                                ("mango", "Mango"), ("orange", "Orange"), ("passion-fruit", "Passion fruit"),
+                                ("peach", "Peach"), ("guava", "Guava"), ("strawberry", "Strawberry")]],
+]
+
+
 def _description(p: dict) -> str:
     lines = [p["text"], "", "Items in our catalogue:"]
     for no, variant, weight, pcs, boxes in p["items"]:
@@ -269,8 +305,18 @@ async def add_catalogue(db: AsyncSession) -> None:
             image_path=f"/images/products/{p['slug']}.jpg", private_label=True, is_best_seller=False, is_active=True,
         ))
         added += 1
+    for p in BEVERAGES:
+        if p["slug"] in existing or p["cat"] not in existing_cats:  # coffee / health-drinks come from app.seed
+            continue
+        db.add(Product(
+            category_id=existing_cats[p["cat"]].id, slug=p["slug"], name=p["name"],
+            description=p["text"], pack_formats=p["packs"], moq="",
+            image_path=f"/images/products/{p['slug']}.jpg", private_label=True, is_best_seller=False, is_active=True,
+        ))
+        added += 1
     await db.commit()
-    print(f"catalogue products: {added} added, {len(PRODUCTS) - added} already there")
+    total = len(PRODUCTS) + len(BEVERAGES)
+    print(f"catalogue products: {added} added, {total - added} already there or skipped")
 
 
 async def main() -> None:
