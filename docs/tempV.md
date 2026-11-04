@@ -90,3 +90,50 @@ Two gaps to fix before staff start uploading real product photos.
 3. Decompression bomb: a small file that opens into a giant image to use up the server's memory.
 4. Signed (presigned) URL: a link to a private file that works only for a short time.
 5. Cache Rule: a Cloudflare setting that tells it which addresses it may keep copies of.
+
+
+## Other gaps found (4 Nov, list only, no code yet)
+
+Found while checking the image setup. Items that already have a backlog entry are marked "already logged".
+
+1. No error pages
+   i.    No `not-found.tsx`, `error.tsx` or `global-error.tsx` in `frontend/src/app/`.
+   ii.   A bad product link or a crash shows Next.js's plain default page, with no KJS look and no way back.
+   iii.  Small fix, no dependency. Do first.
+
+2. Nobody hears about crashes or downtime
+   i.    Errors only go to the logs. Nothing alerts us.
+   ii.   No outside check of `/api/health`, so a site that is down goes unnoticed.
+   iii.  Fix: a free uptime checker that calls `/api/health/ready`. Error tracking (like Sentry) would be a
+         new service: ask first.
+
+3. Backups stay on the same server (already logged: R11)
+   i.    If the disk dies, the backups die with it. Not encrypted, no alert when a backup fails.
+   ii.   Needs KJS IT (where to keep the off-site copy).
+
+4. Staff pages can stay on "Loading…" forever (already logged: R40)
+
+5. Uploads checked by file name only (already logged: R9)
+   i.    The image plan above fixes this for photos. PDFs and Excel files still need a check of the
+         first bytes ("magic bytes").
+
+6. Light spam protection (already logged: A31)
+   i.    Honeypot + per-IP limit only. Turnstile still to do (needs a Cloudflare account).
+
+7. Big videos in git
+   i.    About 13 MB of MP4s in `frontend/public/images/kjs/video/` (`banner-video.mp4` alone is 6.8 MB).
+   ii.   Fix: compress them, or move them to R2 once we have it.
+
+8. Waiting on KJS, not on code (already logged)
+   i.    SMTP details (I10), domain and DNS (B6), company server (B3), R2 keys (A54).
+   ii.   Must fix before go-live: sales phone number (A76 / I14), partner offer (A47 / I12).
+
+Suggested order: 1 and 2 first (small, and we hear about problems before visitors do), then the image plan.
+
+
+### New terms (add to kb.md when folding)
+
+1. Uptime checker: an outside service that opens our site every few minutes and alerts us if it fails.
+2. Error tracking: a service that collects every crash with details, so we can fix it.
+3. Magic bytes: the first few bytes of a file that show its real type, whatever its name says.
+4. Turnstile: Cloudflare's free check that a visitor is a person, not a bot.
