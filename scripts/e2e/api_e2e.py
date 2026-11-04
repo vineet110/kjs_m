@@ -63,7 +63,7 @@ check("add holiday", r.status_code == 201, j(r))
 pages = {"/products": ["Masala Tea Premix"], "/private-label": ["Build your product", "Instant Coffee 3-in-1 Stick"],
          "/partners": ["Apply to become a partner"], "/contact": ["Send an enquiry"],
          f"/products/{prod['slug']}": ["Request price sheet", "Get spec sheet", "Request a sample", "Get a quote", "spec-sheet.pdf"],
-         "/categories/coffee": ["Instant Coffee 3-in-1 Stick"], "/capabilities/stick-pack-factory": ["Stick"],
+         "/categories/coffee": ["Instant Coffee 3-in-1 Stick"],
          "/employee/login": ["Log in"]}
 for path, needles in pages.items():
     r = anon.get(path)

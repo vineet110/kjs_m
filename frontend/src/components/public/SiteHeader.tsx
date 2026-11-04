@@ -9,7 +9,6 @@ const NAV = [
   { href: '/', label: 'Home' },
   { href: '/products', label: 'Products' },
   { href: '/private-label', label: 'Private label', key: 'private' },
-  { href: '/capabilities/stick-pack-factory', label: 'Capabilities' },
   { href: '/partners', label: 'Partners', key: 'partners' },
   { href: '/contact', label: 'Contact' },
 ];

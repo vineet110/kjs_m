@@ -41,7 +41,7 @@ export default async function PrivateLabelPage() {
         <div className="space-y-3 md:col-span-2">
           <h2 className="text-2xl font-bold">What we can do</h2>
           <ul className="space-y-2 text-sm">
-            {CAPABILITIES.map((c) => <li key={c.slug} className="card p-3"><a href={`/capabilities/${c.slug}`} className="font-semibold underline-offset-2 hover:underline">{c.title}</a></li>)}
+            {CAPABILITIES.map((c) => <li key={c.slug} className="card p-3 font-semibold">{c.title}</li>)}
           </ul>
         </div>
         <div className="card p-6 md:col-span-3">

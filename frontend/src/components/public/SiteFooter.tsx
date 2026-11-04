@@ -1,25 +1,16 @@
 import Image from 'next/image';
-import Link from 'next/link';
-import { CAPABILITIES, SITE } from '@/lib/site';
+import { SITE } from '@/lib/site';
 
 export default function SiteFooter() {
   return (
     <footer className="mt-20 bg-ink text-slate-300">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 md:grid-cols-4">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 md:grid-cols-3">
         <div className="space-y-3 md:col-span-2">
           <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={140} height={32} className="h-8 w-auto" />
           <p className="max-w-md text-sm text-slate-400">
             Co-manufacturing and private label for coffee, tea, health drinks and confectionery. Since {SITE.since}.
           </p>
           <p className="text-sm text-slate-400">{SITE.address}</p>
-        </div>
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold text-white">Capabilities</p>
-          {CAPABILITIES.map((c) => (
-            <Link key={c.slug} href={`/capabilities/${c.slug}`} className="block hover:text-gold">
-              {c.title.split(':')[0]}
-            </Link>
-          ))}
         </div>
         <div className="space-y-2 text-sm">
           <p className="font-semibold text-white">Contact</p>
