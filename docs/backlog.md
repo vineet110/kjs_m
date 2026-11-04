@@ -443,6 +443,22 @@ A16. Upload limits  🟢
    iii.  Where: `config/storage.ini`
 
 
+A80. Uploaded product photos: 1600 px is enough  🟠 (planned, R43)
+
+   i.    Photos are shrunk to at most 1600 px on the longest side when uploaded.
+   ii.   Change it if KJS wants to zoom in on photos.
+
+
+A81. Only the small photo is kept  🟠 (planned, R43)
+
+   i.    The full-size original is not stored. If KJS wants originals, keep both (more storage).
+
+
+A82. A hidden product's photos may show for up to 1 hour  🟠 (planned, R44)
+
+   i.    Photos are cached for 1 hour, so hiding a product takes up to an hour to hide its photos too.
+
+
 ### Notifications, permissions, login
 
 A18. Email for every notification  🟠
@@ -1420,3 +1436,59 @@ CR2–CR11. Should fix before go-live  🟠
 CR12–CR39. Fix when convenient  🟢
 
    i.    Business-rule edge cases, small frontend bugs, deploy / CI cleanups. See `codeReview.md`.
+
+
+---------------------------------------------------------------------------------------------------
+
+
+## 14. Images and other gaps (4 Nov)
+
+Found while checking how images are served. Plan only, no code yet. Fixed site images in
+`frontend/public/images/` (through `next/image`) and the storage setup (D16) are fine and stay.
+
+Suggested order: CR4 and R45 first (small, and we hear about problems before visitors do), then R43, then R44.
+
+R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: ask first)
+
+   i.    The product page shows uploaded photos with `unoptimized` (`products/[slug]/page.tsx`), so a 10 MB phone
+         photo reaches the visitor as 10 MB. Phone photos can also carry the GPS location (EXIF).
+   ii.   Plan: when an image (png, jpg, jpeg, webp) is uploaded, open it (reject it if it can't be opened),
+         shrink it to at most 1600 px, save it as WebP (quality about 80) without EXIF, and keep only that.
+         Keep Pillow's pixel limit on (decompression bombs).
+   iii.  Why not let Next.js resize instead: the frontend server would resize on every first request, the big
+         original stays in storage and backups, and it's untested with R2's redirect.
+   iv.   Also fixes R9 for images. Assumptions: A80, A81.
+   v.    Where: `file_service.py`, `requirements.txt`, `tests/test_files.py`.
+
+
+R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arrive (A54)
+
+   i.    With `STORAGE_DRIVER=r2`, `/api/v1/public/files/{id}` redirects to a new 5-minute signed link every
+         time, so browsers and Cloudflare can't cache the photo. The link also says "attachment".
+   ii.   Plan: for public website files only, the API reads the photo from R2 and sends it itself with
+         `public, max-age=3600` (as local storage does today). Staff files keep the 5-minute link.
+         Cheap once R43 makes photos small.
+   iii.  Add a Cloudflare Cache Rule for `/api/v1/public/files/*` (Cloudflare skips addresses without .jpg etc.).
+   iv.   Later, only if traffic grows: a public R2 bucket on a custom domain. Faster, but a hidden product's
+         photos stay reachable by link. Assumption: A82.
+   v.    Where: `file_service.py`, `endpoints/files.py`, maybe `core/storage.py`. No new package.
+
+
+R45. Nobody hears about crashes or downtime  🟠
+
+   i.    Errors only go to the logs, and nothing checks `/api/health` from outside.
+   ii.   Fix: a free uptime checker on `/api/health/ready`. Error tracking (Sentry) is a new service: ask first.
+
+
+R46. Big videos on the website  🟢
+
+   i.    About 13 MB of MP4s in `frontend/public/images/kjs/video/` (`banner-video.mp4` is 6.8 MB). Not in git
+         (downloaded by `scripts/fetch_kjs_assets.py`), but visitors load them.
+   ii.   Fix: compress them, or move them to R2 later.
+
+
+Already logged, found again in the same check:
+
+   i.    No error pages (`not-found.tsx`, `error.tsx`, `global-error.tsx`): CR4.
+   ii.   Backups stay on the same server: R11. "Loading…" forever: R40. Uploads checked by name only: R9.
+   iii.  Light spam protection: A31. Waiting on KJS: I10, B6, B3, A54, and before go-live A76 / I14, A47 / I12.

@@ -1173,6 +1173,25 @@ Sections:
    Where  `assign_service.read_rows`.
 
 
+### Decompression bomb
+
+   What   A small image file that opens into a giant picture to use up the server's memory. Like a zip bomb,
+          but for images. Pillow refuses images above a pixel limit.
+   Where  Planned with photo resizing (backlog R43).
+
+
+### Magic bytes
+
+   What   The first few bytes of a file, which show its real type whatever its name says (a PDF starts
+          with `%PDF`). We check uploads by name only for now (backlog R9).
+
+
+### EXIF
+
+   What   Extra data inside a photo: camera, date, and sometimes the GPS location where it was taken.
+   Why    We plan to remove it from uploaded photos, so we don't publish where a photo was taken (backlog R43).
+
+
 ### Race condition / row lock (FOR UPDATE)
 
    What   Two requests at the same moment both read "not done yet" and both act (two batches, two owners,
@@ -1587,6 +1606,19 @@ Sections:
 ### gzip
 
    What   Compresses text responses before sending. The home page goes from about 50 KB to 10 KB.
+
+
+### WebP
+
+   What   An image format, usually much smaller than JPG at the same quality. `next/image` already sends
+          our fixed images as WebP. Planned for uploaded photos too (backlog R43).
+
+
+### Cloudflare Cache Rule
+
+   What   A Cloudflare setting that says which addresses it may keep copies of. By default Cloudflare only
+          caches addresses ending in a file type (.jpg, .css...), so `/api/v1/public/files/12` needs a rule.
+   Where  Cloudflare dashboard (backlog R44).
 
 
 ### Cache-Control: immutable
