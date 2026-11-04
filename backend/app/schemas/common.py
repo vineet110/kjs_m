@@ -42,6 +42,16 @@ def _check_phone(v: str) -> str:
 Phone = Annotated[str, AfterValidator(_check_phone)]
 
 
+def _need_phone(v: str) -> str:
+    if not v:
+        raise ValueError("Please enter your phone number.")
+    return v
+
+
+# Same check, but empty is refused: every form that asks for a phone needs one (Nov 2026)
+RequiredPhone = Annotated[str, AfterValidator(_check_phone), AfterValidator(_need_phone)]
+
+
 def _check_link(v: str) -> str:
     v = v.strip()
     # Only our own pages ("/products/x") or https:// sites. Blocks javascript: links, which would

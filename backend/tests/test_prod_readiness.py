@@ -139,7 +139,7 @@ async def test_mail_server_down_costs_one_try_not_fifty(client, monkeypatch):
     await make_user("boss@kjsindia.com", permissions=["leads.view", "leads.view_all"])
     for i in range(3):
         assert (await client.post("/api/v1/public/leads", headers=HDR, json={
-            "name": f"Buyer {i}", "email": f"b{i}@example.com", "consent": True})).status_code == 201
+            "name": f"Buyer {i}", "email": f"b{i}@example.com", "consent": True, "phone": "+91 98765 43210"})).status_code == 201
     tries = []
 
     def down():
@@ -202,7 +202,7 @@ async def test_finished_batch_cannot_be_reopened(client):
 async def test_lead_status_rules_keep_the_timers_right(client):
     await make_user("e@kjsindia.com")
     assert (await client.post("/api/v1/public/leads", headers=HDR, json={
-        "name": "Omar", "email": "omar@alnoor.ae", "consent": True})).status_code == 201
+        "name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210"})).status_code == 201
     await login(client, "e@kjsindia.com")
     async with AsyncSessionLocal() as db:
         lead_id = await db.scalar(select(Lead.id))

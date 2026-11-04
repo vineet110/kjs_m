@@ -12,7 +12,7 @@ from app.services import lead_service
 from app.services.attendance_service import to_utc
 from tests.conftest import HDR, login, make_user
 
-ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "message": "Need 3-in-1 sticks"}
+ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "message": "Need 3-in-1 sticks"}
 
 
 def ist(d: str, hhmm: str) -> datetime:

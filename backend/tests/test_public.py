@@ -1,7 +1,7 @@
 from tests.conftest import HDR, login, make_user
 
 LEAD = {"name": "Lucia F", "email": "lucia@example.com", "company": "Iberia Foods",
-        "category_slug": "coffee", "quantity": "20,000 sachets/month", "consent": True}
+        "category_slug": "coffee", "quantity": "20,000 sachets/month", "consent": True, "phone": "+91 98765 43210"}
 
 
 async def test_health(client):
@@ -67,7 +67,7 @@ async def test_koko_falls_back_when_llm_is_off(client):
 
 async def test_rate_limit_is_per_visitor_behind_our_proxy(client):
     """Through the Next.js proxy every request comes from 127.0.0.1; the limit must still be per visitor."""
-    body = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True}
+    body = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210"}
     for _ in range(5):
         r = await client.post("/api/v1/public/leads", json=body, headers=HDR | {"x-forwarded-for": "5.5.5.5"})
         assert r.status_code == 201

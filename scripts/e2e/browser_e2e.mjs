@@ -179,6 +179,9 @@ const phoneSent = await hiddenValue('phone');
 if (phoneSent !== '+971 50 123 4567') pickerProblems.push(`phone sent as ${JSON.stringify(phoneSent)}`);
 await typeInto('#phone', 'call me');
 if (await evaluate('document.querySelector("#phone").checkValidity()')) pickerProblems.push('"call me" accepted as a phone');
+// The phone is required: an empty one stops the form
+await typeInto('#phone', '');
+if (await evaluate('document.querySelector("#phone").checkValidity()')) pickerProblems.push('empty phone accepted');
 // Partner form: picking the country also sets the phone code (until the visitor picks a code)
 await open('/partners', 1500);
 await evaluate('document.querySelector("#p-country")?.click()');
