@@ -57,7 +57,7 @@ export default function ProfilePage() {
       <form onSubmit={save} className="card space-y-3 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label">Name</label><input name="name" defaultValue={p.name} required minLength={2} className="input" /></div>
-          <div><label className="label" htmlFor="me-phone">Phone / WhatsApp</label><PhoneInput id="me-phone" defaultValue={p.phone} maxLength={20} /></div>
+          <div><label className="label" htmlFor="me-phone">Phone / WhatsApp *</label><PhoneInput id="me-phone" defaultValue={p.phone} maxLength={20} /></div>
         </div>
         <fieldset className="space-y-1 text-sm">
           <legend className="label">Notifications (the bell always shows them)</legend>
