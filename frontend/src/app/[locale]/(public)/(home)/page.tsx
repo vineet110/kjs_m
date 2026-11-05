@@ -13,7 +13,7 @@ import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
-import { toHomeProduct, type HomeProduct } from '@/lib/catalogue';
+import { toHomeProduct, visibleCategories, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
@@ -38,7 +38,7 @@ export default async function HomePage() {
     serverGet<Product[]>('/public/products'),
     texts(),
   ]);
-  const cats = categories ?? [];
+  const cats = visibleCategories(categories); // without the hidden ones (Tea, for now)
   const all = productList ?? [];
   // One small list for the browser (shared by search, menu and product range)
   const products = all.map(toHomeProduct);
@@ -96,6 +96,7 @@ export default async function HomePage() {
   // Dark stats box: real facts only. It needs the product list (no made-up count if the API is down)
   const stats = [
     [String(products.length), 'product families in the catalogue'],
+    [String(itemCount), 'items and pack sizes to choose from'],
     ['0.9–3 g', 'precise stick-pack fills'],
   ];
 
@@ -125,8 +126,9 @@ export default async function HomePage() {
       </section>
 
       {/* Category menu · banner · buyer panel */}
-      <section className="bg-paper">
-        <div className="mx-auto grid max-w-7xl gap-4 px-4 py-5 lg:min-h-[420px] lg:grid-cols-[230px_1fr_250px]">
+      {/* A soft gold glow from the top makes this row the focus of the first screen */}
+      <section className="bg-paper bg-[radial-gradient(ellipse_80%_70%_at_50%_0%,rgba(217,169,48,0.16),transparent)]">
+        <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:min-h-[480px] lg:grid-cols-[230px_1fr_250px]">
           <CategoryMenu categories={cats} />
           <HeroCarousel slides={slides} />
           <aside className="hidden flex-col gap-4 lg:flex">
@@ -218,7 +220,9 @@ export default async function HomePage() {
 
       {/* Best sellers: the products ticked in Admin > Products; hidden until any are ticked */}
       {bestSellerCards.length > 0 && (
-        <section className="mx-auto max-w-7xl px-4 pt-14" aria-labelledby="best-sellers-title">
+        // A white band, so the page alternates instead of every section looking the same
+        <section className="mt-14 border-y border-slate-200 bg-white py-14" aria-labelledby="best-sellers-title">
+          <div className="mx-auto max-w-7xl px-4">
           <p className="eyebrow">From our range</p>
           <h2 id="best-sellers-title" className="title-accent mt-2 text-3xl font-bold">Best sellers</h2>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
@@ -227,6 +231,7 @@ export default async function HomePage() {
                 <HomeProductCard p={p} />
               </Reveal>
             ))}
+          </div>
           </div>
         </section>
       )}
@@ -255,16 +260,17 @@ export default async function HomePage() {
       </section>
 
       {/* How ordering works */}
-      <section className="bg-white py-14">
+      {/* Dark band with gold, the logo's colours */}
+      <section className="bg-ink py-16 text-white">
         <div className="mx-auto max-w-7xl px-4">
-          <p className="eyebrow">How it works</p>
+          <p className="eyebrow !text-gold">How it works</p>
           <h2 className="title-accent mt-2 text-3xl font-bold">From enquiry to dispatch in four steps</h2>
           <ol className="mt-8 grid gap-4 md:grid-cols-4">
             {STEPS.map((s, i) => (
-              <Reveal as="li" key={s.title} delay={i * 120} className="card-lift relative rounded-xl border border-slate-200 border-t-4 border-t-gold bg-paper p-5">
+              <Reveal as="li" key={s.title} delay={i * 120} className="card-lift relative rounded-xl border border-white/10 border-t-4 border-t-gold bg-ink-soft p-5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold text-sm font-extrabold text-ink ring-4 ring-gold/25">{i + 1}</span>
                 <h3 className="mt-3 font-semibold">{s.title}</h3>
-                <p className="mt-1 text-sm text-slate-600">{s.text}</p>
+                <p className="mt-1 text-sm text-slate-300">{s.text}</p>
               </Reveal>
             ))}
           </ol>
@@ -272,17 +278,17 @@ export default async function HomePage() {
       </section>
 
       <Reveal as="section" className="mx-auto max-w-7xl px-4 pb-20 pt-14">
-        <div className="relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-2xl bg-forest p-8 text-white ring-2 ring-gold/50 md:flex-row md:items-center">
-          {/* Soft gold circles in the corners, just decoration */}
-          <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full border-[18px] border-gold/15" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-gold/10" />
+        <div className="relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-2xl bg-gradient-to-r from-gold-light via-gold to-gold-dark p-8 text-ink shadow-lg md:flex-row md:items-center">
+          {/* Gold box in the logo's colours (it sits under the dark "How it works" band). Soft circles: decoration */}
+          <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full border-[18px] border-white/20" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-white/15" />
           <div className="relative">
             <h2 className="text-2xl font-bold">Launching a product or scaling a SKU?</h2>
-            <p className="mt-1 text-emerald-100">Tell us the format and volume. Our team replies within one working day.</p>
+            <p className="mt-1 text-ink/80">Tell us the format and volume. Our team replies within one working day.</p>
           </div>
           <div className="relative flex gap-3">
-            <EnquiryButton label="Send enquiry" title="Send us your enquiry" />
-            <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn border border-white/40 text-white hover:bg-white/10">
+            <EnquiryButton label="Send enquiry" title="Send us your enquiry" className="btn-dark" />
+            <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn border border-ink/40 text-ink hover:bg-ink/10">
               WhatsApp
             </a>
           </div>
