@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Public site headings: a display font with slightly tighter letters (font set in [locale]/layout.tsx) */
+@layer base {
+  .site-public :is(h1, h2, h3) { font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.015em; }
+}
+
 @layer components {
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50; }
   .btn-gold { @apply btn bg-gold text-ink hover:bg-gold-light; }

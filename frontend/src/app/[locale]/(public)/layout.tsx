@@ -14,7 +14,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <JsonLd data={organizationLd} />
       {f.offers_ticker && <OffersTicker />}
       <SiteHeader showPartners={f.partners} showPrivateLabel />
-      <main className="min-h-[60vh]">{children}</main>
+      <main className="site-public min-h-[60vh]">{children}</main>
       <SiteFooter />
       {f.whatsapp_button && <WhatsAppButton />}
       {f.koko && <KokoChatWidget />}

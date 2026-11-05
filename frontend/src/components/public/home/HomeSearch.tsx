@@ -57,7 +57,7 @@ export default function HomeSearch({ categories }: { categories: Category[] }) {
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)} // reopens after Escape (focus never left, so no new focus event)
-          placeholder="Search wafers, chocolate bars, biscuits or an item number like 801"
+          placeholder="Search wafers, chocolate bars, biscuits, coffee..."
           className="min-w-0 flex-1 px-4 py-3 text-sm text-slate-900 outline-none"
           aria-label="Search products"
         />

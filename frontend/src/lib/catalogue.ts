@@ -24,6 +24,12 @@ export function summary(description: string): string {
 /** Categories shown inside another one (a dropdown in the home page menu). The database keeps them as
  *  separate categories; the API counts and lists them under the parent too (same list in
  *  backend/app/services/catalog_service.py). */
+// Categories hidden on the public home and products pages for now (Tea: no products yet).
+// Take a slug out of this list to show that category again.
+export const HIDDEN_CATEGORIES = ['tea'];
+export const visibleCategories = <T extends { slug: string }>(cats: T[] | null | undefined): T[] =>
+  (cats ?? []).filter((c) => !HIDDEN_CATEGORIES.includes(c.slug));
+
 export const SUBCATEGORIES: Record<string, string[]> = {
   confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
 };

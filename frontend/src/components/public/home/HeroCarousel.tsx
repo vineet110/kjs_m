@@ -18,7 +18,7 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
 
   return (
     <div
-      className="relative h-full min-h-[340px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md"
+      className="relative h-full min-h-[360px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carousel"
@@ -37,7 +37,12 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
               }`}
             >
               <p className="eyebrow">{s.eyebrow}</p>
-              <h2 className="mt-3 text-2xl font-extrabold leading-tight text-ink md:text-4xl">{s.title}</h2>
+              <h2 className="mt-3 text-2xl font-extrabold leading-tight text-ink md:text-[2.6rem] md:leading-[1.1]">
+                {/* A hyphenated word ("Co-Manufacturing") never breaks at its hyphen */}
+                {s.title.split(' ').map((w, k) => (
+                  <span key={k}>{k > 0 && ' '}{w.includes('-') ? <span className="whitespace-nowrap">{w}</span> : w}</span>
+                ))}
+              </h2>
               <p className="mt-3 text-sm text-slate-700 md:text-base">{s.text}</p>
               <Link href={s.href} className="btn-dark mt-6 self-start">{s.cta} →</Link>
             </div>
