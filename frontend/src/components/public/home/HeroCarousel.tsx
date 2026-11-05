@@ -18,7 +18,7 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
 
   return (
     <div
-      className="relative h-full min-h-[340px] overflow-hidden rounded-xl"
+      className="relative h-full min-h-[340px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carousel"

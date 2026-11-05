@@ -115,7 +115,7 @@ export default async function HomePage() {
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
               <span className="text-slate-500">Popular:</span>
               {popular.map((p) => (
-                <Link key={p.slug} href={`/products/${p.slug}`} className="rounded-full bg-paper px-3 py-1 text-slate-700 hover:bg-gold-light/50">
+                <Link key={p.slug} href={`/products/${p.slug}`} className="rounded-full border border-gold/30 bg-paper px-3 py-1 text-slate-700 transition-colors hover:border-gold hover:bg-gold-light/50">
                   {p.name}
                 </Link>
               ))}
@@ -131,14 +131,14 @@ export default async function HomePage() {
           <HeroCarousel slides={slides} />
           <aside className="hidden flex-col gap-4 lg:flex">
             {/* Without the stats box this card fills the column, so no empty gap under it */}
-            <div className={`card p-5 ${products.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
+            <div className={`card border-t-4 border-t-gold p-5 ring-1 ring-gold/20 ${products.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
               <p className="font-semibold">Buying for your brand or store?</p>
               <p className="mt-1 text-xs text-slate-600">Prices, samples and pack options from our sales team.</p>
               <EnquiryButton label="Request a quote" source="quote" title="Request a quote" className="btn-gold mt-4 w-full" />
               <EnquiryButton label="Request a sample" source="sample" title="Request a sample" className="btn-ghost mt-2 w-full" />
             </div>
             {products.length > 0 && (
-              <div className="card flex flex-1 flex-col justify-center gap-3 bg-ink p-5 text-white">
+              <div className="card flex flex-1 flex-col justify-center divide-y divide-white/10 border-gold/40 bg-ink p-5 text-white ring-1 ring-gold/30 [&>div:not(:first-child)]:pt-3">
                 {stats.map(([big, small]) => (
                   <div key={small}>
                     <p className="text-2xl font-extrabold text-gold">{big}</p>
@@ -158,13 +158,13 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Certified</span>
             {SITE.certifications.map((c) => (
-              <Image key={c.name} src={c.img} alt={c.name} width={80} height={44} className="h-10 w-auto object-contain" />
+              <Image key={c.name} src={c.img} alt={c.name} width={80} height={44} className="h-12 w-auto rounded-lg border border-slate-200 bg-white object-contain p-1 shadow-sm" />
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Co-manufacturing partner to</span>
             {SITE.trustedBy.map((b) => (
-              <span key={b} className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">{b}</span>
+              <span key={b} className="rounded-full border border-gold/50 bg-gold/5 px-3 py-1 text-sm font-semibold text-slate-700">{b}</span>
             ))}
           </div>
         </div>
@@ -176,18 +176,18 @@ export default async function HomePage() {
           <div className="flex items-end justify-between">
             <div>
               <p className="eyebrow">Top categories</p>
-              <h2 className="mt-2 text-3xl font-bold">Shop by category</h2>
+              <h2 className="title-accent mt-2 text-3xl font-bold">Shop by category</h2>
             </div>
             <Link href="/products" className="hidden text-sm font-semibold text-gold-dark hover:underline sm:block">All products →</Link>
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stocked.map((c) => (
               <Reveal key={c.slug} stagger repeat className="flex">
-                <Link href={`/categories/${c.slug}`} className="card group w-full overflow-hidden p-3 transition-shadow hover:shadow-lg">
+                <Link href={`/categories/${c.slug}`} className="card card-lift group w-full overflow-hidden p-3">
                   {withImage.some((p) => p.categorySlug === c.slug) ? (
                     <div className="grid grid-cols-2 gap-1.5">
                       {withImage.filter((p) => p.categorySlug === c.slug).slice(0, 4).map((p) => (
-                        <Image key={p.slug} src={p.image!} alt="" width={160} height={120} className="aspect-[4/3] w-full rounded-md object-cover transition-transform group-hover:scale-[1.03]" />
+                        <Image key={p.slug} src={p.image!} alt="" width={160} height={120} className="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-[1.04]" />
                       ))}
                     </div>
                   ) : (
@@ -196,7 +196,7 @@ export default async function HomePage() {
                   )}
                   <div className="flex items-baseline justify-between px-1 pb-1 pt-3">
                     <h3 className="font-bold group-hover:text-forest">{c.name}</h3>
-                    <span className="text-xs text-slate-500">{c.product_count} product{c.product_count === 1 ? '' : 's'}</span>
+                    <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-dark">{c.product_count} product{c.product_count === 1 ? '' : 's'}</span>
                   </div>
                 </Link>
               </Reveal>
@@ -220,7 +220,7 @@ export default async function HomePage() {
       {bestSellerCards.length > 0 && (
         <section className="mx-auto max-w-7xl px-4 pt-14" aria-labelledby="best-sellers-title">
           <p className="eyebrow">From our range</p>
-          <h2 id="best-sellers-title" className="mt-2 text-3xl font-bold">Best sellers</h2>
+          <h2 id="best-sellers-title" className="title-accent mt-2 text-3xl font-bold">Best sellers</h2>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {bestSellerCards.map((p) => (
               <Reveal key={p.slug} stagger repeat className="flex">
@@ -238,7 +238,7 @@ export default async function HomePage() {
       <section id="range" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-14">
         <div className="mb-6">
           <p className="eyebrow">Our product range</p>
-          <h2 className="mt-2 text-3xl font-bold">Made and packed in our factory</h2>
+          <h2 className="title-accent mt-2 text-3xl font-bold">Made and packed in our factory</h2>
           <p className="mt-2 text-slate-600">
             Open any product for its items, weights and pack sizes. Add products to your enquiry list and ask for one quote.
           </p>
@@ -258,11 +258,11 @@ export default async function HomePage() {
       <section className="bg-white py-14">
         <div className="mx-auto max-w-7xl px-4">
           <p className="eyebrow">How it works</p>
-          <h2 className="mt-2 text-3xl font-bold">From enquiry to dispatch in four steps</h2>
+          <h2 className="title-accent mt-2 text-3xl font-bold">From enquiry to dispatch in four steps</h2>
           <ol className="mt-8 grid gap-4 md:grid-cols-4">
             {STEPS.map((s, i) => (
-              <Reveal as="li" key={s.title} delay={i * 120} className="relative rounded-xl border border-slate-200 bg-paper p-5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold text-sm font-extrabold text-ink">{i + 1}</span>
+              <Reveal as="li" key={s.title} delay={i * 120} className="card-lift relative rounded-xl border border-slate-200 border-t-4 border-t-gold bg-paper p-5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold text-sm font-extrabold text-ink ring-4 ring-gold/25">{i + 1}</span>
                 <h3 className="mt-3 font-semibold">{s.title}</h3>
                 <p className="mt-1 text-sm text-slate-600">{s.text}</p>
               </Reveal>
@@ -272,12 +272,15 @@ export default async function HomePage() {
       </section>
 
       <Reveal as="section" className="mx-auto max-w-7xl px-4 pb-20 pt-14">
-        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl bg-forest p-8 text-white md:flex-row md:items-center">
-          <div>
+        <div className="relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-2xl bg-forest p-8 text-white ring-2 ring-gold/50 md:flex-row md:items-center">
+          {/* Soft gold circles in the corners, just decoration */}
+          <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full border-[18px] border-gold/15" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-gold/10" />
+          <div className="relative">
             <h2 className="text-2xl font-bold">Launching a product or scaling a SKU?</h2>
             <p className="mt-1 text-emerald-100">Tell us the format and volume. Our team replies within one working day.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="relative flex gap-3">
             <EnquiryButton label="Send enquiry" title="Send us your enquiry" />
             <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn border border-white/40 text-white hover:bg-white/10">
               WhatsApp
