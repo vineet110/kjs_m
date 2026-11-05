@@ -1,3 +1,4 @@
+import HoverGrowSides from '@/components/public/HoverGrowSides';
 import { JsonLd, organizationLd } from '@/components/public/JsonLd';
 import KokoChatWidget from '@/components/public/KokoChatWidget';
 import OffersTicker from '@/components/public/OffersTicker';
@@ -15,6 +16,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <SiteHeader showPartners={f.partners} showPrivateLabel />
       <main className="min-h-[60vh]">{children}</main>
       <SiteFooter />
+      <HoverGrowSides />
       {f.whatsapp_button && <WhatsAppButton />}
       {f.koko && <KokoChatWidget />}
     </>
