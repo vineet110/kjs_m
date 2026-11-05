@@ -177,6 +177,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
       </div>
     );
   const me = status.me;
+  const isAttendance = pathname.includes('/employee/attendance');
 
   // Sidebar: always on the page, slid out of view when closed (a smooth slide both ways; none for "reduce
   // motion"). Closed, it is `inert`: its links can't be reached with Tab or a screen reader. On a computer the
@@ -186,7 +187,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
   return (
     <MeContext.Provider value={me}>
       <ToastProvider>
-      <div className="min-h-screen bg-paper">
+      <div className={isAttendance ? "h-screen w-screen overflow-hidden flex flex-col bg-white select-none" : "min-h-screen bg-paper"}>
         <aside
           ref={sidebar}
           id="portal-sidebar"
@@ -226,29 +227,37 @@ export default function PortalShell({ children, requirePerm }: { children: React
           </div>
         </aside>
         {menuOpen && <div aria-hidden className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setMenu(false, { focusButton: true })} />}
-        <div inert={overlay} className={`min-w-0 ${menuOpen ? 'md:pl-60' : ''}`}>
-          <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-stone-200 bg-white/85 px-4 py-2 backdrop-blur">
-            <button
-              ref={menuButton}
-              onClick={() => setMenu(!menuOpen)}
-              aria-expanded={menuOpen}
-              aria-controls="portal-sidebar"
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-              className="flex h-9 w-9 items-center justify-center rounded text-lg hover:bg-stone-100"
-            >
-              <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
-            </button>
-            <span className="font-semibold">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
+        <div inert={overlay} className={`min-w-0 ${isAttendance ? 'flex-1 flex flex-col overflow-hidden' : ''} ${menuOpen ? 'md:pl-60' : ''}`}>
+          <header className={`sticky top-0 z-20 flex h-11 items-center justify-between gap-2 border-b border-stone-200 bg-white px-4 shrink-0 ${isAttendance ? 'shadow-none' : 'backdrop-blur'}`}>
+            <div className="flex items-center gap-3">
+              <button
+                ref={menuButton}
+                onClick={() => setMenu(!menuOpen)}
+                aria-expanded={menuOpen}
+                aria-controls="portal-sidebar"
+                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                className="flex h-8 w-8 items-center justify-center rounded text-base hover:bg-stone-100"
+              >
+                <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
+              </button>
+              <span className="font-semibold text-sm text-slate-800">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
+            </div>
             <div className="ml-auto flex items-center gap-2">
               <Bell />
               {/* Avatar menu with Log out, on every screen: the sidebar (with its own Log out) starts hidden */}
               <AccountMenu me={me} onLogout={() => setConfirmLogout(true)} />
             </div>
           </header>
-          {/* key: each page fades in when you open it (not on every update inside the page) */}
-          <div key={pathname} className="mx-auto max-w-6xl p-4 animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none md:p-8">
-            {children}
-          </div>
+          {/* Full-bleed for full-screen attendance workspace, padded container for standard pages */}
+          {isAttendance ? (
+            <div key={pathname} className="flex-1 w-full overflow-hidden flex flex-col">
+              {children}
+            </div>
+          ) : (
+            <div key={pathname} className="mx-auto max-w-6xl p-4 animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none md:p-8">
+              {children}
+            </div>
+          )}
         </div>
         {/* Outside the `inert` page and sidebar, so it works whichever one opened it */}
         <LogoutDialog open={confirmLogout} name={me.name} busy={loggingOut} onConfirm={logout} onClose={() => setConfirmLogout(false)} />
