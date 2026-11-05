@@ -1,3 +1,4 @@
+import ConnectPopup from '@/components/public/ConnectPopup';
 import { JsonLd, organizationLd } from '@/components/public/JsonLd';
 import KokoChatWidget from '@/components/public/KokoChatWidget';
 import OffersTicker from '@/components/public/OffersTicker';
@@ -17,6 +18,8 @@ export default async function PublicLayout({ children }: { children: React.React
       <SiteFooter />
       {f.whatsapp_button && <WhatsAppButton />}
       {f.koko && <KokoChatWidget />}
+      {/* On unless switched off (an older API without the switch still shows it) */}
+      {f.connect_popup !== false && <ConnectPopup />}
     </>
   );
 }
