@@ -35,7 +35,7 @@ export default function HomeProductCard({ p, onQuickView, overlay, topLeft, chil
   const box = 'relative block aspect-[4/3] overflow-hidden bg-paper';
   const wholeCard = !onQuickView;
   return (
-    <article className="card card-lift group relative flex w-full flex-col overflow-hidden">
+    <article className="card card-lift hover-grow group relative flex w-full flex-col overflow-hidden">
       {onQuickView ? (
         <button onClick={onQuickView} className={box} aria-label={`Quick view: ${p.name}${offer ? `, ${offer}` : ''}`}>{picture}</button>
       ) : (

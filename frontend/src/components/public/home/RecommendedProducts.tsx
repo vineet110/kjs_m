@@ -118,7 +118,7 @@ export default function RecommendedProducts({ exclude = [] }: { exclude?: string
   return (
     <section ref={section} className="mx-auto max-w-7xl px-4 pt-14" aria-labelledby="recommended-title">
       <p className="eyebrow">{picks.reason ? EYEBROW[picks.reason] : 'Recommended'}</p>
-      <h2 id="recommended-title" className="mt-2 text-3xl font-bold">
+      <h2 id="recommended-title" className="title-accent mt-2 text-3xl font-bold">
         {picks.reason ? 'Recommended for you' : 'Recommended picks'}
       </h2>
       <div className={`mt-6 grid grid-cols-2 gap-3 transition-opacity duration-200 md:grid-cols-4 md:gap-4 ${fading ? 'opacity-0' : 'opacity-100'}`}>

@@ -4,7 +4,7 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
 import Reveal from '@/components/public/Reveal';
 import { serverGet, type Category, type Product } from '@/lib/api';
-import { imageOf } from '@/lib/catalogue';
+import { imageOf, visibleCategories } from '@/lib/catalogue';
 
 export const metadata: Metadata = { title: 'Products' };
 
@@ -31,7 +31,7 @@ export default async function ProductsPage() {
         <h1 className="mt-2 text-3xl font-bold">Our product range</h1>
         <p className="mt-2 text-slate-600">Choose a category, or ask us for the full catalogue.</p>
       </div>
-      <CategoryGrid categories={categories ?? []} images={firstImages(products ?? [])} />
+      <CategoryGrid categories={visibleCategories(categories)} images={firstImages(products ?? [])} />
       {products && products.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Cards pop in, row by row, every time they scroll into view (down or up) */}

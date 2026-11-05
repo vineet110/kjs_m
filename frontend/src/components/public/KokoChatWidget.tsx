@@ -79,16 +79,16 @@ export default function KokoChatWidget() {
     <div className="fixed bottom-5 right-5 z-50">
       {open ? (
         <div className="flex h-[520px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl">
-          <div className="flex items-center justify-between bg-forest p-4 text-white">
+          <div className="flex items-center justify-between border-b-2 border-gold bg-ink p-4 text-white">
             <div>
               <p className="text-sm font-bold">Koko · KJS assistant</p>
-              <p className="text-xs text-emerald-200">Answers from KJS information only</p>
+              <p className="text-xs text-gold-light/80">Answers from KJS information only</p>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Close chat" className="text-white/80 hover:text-white">✕</button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {msgs.map((m, i) => (
-              <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-forest text-white' : 'bg-slate-100 text-slate-800'}`}>
+              <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-ink text-white' : 'bg-slate-100 text-slate-800'}`}>
                 {m.content}
               </div>
             ))}
