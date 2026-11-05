@@ -35,3 +35,19 @@ body:has([data-loading-screen]) .page-progress { display: block; }
 @media (prefers-reduced-motion: reduce) {
   video[autoplay] { display: none; }
 }
+
+/* Product cards grow 20% under the cursor and come in front of their neighbours.
+   Which way they grow (data-side) is set by HoverGrowSides: left edge → grows right, right edge →
+   grows left, middle → evenly. Only with a real mouse on tablet/desktop widths (phones: no effect).
+   Outside the Tailwind layers on purpose, so it wins over the cards' own hover lift. */
+@media (hover: hover) and (min-width: 768px) {
+  .hover-grow { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+  .hover-grow:hover { transform: scale(1.2); box-shadow: 0 20px 40px -12px rgb(17 23 20 / 0.35); }
+  .hover-grow[data-side='left'] { transform-origin: left center; }
+  .hover-grow[data-side='right'] { transform-origin: right center; }
+  /* The card's grid cell goes on top, so the bigger card covers its neighbours instead of going under them */
+  .grid > :has(.hover-grow:hover) { position: relative; z-index: 20; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hover-grow { transition: none; }
+}
