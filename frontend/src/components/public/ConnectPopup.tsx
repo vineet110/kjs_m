@@ -32,13 +32,19 @@ const STEPS = [
 function load(): State {
   try {
     const s = JSON.parse(sessionStorage.getItem(KEY) ?? 'null');
-    if (s && typeof s.next === 'number') return s;
+    // Only trust well-formed data (old or hand-edited values would break STEPS[shown])
+    if (s && Number.isFinite(s.next) && Number.isInteger(s.shown) && s.shown >= 0 && s.shown <= GAPS.length && typeof s.done === 'boolean') return s;
   } catch {} // private mode or bad data: start fresh
   return { next: Date.now() + GAPS[0], shown: 0, done: false };
 }
 function save(s: State) {
   try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch {}
 }
+
+// Something the visitor is busy with that the popup must not cover: the enquiry form or the product
+// quick view (both are aria-modal dialogs), or an open Koko chat (its "Close chat" button only exists
+// while the chat is open)
+const busy = () => !!document.querySelector('[aria-modal="true"], [aria-label="Close chat"]');
 
 // The page's own heading (product or category name), read when the popup opens
 const heading = () => document.querySelector('main h1')?.textContent?.trim() ?? '';
@@ -80,16 +86,21 @@ export default function ConnectPopup() {
     const s = (state.current ??= load());
     save(s);
     if (s.done || s.shown >= GAPS.length) return;
-    const wait = Math.max(1_000, s.next - Date.now());
-    const t = setTimeout(function open() {
-      // Someone is filling the enquiry form: try again a little later
-      if (document.querySelector('[data-enquiry-modal]')) return void setTimeout(open, 10_000);
+    // One timer, also for the retries, so leaving the page (or unmounting) always cancels it
+    let t: ReturnType<typeof setTimeout>;
+    const open = () => {
+      // The visitor is busy (enquiry form, quick view, Koko chat): try again a little later
+      if (busy()) return void (t = setTimeout(open, 10_000));
       setDraft(draftFor(path, heading()));
       setTyping(true);
       setStep(s.shown);
       s.shown += 1;
+      // Also move "next" on now: a reload while this popup is open must still wait the full gap
+      // (closing it moves "next" again, from the moment it is closed)
+      if (s.shown < GAPS.length) s.next = Date.now() + GAPS[s.shown];
       save(s);
-    }, wait);
+    };
+    t = setTimeout(open, Math.max(1_000, s.next - Date.now()));
     return () => clearTimeout(t);
   }, [step, path]);
 
@@ -109,7 +120,7 @@ export default function ConnectPopup() {
     };
   }, [step, hidden, finish]);
 
-  if (step === null) return null;
+  if (step === null || !STEPS[step]) return null;
   const s = STEPS[step];
   const href = `${SITE.whatsapp}?text=${encodeURIComponent(draft)}`;
 
