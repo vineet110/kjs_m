@@ -39,7 +39,7 @@ export default function PartnerForm() {
         </div>
         <div><label className="label" htmlFor="p-country">Country *</label><CountrySelect id="p-country" required onChange={setPickedCountry} /></div>
         <div><label className="label" htmlFor="p-email">Email *</label><input id="p-email" name="email" type="email" required className="input" /></div>
-        <div><label className="label" htmlFor="p-phone">Phone / WhatsApp</label><PhoneInput id="p-phone" linkedCountry={pickedCountry} /></div>
+        <div><label className="label" htmlFor="p-phone">Phone / WhatsApp *</label><PhoneInput id="p-phone" linkedCountry={pickedCountry} /></div>
       </div>
       <div><label className="label" htmlFor="p-message">Which markets and buyers do you work with?</label><textarea id="p-message" name="message" rows={3} className="input" /></div>
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />

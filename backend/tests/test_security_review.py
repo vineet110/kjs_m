@@ -32,7 +32,7 @@ async def test_locked_email_refuses_even_the_right_password(client):
 
 async def test_signup_is_rate_limited(client):
     codes = [(await client.post("/api/v1/auth/signup", headers=HDR, json={
-        "name": f"Person {i}", "email": f"p{i}@kjsindia.com", "password": "password1234"})).status_code
+        "name": f"Person {i}", "email": f"p{i}@kjsindia.com", "password": "password1234", "phone": "+91 98765 43210"})).status_code
         for i in range(6)]
     assert codes == [201] * 5 + [429]
 
@@ -86,7 +86,7 @@ async def test_line_breaks_in_a_name_never_reach_email_subjects(client):
     # Before: "Bob\r\nX" made the email job crash and resend the same emails every minute.
     await make_user("boss@kjsindia.com", role="admin")
     r = await client.post("/api/v1/public/leads", headers=HDR, json={
-        "name": "Bob\r\nBcc: someone@example.com", "email": "bob@example.com", "consent": True})
+        "name": "Bob\r\nBcc: someone@example.com", "email": "bob@example.com", "consent": True, "phone": "+91 98765 43210"})
     assert r.status_code == 201
     async with AsyncSessionLocal() as db:
         titles = (await db.scalars(select(Notification.title))).all()

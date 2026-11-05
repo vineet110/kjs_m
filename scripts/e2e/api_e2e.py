@@ -79,14 +79,14 @@ r = anon.get("/api/v1/public/config")
 check("public config has feature switches", r.status_code == 200 and "gated_actions" in j(r)["features"], j(r))
 
 # ---------- Visitor actions ----------
-lead = {"name": "Omar Al Noor", "company": "Al Noor Trading", "email": "omar@alnoor.ae", "country": "UAE", "consent": True}
+lead = {"name": "Omar Al Noor", "company": "Al Noor Trading", "email": "omar@alnoor.ae", "country": "UAE", "consent": True, "phone": "+971 50 123 4567"}
 check("enquiry form lead", anon.post("/api/v1/public/leads", json=lead | {"message": "Need 3-in-1 sticks"}, headers=H).status_code == 201)
 check("gated price-sheet lead", anon.post("/api/v1/public/leads", json=lead | {"source": "price_sheet", "product_slug": prod["slug"]}, headers=H).status_code == 201)
 check("configurator lead", anon.post("/api/v1/public/leads", json=lead | {"source": "configurator", "message": "Pack: Stick pack"}, headers=H).status_code == 201)
 r = anon.post("/api/v1/public/leads", json=lead | {"consent": False}, headers=H)
 check("lead without consent rejected", r.status_code == 422, j(r))
 r = anon.post("/api/v1/public/partners", json={"name": "Ravi", "partner_type": "forwarder", "country": "UAE",
-                                               "email": "ravi@ship.ae", "consent": True}, headers=H)
+                                               "email": "ravi@ship.ae", "consent": True, "phone": "+971 50 123 4567"}, headers=H)
 check("partner application", r.status_code == 201, j(r))
 r = anon.post("/api/v1/koko/chat", json={"messages": [{"role": "user", "content": "Do you make private label coffee sticks? We need 50,000 a month."}],
                                          "chat_id": "e2e-chat-1", "page": "/"}, headers=H)
@@ -97,7 +97,7 @@ print("   Koko said:", reply[:220].replace("\n", " "))
 
 # ---------- Staff sign-up and approval ----------
 for c, email, name in ((e1, "esha@e2e.test", "Esha"), (e2, "farhan@e2e.test", "Farhan")):
-    r = c.post("/api/v1/auth/signup", json={"name": name, "email": email, "password": "staff-pass-123"}, headers=H)
+    r = c.post("/api/v1/auth/signup", json={"name": name, "email": email, "password": "staff-pass-123", "phone": "+91 98765 43210"}, headers=H)
     check(f"signup {name}", r.status_code == 201, j(r))
     r = c.post("/api/v1/auth/login", json={"email": email, "password": "staff-pass-123"}, headers=H)
     check(f"{name} blocked until approved", r.status_code == 403 and j(r)["code"] == "pending_approval", j(r))

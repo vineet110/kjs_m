@@ -125,7 +125,7 @@ function LoginInner() {
             {tab === 'signup' && (
               <>
                 <div><label className="label" htmlFor="name">Full name</label><input id="name" name="name" required minLength={2} className="input" /></div>
-                <div><label className="label" htmlFor="phone">Phone</label><PhoneInput id="phone" maxLength={20} placeholder="Phone" /></div>
+                <div><label className="label" htmlFor="phone">Phone *</label><PhoneInput id="phone" maxLength={20} placeholder="Phone" /></div>
               </>
             )}
             <div><label className="label" htmlFor="email">Work email</label><input id="email" name="email" type="email" required className="input" autoComplete="username" /></div>

@@ -58,8 +58,8 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     if (v && badPhone) v = { ...v, phone: '' };
     setPhoneAgain(badPhone);
     setSaved(v);
-    // One-click send only when the server will take it: a valid phone and some way to reach them
-    if (v && source !== 'enquiry_form' && !badPhone && (v.email || v.phone)) setState('quick');
+    // One-click send only when the server will take it: a valid phone (required since Nov 2026)
+    if (v && source !== 'enquiry_form' && !badPhone && v.phone) setState('quick');
   }, [source]);
 
   function forget() {
@@ -144,7 +144,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         <div><label className="label" htmlFor="name">Full name *</label><input id="name" name="name" defaultValue={saved?.name} required minLength={2} className="input" /></div>
         <div><label className="label" htmlFor="company">Company</label><input id="company" name="company" defaultValue={saved?.company} className="input" /></div>
         <div><label className="label" htmlFor="email">Work email</label><input id="email" name="email" defaultValue={saved?.email} type="email" className="input" /></div>
-        <div><label className="label" htmlFor="phone">Phone / WhatsApp</label><PhoneInput id="phone" defaultValue={saved?.phone} linkedCountry={pickedCountry} />
+        <div><label className="label" htmlFor="phone">Phone / WhatsApp *</label><PhoneInput id="phone" defaultValue={saved?.phone} linkedCountry={pickedCountry} />
           {phoneAgain && <p role="alert" className="mt-1 text-xs text-red-600">Please re-enter your phone number.</p>}
         </div>
         <div><label className="label" htmlFor="country">Country</label><CountrySelect id="country" defaultValue={saved?.country} onChange={setPickedCountry} /></div>
@@ -167,7 +167,6 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         <input type="checkbox" name="remember" defaultChecked className="mt-0.5" />
         <span>Remember my details in this browser, so my next request is one click. (Untick on a shared computer.)</span>
       </label>
-      <p className="text-xs text-slate-500">Please give an email or a phone number.</p>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <button disabled={state === 'sending'} className="btn-gold w-full">
         {state === 'sending' ? 'Sending…' : BUTTON[source]}

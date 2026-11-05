@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.deps import client_ip
 from app.core.security import hash_ip
 from app.schemas.catalog import CategoryOut, ProductOut
-from app.schemas.common import Email, OneLine, Phone
+from app.schemas.common import Email, OneLine, RequiredPhone
 from app.schemas.lead import LeadIn
 from app.services import catalog_service, content_service, file_service, lead_service
 
@@ -71,7 +71,7 @@ class PartnerIn(BaseModel):
     partner_type: Literal["agent", "broker", "forwarder", "distributor", "other"]
     country: OneLine = Field(min_length=2, max_length=80)
     email: Email
-    phone: Phone = Field(default="", max_length=30)
+    phone: RequiredPhone = Field(max_length=30)
     message: str = Field(default="", max_length=2000)
     consent: Literal[True]
     website: str = Field(default="", max_length=255)  # honeypot

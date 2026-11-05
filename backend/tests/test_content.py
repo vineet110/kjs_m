@@ -2,7 +2,7 @@
 analytics, alerts, settings view."""
 from tests.conftest import HDR, login, make_user
 
-PARTNER = {"name": "Ravi", "partner_type": "forwarder", "country": "UAE", "email": "ravi@ship.ae", "consent": True}
+PARTNER = {"name": "Ravi", "partner_type": "forwarder", "country": "UAE", "email": "ravi@ship.ae", "consent": True, "phone": "+91 98765 43210"}
 
 
 async def _editor(client):
@@ -84,7 +84,7 @@ async def test_koko_saves_transcript_and_uses_edited_facts(client):
 
 
 async def test_gated_action_creates_lead_with_its_source(client):
-    body = {"source": "price_sheet", "name": "Omar", "email": "omar@alnoor.ae", "consent": True, "product_slug": "nope"}
+    body = {"source": "price_sheet", "name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "product_slug": "nope"}
     assert (await client.post("/api/v1/public/leads", json=body, headers=HDR)).status_code == 201
     await make_user("admin@kjsindia.com", role="admin")
     await login(client, "admin@kjsindia.com")

@@ -2,13 +2,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.common import Email, OneLine, Phone
+from app.schemas.common import Email, OneLine, RequiredPhone
 
 
 class SignupIn(BaseModel):
     name: OneLine = Field(min_length=2, max_length=100)
     email: Email
-    phone: Phone = Field(default="", max_length=20)
+    phone: RequiredPhone = Field(max_length=20)
     password: str = Field(min_length=10, max_length=200)
 
 

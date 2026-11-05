@@ -6,7 +6,7 @@ from tests.conftest import HDR, login, make_user
 
 async def test_signup_then_pending_cannot_login(client):
     r = await client.post("/api/v1/auth/signup", headers=HDR,
-                          json={"name": "Priya", "email": "Priya@KJSindia.com", "password": "password1234"})
+                          json={"name": "Priya", "email": "Priya@KJSindia.com", "password": "password1234", "phone": "+91 98765 43210"})
     assert r.status_code == 201
     r = await client.post("/api/v1/auth/login", headers=HDR,
                           json={"email": "priya@kjsindia.com", "password": "password1234"})
@@ -15,7 +15,7 @@ async def test_signup_then_pending_cannot_login(client):
 
 
 async def test_duplicate_email_rejected(client):
-    body = {"name": "A B", "email": "a@kjsindia.com", "password": "password1234"}
+    body = {"name": "A B", "email": "a@kjsindia.com", "password": "password1234", "phone": "+91 98765 43210"}
     assert (await client.post("/api/v1/auth/signup", json=body, headers=HDR)).status_code == 201
     r = await client.post("/api/v1/auth/signup", json=body, headers=HDR)
     assert r.status_code == 409 and r.json()["code"] == "email_taken"
@@ -32,7 +32,7 @@ async def test_wrong_password_same_message_as_unknown_user(client):
 async def test_admin_approves_with_permissions_and_it_is_audited(client):
     await make_user("admin@kjsindia.com", role="admin")
     await client.post("/api/v1/auth/signup", headers=HDR,
-                      json={"name": "Priya", "email": "priya@kjsindia.com", "password": "password1234"})
+                      json={"name": "Priya", "email": "priya@kjsindia.com", "password": "password1234", "phone": "+91 98765 43210"})
     await login(client, "admin@kjsindia.com")
     pending = (await client.get("/api/v1/admin/users?status=pending")).json()
     r = await client.post(f"/api/v1/admin/users/{pending[0]['id']}/approve", headers=HDR,

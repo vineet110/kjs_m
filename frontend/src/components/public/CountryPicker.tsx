@@ -228,6 +228,7 @@ export function PhoneInput({ id, name = 'phone', defaultValue, maxLength = 30, p
         onChange={(e) => { setNumber(e.target.value); setEdited(true); }}
         maxLength={Math.max(6, maxLength - country.dial.length - 2)}
         placeholder={placeholder}
+        required // every form with a phone needs one (Nov 2026); the server refuses an empty phone too
         className="input min-w-0 flex-1"
       />
       <input type="hidden" name={name} value={edited ? composed : saved} />

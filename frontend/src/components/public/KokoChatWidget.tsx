@@ -99,7 +99,7 @@ export default function KokoChatWidget() {
                 <input name="name" required minLength={2} placeholder="Name *" className="input" />
                 <input name="company" placeholder="Company" className="input" />
                 <input name="email" type="email" placeholder="Email" className="input" />
-                <PhoneInput id="koko-phone" />
+                <PhoneInput id="koko-phone" placeholder="Phone / WhatsApp *" />
                 <label className="flex items-start gap-2 text-[11px] text-slate-600">
                   <input type="checkbox" name="consent" required className="mt-0.5" />
                   I agree to be contacted about this request (DPDP Act 2023).

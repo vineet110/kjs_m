@@ -34,7 +34,7 @@ export function filterCountries(query: string): Country[] {
   return [...first, ...later];
 }
 
-/** What is saved: "+91 98765 43210"; nothing when no number was typed (phone is optional). */
+/** What is saved: "+91 98765 43210"; nothing when no number was typed (the form then refuses to send). */
 export function composePhone(dial: string, number: string): string {
   const n = number.trim();
   return n ? `+${dial} ${n}` : '';

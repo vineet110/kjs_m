@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.common import Email, OneLine, Phone
+from app.schemas.common import Email, OneLine, RequiredPhone
 
 
 class ChatMessage(BaseModel):
@@ -17,7 +17,7 @@ class LeadIn(BaseModel):
     name: OneLine = Field(min_length=2, max_length=120)
     company: OneLine = Field(default="", max_length=200)
     email: Email | None = None
-    phone: Phone = Field(default="", max_length=30)
+    phone: RequiredPhone = Field(max_length=30)
     country: OneLine = Field(default="", max_length=80)
     buyer_type: OneLine = Field(default="", max_length=40)
     product_slug: str | None = Field(default=None, max_length=120)
@@ -31,8 +31,6 @@ class LeadIn(BaseModel):
 
     @model_validator(mode="after")
     def need_contact(self):
-        if not self.email and not self.phone.strip():
-            raise ValueError("Please give an email or a phone number.")
         if not self.consent:
             raise ValueError("Please agree to be contacted.")
         # Same cap as a Koko chat: the chat is summarised by the AI, and a huge one costs a lot.
