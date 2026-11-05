@@ -21,6 +21,13 @@ export function summary(description: string): string {
   return description.split('\n\n')[0];
 }
 
+/** Categories shown inside another one (a dropdown in the home page menu). The database keeps them as
+ *  separate categories; the API counts and lists them under the parent too (same list in
+ *  backend/app/services/catalog_service.py). */
+export const SUBCATEGORIES: Record<string, string[]> = {
+  confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
+};
+
 /** A picture from our own site folder, or null (empty, or an outside address Next.js would refuse). */
 export function imageOf(p: Pick<Product, 'image_path'>): string | null {
   return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? p.image_path : null;
