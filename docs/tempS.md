@@ -27,6 +27,7 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Switch: `connect_popup` in `config/features.ini` (also added to `FeaturesIni`). The frontend shows it unless the switch is `false`, so an older API without the field still works.
 - `WhatsAppButton.tsx` now exports `WhatsAppIcon` so the popup reuses the same logo.
 - Open question: Google can rank pages lower when popups cover phone pages; the bottom sheet is the gentler form. Watch Search Console after launch.
+- Review fixes (5 Nov): the 10 s retry timer is now cancelled when leaving the page; `next` also moves on when a popup opens (a reload while it is open waits the full gap); the popup waits while the product quick view or an open Koko chat is on screen, not just the enquiry form; badly formed saved data is ignored instead of crashing the layout.
 
 ## Product cards grow 20% on hover (feat/card-hover, 5 Nov)
 
