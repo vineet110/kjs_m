@@ -17,6 +17,11 @@ const nextConfig = {
   // The Docker image sets NEXT_STANDALONE=1: the build then contains its own small server
   // (server.js + only the packages it needs), so the image doesn't carry all of node_modules.
   output: process.env.NEXT_STANDALONE === '1' ? 'standalone' : undefined,
+  // The Capabilities pages were removed (Nov 2026). They were in the sitemap, so Google and old
+  // bookmarks still have them: send those visitors to Private label instead of a 404.
+  async redirects() {
+    return [{ source: '/capabilities/:path*', destination: '/private-label', permanent: true }];
+  },
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API}/api/:path*` }];
   },

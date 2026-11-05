@@ -80,7 +80,7 @@ for (const [path, needle] of Object.entries(PUBLIC)) {
     homeRecommended = await evaluate('document.getElementById("recommended-title")?.closest("section")?.textContent ?? null');
     // The number above "product families in the catalogue" in the dark stats box (null if the line is missing)
     homeCount = await evaluate('[...document.querySelectorAll("p")].find((p) => p.textContent === "product families in the catalogue")?.previousElementSibling?.textContent ?? null');
-    capLinks = (await evaluate('[...document.querySelectorAll("footer a[href*=\'/capabilities/\']")].map((a) => [a.getAttribute("href"), a.textContent.trim()])')) ?? [];
+    capLinks = (await evaluate('[...document.querySelectorAll("a[href*=\'/capabilities/\']")].map((a) => [a.getAttribute("href"), a.textContent.trim()])')) ?? [];
   }
 }
 
@@ -96,14 +96,8 @@ check('home: best sellers section shows only ticked products', homeBest !== null
 check('home: Recommended does not repeat the best sellers', homeRecommended !== null && !homeRecommended.includes('Instant Coffee 3-in-1 Stick'), `recommended: ${JSON.stringify(homeRecommended?.slice(0, 120) ?? null)}`);
 // The stats box shows the real product count (the API is up here), never a made-up "50+"
 check('home: stats box shows the real product count', /^[1-9]\d*$/.test(homeCount ?? ''), `shows: ${JSON.stringify(homeCount)}`);
-// The capability pages themselves stay: every one the footer links to opens with its own heading. The list
-// comes from the footer, so a new or renamed page is checked without editing this test
-check('footer links to the capability pages', capLinks.length >= 5, `found ${capLinks.length}`);
-for (const [href, name] of capLinks) {
-  await open(href, 300); // fixed pages, nothing to load after the page itself
-  const h1 = (await evaluate('document.querySelector("h1")?.textContent')) ?? '';
-  check(`capability page ${href} still opens`, h1.includes(name) && errors.length === 0, errors.join(' | ') || `heading: "${h1}"`);
-}
+// The capability pages are removed for now: no link to them is left in the header or footer
+check('no links to the removed capability pages', capLinks.length === 0, `still linked: ${capLinks.map(([h]) => h).join(', ')}`);
 
 // Offer badge (UI step 6): "Up to 15% OFF" on the coffee product (the API suite sets 15 %), on no other card,
 // on the home page, the products page and the product page

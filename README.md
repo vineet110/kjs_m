@@ -1,7 +1,7 @@
 # KJS India Digital Platform (`kjs_m`)
 
 A comprehensive digital enterprise platform designed for **KJS India** featuring:
-- **Public Website with Koko AI**: products and capabilities, offers ticker, gated price sheet / spec / sample / quote (DPDP Act 2023 consent), partners page, private-label builder, and Koko, an AI assistant that answers only from KJS facts.
+- **Public Website with Koko AI**: products, offers ticker, gated price sheet / spec / sample / quote (DPDP Act 2023 consent), partners page, private-label builder, and Koko, an AI assistant that answers only from KJS facts.
 - **Employee Portal**: server-time check-in/out (Mon–Sat working calendar, missed-punch requests), availability switch, tasks, leads with SLA timers, auto-assigned batches, order-board steps, notifications.
 - **Admin Console**: staff approval and permissions, auto-assign with Excel import, order boards (`ABC117-3`) with 50/85/100% alerts, file delete approvals, append-only audit log, team attendance, website/Koko editors, charts from real data.
 

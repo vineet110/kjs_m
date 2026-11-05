@@ -1,9 +1,8 @@
-// Private label: how it works, what we can do, and the configurator (pick product, pack, quantity,
+// Private label: how it works and the configurator (pick product, pack, quantity,
 // market -> send to sales). No price is shown until KJS gives price bands (backlog I3, A23).
 import type { Metadata } from 'next';
 import Configurator from '@/components/public/Configurator';
 import { serverGet, type Product } from '@/lib/api';
-import { CAPABILITIES } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Private label',
@@ -37,14 +36,8 @@ export default async function PrivateLabelPage() {
         ))}
       </ol>
 
-      <section className="grid gap-8 md:grid-cols-5">
-        <div className="space-y-3 md:col-span-2">
-          <h2 className="text-2xl font-bold">What we can do</h2>
-          <ul className="space-y-2 text-sm">
-            {CAPABILITIES.map((c) => <li key={c.slug} className="card p-3"><a href={`/capabilities/${c.slug}`} className="font-semibold underline-offset-2 hover:underline">{c.title}</a></li>)}
-          </ul>
-        </div>
-        <div className="card p-6 md:col-span-3">
+      <section>
+        <div className="card p-6">
           <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
         </div>
       </section>
