@@ -69,6 +69,7 @@ class FeaturesIni(BaseModel):
     partners: bool = True
     gated_actions: bool = True
     whatsapp_button: bool = True
+    connect_popup: bool = True  # "let's connect" WhatsApp popup on the public site
 
 
 class SlaIni(BaseModel):

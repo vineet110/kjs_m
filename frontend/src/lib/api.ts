@@ -166,7 +166,7 @@ export type Board = BoardSummary & { steps: BoardStep[]; my_step_ids: number[]; 
 // ---------- Public content ----------
 export type PublicConfig = {
   site_name: string;
-  features: { koko: boolean; offers_ticker: boolean; configurator: boolean; partners: boolean; gated_actions: boolean; whatsapp_button: boolean };
+  features: { koko: boolean; offers_ticker: boolean; configurator: boolean; partners: boolean; gated_actions: boolean; whatsapp_button: boolean; connect_popup?: boolean };
 };
 export type Offer = { id: number; text: string; link: string };
 export type Texts = Record<string, string>;
@@ -175,7 +175,7 @@ export type PublicFile = { id: number; name: string; content_type: string; url: 
 /** Feature switches from config/features.ini. If the API is down, assume the safe defaults. */
 export async function features(): Promise<PublicConfig['features']> {
   const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
-  return c?.features ?? { koko: true, offers_ticker: false, configurator: false, partners: true, gated_actions: true, whatsapp_button: true };
+  return c?.features ?? { koko: true, offers_ticker: false, configurator: false, partners: true, gated_actions: true, whatsapp_button: true, connect_popup: true };
 }
 
 /** Editable website text (Admin > Website). Falls back to the given text if the API is down. */
