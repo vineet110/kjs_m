@@ -11,6 +11,13 @@ from app.schemas.catalog import CategoryOut, ProductIn, ProductOut
 from app.services import audit_service, file_service
 
 
+# Categories shown inside another one: the parent's page and count include its subcategories' products.
+# The database keeps them as separate categories. Same list in frontend/src/lib/catalogue.ts (menu layout).
+SUBCATEGORIES: dict[str, list[str]] = {
+    "confectionery": ["chocolate-bars", "wafers", "biscuits", "marshmallow-cakes"],
+}
+
+
 def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:110]
 
@@ -37,9 +44,14 @@ async def list_categories(db: AsyncSession) -> list[CategoryOut]:
         .where(Category.is_active)
         .order_by(Category.sort_order, Category.name)
     )
+    rows = rows.all()
+    own = {c.slug: n for c, n in rows}
     return [
-        CategoryOut(id=c.id, slug=c.slug, name=c.name, description=c.description, product_count=n)
-        for c, n in rows.all()
+        CategoryOut(
+            id=c.id, slug=c.slug, name=c.name, description=c.description,
+            product_count=n + sum(own.get(s, 0) for s in SUBCATEGORIES.get(c.slug, [])),
+        )
+        for c, n in rows
     ]
 
 
@@ -61,7 +73,7 @@ async def list_products(
     if not include_hidden:  # the admin list shows hidden products too, so they can be shown again
         q = q.where(Product.is_active, Category.is_active)
     if category_slug:
-        q = q.where(Category.slug == category_slug)
+        q = q.where(Category.slug.in_([category_slug, *SUBCATEGORIES.get(category_slug, [])]))
     if best_sellers:
         q = q.where(Product.is_best_seller)
     return [_product_out(p, c) for p, c in (await db.execute(q)).all()]

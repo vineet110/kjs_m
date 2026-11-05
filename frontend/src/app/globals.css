@@ -11,6 +11,10 @@
   .label { @apply mb-1 block text-xs font-semibold text-slate-600; }
   .card { @apply rounded-xl border border-slate-200 bg-white shadow-sm; }
   .eyebrow { @apply text-xs font-bold uppercase tracking-[0.18em] text-gold-dark; }
+  /* Home page look (Nov 2026): cards get a gold border and lift a little on hover */
+  .card-lift { @apply transition duration-300 hover:border-gold/70 hover:shadow-lg motion-safe:hover:-translate-y-1; }
+  /* Home page section titles: a short gold bar underneath */
+  .title-accent { @apply relative pb-3 after:absolute after:bottom-0 after:left-0 after:h-1 after:w-14 after:rounded-full after:bg-gold after:content-['']; }
 }
 
 /* The header's ONE progress bar (ProgressBar in SiteHeader), shown while:

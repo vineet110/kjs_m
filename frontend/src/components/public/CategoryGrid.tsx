@@ -72,7 +72,7 @@ export default function CategoryGrid({ categories, images = {} }: { categories: 
                 className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-gold-light/25 to-transparent opacity-0 group-hover:opacity-100 motion-safe:group-hover:animate-shine"
               />
               <span className="relative text-xs font-semibold uppercase tracking-widest text-white/80">
-                {c.product_count ? `${c.product_count} products` : 'Catalogue on request'}
+                {c.product_count ? `${c.product_count} products` : ' '}
               </span>
               <div className="relative">
                 <h3 className="text-2xl font-bold">{c.name}</h3>
