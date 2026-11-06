@@ -122,9 +122,13 @@ async def check_out(db: AsyncSession, user: User, now: datetime | None = None, n
     if row is None or row.check_in_at is None:
         # Working past midnight: the open day is yesterday's (a night shift counts on its start date)
         prev = await _row(db, user.id, day - timedelta(days=1))
+        # Only a real night shift (started under 16 h ago). A check-in forgotten yesterday must not
+        # turn into a 33-hour day: that one is fixed with a regularization request.
         if prev is not None and prev.check_in_at is not None:
             last_prev = await _last_punch(db, prev.id)
-            if (last_prev and last_prev.punch_type == "in") or (not last_prev and prev.check_out_at is None and now - prev.check_in_at < MAX_SHIFT):
+            punch_start = last_prev.punched_at if last_prev else prev.check_in_at
+            is_prev_in = (last_prev.punch_type == "in") if last_prev else (prev.check_out_at is None)
+            if is_prev_in and (now - punch_start < MAX_SHIFT):
                 row = prev
     if row is None or row.check_in_at is None:
         raise AppError(409, "not_checked_in", "Please check in first.")
