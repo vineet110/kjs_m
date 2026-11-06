@@ -121,17 +121,44 @@ export async function api<T = unknown>(
 }
 
 // ---------- Attendance ----------
+export type PunchItem = { id?: number; type: string; time: string; notes?: string | null; at?: string };
 export type Today = {
   day: string; check_in: string | null; check_out: string | null; status: string | null;
-  hours: number; shift: string; is_available: boolean;
+  hours: number; shift: string; shift_name?: string; shift_code?: string; is_available: boolean;
+  is_checked_in?: boolean; punches?: PunchItem[];
 };
-export type WeekDay = { day: string; state: string; check_in: string | null; check_out: string | null; hours: number; working_day: boolean };
+export type WeekDay = {
+  day: string; state: string; check_in: string | null; check_out: string | null;
+  hours: number; working_day: boolean; is_checked_in?: boolean; punches?: PunchItem[];
+};
 export type Week = { week_start: string; days: WeekDay[]; summary: Record<string, number>; total_hours: number };
 export type Regularization = {
   id: number; user_id: number; user_name: string; day: string; check_in: string; check_out: string | null;
   reason: string; status: 'pending' | 'approved' | 'rejected'; created_at: string;
 };
 export type Holiday = { id: number; day: string; name: string };
+
+export type Shift = {
+  id: number; name: string; code: string; start_time: string; end_time: string; is_night_shift: boolean; is_active?: boolean;
+};
+
+export type MonthDay = {
+  day: string; day_num: number; weekday: number; state: string;
+  check_in: string | null; check_out: string | null; hours: number; working_day: boolean; source: string | null;
+};
+
+export type MonthView = {
+  year: number; month: number; month_name: string; user_id: number; user_name: string;
+  shift: { name: string; code: string; hours: string };
+  days: MonthDay[]; summary: Record<string, number>; total_hours: number; working_days: number;
+};
+
+export type LeaveRequest = {
+  id: number; user_id: number; user_name: string; leave_type: string;
+  start_date: string; end_date: string; is_half_day: boolean; half_day_session: string | null;
+  reason: string; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; working_days: number;
+  decided_by?: number; decided_at?: string; rejection_reason?: string; created_at?: string;
+};
 
 /** Multipart upload (files). Same CSRF header and answer rules as api(); the browser sets the content type.
  *  No time limit: a big file on a slow line may take long. */

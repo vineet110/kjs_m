@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,7 +23,8 @@ class User(Base, TimestampMixin):
     categories: Mapped[list[str]] = mapped_column(JSONB, default=list)
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=False)  # opt-in (after Meta verification)
-    shift_id: Mapped[int | None] = mapped_column(Integer)
+    joined_on: Mapped[date | None] = mapped_column(Date, default=date.today)
+    shift_id: Mapped[int | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"), nullable=True)
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

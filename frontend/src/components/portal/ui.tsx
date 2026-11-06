@@ -2,10 +2,12 @@
 import { Icon, type IconName } from './icons';
 
 const PILL: Record<string, string> = {
-  present: 'bg-emerald-100 text-emerald-800', late: 'bg-amber-100 text-amber-800', absent: 'bg-red-100 text-red-700',
-  leave: 'bg-sky-100 text-sky-800', holiday: 'bg-violet-100 text-violet-800', off: 'bg-slate-100 text-slate-500',
+  present: 'bg-emerald-100 text-emerald-800', late: 'bg-emerald-100 text-emerald-800', absent: 'bg-red-100 text-red-700',
+  leave: 'bg-sky-100 text-sky-800', half_day: 'bg-amber-100 text-amber-800', holiday: 'bg-violet-100 text-violet-800', off: 'bg-slate-100 text-slate-500',
+  not_joined: 'bg-slate-100 text-slate-400',
   upcoming: 'bg-white text-slate-400 ring-1 ring-slate-200', pending: 'bg-amber-100 text-amber-800',
   approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-red-100 text-red-700',
+  casual: 'bg-blue-100 text-blue-800', sick: 'bg-rose-100 text-rose-800', earned: 'bg-amber-100 text-amber-800', unpaid: 'bg-slate-200 text-slate-700',
   new: 'bg-amber-100 text-amber-800', contacted: 'bg-sky-100 text-sky-800', closed: 'bg-slate-200 text-slate-700',
   ok: 'bg-emerald-100 text-emerald-800', due_soon: 'bg-amber-100 text-amber-800', overdue: 'bg-red-100 text-red-700',
   todo: 'bg-slate-100 text-slate-700', doing: 'bg-sky-100 text-sky-800', done: 'bg-emerald-100 text-emerald-800',
