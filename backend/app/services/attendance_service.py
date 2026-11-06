@@ -1,4 +1,5 @@
 """Attendance: check in / out, week/month views, regularization requests, availability, and export."""
+import asyncio
 import calendar
 import io
 from datetime import date, datetime, time, timedelta, timezone
@@ -63,8 +64,13 @@ async def check_in(db: AsyncSession, user: User, now: datetime | None = None) ->
     now = now or datetime.now(timezone.utc)
     day = local_day(now)
     row = await _row(db, user.id, day)
-    if row and row.check_in_at:
-        raise AppError(409, "already_checked_in", f"You already checked in at {hm(row.check_in_at)}.")
+    if row:
+        if row.check_out_at:
+            raise AppError(409, "shift_completed", f"You already completed your shift today (checked out at {hm(row.check_out_at)}).")
+        if row.status == "leave":
+            raise AppError(409, "on_leave", "You have an approved leave for today.")
+        if row.check_in_at:
+            raise AppError(409, "already_checked_in", f"You already checked in at {hm(row.check_in_at)}.")
     if row is None:
         row = Attendance(user_id=user.id, day=day, source="punch")
         db.add(row)
@@ -125,8 +131,8 @@ async def today(db: AsyncSession, user: User, now: datetime | None = None) -> di
 def _day_state(d: date, row: Attendance | None, holidays: set[date], today_: date, joined_on: date | None = None) -> str:
     if row and row.check_in_at:
         return row.status
-    if row and row.status == "leave":
-        return "leave"
+    if row and row.status in ("leave", "half_day"):
+        return row.status
     if d in holidays:
         return "holiday"
     if d.weekday() == 6:
@@ -259,6 +265,11 @@ async def team_day(db: AsyncSession, day: date) -> list[dict]:
 
 # ---------- Month View (Zoho-Style Calendar Grid) ----------
 async def month(db: AsyncSession, user_id: int, year: int, month_num: int, now: datetime | None = None) -> dict:
+    if not (1 <= month_num <= 12):
+        raise AppError(422, "bad_month", "Month must be between 1 and 12.")
+    if not (2000 <= year <= 2100):
+        raise AppError(422, "bad_year", "Year must be between 2000 and 2100.")
+
     _, num_days = calendar.monthrange(year, month_num)
     start_date = date(year, month_num, 1)
     end_date = date(year, month_num, num_days)
@@ -323,37 +334,19 @@ async def month(db: AsyncSession, user_id: int, year: int, month_num: int, now: 
 
 
 # ---------- Excel Export (Admin Reports) ----------
-async def export_excel(
-    db: AsyncSession,
+MAX_EXPORT_DAYS = 366
+
+
+def _build_excel_workbook(
+    users: list[User],
+    shifts: dict[int, Shift],
+    att_rows: dict[tuple[int, date], Attendance],
+    holidays: set[date],
     start_date: date,
     end_date: date,
-    user_id: int | None = None,
-    status_filter: str | None = None,
+    today_: date,
+    status_filter: str | None,
 ) -> io.BytesIO:
-    if end_date < start_date:
-        raise AppError(422, "bad_dates", "End date cannot be earlier than start date.")
-
-    # 1. Fetch users
-    uq = select(User).where(User.status == "active").order_by(User.name)
-    if user_id:
-        uq = uq.where(User.id == user_id)
-    users = list((await db.scalars(uq)).all())
-    if not users:
-        raise AppError(404, "no_users", "No matching employees found.")
-
-    # 2. Fetch shifts
-    shifts = {s.id: s for s in (await db.scalars(select(Shift))).all()}
-
-    # 3. Fetch attendance
-    aq = select(Attendance).where(Attendance.day >= start_date, Attendance.day <= end_date)
-    if user_id:
-        aq = aq.where(Attendance.user_id == user_id)
-    att_rows = {(r.user_id, r.day): r for r in (await db.scalars(aq)).all()}
-
-    # 4. Holidays
-    holidays = await holiday_set(db, start_date.year, end_date.year)
-    today_ = today_local()
-
     wb = Workbook()
     ws_detail = wb.active
     ws_detail.title = "Detailed Attendance"
@@ -478,3 +471,49 @@ async def export_excel(
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+async def export_excel(
+    db: AsyncSession,
+    start_date: date,
+    end_date: date,
+    user_id: int | None = None,
+    status_filter: str | None = None,
+) -> io.BytesIO:
+    if end_date < start_date:
+        raise AppError(422, "bad_dates", "End date cannot be earlier than start date.")
+    if (end_date - start_date).days > MAX_EXPORT_DAYS:
+        raise AppError(422, "range_too_large", f"Date range cannot exceed {MAX_EXPORT_DAYS} days.")
+
+    # 1. Fetch users
+    uq = select(User).where(User.status == "active").order_by(User.name)
+    if user_id:
+        uq = uq.where(User.id == user_id)
+    users = list((await db.scalars(uq)).all())
+    if not users:
+        raise AppError(404, "no_users", "No matching employees found.")
+
+    # 2. Fetch shifts
+    shifts = {s.id: s for s in (await db.scalars(select(Shift))).all()}
+
+    # 3. Fetch attendance
+    aq = select(Attendance).where(Attendance.day >= start_date, Attendance.day <= end_date)
+    if user_id:
+        aq = aq.where(Attendance.user_id == user_id)
+    att_rows = {(r.user_id, r.day): r for r in (await db.scalars(aq)).all()}
+
+    # 4. Holidays
+    holidays = await holiday_set(db, start_date.year, end_date.year)
+    today_ = today_local()
+
+    return await asyncio.to_thread(
+        _build_excel_workbook,
+        users,
+        shifts,
+        att_rows,
+        holidays,
+        start_date,
+        end_date,
+        today_,
+        status_filter,
+    )

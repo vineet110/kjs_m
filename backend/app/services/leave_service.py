@@ -13,7 +13,7 @@ from app.services.attendance_service import today_local
 from app.services.calendar_service import CalendarService, holiday_set
 
 
-def _leave_out(req: LeaveRequest, user_name: str, working_days: int) -> dict:
+def _leave_out(req: LeaveRequest, user_name: str, working_days: float | int) -> dict:
     return {
         "id": req.id,
         "user_id": req.user_id,
@@ -58,10 +58,25 @@ async def request_leave(
     if overlap:
         raise AppError(409, "overlapping_leave", "You already have a pending or approved leave in this date range.")
 
+    if is_half_day:
+        if start_date != end_date:
+            raise AppError(422, "bad_half_day", "Half-day leave must be for a single day.")
+        sess = (half_day_session or "").strip().lower()
+        if "first" in sess:
+            half_day_session = "first_half"
+        elif "second" in sess:
+            half_day_session = "second_half"
+        else:
+            raise AppError(422, "bad_session", "Half-day session must be 'first_half' or 'second_half'.")
+    else:
+        half_day_session = None
+
     holidays = await holiday_set(db, start_date.year, end_date.year)
-    working_days = CalendarService.working_days_between(start_date, end_date, holidays)
-    if working_days == 0 and not is_half_day:
+    raw_working_days = CalendarService.working_days_between(start_date, end_date, holidays)
+    if raw_working_days == 0:
         raise AppError(422, "no_working_days", "The selected dates only contain holidays or non-working days.")
+
+    working_days = 0.5 if is_half_day else float(raw_working_days)
 
     req = LeaveRequest(
         user_id=user.id,
@@ -116,7 +131,8 @@ async def list_leaves(
     out = []
     for req, user_name in rows:
         wd = CalendarService.working_days_between(req.start_date, req.end_date, holidays)
-        out.append(_leave_out(req, user_name, wd))
+        calc_wd = 0.5 if req.is_half_day else float(wd)
+        out.append(_leave_out(req, user_name, calc_wd))
     return out
 
 
@@ -142,21 +158,24 @@ async def decide_leave(
         req.rejection_reason = rejection_reason.strip()
 
     holidays = await holiday_set(db, req.start_date.year, req.end_date.year)
-    working_days = CalendarService.working_days_between(req.start_date, req.end_date, holidays)
+    raw_working_days = CalendarService.working_days_between(req.start_date, req.end_date, holidays)
+    working_days = 0.5 if req.is_half_day else float(raw_working_days)
 
     if approve:
-        # Populate attendance records with status="leave" for all working days in range
+        # Populate attendance records with status="leave" or "half_day" for all working days in range
         cur = req.start_date
+        leave_status = "half_day" if req.is_half_day else "leave"
         while cur <= req.end_date:
             if CalendarService.is_working_day(cur, holidays):
                 att = await db.scalar(
                     select(Attendance).where(Attendance.user_id == req.user_id, Attendance.day == cur)
                 )
                 if att is None:
-                    att = Attendance(user_id=req.user_id, day=cur, status="leave", source="leave")
+                    att = Attendance(user_id=req.user_id, day=cur, status=leave_status, source="leave")
                     db.add(att)
-                else:
-                    att.status = "leave"
+                elif att.check_in_at is None:
+                    # Do not overwrite days where employee has already punched in
+                    att.status = leave_status
                     att.source = "leave"
             cur += timedelta(days=1)
 

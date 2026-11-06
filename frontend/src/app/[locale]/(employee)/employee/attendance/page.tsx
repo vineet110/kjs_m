@@ -8,6 +8,15 @@ import Loading from '@/components/ui/Loading';
 
 type ActiveNav = 'list' | 'tabular' | 'calendar' | 'overtime' | 'leaves' | 'regularization' | 'reports' | 'shifts';
 
+function getMondayIST(isoDate?: string) {
+  const base = isoDate || todayIST();
+  const [y, m, d] = base.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dayOfWeek = dt.getUTCDay(); // 0 is Sun, 1 is Mon...
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  return addDays(base, diffToMonday);
+}
+
 export default function AttendancePage() {
   const [activeNav, setActiveNav] = useState<ActiveNav>('list');
   const [todayData, setTodayData] = useState<Today | null>(null);
@@ -17,13 +26,8 @@ export default function AttendancePage() {
   const [breakTimer, setBreakTimer] = useState(0);
   const [showBreakMenu, setShowBreakMenu] = useState(false);
 
-  // Date range navigation (Week / Month)
-  const [weekStart, setWeekStart] = useState(() => {
-    const t = new Date();
-    const day = t.getDay(); // 0 is Sun
-    const diff = t.getDate() - day; // Sunday start
-    return new Date(t.setDate(diff)).toISOString().slice(0, 10);
-  });
+  // Date range navigation (Week / Month) - Always aligned to Monday in IST
+  const [weekStart, setWeekStart] = useState(() => getMondayIST());
 
   const [curMonth, setCurMonth] = useState(() => {
     const d = new Date();
@@ -90,7 +94,7 @@ export default function AttendancePage() {
 
   // Punch in / out
   async function handlePunch() {
-    if (!todayData) return;
+    if (!todayData || isShiftCompleted || isOnLeave) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -193,6 +197,8 @@ export default function AttendancePage() {
   }
 
   const isCheckedIn = Boolean(todayData?.check_in && !todayData?.check_out);
+  const isShiftCompleted = Boolean(todayData?.check_in && todayData?.check_out);
+  const isOnLeave = todayData?.status === 'leave';
 
   return (
     <div className="flex h-full w-full bg-white select-none overflow-hidden">
@@ -416,27 +422,57 @@ export default function AttendancePage() {
           </div>
 
           {/* Prominent Punch Button with Live Clock matching reference */}
-          <button
-            onClick={handlePunch}
-            disabled={busy}
-            className={`min-w-[10.5rem] flex items-center justify-center gap-2.5 rounded px-4 py-1.5 text-white shadow-2xs transition-all ${
-              isCheckedIn
-                ? 'bg-[#E05A47] hover:bg-[#D4473E]' // Coral / Red for Check-out
-                : 'bg-[#27A862] hover:bg-[#218838]' // Emerald Green for Check-in
-            }`}
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/80 text-sm">
-              ⏱
-            </span>
-            <div className="text-left">
-              <p className="text-xs font-bold leading-none">
-                {isCheckedIn ? 'Check-out' : 'Check-in'}
-              </p>
-              <p className="text-[10px] font-mono opacity-90 leading-tight mt-0.5">
-                {liveClock || '12:00:00 pm'}
-              </p>
+          {isOnLeave ? (
+            <div
+              className="min-w-[10.5rem] flex items-center justify-center gap-2.5 rounded px-4 py-2 bg-sky-50 border border-sky-300 text-sky-800 shadow-2xs select-none"
+              title="You are on approved leave today"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 border border-sky-300 text-sm">
+                🏖️
+              </span>
+              <div className="text-left">
+                <p className="text-xs font-bold leading-none">On Leave</p>
+                <p className="text-[10px] text-sky-600 leading-tight mt-0.5">Approved</p>
+              </div>
             </div>
-          </button>
+          ) : isShiftCompleted ? (
+            <div
+              className="min-w-[10.5rem] flex items-center justify-center gap-2.5 rounded px-4 py-2 bg-slate-100 border border-slate-300 text-slate-600 shadow-2xs select-none"
+              title="Shift completed for today"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 border border-slate-300 text-sm text-slate-500">
+                ✓
+              </span>
+              <div className="text-left">
+                <p className="text-xs font-bold leading-none text-slate-800">Shift Completed</p>
+                <p className="text-[10px] font-mono text-slate-500 leading-tight mt-0.5">
+                  Out at {todayData?.check_out ? format12h(todayData.check_out) : '--'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handlePunch}
+              disabled={busy}
+              className={`min-w-[10.5rem] flex items-center justify-center gap-2.5 rounded px-4 py-1.5 text-white shadow-2xs transition-all ${
+                isCheckedIn
+                  ? 'bg-[#E05A47] hover:bg-[#D4473E]' // Coral / Red for Check-out
+                  : 'bg-[#27A862] hover:bg-[#218838]' // Emerald Green for Check-in
+              }`}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/80 text-sm">
+                ⏱
+              </span>
+              <div className="text-left">
+                <p className="text-xs font-bold leading-none">
+                  {isCheckedIn ? 'Check-out' : 'Check-in'}
+                </p>
+                <p className="text-[10px] font-mono opacity-90 leading-tight mt-0.5">
+                  {liveClock || '12:00:00 pm'}
+                </p>
+              </div>
+            </button>
+          )}
         </div>
 
         {msg && <div className="px-6 pt-2 shrink-0"><Msg msg={msg} /></div>}

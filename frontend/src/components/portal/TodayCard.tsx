@@ -89,8 +89,18 @@ export default function TodayCard({
         </p>
       </div>
       <div className="flex items-center gap-2">
-        {!t.check_in && <button disabled={busy} onClick={() => act('/attendance/check-in')} className="btn-dark">Check in</button>}
+        {!t.check_in && t.status !== 'leave' && <button disabled={busy} onClick={() => act('/attendance/check-in')} className="btn-dark">Check in</button>}
+        {t.status === 'leave' && !t.check_in && (
+          <span className="rounded bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 border border-sky-200">
+            On Leave
+          </span>
+        )}
         {t.check_in && !t.check_out && <button disabled={busy} onClick={() => act('/attendance/check-out')} className="btn-ghost">Check out</button>}
+        {t.check_in && t.check_out && (
+          <span className="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 border border-slate-200">
+            Shift completed
+          </span>
+        )}
         {onOpenLeave && (
           <button type="button" onClick={onOpenLeave} className="btn-ghost py-1 text-xs font-medium text-slate-700">
             Apply Leave

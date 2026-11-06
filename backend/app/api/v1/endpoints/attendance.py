@@ -49,8 +49,8 @@ async def my_week(start: date | None = None, user: User = Depends(current_user),
 
 @router.get("/month")
 async def my_month(
-    year: int | None = None,
-    month: int | None = None,
+    year: int | None = Query(default=None, ge=2000, le=2100),
+    month: int | None = Query(default=None, ge=1, le=12),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -59,7 +59,11 @@ async def my_month(
 
 
 @router.get("/holidays")
-async def holidays(year: int | None = None, _: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def holidays(
+    year: int | None = Query(default=None, ge=2000, le=2100),
+    _: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db)
+):
     rows = await calendar_service.list_holidays(db, year or svc.today_local().year)
     return [{"id": h.id, "day": h.day, "name": h.name} for h in rows]
 

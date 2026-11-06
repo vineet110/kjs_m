@@ -20,10 +20,7 @@ export default function TeamAttendance() {
 
   // Export Modal state
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportStart, setExportStart] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-  });
+  const [exportStart, setExportStart] = useState(() => `${todayIST().slice(0, 7)}-01`);
   const [exportEnd, setExportEnd] = useState(todayIST());
   const [exportUser, setExportUser] = useState<string>('');
   const [exportStatus, setExportStatus] = useState<string>('');

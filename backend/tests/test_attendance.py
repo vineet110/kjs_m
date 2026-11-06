@@ -1,6 +1,8 @@
 """Attendance: punching, late rule, week view, regularization approval, permissions."""
 from datetime import date, datetime, timezone
 
+from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
 from app.models.user import User
 from app.services import attendance_service as svc
@@ -206,4 +208,117 @@ async def test_excel_export_endpoint(client):
     assert r.status_code == 200
     assert "spreadsheetml.sheet" in r.headers["content-type"]
     assert len(r.content) > 1000  # Valid Excel binary file
+
+
+async def test_check_in_after_checkout_rejected(client):
+    await make_user("puncher@kjsindia.com")
+    await login(client, "puncher@kjsindia.com")
+    # Punch in
+    r1 = await client.post("/api/v1/attendance/check-in", headers=HDR)
+    assert r1.status_code == 200
+    # Punch out
+    r2 = await client.post("/api/v1/attendance/check-out", headers=HDR)
+    assert r2.status_code == 200
+    # Try punching in again on the same day -> rejected with shift_completed
+    r3 = await client.post("/api/v1/attendance/check-in", headers=HDR)
+    assert r3.status_code == 409 and r3.json()["code"] == "shift_completed"
+    # Try punching out again -> rejected with already_checked_out
+    r4 = await client.post("/api/v1/attendance/check-out", headers=HDR)
+    assert r4.status_code == 409 and r4.json()["code"] == "already_checked_out"
+
+
+async def test_month_and_holiday_input_validation(client):
+    await make_user("validator@kjsindia.com")
+    await login(client, "validator@kjsindia.com")
+    # Invalid month > 12
+    r_bad_month = await client.get("/api/v1/attendance/month?year=2026&month=13", headers=HDR)
+    assert r_bad_month.status_code == 422
+    # Invalid month < 1
+    r_bad_month0 = await client.get("/api/v1/attendance/month?year=2026&month=0", headers=HDR)
+    assert r_bad_month0.status_code == 422
+    # Invalid year
+    r_bad_year = await client.get("/api/v1/attendance/month?year=1990&month=5", headers=HDR)
+    assert r_bad_year.status_code == 422
+
+
+async def test_excel_export_range_limit(client):
+    await make_user("admin_export@kjsindia.com", role="admin")
+    await login(client, "admin_export@kjsindia.com")
+    # Range of 400 days (> 366 limit)
+    r = await client.get("/api/v1/attendance/export?start_date=2025-01-01&end_date=2026-02-15", headers=HDR)
+    assert r.status_code == 422
+    assert r.json()["code"] == "range_too_large"
+
+
+async def test_half_day_leave_validation(client):
+    await make_user("half_day_user@kjsindia.com")
+    await login(client, "half_day_user@kjsindia.com")
+
+    # 1. Multi-day half-day rejected
+    r1 = await client.post("/api/v1/attendance/leaves", headers=HDR, json={
+        "leave_type": "casual", "start_date": "2026-11-10", "end_date": "2026-11-12",
+        "reason": "Doctor", "is_half_day": True, "half_day_session": "first_half"
+    })
+    assert r1.status_code == 422 and r1.json()["code"] == "bad_half_day"
+
+    # 2. Bad session rejected
+    r2 = await client.post("/api/v1/attendance/leaves", headers=HDR, json={
+        "leave_type": "casual", "start_date": "2026-11-10", "end_date": "2026-11-10",
+        "reason": "Doctor", "is_half_day": True, "half_day_session": "midnight"
+    })
+    assert r2.status_code == 422 and r2.json()["code"] == "bad_session"
+
+    # 3. Sunday half-day rejected (2026-11-08 is Sunday)
+    r3 = await client.post("/api/v1/attendance/leaves", headers=HDR, json={
+        "leave_type": "casual", "start_date": "2026-11-08", "end_date": "2026-11-08",
+        "reason": "Doctor", "is_half_day": True, "half_day_session": "first_half"
+    })
+    assert r3.status_code == 422 and r3.json()["code"] == "no_working_days"
+
+    # 4. Valid half-day creates 0.5 working days
+    r4 = await client.post("/api/v1/attendance/leaves", headers=HDR, json={
+        "leave_type": "sick", "start_date": "2026-11-10", "end_date": "2026-11-10",
+        "reason": "Doctor appointment", "is_half_day": True, "half_day_session": "first_half"
+    })
+    assert r4.status_code == 201
+    assert r4.json()["working_days"] == 0.5
+
+
+async def test_leave_approval_does_not_overwrite_check_in(client):
+    u = await _user("punctual@kjsindia.com")
+    await make_user("admin_leave_approver@kjsindia.com", role="admin")
+
+    # Employee already has an actual check-in punch on 2026-11-12
+    async with AsyncSessionLocal() as db:
+        from app.models.attendance import Attendance
+        att = Attendance(
+            user_id=u.id,
+            day=date(2026, 11, 12),
+            check_in_at=datetime(2026, 11, 12, 4, 30, tzinfo=timezone.utc),  # 10:00 AM IST
+            status="present",
+            source="punch"
+        )
+        db.add(att)
+        await db.commit()
+
+    # Leave request covering that day
+    await login(client, "punctual@kjsindia.com")
+    r_leave = await client.post("/api/v1/attendance/leaves", headers=HDR, json={
+        "leave_type": "casual", "start_date": "2026-11-12", "end_date": "2026-11-12",
+        "reason": "Emergency"
+    })
+    leave_id = r_leave.json()["id"]
+
+    # Admin approves
+    await login(client, "admin_leave_approver@kjsindia.com")
+    r_appr = await client.post(f"/api/v1/attendance/leaves/approvals/{leave_id}", headers=HDR, json={"approve": True})
+    assert r_appr.status_code == 200
+
+    # Verify that attendance row was NOT overwritten: still present with check_in_at
+    async with AsyncSessionLocal() as db:
+        from app.models.attendance import Attendance
+        row = await db.scalar(select(Attendance).where(Attendance.user_id == u.id, Attendance.day == date(2026, 11, 12)))
+        assert row.status == "present"
+        assert row.check_in_at is not None
+
 
