@@ -10,6 +10,7 @@ import {
   composePhone, countryByCode, countryByName, DEFAULT_COUNTRY, filterCountries, NO_FLAG, phoneLooksValid, splitPhone,
   type Country,
 } from '@/lib/countries';
+import { asset } from '@/lib/assets';
 
 const LAST_KEY = 'kjs_phone_country'; // the last phone code picked on this device (decision 2a)
 
@@ -18,7 +19,7 @@ function Flag({ code }: { code: string }) {
     return <span className="inline-flex h-[15px] w-5 shrink-0 items-center justify-center rounded-sm bg-slate-200 text-[8px] font-bold">{code}</span>;
   }
   // eslint-disable-next-line @next/next/no-img-element -- a tiny local SVG; next/image would need SVGs turned on
-  return <img src={`/flags/${code.toLowerCase()}.svg`} alt="" width={20} height={15} loading="lazy" className="h-[15px] w-5 shrink-0 rounded-sm object-cover shadow-sm" />;
+  return <img src={asset(`/flags/${code.toLowerCase()}.svg`)} alt="" width={20} height={15} loading="lazy" className="h-[15px] w-5 shrink-0 rounded-sm object-cover shadow-sm" />;
 }
 
 /** The open list: a search box and the matching countries. */

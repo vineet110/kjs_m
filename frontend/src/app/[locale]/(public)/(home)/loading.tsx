@@ -6,6 +6,7 @@
 // notFound() runs). Those pages get the progress bar in NavigationProgress instead.
 // All motion stops for visitors who ask their system for reduced motion.
 import Image from 'next/image';
+import { asset } from '@/lib/assets';
 
 const PACKS = ['pacho-chocolate-bar', 'gofrey-crispy-x2', 'lupita-duble', 'maxi-big-wafers-chocolate', 'pitaro-sandwich-biscuits'];
 
@@ -29,7 +30,7 @@ export default function Loading() {
             <div className="relative flex h-24 w-24 items-center justify-center">
               <span className="absolute inset-0 animate-ping rounded-full bg-gold/25 [animation-duration:2s] motion-reduce:hidden" />
               <span className="absolute inset-0 animate-spin rounded-full border-4 border-white/60 border-t-gold border-r-gold-dark [animation-duration:1.1s] motion-reduce:animate-none" />
-              <Image src="/images/kjs/favicon.png" alt="" width={48} height={48} className="relative h-12 w-12 rounded-full" priority />
+              <Image src={asset('/images/kjs/favicon.png')} alt="" width={48} height={48} className="relative h-12 w-12 rounded-full" priority />
             </div>
 
             <p className="mt-6 text-lg font-bold text-ink">
@@ -51,7 +52,7 @@ export default function Loading() {
                   style={{ animationDelay: `${k * 180}ms` }}
                 >
                   <Image
-                    src={`/images/products/${slug}.jpg`}
+                    src={asset(`/images/products/${slug}.jpg`)}
                     alt=""
                     width={120}
                     height={90}

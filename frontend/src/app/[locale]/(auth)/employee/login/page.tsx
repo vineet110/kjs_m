@@ -9,6 +9,7 @@ import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure, type Me } from '@/lib/api';
 import { forgetAccount } from '@/lib/portal-session';
 import { safeNext } from '@/lib/safe-url';
+import { asset } from '@/lib/assets';
 
 // Time limits, so the form is never locked with no way out: for the server to answer a login, and for the
 // next page to open after it. (Not for sign-up: a slow sign-up may still succeed, and "failed" would mislead;
@@ -96,7 +97,7 @@ function LoginInner() {
     <div className="flex min-h-screen items-center justify-center bg-ink p-4">
       <div className="w-full max-w-md space-y-6">
         <Link href="/" className="flex justify-center">
-          <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={160} height={36} className="h-9 w-auto" />
+          <Image src={asset('/images/kjs/logo/Kjs.png')} alt="KJS India" width={160} height={36} className="h-9 w-auto" />
         </Link>
         <div className="card space-y-5 p-6">
           {bye && (

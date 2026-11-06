@@ -2,6 +2,7 @@
 // "• Item 801 (variant): 25 g, 24 pieces per box, 6 per case" (written by backend/app/seed_catalogue.py).
 // These helpers read it back so cards can show variants and item numbers.
 import type { Product } from './api';
+import { asset } from './assets';
 
 export type CatalogueItem = { no: string; variant: string; weight: string; pieces: string; perCase: string };
 
@@ -34,9 +35,10 @@ export const SUBCATEGORIES: Record<string, string[]> = {
   confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
 };
 
-/** A picture from our own site folder, or null (empty, or an outside address Next.js would refuse). */
+/** A picture from our own site folder (served from R2 when set, see lib/assets.ts), or null
+ *  (empty, or an outside address Next.js would refuse). */
 export function imageOf(p: Pick<Product, 'image_path'>): string | null {
-  return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? p.image_path : null;
+  return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? asset(p.image_path) : null;
 }
 
 /** What the home page needs per product: small, with the item list already read.

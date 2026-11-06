@@ -59,6 +59,7 @@ services:
       args:
         API_INTERNAL_URL: http://backend:8000
         SITE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in deploy/.env}
+        NEXT_PUBLIC_ASSET_BASE: ${ASSET_BASE_URL:-}
     image: "kjs-web:${TAG:?run ./deploy.sh first - it sets TAG in deploy/.env}"
     depends_on: [backend]
     restart: unless-stopped

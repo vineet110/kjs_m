@@ -6,6 +6,10 @@ const withNextIntl = createNextIntlPlugin();
 // proxied here, so the session cookie stays first-party (simpler and safer than CORS).
 const API = process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000';
 
+// Site pictures on Cloudflare R2 (see src/lib/assets.ts). next/image only loads outside pictures from
+// addresses listed here, so the bucket's address is allowed, and nothing else.
+const ASSET_BASE = (process.env.NEXT_PUBLIC_ASSET_BASE || '').replace(/\/+$/, '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -17,6 +21,7 @@ const nextConfig = {
   // The Docker image sets NEXT_STANDALONE=1: the build then contains its own small server
   // (server.js + only the packages it needs), so the image doesn't carry all of node_modules.
   output: process.env.NEXT_STANDALONE === '1' ? 'standalone' : undefined,
+  images: ASSET_BASE ? { remotePatterns: [new URL(`${ASSET_BASE}/**`)] } : undefined,
   // The Capabilities pages were removed (Nov 2026). They were in the sitemap, so Google and old
   // bookmarks still have them: send those visitors to Private label instead of a 404.
   async redirects() {

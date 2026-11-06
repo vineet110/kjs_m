@@ -151,9 +151,30 @@ test('recommend: excluded products are never shown, even to fill up the row', ()
   assert.equal(picks.products.length, CATALOGUE.length - 1);
 });
 
+// ---------- site pictures on Cloudflare R2 (lib/assets.ts) ----------
+const { asset } = await load('assets');
+const R2 = 'https://pub-test.r2.dev';
+
+test('asset: pictures and flags move to R2 when an address is set', () => {
+  assert.equal(asset('/images/products/wafer-time.jpg', R2), `${R2}/images/products/wafer-time.jpg`);
+  assert.equal(asset('/flags/in.svg', R2), `${R2}/flags/in.svg`);
+});
+
+test('asset: unchanged without an address, and for anything that is not a site picture', () => {
+  assert.equal(asset('/images/kjs/logo/Kjs.png', ''), '/images/kjs/logo/Kjs.png');
+  assert.equal(asset('/images/kjs/logo/Kjs.png'), '/images/kjs/logo/Kjs.png'); // NEXT_PUBLIC_ASSET_BASE not set in tests
+  for (const p of ['/api/v1/public/files/12', '/imagesX/a.jpg', '/products/coffee', '']) assert.equal(asset(p, R2), p, p);
+});
+
 // ---------- offer badge (UI step 6): "Up to X% OFF", only when staff set an offer ----------
-const catalogueLib = await load('catalogue');
-const { offerLabel, toHomeProduct } = catalogueLib;
+const assetsSource = readFileSync(join(SRC, 'assets.ts'), 'utf8').replace(/export /g, '');
+const catalogueLib = await load('catalogue', '', assetsSource);
+const { offerLabel, toHomeProduct, imageOf } = catalogueLib;
+
+test('imageOf: own site paths only (served from public/ when no R2 address is set)', () => {
+  assert.equal(imageOf({ image_path: '/images/products/x.jpg' }), '/images/products/x.jpg');
+  for (const bad of ['', 'https://evil.example/x.jpg', '//evil.example/x.jpg']) assert.equal(imageOf({ image_path: bad }), null, bad);
+});
 
 test('offerLabel: "Up to X% OFF" for a set offer, nothing otherwise', () => {
   assert.equal(offerLabel(20), 'Up to 20% OFF');
