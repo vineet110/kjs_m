@@ -46,6 +46,33 @@ async def test_check_in_out_and_week():
     assert w["summary"]["present"] == 1 and w["summary"]["absent"] == 1
 
 
+async def test_multi_punch_hours_calculation():
+    u = await _user(email="multipunch@kjsindia.com", joined_on=date(2026, 10, 26))
+    async with AsyncSessionLocal() as db:
+        u = await db.merge(u)
+        # Session 1: 09:00 - 13:00 (4.0 hrs)
+        await svc.check_in(db, u, now=ist("2026-10-26", "09:00"))
+        await svc.check_out(db, u, now=ist("2026-10-26", "13:00"))
+        # Session 2: 14:00 - 18:30 (4.5 hrs)
+        await svc.check_in(db, u, now=ist("2026-10-26", "14:00"))
+        await svc.check_out(db, u, now=ist("2026-10-26", "18:30"))
+
+        today_info = await svc.today(db, u, now=ist("2026-10-26", "19:00"))
+        w = await svc.week(db, u.id, date(2026, 10, 26), now=ist("2026-10-26", "19:00"))
+
+    # Total hours should be 4.0 + 4.5 = 8.5 hrs
+    assert today_info["hours"] == 8.5
+    assert today_info["check_in"] == "09:00"
+    assert today_info["check_out"] == "18:30"
+    assert len(today_info["punches"]) == 4
+
+    mon = w["days"][0]
+    assert mon["hours"] == 8.5
+    assert len(mon["punches"]) == 4
+    assert mon["check_in"] == "09:00"
+    assert mon["check_out"] == "18:30"
+
+
 async def test_new_joiner_past_days_not_absent():
     # Joined on Wednesday Oct 28
     u = await _user(email="newjoiner@kjsindia.com", joined_on=date(2026, 10, 28))
@@ -210,21 +237,40 @@ async def test_excel_export_endpoint(client):
     assert len(r.content) > 1000  # Valid Excel binary file
 
 
-async def test_check_in_after_checkout_rejected(client):
+async def test_multi_punch_per_shift(client):
     await make_user("puncher@kjsindia.com")
     await login(client, "puncher@kjsindia.com")
-    # Punch in
+    # 1. First punch in
     r1 = await client.post("/api/v1/attendance/check-in", headers=HDR)
     assert r1.status_code == 200
-    # Punch out
-    r2 = await client.post("/api/v1/attendance/check-out", headers=HDR)
+
+    # 2. Duplicate punch in rejected
+    r_dup = await client.post("/api/v1/attendance/check-in", headers=HDR)
+    assert r_dup.status_code == 409 and r_dup.json()["code"] == "already_checked_in"
+
+    # 3. First punch out (e.g. for lunch / break)
+    r2 = await client.post("/api/v1/attendance/check-out", headers=HDR, json={"notes": "lunch"})
     assert r2.status_code == 200
-    # Try punching in again on the same day -> rejected with shift_completed
+
+    # 4. Duplicate punch out rejected
+    r_dup_out = await client.post("/api/v1/attendance/check-out", headers=HDR)
+    assert r_dup_out.status_code == 409 and r_dup_out.json()["code"] == "already_checked_out"
+
+    # 5. Punch in again as per employee choice -> allowed!
     r3 = await client.post("/api/v1/attendance/check-in", headers=HDR)
-    assert r3.status_code == 409 and r3.json()["code"] == "shift_completed"
-    # Try punching out again -> rejected with already_checked_out
-    r4 = await client.post("/api/v1/attendance/check-out", headers=HDR)
-    assert r4.status_code == 409 and r4.json()["code"] == "already_checked_out"
+    assert r3.status_code == 200
+
+    # 6. Punch out again -> allowed!
+    r4 = await client.post("/api/v1/attendance/check-out", headers=HDR, json={"notes": "end of day"})
+    assert r4.status_code == 200
+
+    # 7. Check today endpoint returns multiple punches
+    today_resp = await client.get("/api/v1/attendance/today", headers=HDR)
+    assert today_resp.status_code == 200
+    data = today_resp.json()
+    assert data["is_checked_in"] is False
+    assert len(data["punches"]) == 4
+    assert [p["type"] for p in data["punches"]] == ["in", "out", "in", "out"]
 
 
 async def test_month_and_holiday_input_validation(client):

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
 from app.core.errors import AppError
-from app.models.attendance import Attendance, Regularization
+from app.models.attendance import Attendance, AttendancePunch, Regularization
 from app.models.shift import Shift
 from app.models.user import AvailabilityLog, User
 from app.services import audit_service
@@ -49,10 +49,13 @@ def punch_status(check_in_at: datetime) -> str:
     return "present"
 
 
-def hours(a: Attendance | None) -> float:
-    if not a or not a.check_in_at or not a.check_out_at:
+def hours(a: Attendance | None, now: datetime | None = None) -> float:
+    if not a or not a.check_in_at:
         return 0.0
-    return round((a.check_out_at - a.check_in_at).total_seconds() / 3600, 2)
+    sec = a.total_seconds or 0
+    if sec == 0 and a.check_out_at:
+        sec = max(0, int((a.check_out_at - a.check_in_at).total_seconds()))
+    return round(sec / 3600, 2)
 
 
 # ---------- Punching ----------
@@ -60,46 +63,107 @@ async def _row(db: AsyncSession, user_id: int, day: date) -> Attendance | None:
     return await db.scalar(select(Attendance).where(Attendance.user_id == user_id, Attendance.day == day))
 
 
+async def _last_punch(db: AsyncSession, attendance_id: int) -> AttendancePunch | None:
+    return await db.scalar(
+        select(AttendancePunch)
+        .where(AttendancePunch.attendance_id == attendance_id)
+        .order_by(AttendancePunch.punched_at.desc(), AttendancePunch.id.desc())
+        .limit(1)
+    )
+
+
 async def check_in(db: AsyncSession, user: User, now: datetime | None = None) -> Attendance:
     now = now or datetime.now(timezone.utc)
     day = local_day(now)
     row = await _row(db, user.id, day)
     if row:
-        if row.check_out_at:
-            raise AppError(409, "shift_completed", f"You already completed your shift today (checked out at {hm(row.check_out_at)}).")
         if row.status == "leave":
             raise AppError(409, "on_leave", "You have an approved leave for today.")
-        if row.check_in_at:
-            raise AppError(409, "already_checked_in", f"You already checked in at {hm(row.check_in_at)}.")
+        last = await _last_punch(db, row.id)
+        if (last and last.punch_type == "in") or (not last and row.check_in_at and not row.check_out_at):
+            punch_time = hm(last.punched_at if last else row.check_in_at)
+            raise AppError(409, "already_checked_in", f"You are already checked in (at {punch_time}). Please check out first.")
     if row is None:
-        row = Attendance(user_id=user.id, day=day, source="punch")
+        row = Attendance(user_id=user.id, day=day, source="punch", total_seconds=0)
         db.add(row)
-    row.check_in_at, row.status = now, punch_status(now)
+        await db.flush()
+
+    if row.check_in_at is None:
+        row.check_in_at = now
+    row.check_out_at = None
+    row.status = punch_status(now)
+
+    punch = AttendancePunch(
+        attendance_id=row.id,
+        user_id=user.id,
+        day=day,
+        punch_type="in",
+        punched_at=now,
+    )
+    db.add(punch)
     await db.flush()
-    audit_service.record(db, actor=user, action="attendance.check_in", entity_type="attendance",
-                         entity_id=row.id, after={"day": day.isoformat(), "at": hm(now), "status": row.status})
+
+    audit_service.record(
+        db,
+        actor=user,
+        action="attendance.check_in",
+        entity_type="attendance",
+        entity_id=row.id,
+        after={"day": day.isoformat(), "at": hm(now), "status": row.status, "punch_type": "in"},
+    )
     await db.commit()
     return row
 
 
 async def check_out(db: AsyncSession, user: User, now: datetime | None = None, notes: str | None = None) -> Attendance:
     now = now or datetime.now(timezone.utc)
-    row = await _row(db, user.id, local_day(now))
+    day = local_day(now)
+    row = await _row(db, user.id, day)
     if row is None or row.check_in_at is None:
         # Working past midnight: the open day is yesterday's (a night shift counts on its start date)
-        prev = await _row(db, user.id, local_day(now) - timedelta(days=1))
-        # Only a real night shift (started under 16 h ago). A check-in forgotten yesterday must not
-        # turn into a 33-hour day: that one is fixed with a regularization request.
-        if (prev is not None and prev.check_in_at is not None and prev.check_out_at is None
-                and now - prev.check_in_at < MAX_SHIFT):
-            row = prev
+        prev = await _row(db, user.id, day - timedelta(days=1))
+        if prev is not None and prev.check_in_at is not None:
+            last_prev = await _last_punch(db, prev.id)
+            if (last_prev and last_prev.punch_type == "in") or (not last_prev and prev.check_out_at is None and now - prev.check_in_at < MAX_SHIFT):
+                row = prev
     if row is None or row.check_in_at is None:
         raise AppError(409, "not_checked_in", "Please check in first.")
-    if row.check_out_at:
-        raise AppError(409, "already_checked_out", f"You already checked out at {hm(row.check_out_at)}.")
+
+    last = await _last_punch(db, row.id)
+    if (last and last.punch_type == "out") or (not last and row.check_out_at is not None):
+        out_time = hm(last.punched_at if last else row.check_out_at)
+        raise AppError(409, "already_checked_out", f"You are already checked out (at {out_time}). Please check in first.")
+
+    session_start = last.punched_at if last else row.check_in_at
+    session_seconds = max(0, int((now - session_start).total_seconds()))
+    row.total_seconds = (row.total_seconds or 0) + session_seconds
     row.check_out_at = now
-    audit_service.record(db, actor=user, action="attendance.check_out", entity_type="attendance",
-                         entity_id=row.id, after={"day": row.day.isoformat(), "at": hm(now), "notes": notes})
+
+    punch = AttendancePunch(
+        attendance_id=row.id,
+        user_id=user.id,
+        day=row.day,
+        punch_type="out",
+        punched_at=now,
+        notes=notes,
+    )
+    db.add(punch)
+    await db.flush()
+
+    audit_service.record(
+        db,
+        actor=user,
+        action="attendance.check_out",
+        entity_type="attendance",
+        entity_id=row.id,
+        after={
+            "day": row.day.isoformat(),
+            "at": hm(now),
+            "notes": notes,
+            "punch_type": "out",
+            "total_hours": round(row.total_seconds / 3600, 2),
+        },
+    )
     await db.commit()
     return row
 
@@ -108,6 +172,36 @@ async def today(db: AsyncSession, user: User, now: datetime | None = None) -> di
     now = now or datetime.now(timezone.utc)
     day = local_day(now)
     row = await _row(db, user.id, day)
+
+    punches_data = []
+    last = None
+    if row:
+        punches = (
+            await db.scalars(
+                select(AttendancePunch)
+                .where(AttendancePunch.attendance_id == row.id)
+                .order_by(AttendancePunch.punched_at.asc())
+            )
+        ).all()
+        punches_data = [
+            {"id": p.id, "type": p.punch_type, "time": hm(p.punched_at), "notes": p.notes, "at": p.punched_at.isoformat()}
+            for p in punches
+        ]
+        if punches:
+            last = punches[-1]
+
+    is_in = False
+    if row and row.check_in_at:
+        if last:
+            is_in = last.punch_type == "in"
+        else:
+            is_in = row.check_out_at is None
+
+    total_sec = (row.total_seconds or 0) if row else 0
+    if row and is_in:
+        start_at = last.punched_at if last else row.check_in_at
+        total_sec += max(0, int((now - start_at).total_seconds()))
+
     c = cfg().app
     shift_str = f"{c.shift_start}–{c.shift_end}"
     shift_name = "General Shift"
@@ -119,11 +213,17 @@ async def today(db: AsyncSession, user: User, now: datetime | None = None) -> di
             shift_name = shift.name
             shift_code = shift.code
     return {
-        "day": day, "check_in": hm(row.check_in_at) if row else None,
-        "check_out": hm(row.check_out_at) if row else None,
-        "status": row.status if row else None, "hours": hours(row),
-        "shift": shift_str, "shift_name": shift_name, "shift_code": shift_code,
+        "day": day,
+        "check_in": hm(row.check_in_at) if row else None,
+        "check_out": hm(row.check_out_at) if (row and not is_in) else None,
+        "status": row.status if row else None,
+        "hours": round(total_sec / 3600, 2),
+        "shift": shift_str,
+        "shift_name": shift_name,
+        "shift_code": shift_code,
         "is_available": user.is_available,
+        "is_checked_in": is_in,
+        "punches": punches_data,
     }
 
 
@@ -149,19 +249,49 @@ async def week(db: AsyncSession, user_id: int, week_start: date, now: datetime |
     joined_on = target_user.joined_on if target_user else None
     rows = {r.day: r for r in (await db.scalars(select(Attendance).where(
         Attendance.user_id == user_id, Attendance.day >= days[0], Attendance.day <= days[-1]))).all()}
+    all_punches = (await db.scalars(select(AttendancePunch).where(
+        AttendancePunch.user_id == user_id, AttendancePunch.day >= days[0], AttendancePunch.day <= days[-1]))).all()
+    punches_by_day: dict[date, list[AttendancePunch]] = {}
+    for p in all_punches:
+        punches_by_day.setdefault(p.day, []).append(p)
+
     holidays = await holiday_set(db, days[0].year, days[-1].year)
-    today_ = local_day(now or datetime.now(timezone.utc))
+    now_dt = now or datetime.now(timezone.utc)
+    today_ = local_day(now_dt)
     out, summary = [], {"present": 0, "leave": 0, "absent": 0, "holiday": 0, "not_joined": 0}
     for d in days:
         row = rows.get(d)
         state = _day_state(d, row, holidays, today_, joined_on)
         if state in summary:
             summary[state] += 1
-        out.append({"day": d, "state": state, "check_in": hm(row.check_in_at) if row else None,
-                    "check_out": hm(row.check_out_at) if row else None, "hours": hours(row),
-                    "working_day": CalendarService.is_working_day(d, holidays)})
-    total = round(sum(x["hours"] for x in out), 2)
-    return {"week_start": week_start, "days": out, "summary": summary, "total_hours": total}
+        d_punches = punches_by_day.get(d, [])
+        d_punches.sort(key=lambda x: x.punched_at)
+        punches_out = [{"type": p.punch_type, "time": hm(p.punched_at), "notes": p.notes} for p in d_punches]
+        is_in = False
+        if row and row.check_in_at:
+            if d_punches:
+                is_in = d_punches[-1].punch_type == "in"
+            else:
+                is_in = row.check_out_at is None
+
+        co_time = hm(row.check_out_at) if (row and not is_in) else None
+        day_hrs = hours(row)
+        if d == today_ and is_in and row:
+            last_p = d_punches[-1] if d_punches else None
+            start_at = last_p.punched_at if last_p else row.check_in_at
+            live_sec = (row.total_seconds or 0) + max(0, int((now_dt - start_at).total_seconds()))
+            day_hrs = round(live_sec / 3600, 2)
+
+        out.append({
+            "day": d,
+            "state": state,
+            "check_in": hm(row.check_in_at) if row else None,
+            "check_out": co_time,
+            "hours": day_hrs,
+            "working_day": CalendarService.is_working_day(d, holidays),
+            "is_checked_in": is_in,
+            "punches": punches_out,
+        })
     total = round(sum(x["hours"] for x in out), 2)
     return {"week_start": week_start, "days": out, "summary": summary, "total_hours": total}
 
@@ -240,6 +370,7 @@ async def decide(db: AsyncSession, approver: User, reg_id: int, approve: bool) -
             raise AppError(422, "bad_times", "The new check-in is after this person's check-out. "
                                              "Ask them to send both times.")
         row.status, row.source = punch_status(row.check_in_at), "regularized"
+        row.total_seconds = max(0, int((row.check_out_at - row.check_in_at).total_seconds())) if row.check_out_at else 0
         audit_service.record(db, actor=approver, action="attendance.regularized", entity_type="attendance",
                              entity_id=f"{reg.user_id}:{reg.day.isoformat()}", before=before,
                              after={"in": hm(row.check_in_at), "out": hm(row.check_out_at)})

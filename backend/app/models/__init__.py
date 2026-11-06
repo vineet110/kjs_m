@@ -7,7 +7,7 @@ from app.models.order_board import BoardMember, BoardStep, OrderBoard  # noqa: F
 from app.models.user import AvailabilityLog, User, UserSession  # noqa: F401
 from app.models.shift import Shift  # noqa: F401
 from app.models.leave import LeaveRequest  # noqa: F401
-from app.models.attendance import Attendance, Regularization  # noqa: F401
+from app.models.attendance import Attendance, AttendancePunch, Regularization  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.task import Task  # noqa: F401
 from app.models.file import StoredFile  # noqa: F401

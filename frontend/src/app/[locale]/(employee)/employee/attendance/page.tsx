@@ -92,16 +92,19 @@ export default function AttendancePage() {
     loadWorkspace();
   }, [loadWorkspace]);
 
-  // Punch in / out
+  const isCheckedIn = Boolean(todayData?.is_checked_in ?? (todayData?.check_in && !todayData?.check_out));
+  const isOnLeave = todayData?.status === 'leave';
+
+  // Punch in / out - Employees can check-in and check-out multiple times throughout their shift
   async function handlePunch() {
-    if (!todayData || isShiftCompleted || isOnLeave) return;
+    if (!todayData || isOnLeave) return;
     setBusy(true);
     setMsg(null);
     try {
-      if (!todayData.check_in) {
+      if (!isCheckedIn) {
         await api('/attendance/check-in', { method: 'POST' });
-        setMsg({ ok: true, text: 'Checked in successfully!' });
-      } else if (!todayData.check_out) {
+        setMsg({ ok: true, text: todayData.check_in ? 'Checked in again successfully!' : 'Checked in successfully!' });
+      } else {
         await api('/attendance/check-out', { method: 'POST', body: { notes: notes.trim() || null } });
         setMsg({ ok: true, text: 'Checked out successfully!' });
         setNotes('');
@@ -131,8 +134,15 @@ export default function AttendancePage() {
 
   // Live elapsed time for today if checked in: updates every second (e.g. "00:45:20 Hrs")
   const todayLiveElapsed = useMemo(() => {
-    if (!todayData?.check_in || todayData?.check_out) return null;
-    const parts = todayData.check_in.split(':');
+    if (!isCheckedIn || !todayData) return null;
+    let latestIn = todayData.check_in;
+    if (todayData.punches && todayData.punches.length > 0) {
+      const ins = todayData.punches.filter((p) => p.type === 'in');
+      if (ins.length > 0) latestIn = ins[ins.length - 1].time;
+    }
+    if (!latestIn) return null;
+
+    const parts = latestIn.split(':');
     const inH = Number(parts[0]) || 0;
     const inM = Number(parts[1]) || 0;
     const now = new Date();
@@ -145,13 +155,30 @@ export default function AttendancePage() {
 
     const totalCheckInSec = inH * 3600 + inM * 60;
     const totalCurSec = curH * 3600 + curM * 60 + curS;
-    const diffSec = Math.max(0, totalCurSec - totalCheckInSec);
+    const activeSec = Math.max(0, totalCurSec - totalCheckInSec);
 
-    const elapsedH = Math.floor(diffSec / 3600);
-    const elapsedM = Math.floor((diffSec % 3600) / 60);
-    const elapsedS = diffSec % 60;
+    // Sum completed punches if multiple sessions exist
+    let priorSec = 0;
+    if (todayData.punches && todayData.punches.length > 1) {
+      let tempIn: number | null = null;
+      for (const p of todayData.punches) {
+        const [pH, pM] = p.time.split(':').map(Number);
+        const pSec = (pH || 0) * 3600 + (pM || 0) * 60;
+        if (p.type === 'in') {
+          tempIn = pSec;
+        } else if (p.type === 'out' && tempIn !== null) {
+          priorSec += Math.max(0, pSec - tempIn);
+          tempIn = null;
+        }
+      }
+    }
+
+    const totalSec = priorSec + activeSec;
+    const elapsedH = Math.floor(totalSec / 3600);
+    const elapsedM = Math.floor((totalSec % 3600) / 60);
+    const elapsedS = totalSec % 60;
     return `${String(elapsedH).padStart(2, '0')}:${String(elapsedM).padStart(2, '0')}:${String(elapsedS).padStart(2, '0')} Hrs`;
-  }, [todayData?.check_in, todayData?.check_out, liveClock]);
+  }, [isCheckedIn, todayData, liveClock]);
 
   async function handleApplyLeave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -196,9 +223,6 @@ export default function AttendancePage() {
     }
   }
 
-  const isCheckedIn = Boolean(todayData?.check_in && !todayData?.check_out);
-  const isShiftCompleted = Boolean(todayData?.check_in && todayData?.check_out);
-  const isOnLeave = todayData?.status === 'leave';
 
   return (
     <div className="flex h-full w-full bg-white select-none overflow-hidden">
@@ -435,21 +459,6 @@ export default function AttendancePage() {
                 <p className="text-[10px] text-sky-600 leading-tight mt-0.5">Approved</p>
               </div>
             </div>
-          ) : isShiftCompleted ? (
-            <div
-              className="min-w-[10.5rem] flex items-center justify-center gap-2.5 rounded px-4 py-2 bg-slate-100 border border-slate-300 text-slate-600 shadow-2xs select-none"
-              title="Shift completed for today"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 border border-slate-300 text-sm text-slate-500">
-                ✓
-              </span>
-              <div className="text-left">
-                <p className="text-xs font-bold leading-none text-slate-800">Shift Completed</p>
-                <p className="text-[10px] font-mono text-slate-500 leading-tight mt-0.5">
-                  Out at {todayData?.check_out ? format12h(todayData.check_out) : '--'}
-                </p>
-              </div>
-            </div>
           ) : (
             <button
               onClick={handlePunch}
@@ -465,7 +474,7 @@ export default function AttendancePage() {
               </span>
               <div className="text-left">
                 <p className="text-xs font-bold leading-none">
-                  {isCheckedIn ? 'Check-out' : 'Check-in'}
+                  {isCheckedIn ? 'Check-out' : todayData?.check_in ? 'Check-in again' : 'Check-in'}
                 </p>
                 <p className="text-[10px] font-mono opacity-90 leading-tight mt-0.5">
                   {liveClock || '12:00:00 pm'}
@@ -567,7 +576,7 @@ export default function AttendancePage() {
                               {/* Background subtle line */}
                               <div className="w-full h-[1.5px] bg-slate-200" />
                               {/* Active/Worked timeline segment */}
-                              <TimelineBar checkIn={d.check_in} checkOut={d.check_out} isToday={isToday} />
+                              <TimelineBar checkIn={d.check_in} checkOut={d.check_out} isToday={isToday} punches={d.punches} />
                             </div>
                           ) : (
                             <div className="w-full h-[1.5px] bg-slate-100" />
@@ -1035,49 +1044,87 @@ function round2(n: number) {
 }
 
 /** The Timeline Graphic Bar matching the reference with start dot, green bar, and coral end dot */
-function TimelineBar({ checkIn, checkOut, isToday }: { checkIn: string; checkOut: string | null; isToday: boolean }) {
+function TimelineBar({
+  checkIn,
+  checkOut,
+  isToday,
+  punches,
+}: {
+  checkIn: string;
+  checkOut: string | null;
+  isToday: boolean;
+  punches?: Array<{ type: string; time: string }>;
+}) {
   const toPct = (t: string) => {
     const parts = t.split(':');
     const h = Number(parts[0]) || 0;
     const m = Number(parts[1]) || 0;
     // Base 08:00 to 20:00 (12 hours workday span)
-    const hoursFrom8 = (h + m / 60) - 8;
+    const hoursFrom8 = h + m / 60 - 8;
     return Math.min(96, Math.max(4, (hoursFrom8 / 12) * 92 + 4));
   };
 
-  const left = toPct(checkIn);
-  let right = left + 12;
-
-  if (checkOut) {
-    right = toPct(checkOut);
-  } else if (isToday) {
-    const now = new Date();
-    const istTimeStr = now.toLocaleTimeString('en-US', {
-      timeZone: 'Asia/Kolkata',
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    right = Math.max(left + 6, toPct(istTimeStr));
+  // Build sessions from punches if available
+  const sessions: Array<{ inTime: string; outTime: string | null; isInProgress: boolean }> = [];
+  if (punches && punches.length > 0) {
+    let curIn: string | null = null;
+    for (const p of punches) {
+      if (p.type === 'in') {
+        curIn = p.time;
+      } else if (p.type === 'out' && curIn) {
+        sessions.push({ inTime: curIn, outTime: p.time, isInProgress: false });
+        curIn = null;
+      }
+    }
+    if (curIn) {
+      sessions.push({ inTime: curIn, outTime: null, isInProgress: isToday });
+    }
   }
 
-  const width = Math.max(3, right - left);
+  if (sessions.length === 0) {
+    sessions.push({ inTime: checkIn, outTime: checkOut, isInProgress: !checkOut && isToday });
+  }
+
+  const nowIstStr = isToday
+    ? new Date().toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   return (
-    <div
-      className="absolute h-[2px] bg-[#9FD8A3] flex items-center justify-between pointer-events-none"
-      style={{ left: `${left}%`, width: `${width}%` }}
-    >
-      {/* Green start dot */}
-      <span className="h-2 w-2 rounded-full bg-[#6BBF72] -ml-1 shrink-0 z-10" />
+    <>
+      {sessions.map((s, idx) => {
+        const left = toPct(s.inTime);
+        let right = left + 8;
+        if (s.outTime) {
+          right = toPct(s.outTime);
+        } else if (s.isInProgress && nowIstStr) {
+          right = Math.max(left + 6, toPct(nowIstStr));
+        }
+        const width = Math.max(3, right - left);
 
-      {/* Dashed line if currently in progress today */}
-      {!checkOut && isToday ? (
-        <span className="absolute inset-0 border-t-2 border-dashed border-[#52B35B]" />
-      ) : (
-        /* Coral/Red end dot */
-        <span className="h-2 w-2 rounded-full bg-[#E15B64] -mr-1 shrink-0 z-10" />
-      )}
-    </div>
+        return (
+          <div
+            key={idx}
+            className="absolute h-[2px] bg-[#9FD8A3] flex items-center justify-between pointer-events-none"
+            style={{ left: `${left}%`, width: `${width}%` }}
+          >
+            {/* Green start dot */}
+            <span className="h-2 w-2 rounded-full bg-[#6BBF72] -ml-1 shrink-0 z-10" />
+
+            {/* Dashed line if currently in progress today */}
+            {s.isInProgress ? (
+              <span className="absolute inset-0 border-t-2 border-dashed border-[#52B35B]" />
+            ) : (
+              /* Coral/Red end dot */
+              <span className="h-2 w-2 rounded-full bg-[#E15B64] -mr-1 shrink-0 z-10" />
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }

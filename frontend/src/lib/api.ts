@@ -121,11 +121,16 @@ export async function api<T = unknown>(
 }
 
 // ---------- Attendance ----------
+export type PunchItem = { id?: number; type: string; time: string; notes?: string | null; at?: string };
 export type Today = {
   day: string; check_in: string | null; check_out: string | null; status: string | null;
   hours: number; shift: string; shift_name?: string; shift_code?: string; is_available: boolean;
+  is_checked_in?: boolean; punches?: PunchItem[];
 };
-export type WeekDay = { day: string; state: string; check_in: string | null; check_out: string | null; hours: number; working_day: boolean };
+export type WeekDay = {
+  day: string; state: string; check_in: string | null; check_out: string | null;
+  hours: number; working_day: boolean; is_checked_in?: boolean; punches?: PunchItem[];
+};
 export type Week = { week_start: string; days: WeekDay[]; summary: Record<string, number>; total_hours: number };
 export type Regularization = {
   id: number; user_id: number; user_name: string; day: string; check_in: string; check_out: string | null;
