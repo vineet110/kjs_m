@@ -18,9 +18,10 @@ from app.core.rate_limit import lead_limiter
 from app.jobs.runner import job
 from app.models.catalog import Category, Product
 from app.models.lead import Lead, LeadNote
+from app.models.task import Task
 from app.models.user import User
-from app.schemas.lead import LeadIn, LeadOut
-from app.services import audit_service, koko_service, notification_service
+from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
+from app.services import audit_service, koko_service, notification_service, task_service
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
@@ -120,14 +121,16 @@ def _can_see_all(user: User) -> bool:
 
 async def list_for(db: AsyncSession, user: User, status: str | None = None, owner: int | None = None,
                    sla_state: str | None = None, all_leads: bool = False, limit: int = 200,
-                   offset: int = 0) -> list[LeadOut]:
+                   offset: int = 0, source: str | None = None, lead_ids: list[int] | None = None) -> list[LeadOut]:
     owner_user = User.__table__.alias("owner")
+    creator = User.__table__.alias("creator")
     notes = select(LeadNote.lead_id, func.count().label("n")).group_by(LeadNote.lead_id).subquery()
     q = (
-        select(Lead, Product.name, Category.name, owner_user.c.name, notes.c.n)
+        select(Lead, Product.name, Category.name, owner_user.c.name, notes.c.n, creator.c.name)
         .outerjoin(Product, Product.id == Lead.product_id)
         .outerjoin(Category, Category.id == Lead.category_id)
         .outerjoin(owner_user, owner_user.c.id == Lead.assigned_to)
+        .outerjoin(creator, creator.c.id == Lead.created_by)
         .outerjoin(notes, notes.c.lead_id == Lead.id)
         .order_by(Lead.created_at.desc())
         .limit(limit)
@@ -144,10 +147,14 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
         q = q.where(Lead.status != "closed").limit(2000)
     if owner:
         q = q.where(Lead.assigned_to == owner)
+    if source:
+        q = q.where(Lead.source == source)
+    if lead_ids is not None:
+        q = q.where(Lead.id.in_(lead_ids))
     now = datetime.now(timezone.utc)
     holidays = await holiday_set(db, now.year - 1, now.year + 1)
     out = []
-    for lead, product_name, category_name, owner_name, note_count in (await db.execute(q)).all():
+    for lead, product_name, category_name, owner_name, note_count, creator_name in (await db.execute(q)).all():
         timers = sla(lead, now, holidays)
         if sla_state and timers["sla_state"] != sla_state:
             continue
@@ -158,9 +165,105 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
             status=lead.status, product_name=product_name, category_name=category_name,
             created_at=lead.created_at, assigned_to=lead.assigned_to, owner_name=owner_name,
             responded_at=lead.responded_at, resolved_at=lead.resolved_at, outcome=lead.outcome,
-            note_count=note_count or 0, **timers,
+            note_count=note_count or 0, updated_at=lead.updated_at, created_by_name=creator_name, **timers,
         ))
     return out
+
+
+# ---------- Lead management: contacts, one lead, internal leads, tasks on a lead ----------
+def contact_key(lead: Lead) -> str:
+    """Leads of the same person share a key: the phone's digits (the last 10, so "+91 98765 43210" and
+    "9876543210" match), else the email, else the lead itself (nothing to match on)."""
+    digits = "".join(ch for ch in lead.phone if ch in "0123456789")
+    if len(digits) >= 6:
+        return f"p:{digits[-10:]}"
+    if lead.email:
+        return f"e:{lead.email.lower()}"
+    return f"l:{lead.id}"
+
+
+def _visible(q, user: User):
+    """Leads this person may see: all (leads.view_all), else their own + unassigned ones."""
+    if _can_see_all(user):
+        return q
+    return q.where((Lead.assigned_to == user.id) | (Lead.assigned_to.is_(None)))
+
+
+async def contacts(db: AsyncSession, user: User) -> list[dict]:
+    """One row per person, newest first. Grouped in Python: a few thousand leads is nothing, and the
+    phone matching rule (last 10 digits) is easier to read here than in SQL."""
+    q = _visible(select(Lead).order_by(Lead.created_at.desc(), Lead.id.desc()), user).limit(5000)
+    groups: dict[str, dict] = {}
+    for lead in (await db.scalars(q)).all():
+        k = contact_key(lead)
+        g = groups.get(k)
+        if g is None:  # newest lead first: its name / email / phone are the ones shown
+            g = groups[k] = {"lead_id": lead.id, "name": lead.name, "email": lead.email, "phone": lead.phone,
+                             "active": 0, "inactive": 0, "total": 0, "last_at": lead.created_at}
+        g["email"] = g["email"] or lead.email  # an older enquiry may carry the email the newest one left out
+        g["total"] += 1
+        g["inactive" if lead.status == "closed" else "active"] += 1
+    return list(groups.values())
+
+
+async def contact_detail(db: AsyncSession, user: User, lead_id: int) -> dict:
+    """One lead, with every other enquiry of the same person (for the contact page)."""
+    lead = await _lead_for(db, user, lead_id)
+    key = contact_key(lead)
+    # Same matching as the contacts list, so both always agree on who belongs to whom
+    q = _visible(select(Lead).order_by(Lead.created_at.desc()), user).limit(5000)
+    same = [x.id for x in (await db.scalars(q)).all() if contact_key(x) == key]
+    rows = await list_for(db, user, all_leads=True, limit=200, lead_ids=same or [lead.id])
+    this = next((r for r in rows if r.id == lead.id), None)
+    if this is None:  # can see it (checked above) but the list didn't bring it: never expected
+        raise AppError(404, "not_found", "Lead not found.")
+    return {"lead": this, "enquiries": rows}
+
+
+async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) -> LeadOut:
+    """A lead a staff member types in. Source "internal", theirs from the start (assigned + created by them).
+    No visitor ticked a consent box: the staff member spoke to the buyer, and that conversation is the consent
+    (an assumption, noted for KJS to confirm)."""
+    category_id = None
+    if data.category_slug:
+        category_id = await db.scalar(select(Category.id).where(Category.slug == data.category_slug))
+    lead = Lead(
+        source="internal", name=data.name.strip(), company=data.company.strip(), email=data.email or "",
+        phone=data.phone.strip(), country=data.country.strip(), buyer_type=data.buyer_type,
+        category_id=category_id, quantity=data.quantity, message=data.message.strip(),
+        source_page="", consent=True, consent_at=datetime.now(timezone.utc), ip_hash=None, status="new",
+        assigned_to=user.id, created_by=user.id,
+    )
+    db.add(lead)
+    await db.flush()
+    audit_service.record(db, actor=user, action="lead.created", entity_type="lead", entity_id=lead.id,
+                         after={"source": "internal", "assigned_to": user.id})
+    await db.commit()
+    log.info("lead.created", extra={"lead_id": lead.id, "source": "internal"})
+    return (await list_for(db, user, all_leads=True, limit=1, lead_ids=[lead.id]))[0]
+
+
+async def lead_tasks(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
+    """Tasks made from this lead (anyone's: whoever may see the lead sees what is planned on it)."""
+    await _lead_for(db, user, lead_id)
+    rows = (await db.scalars(select(Task).where(Task.source == "lead", Task.source_ref == f"lead:{lead_id}")
+                             .order_by(Task.status == "done", Task.due_at.is_(None), Task.due_at, Task.id.desc()))).all()
+    names = dict((await db.execute(select(User.id, User.name))).all())
+    now = datetime.now(timezone.utc)
+    return [task_service.task_out(t, names, now) for t in rows]
+
+
+async def add_lead_task(db: AsyncSession, user: User, lead_id: int, title: str, notes: str,
+                        due_at: datetime | None) -> dict:
+    """A to-do on this lead, for me. It also shows in my Tasks page (source "lead")."""
+    lead = await _lead_for(db, user, lead_id, lock=True)
+    t = task_service.add(db, assignee_id=user.id, title=title.strip(), notes=notes.strip(), due_at=due_at,
+                         source="lead", source_ref=f"lead:{lead.id}", created_by=user.id)
+    await db.flush()
+    audit_service.record(db, actor=user, action="task.created", entity_type="task", entity_id=t.id,
+                         after={"title": t.title, "lead_id": lead.id})
+    await db.commit()
+    return task_service.task_out(t, {user.id: user.name}, datetime.now(timezone.utc))
 
 
 async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = False) -> Lead:

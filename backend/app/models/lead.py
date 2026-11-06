@@ -13,7 +13,7 @@ class Lead(Base, TimestampMixin):
     __tablename__ = "leads"
     __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"))
 
-    source: Mapped[str] = mapped_column(String(30))  # enquiry_form | price_sheet | koko
+    source: Mapped[str] = mapped_column(String(30))  # enquiry_form | price_sheet | koko | internal (typed in by staff)
     name: Mapped[str] = mapped_column(String(120))
     company: Mapped[str] = mapped_column(String(200), default="")
     email: Mapped[str] = mapped_column(String(255), default="")
@@ -36,6 +36,7 @@ class Lead(Base, TimestampMixin):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     outcome: Mapped[str] = mapped_column(String(40), default="")  # quote_sent, not_interested, …
     escalation_level: Mapped[int] = mapped_column(Integer, default=0)  # 1 = respond late reported, 2 = resolve late reported
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))  # internal leads only; website/Koko = empty
 
 
 class LeadNote(Base, TimestampMixin):

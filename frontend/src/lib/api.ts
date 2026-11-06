@@ -15,6 +15,15 @@ export type Lead = {
   status: 'new' | 'contacted' | 'closed'; product_name: string | null; category_name: string | null; created_at: string;
   assigned_to: number | null; owner_name: string | null; responded_at: string | null; resolved_at: string | null;
   outcome: string; note_count: number; sla_state: 'ok' | 'due_soon' | 'overdue' | 'done'; sla_label: string;
+  updated_at: string | null; created_by_name: string | null;
+};
+/** One person who sent enquiries (Lead Management > Contacts). `lead_id` = their newest enquiry. */
+export type Contact = { lead_id: number; name: string; email: string; phone: string; active: number; inactive: number; total: number; last_at: string };
+export type ContactDetail = { lead: Lead; enquiries: Lead[] };
+/** A staff account, as the admin sees it (Users page, User Creation Form). */
+export type StaffUser = {
+  id: number; name: string; email: string; phone: string | null; role: 'admin' | 'employee'; status: string;
+  permissions: string[]; created_at: string; employee_code: string; branch: string; reporting_to: number | null;
 };
 export type LeadNote = { id: number; kind: string; text: string; user_name: string; created_at: string };
 export type Colleague = { id: number; name: string };
