@@ -8,6 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
+import { asset } from '@/lib/assets';
 
 const TONES = [
   'from-[#5B3420] to-[#2E1A10]',
@@ -20,10 +21,10 @@ const TONES = [
 // cut from the coffee catalogue PDF. Confectionery: three KJS packs from the confectionery catalogue.
 // Tea: a drawn cup until KJS sends a tea photo.
 const CATEGORY_IMAGES: Record<string, string> = {
-  coffee: '/images/categories/coffee.jpg',
-  tea: '/images/categories/tea.jpg',
-  'health-drinks': '/images/categories/health-drinks.jpg',
-  confectionery: '/images/categories/confectionery.jpg',
+  coffee: asset('/images/categories/coffee.jpg'),
+  tea: asset('/images/categories/tea.jpg'),
+  'health-drinks': asset('/images/categories/health-drinks.jpg'),
+  confectionery: asset('/images/categories/confectionery.jpg'),
 };
 
 /** Three soft white wisps rising over the Coffee card. */

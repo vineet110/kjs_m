@@ -4,6 +4,7 @@ import '@/app/globals.css';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { asset } from '@/lib/assets';
 
 const LOCALES = ['en']; // keep in sync with src/proxy.ts
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   title: { default: 'KJS India | Contract Manufacturing: Coffee, Tea, Health Drinks, Confectionery', template: '%s | KJS India' },
   description:
     'KJS India is a private-label and contract manufacturer in Hyderabad: stick packs, blending, packaging and warehousing for brands, distributors and importers.',
-  icons: { icon: '/images/kjs/favicon.png' },
+  icons: { icon: asset('/images/kjs/favicon.png') },
 };
 
 export default async function RootLayout({

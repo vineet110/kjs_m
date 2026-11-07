@@ -12,6 +12,7 @@ import Bell from './Bell';
 import SidebarNav from './SidebarNav';
 import { ToastProvider } from './Toast';
 import Loading from '@/components/ui/Loading';
+import { asset } from '@/lib/assets';
 
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
@@ -203,7 +204,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
             >
               <span aria-hidden>✕</span>
             </button>
-            <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={120} height={28} className="h-7 w-auto" />
+            <Image src={asset('/images/kjs/logo/Kjs.png')} alt="KJS India" width={120} height={28} className="h-7 w-auto" />
             <p className="mt-1 text-[11px] uppercase tracking-widest text-gold">{me.role === 'admin' ? 'Admin console' : 'Employee portal'}</p>
           </div>
           {/* The links: groups open and close, and can be dragged into any order (SidebarNav) */}

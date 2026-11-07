@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import NavigationProgress from './NavigationProgress';
 import ProgressBar from './ProgressBar';
 import { SITE } from '@/lib/site';
+import { asset } from '@/lib/assets';
 
 const NAV = [
   { href: '/', label: 'Home' },
@@ -19,7 +20,7 @@ export default function SiteHeader({ showPartners = true, showPrivateLabel = tru
     <header className="sticky top-0 z-40 border-b border-white/10 bg-ink/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Link href="/" className="flex items-center" aria-label="KJS India home">
-          <Image src="/images/kjs/logo/Kjs.png" alt="KJS India" width={140} height={32} priority className="h-8 w-auto" />
+          <Image src={asset('/images/kjs/logo/Kjs.png')} alt="KJS India" width={140} height={32} priority className="h-8 w-auto" />
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
           {nav.map((n) => (

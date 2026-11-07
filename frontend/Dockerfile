@@ -14,8 +14,11 @@ COPY . .
 # Baked in at build time: the /api rewrite target and the address used in sitemap/robots.
 ARG API_INTERNAL_URL=http://backend:8000
 ARG SITE_URL=http://localhost:3000
+# Public address of the R2 bucket with the site pictures (src/lib/assets.ts). Empty = public/ folder.
+ARG NEXT_PUBLIC_ASSET_BASE=
 ENV API_INTERNAL_URL=$API_INTERNAL_URL \
     SITE_URL=$SITE_URL \
+    NEXT_PUBLIC_ASSET_BASE=$NEXT_PUBLIC_ASSET_BASE \
     NEXT_STANDALONE=1 \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
@@ -28,8 +31,10 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 ARG API_INTERNAL_URL=http://backend:8000
 ARG SITE_URL=http://localhost:3000
+ARG NEXT_PUBLIC_ASSET_BASE=
 ENV API_INTERNAL_URL=$API_INTERNAL_URL \
-    SITE_URL=$SITE_URL
+    SITE_URL=$SITE_URL \
+    NEXT_PUBLIC_ASSET_BASE=$NEXT_PUBLIC_ASSET_BASE
 # The "node" user comes with the image: never run as root.
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
