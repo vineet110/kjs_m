@@ -12,7 +12,7 @@ import ts from 'typescript';
 
 const SRC = process.env.SRC_DIR || fileURLToPath(new URL('../src/lib/', import.meta.url));
 const OUT = mkdtempSync(join(tmpdir(), 'kjs-lib-test-'));
-after(() => rmSync(OUT, { recursive: true, force: true }));
+process.on('exit', () => rmSync(OUT, { recursive: true, force: true }));
 const ORIGIN = 'http://localhost:3002';
 
 /** Compiles src/lib/<name>.ts (with its imports replaced by `stubs`) and imports it. */
