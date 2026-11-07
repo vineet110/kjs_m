@@ -35,3 +35,11 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Direction: a card at the left edge of its grid grows to the right, one at the right edge grows to the left, the middle ones grow evenly. `HoverGrowSides.tsx` (one `mouseover` listener in the public layout) measures this when the cursor enters, so it works on 2, 3 or 4 columns.
 - Styles in `globals.css`, outside the Tailwind layers so they win over the cards' own hover lift. The grid cell is put on top with `:has()`, because the cards' `Reveal` wrappers would otherwise paint later cards over the grown one.
 - Only with a mouse at tablet/desktop widths (`hover: hover` and 768px+). Phones: no effect. Reduced motion: no animation.
+
+## Attendance page: one sidebar (feat/attendance-one-sidebar, 7 Nov)
+
+- The attendance page had its own dark left bar next to the portal sidebar, so two bars showed. It is removed.
+- The four views (List, Tabular, Calendar, Overtime) are now in the ••• menu at the top right. Click outside closes it.
+- Leave Applications, Regularization, Reports and Shift Schedule are in a white bar at the bottom of the page, with the pending badges. "+ Apply Leave" is at its right end.
+- List view text is one step bigger (12px to 13px, small labels 10px to 11px).
+- `PortalShell.tsx` still has its `isAttendance` layout checks; not touched.
