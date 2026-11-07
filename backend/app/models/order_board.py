@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,9 +47,25 @@ class BoardStep(Base, TimestampMixin):
 
 
 class BoardMember(Base, TimestampMixin):
+    """An assignee of one step. Assignees (and the head) can mark their step done."""
+
     __tablename__ = "board_members"
     __table_args__ = (UniqueConstraint("step_id", "user_id"),)
 
     board_id: Mapped[int] = mapped_column(ForeignKey("order_boards.id", ondelete="CASCADE"), index=True)
     step_id: Mapped[int] = mapped_column(ForeignKey("board_steps.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    is_head: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+
+class BoardPerson(Base, TimestampMixin):
+    """Everyone on a board (migration 0016): they can see it and update it (checklists, files).
+    The owner (OrderBoard.created_by) and boards.manage add and remove people. Step assignees are
+    always on the board too."""
+
+    __tablename__ = "board_people"
+    __table_args__ = (UniqueConstraint("board_id", "user_id", name="uq_board_people_board_user"),)
+
+    board_id: Mapped[int] = mapped_column(ForeignKey("order_boards.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    added_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

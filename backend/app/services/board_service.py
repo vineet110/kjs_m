@@ -7,6 +7,14 @@ Planning (pure functions, unit tested):
 - days mode: each step gets a fixed number of working days, one after another. If they
   don't fit before the deadline the plan says so (`plan_late`), it doesn't refuse.
 
+People (migration 0016):
+- The owner is the person who created the board. The owner and `boards.manage` add and remove
+  people, change a step's assignees and head, finish the board, and approve file deletes.
+- Everyone on the board sees it and updates it (checklists, files). Only a step's assignees
+  (its head included), the owner or `boards.manage` mark that step done.
+- Every step keeps at least one assignee. Nothing is deleted for good: removing someone only ends
+  their access (their uploads and the history stay), and every change is in the audit log.
+
 Running:
 - Creating a board starts step 1. Marking a step done starts the next one.
 - Starting a step gives each of its members the step's task templates as tasks.
@@ -17,14 +25,14 @@ import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.core.permissions import effective_permissions
 from app.jobs.runner import job
-from app.models.order_board import BoardMember, BoardStep, OrderBoard
+from app.models.order_board import BoardMember, BoardPerson, BoardStep, OrderBoard
 from app.models.task import Task
 from app.models.user import User
 from app.services import audit_service, file_service, notification_service, task_service
@@ -107,6 +115,11 @@ def can_manage(user: User) -> bool:
     return "boards.manage" in effective_permissions(user.role, user.permissions)
 
 
+def can_admin(user: User, board: OrderBoard) -> bool:
+    """The board's owner, or boards.manage: people, assignees, finishing, file deletes."""
+    return can_manage(user) or board.created_by == user.id
+
+
 async def _board(db: AsyncSession, code: str, lock: bool = False) -> OrderBoard:
     q = select(OrderBoard).where(OrderBoard.code == code.upper())
     if lock:
@@ -124,11 +137,38 @@ async def _member_ids(db: AsyncSession, board_id: int, step_id: int | None = Non
     return set((await db.scalars(q)).all())
 
 
-async def _visible_board(db: AsyncSession, user: User, code: str) -> OrderBoard:
-    b = await _board(db, code)
-    if not can_manage(user) and user.id not in await _member_ids(db, b.id):
+async def _people_ids(db: AsyncSession, board_id: int) -> set[int]:
+    return set((await db.scalars(select(BoardPerson.user_id).where(BoardPerson.board_id == board_id))).all())
+
+
+async def _heads(db: AsyncSession, step_id: int) -> set[int]:
+    return set((await db.scalars(select(BoardMember.user_id).where(
+        BoardMember.step_id == step_id, BoardMember.is_head.is_(True)))).all())
+
+
+async def _visible_board(db: AsyncSession, user: User, code: str, lock: bool = False) -> OrderBoard:
+    b = await _board(db, code, lock=lock)
+    if not can_admin(user, b) and user.id not in await _people_ids(db, b.id):
         raise AppError(404, "not_found", "Order board not found.")
     return b
+
+
+async def _admin_board(db: AsyncSession, user: User, code: str) -> OrderBoard:
+    """A running board whose people this person may change. Locked until commit, so two
+    changes to the same board's people can't overwrite each other."""
+    b = await _visible_board(db, user, code, lock=True)
+    if not can_admin(user, b):
+        raise AppError(403, "forbidden", "Only the board's owner can change this.")
+    if b.status != "active":
+        raise AppError(409, "finished", "This board is finished.")
+    return b
+
+
+async def _active_staff(db: AsyncSession, ids: set[int]) -> set[int]:
+    found = set((await db.scalars(select(User.id).where(User.id.in_(ids), User.status == "active"))).all())
+    if ids - found:
+        raise AppError(422, "bad_members", "Some people are not active staff.", {"ids": sorted(ids - found)})
+    return found
 
 
 async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
@@ -139,7 +179,13 @@ async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str
         return False
 
 
-file_service.register_owner("board", _files_access)
+async def _files_approvers(db: AsyncSession, owner_id: str) -> tuple[set[int], str]:
+    """The board's owner may approve deletes of its files (files.approve holders always can)."""
+    owner = await db.scalar(select(OrderBoard.created_by).where(OrderBoard.code == owner_id.upper()))
+    return ({owner} if owner else set()), f"/employee/order-boards/{owner_id.upper()}"
+
+
+file_service.register_owner("board", _files_access, approvers=_files_approvers)
 
 
 # ---------- Create ----------
@@ -154,9 +200,12 @@ async def create(db: AsyncSession, user: User, data) -> dict:
     plan, plan_late = plan_steps(data.start, data.deadline, data.split_mode, sizes, holidays)
 
     member_ids = {m for s in data.steps for m in s.member_ids}
-    active = set((await db.scalars(select(User.id).where(User.id.in_(member_ids), User.status == "active"))).all())
-    if member_ids - active:
-        raise AppError(422, "bad_members", "Some members are not active staff.", {"ids": sorted(member_ids - active)})
+    for s in data.steps:
+        if not s.member_ids:
+            raise AppError(422, "no_assignee", f"Step '{s.name}' needs at least one person.")
+        if set(s.head_ids) - set(s.member_ids):
+            raise AppError(422, "bad_head", f"The head of '{s.name}' must be one of its people.")
+    await _active_staff(db, member_ids)
 
     c = cfg().app
     board = OrderBoard(code=code, name=data.name.strip(), client=data.client.strip(), priority=data.priority,
@@ -172,7 +221,9 @@ async def create(db: AsyncSession, user: User, data) -> dict:
         db.add(step)
         await db.flush()
         for uid in set(s.member_ids):
-            db.add(BoardMember(board_id=board.id, step_id=step.id, user_id=uid))
+            db.add(BoardMember(board_id=board.id, step_id=step.id, user_id=uid, is_head=uid in s.head_ids))
+    for uid in member_ids | {user.id}:  # everyone on a step, and the owner, is on the board
+        db.add(BoardPerson(board_id=board.id, user_id=uid, added_by=user.id))
     await db.flush()
     first = await db.scalar(select(BoardStep).where(BoardStep.board_id == board.id, BoardStep.position == 1))
     await _start_step(db, board, first, user)
@@ -198,11 +249,13 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
 # ---------- Read ----------
 async def _step_out(db: AsyncSession, s: BoardStep, today: date, holidays: set[date], names: dict[int, str]) -> dict:
     members = await _member_ids(db, s.board_id, s.id)
+    heads = await _heads(db, s.id)
     return {"id": s.id, "position": s.position, "name": s.name, "percent": s.percent, "days": s.days,
             "planned_start": s.planned_start, "planned_end": s.planned_end, "status": s.status,
             "started_at": s.started_at, "done_at": s.done_at, "used_pct": used_pct(s, today, holidays),
             "task_templates": s.task_templates, "checklist": s.checklist,
-            "members": [{"id": m, "name": names.get(m, "")} for m in sorted(members)]}
+            "members": [{"id": m, "name": names.get(m, ""), "is_head": m in heads}
+                        for m in sorted(members, key=lambda m: (m not in heads, names.get(m, "")))]}
 
 
 async def _board_out(db: AsyncSession, b: OrderBoard, steps: list[BoardStep], today: date, holidays: set[date]) -> dict:
@@ -225,7 +278,8 @@ async def list_boards(db: AsyncSession, user: User, include_finished: bool = Fal
                    OrderBoard.deadline_at.desc())
          .limit(300))
     if not can_manage(user):
-        q = q.where(OrderBoard.id.in_(select(BoardMember.board_id).where(BoardMember.user_id == user.id)))
+        q = q.where(OrderBoard.id.in_(select(BoardPerson.board_id).where(BoardPerson.user_id == user.id))
+                    | (OrderBoard.created_by == user.id))
     if not include_finished:
         q = q.where(OrderBoard.status == "active")
     boards = (await db.scalars(q)).all()
@@ -245,28 +299,42 @@ async def detail(db: AsyncSession, user: User, code: str) -> dict:
     holidays = await holiday_set(db, today.year - 1, today.year + 1)
     names = dict((await db.execute(select(User.id, User.name))).all())
     my_steps = [s.id for s in steps if user.id in await _member_ids(db, b.id, s.id)]
+    step_rows = [await _step_out(db, s, today, holidays, names) for s in steps]
+    on_steps: dict[int, list[int]] = {}
+    for st in step_rows:
+        for m in st["members"]:
+            on_steps.setdefault(m["id"], []).append(st["position"])
+    people = sorted(await _people_ids(db, b.id) | ({b.created_by} if b.created_by else set()),
+                    key=lambda p: (p != b.created_by, names.get(p, "")))
     return await _board_out(db, b, steps, today, holidays) | {
-        "steps": [await _step_out(db, s, today, holidays, names) for s in steps],
-        "my_step_ids": my_steps, "can_manage": can_manage(user)}
+        "steps": step_rows, "my_step_ids": my_steps, "can_manage": can_manage(user),
+        "owner": {"id": b.created_by, "name": names.get(b.created_by or 0, "")},
+        "people": [{"id": p, "name": names.get(p, ""), "is_owner": p == b.created_by, "steps": on_steps.get(p, [])}
+                   for p in people],
+        # can_edit: people, assignees, finishing. can_decide_deletes: approve / reject file delete requests.
+        "can_edit": can_admin(user, b), "can_decide_deletes": await file_service.can_decide(db, user, "board", b.code)}
 
 
 # ---------- Run ----------
-async def _step_for_action(db: AsyncSession, user: User, code: str, step_id: int) -> tuple[OrderBoard, BoardStep]:
+async def _step_for_action(db: AsyncSession, user: User, code: str, step_id: int,
+                           assignees_only: bool = False) -> tuple[OrderBoard, BoardStep]:
+    """Anyone on the board may update a step; with assignees_only, only its assignees (head
+    included), the owner or boards.manage may (marking it done)."""
     b = await _visible_board(db, user, code)
     # Locked until commit: a double "done" click would otherwise start the next step twice
     # (duplicate tasks), and two members ticking the checklist at once would lose one tick.
     step = await db.get(BoardStep, step_id, with_for_update=True, populate_existing=True)
     if step is None or step.board_id != b.id:
         raise AppError(404, "not_found", "Step not found.")
-    if not can_manage(user) and user.id not in await _member_ids(db, b.id, step.id):
-        raise AppError(403, "forbidden", "Only this step's members can update it.")
+    if assignees_only and not can_admin(user, b) and user.id not in await _member_ids(db, b.id, step.id):
+        raise AppError(403, "forbidden", "Only this step's people or the board's owner can mark it done.")
     if b.status != "active":
         raise AppError(409, "finished", "This board is finished.")
     return b, step
 
 
 async def complete_step(db: AsyncSession, user: User, code: str, step_id: int) -> dict:
-    b, step = await _step_for_action(db, user, code, step_id)
+    b, step = await _step_for_action(db, user, code, step_id, assignees_only=True)
     if step.status != "active":
         raise AppError(409, "not_active", "Only the running step can be marked done.")
     step.status, step.done_at = "done", datetime.now(timezone.utc)
@@ -298,19 +366,125 @@ async def toggle_check(db: AsyncSession, user: User, code: str, step_id: int, in
 
 
 async def finish(db: AsyncSession, user: User, code: str, final_status: str) -> dict:
-    b = await _board(db, code, lock=True)
+    b = await _visible_board(db, user, code, lock=True)
+    if not can_admin(user, b):
+        raise AppError(403, "forbidden", "Only the board's owner can finish it.")
     if b.status != "active":
         # Finished once, with one outcome: "Delivered" must not later become "Cancelled".
         raise AppError(409, "finished", "This board is already finished.")
     before = {"status": b.status, "final_status": b.final_status}
     b.status, b.final_status = "finished", final_status
     # Its open tasks would otherwise show as overdue on people's lists forever.
-    closed = await db.execute(
-        update(Task).where(Task.source == "board", Task.source_ref.startswith(f"board:{b.code}:"),
-                           Task.status != "done")
-        .values(status="done", notes=Task.notes + f"\n[Closed: board finished as {final_status}]"))
+    closed = await _close_tasks(db, b.code, f"board finished as {final_status}")
     audit_service.record(db, actor=user, action="board.finished", entity_type="board", entity_id=b.code,
-                         before=before, after={"final_status": final_status, "tasks_closed": closed.rowcount})
+                         before=before, after={"final_status": final_status, "tasks_closed": closed})
+    await db.commit()
+    return await detail(db, user, code)
+
+
+async def _close_tasks(db: AsyncSession, code: str, why: str, user_id: int | None = None,
+                       step_position: int | None = None) -> int:
+    """Close open board tasks (all of a board, one person's, or one step's) so they don't show as
+    overdue forever. Marked done with a note saying why; never deleted."""
+    q = update(Task).where(Task.source == "board", Task.status != "done")
+    if step_position is not None:
+        q = q.where(Task.source_ref == f"board:{code}:step:{step_position}")
+    else:
+        q = q.where(Task.source_ref.startswith(f"board:{code}:"))
+    if user_id is not None:
+        q = q.where(Task.assignee_id == user_id)
+    return (await db.execute(q.values(status="done", notes=Task.notes + f"\n[Closed: {why}]"))).rowcount
+
+
+# ---------- People ----------
+async def add_person(db: AsyncSession, user: User, code: str, person_id: int) -> dict:
+    b = await _admin_board(db, user, code)
+    await _active_staff(db, {person_id})
+    if person_id in await _people_ids(db, b.id) or person_id == b.created_by:
+        raise AppError(409, "already_on_board", "This person is already on the board.")
+    db.add(BoardPerson(board_id=b.id, user_id=person_id, added_by=user.id))
+    name = await db.scalar(select(User.name).where(User.id == person_id))
+    audit_service.record(db, actor=user, action="board.person_added", entity_type="board", entity_id=b.code,
+                         after={"user_id": person_id, "name": name})
+    notification_service.notify(db, {person_id} - {user.id}, "board.added", f"You are on order board {b.code}",
+                                f"{b.name} for {b.client}.", f"/employee/order-boards/{b.code}")
+    await db.commit()
+    return await detail(db, user, code)
+
+
+async def remove_person(db: AsyncSession, user: User, code: str, person_id: int) -> dict:
+    """Ends their access to the board. Their uploads and the history stay; their open tasks on
+    this board are closed. Refused while they are the only person on a step that isn't done."""
+    b = await _admin_board(db, user, code)
+    if person_id == b.created_by:
+        raise AppError(409, "owner", "The board's owner can't be removed.")
+    if person_id not in await _people_ids(db, b.id):
+        raise AppError(404, "not_found", "This person is not on the board.")
+    open_steps = (await db.scalars(select(BoardStep).where(BoardStep.board_id == b.id, BoardStep.status != "done")
+                                   .order_by(BoardStep.position))).all()
+    theirs = [s for s in open_steps if person_id in await _member_ids(db, b.id, s.id)]
+    alone = [s.name for s in theirs if await _member_ids(db, b.id, s.id) == {person_id}]
+    if alone:
+        raise AppError(409, "last_assignee", f"Give these steps to someone else first: {', '.join(alone)}.",
+                       {"steps": alone})
+    for s in theirs:  # done steps keep them: that's who did the work
+        await db.execute(delete(BoardMember).where(BoardMember.step_id == s.id, BoardMember.user_id == person_id))
+    await db.execute(delete(BoardPerson).where(BoardPerson.board_id == b.id, BoardPerson.user_id == person_id))
+    closed = await _close_tasks(db, b.code, "removed from the board", user_id=person_id)
+    name = await db.scalar(select(User.name).where(User.id == person_id))
+    audit_service.record(db, actor=user, action="board.person_removed", entity_type="board", entity_id=b.code,
+                         before={"user_id": person_id, "name": name, "steps": [s.position for s in theirs]},
+                         after={"tasks_closed": closed})
+    notification_service.notify(db, {person_id} - {user.id}, "board.removed", f"You were removed from {b.code}",
+                                f"By {user.name}.", "")
+    await db.commit()
+    return await detail(db, user, code)
+
+
+async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, member_ids: list[int],
+                        head_ids: list[int]) -> dict:
+    """Who works on a step, and who heads it. New people are added to the board too; on a running
+    step they get its tasks, and people taken off it have their open tasks for it closed."""
+    b = await _admin_board(db, user, code)
+    step = await db.get(BoardStep, step_id, with_for_update=True, populate_existing=True)
+    if step is None or step.board_id != b.id:
+        raise AppError(404, "not_found", "Step not found.")
+    if step.status == "done":
+        raise AppError(409, "step_done", "This step is done; its people stay as they were.")
+    new, heads = set(member_ids), set(head_ids)
+    if not new:
+        raise AppError(422, "no_assignee", "A step needs at least one person.")
+    if heads - new:
+        raise AppError(422, "bad_head", "The head must be one of the step's people.")
+    await _active_staff(db, new)
+    old, old_heads = await _member_ids(db, b.id, step.id), await _heads(db, step.id)
+    if (new, heads) == (old, old_heads):
+        return await detail(db, user, code)
+    await db.execute(delete(BoardMember).where(BoardMember.step_id == step.id, BoardMember.user_id.in_(old - new)))
+    await db.execute(update(BoardMember).where(BoardMember.step_id == step.id)
+                     .values(is_head=BoardMember.user_id.in_(heads)))
+    for uid in new - old:
+        db.add(BoardMember(board_id=b.id, step_id=step.id, user_id=uid, is_head=uid in heads))
+    for uid in new - await _people_ids(db, b.id):
+        db.add(BoardPerson(board_id=b.id, user_id=uid, added_by=user.id))
+    closed = 0
+    if step.status == "active":
+        due = to_utc(step.planned_end, cfg().app.shift_end)
+        for uid in new - old:
+            for title in step.task_templates:
+                task_service.add(db, assignee_id=uid, title=f"{b.code} · {step.name}: {title}", source="board",
+                                 source_ref=f"board:{b.code}:step:{step.position}", due_at=due, created_by=user.id)
+        for uid in old - new:
+            closed += await _close_tasks(db, b.code, f"taken off step '{step.name}'", user_id=uid,
+                                         step_position=step.position)
+    notification_service.notify(db, (new - old) - {user.id}, "board.step_assigned",
+                                f"{b.code}: you are on step '{step.name}'",
+                                f"Planned {step.planned_start:%d %b}–{step.planned_end:%d %b}.",
+                                f"/employee/order-boards/{b.code}")
+    audit_service.record(db, actor=user, action="board.step_people_changed", entity_type="board", entity_id=b.code,
+                         before={"step": step.position, "people": sorted(old), "heads": sorted(old_heads)},
+                         after={"step": step.position, "people": sorted(new), "heads": sorted(heads),
+                                "tasks_closed": closed})
     await db.commit()
     return await detail(db, user, code)
 

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
 from app.core.errors import AppError
+from app.core.permissions import effective_permissions
 from app.core.storage import StorageError, storage
 from app.jobs.runner import job
 from app.models.file import StoredFile
@@ -35,6 +36,10 @@ OWNERS: dict[str, AccessCheck] = {}
 # and only while the owner is live (e.g. a hidden product's files stop being public).
 PublicCheck = Callable[[AsyncSession, str], Awaitable[bool]]
 PUBLIC_OWNERS: dict[str, PublicCheck] = {}
+# owner_type -> async approvers(db, owner_id) -> (user ids, link). People who may decide delete requests
+# for files of that owner, on top of everyone with files.approve (e.g. an order board's owner).
+Approvers = Callable[[AsyncSession, str], Awaitable[tuple[set[int], str]]]
+APPROVERS: dict[str, Approvers] = {}
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -42,10 +47,25 @@ TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpe
          "doc": "application/msword", "csv": "text/csv", "txt": "text/plain", "zip": "application/zip"}
 
 
-def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None) -> None:
+def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
+                   approvers: Approvers | None = None) -> None:
     OWNERS[owner_type] = check
     if public:
         PUBLIC_OWNERS[owner_type] = public
+    if approvers:
+        APPROVERS[owner_type] = approvers
+
+
+async def _owner_approvers(db: AsyncSession, owner_type: str, owner_id: str) -> tuple[set[int], str]:
+    hook = APPROVERS.get(owner_type)
+    return await hook(db, owner_id) if hook else (set(), "")
+
+
+async def can_decide(db: AsyncSession, user: User, owner_type: str, owner_id: str) -> bool:
+    """May this person approve or reject delete requests for this owner's files?"""
+    if "files.approve" in effective_permissions(user.role, user.permissions):
+        return True
+    return user.id in (await _owner_approvers(db, owner_type, owner_id))[0]
 
 
 async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) -> bool:
@@ -164,8 +184,12 @@ async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str
     f.delete_status, f.delete_reason, f.delete_requested_by = "requested", reason.strip(), user.id
     audit_service.record(db, actor=user, action="file.delete_requested", entity_type="file", entity_id=f.id,
                          after={"name": f.name, "reason": f.delete_reason})
-    notification_service.notify(db, await notification_service.users_with(db, "files.approve"), "file.delete_request",
+    approvers = set(await notification_service.users_with(db, "files.approve")) - {user.id}
+    notification_service.notify(db, approvers, "file.delete_request",
                                 f"Delete request: {f.name}", f"{user.name}: {f.delete_reason}", "/admin/approvals")
+    owners, link = await _owner_approvers(db, f.owner_type, f.owner_id)
+    notification_service.notify(db, owners - approvers - {user.id}, "file.delete_request",
+                                f"Delete request: {f.name}", f"{user.name}: {f.delete_reason}", link)
     await db.commit()
     return out(f)
 
@@ -179,6 +203,8 @@ async def delete_requests(db: AsyncSession) -> list[dict]:
 
 async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve: bool) -> dict:
     f = await _get(db, file_id, lock=True)
+    if not await can_decide(db, approver, f.owner_type, f.owner_id):
+        raise AppError(403, "forbidden", "Only the owner or an approver can decide this.")
     if f.delete_status != "requested":
         raise AppError(409, "not_requested", "No delete request for this file.")
     if f.delete_requested_by == approver.id and approver.role != "admin":

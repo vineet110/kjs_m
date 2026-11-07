@@ -1,5 +1,7 @@
-"""Order boards. Create / finish: `boards.manage`. View and update a step: its members
-(or `boards.manage`). Files: /files with owner_type=board, owner_id=<code>."""
+"""Order boards. Create: `boards.manage`. View and update (checklists, files): everyone on the board.
+Mark a step done: its people (head included), the owner or `boards.manage`. People, step people,
+finish: the owner (who created it) or `boards.manage`. Rules in board_service.
+Files: /files with owner_type=board, owner_id=<code>."""
 from datetime import date
 from typing import Annotated, Literal
 
@@ -28,7 +30,8 @@ class StepIn(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     percent: int | None = Field(default=None, ge=1, le=100)
     days: int | None = Field(default=None, ge=1, le=365)
-    member_ids: list[int] = Field(default_factory=list)
+    member_ids: list[int] = Field(default_factory=list, max_length=50)  # at least 1: checked in the service
+    head_ids: list[int] = Field(default_factory=list, max_length=50)  # must be among member_ids
     task_templates: list[str] = Field(default_factory=list, max_length=30)
     checklist: list[str] = Field(default_factory=list, max_length=30)
 
@@ -109,6 +112,30 @@ class FinishIn(BaseModel):
 
 
 @router.post("/{code}/finish")
-async def finish(code: str, data: FinishIn, user: User = Depends(require_permission("boards.manage")),
-                 db: AsyncSession = Depends(get_db)):
-    return await board_service.finish(db, user, code, data.final_status)
+async def finish(code: str, data: FinishIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await board_service.finish(db, user, code, data.final_status)  # owner or boards.manage
+
+
+class PersonIn(BaseModel):
+    user_id: int
+
+
+@router.post("/{code}/people")
+async def add_person(code: str, data: PersonIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await board_service.add_person(db, user, code, data.user_id)  # owner or boards.manage
+
+
+@router.delete("/{code}/people/{user_id}")
+async def remove_person(code: str, user_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await board_service.remove_person(db, user, code, user_id)  # owner or boards.manage
+
+
+class StepPeopleIn(BaseModel):
+    member_ids: list[int] = Field(min_length=1, max_length=50)
+    head_ids: list[int] = Field(default_factory=list, max_length=50)
+
+
+@router.put("/{code}/steps/{step_id}/people")
+async def step_people(code: str, step_id: int, data: StepPeopleIn, user: User = Depends(current_user),
+                      db: AsyncSession = Depends(get_db)):
+    return await board_service.set_assignees(db, user, code, step_id, data.member_ids, data.head_ids)

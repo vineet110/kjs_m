@@ -3,7 +3,7 @@ from app.models.audit import AuditLog  # noqa: F401
 from app.models.calendar import Holiday  # noqa: F401
 from app.models.catalog import Category, Product  # noqa: F401
 from app.models.lead import Lead, LeadNote  # noqa: F401
-from app.models.order_board import BoardMember, BoardStep, OrderBoard  # noqa: F401
+from app.models.order_board import BoardMember, BoardPerson, BoardStep, OrderBoard  # noqa: F401
 from app.models.user import AvailabilityLog, User, UserSession  # noqa: F401
 from app.models.shift import Shift  # noqa: F401
 from app.models.leave import LeaveRequest  # noqa: F401
