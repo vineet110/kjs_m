@@ -185,3 +185,46 @@ async def test_admin_edits_role_and_branch(client):
     # Nobody reports to themselves
     loop = edit | {"reporting_to": await _uid("a@kjs.in")}
     assert (await client.patch(f"/api/v1/admin/users/{await _uid('a@kjs.in')}", json=loop, headers=HDR)).status_code == 422
+
+
+async def test_no_reporting_loops(client):
+    # A reports to B; then making B report to A must be refused (and a longer A -> B -> C -> A too)
+    await make_user("boss@kjs.in", role="admin")
+    for e in ("a@kjs.in", "b@kjs.in", "c@kjs.in"):
+        await make_user(e)
+    await login(client, "boss@kjs.in")
+    a, b, c = [await _uid(e) for e in ("a@kjs.in", "b@kjs.in", "c@kjs.in")]
+    edit = {k: v for k, v in (await _form(b)).items() if k != "email"}
+
+    async def set_boss(who: int, boss: int) -> int:
+        return (await client.patch(f"/api/v1/admin/users/{who}", json=edit | {"reporting_to": boss}, headers=HDR)).status_code
+
+    assert await set_boss(a, b) == 200
+    assert await set_boss(b, a) == 422
+    assert await set_boss(b, c) == 200
+    assert await set_boss(c, a) == 422
+
+
+PNG = ("me.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32, "image/png")
+
+
+async def _photo(client, owner_id) -> int:
+    r = await client.post("/api/v1/files", data={"owner_type": "user", "owner_id": str(owner_id)},
+                          files={"file": PNG}, headers=HDR)
+    return r.status_code
+
+
+async def test_photo_rules(client):
+    await make_user("boss@kjs.in", role="admin")
+    await make_user("hr@kjs.in", permissions=["leads.view", "staff.approve"])
+    await make_user("a@kjs.in")
+    # A staff member: own photo only
+    await login(client, "a@kjs.in")
+    assert await _photo(client, await _uid("hr@kjs.in")) == 403
+    await client.post("/api/v1/auth/logout", headers=HDR)
+    # An approver: not the admin's photo, not a user who doesn't exist, but yes a staff member's
+    await login(client, "hr@kjs.in")
+    assert await _photo(client, await _uid("boss@kjs.in")) == 403
+    assert await _photo(client, 99999) == 403
+    assert await _photo(client, "abc") == 403
+    assert await _photo(client, await _uid("a@kjs.in")) == 201

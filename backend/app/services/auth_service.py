@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -174,7 +175,7 @@ STAFF_FIELDS = ("name", "phone", "employee_code", "branch", "role", "reporting_t
 
 async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | None, data) -> None:
     """Rules shared by create and edit: only an admin makes someone an admin, and "reporting to" must be
-    an active colleague (not the person themselves)."""
+    an active colleague (not the person themselves, and no loop like "A reports to B, B reports to A")."""
     if data.role == "admin" and actor.role != "admin":
         raise AppError(403, "forbidden", "Only an admin can give the admin role.")
     if data.reporting_to == target_id:
@@ -182,6 +183,14 @@ async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | N
     boss = await db.get(User, data.reporting_to)
     if boss is None or boss.status != "active":
         raise AppError(422, "bad_manager", "Pick an active colleague for 'Reporting to'.")
+    # Walk up the chain from the new manager: reaching this person again would make a loop.
+    # A new account (target_id None) can't be anyone's manager yet. `seen` stops on an old bad loop.
+    seen, up = set(), boss.reporting_to
+    while target_id is not None and up is not None and up not in seen:
+        if up == target_id:
+            raise AppError(422, "bad_manager", "This would make a reporting loop: they already report to this person.")
+        seen.add(up)
+        up = await db.scalar(select(User.reporting_to).where(User.id == up))
 
 
 async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
@@ -198,7 +207,11 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
         reporting_to=data.reporting_to, approved_by=admin.id, approved_at=datetime.now(timezone.utc),
     )
     db.add(user)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:  # the same email saved at the same moment by another request
+        await db.rollback()
+        raise AppError(409, "email_taken", "An account with this email already exists.")
     audit_service.record(db, actor=admin, action="user.created", entity_type="user", entity_id=user.id,
                          after={"email": user.email, **{k: getattr(user, k) for k in STAFF_FIELDS}})
     await db.commit()
@@ -223,11 +236,17 @@ async def update_user(db: AsyncSession, admin: User, user_id: int, data) -> User
 
 
 # Profile photos are files owned by the user ("user", "<id>"). Every staff member may see them (they show
-# next to names); only the person or someone who manages staff may upload one.
+# next to names); only the person or someone who manages staff may upload one. The account must exist, and
+# an admin's photo is only an admin's to change (same rule as "only an admin makes someone an admin").
 async def _photo_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
     if action == "read":
         return True
-    return owner_id == str(user.id) or "staff.approve" in effective_permissions(user.role, user.permissions)
+    if owner_id == str(user.id):
+        return True
+    if "staff.approve" not in effective_permissions(user.role, user.permissions) or not owner_id.isdigit():
+        return False
+    owner = await db.get(User, int(owner_id))
+    return owner is not None and (owner.role != "admin" or user.role == "admin")
 
 
 file_service.register_owner("user", _photo_access)
