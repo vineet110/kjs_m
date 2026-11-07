@@ -206,3 +206,11 @@ Add changes here, newest at the bottom, like this:
    in the admin (nothing shows until then). Every phone field has a country code picker with flags, and the
    forms have a country picker. Staff portal: a new look in the KJS charcoal and gold, a clearer start page,
    a tidier menu, and a safe "Log out" button.
+
+8. 5–7 Nov
+
+   Website: a fresher home page in the KJS gold and charcoal, product cards that grow when the mouse is on
+   them, and a friendly "Let's connect" WhatsApp invitation that appears at most three times per visit.
+   Staff portal: a Lead Management section (one list of contacts with all their enquiries, notes and tasks,
+   and leads staff add themselves), a form for the admin to create staff accounts, and a cleaner attendance
+   page with one menu instead of two.

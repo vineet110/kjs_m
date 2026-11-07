@@ -75,6 +75,23 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    ii.   Follow-ups (browser checks with a login, dev speed): `backlog.md` R42.
 
 
+4f. Website look, "Let's connect" popup, card hover (Nishita): merged in PR #27 and #30 (5 Nov)
+
+   i.    Gold / charcoal home page, new heading font, WhatsApp popup (up to 3 per visit), cards grow on hover.
+         Decisions: `memory.md` items 25–26. Follow-ups: `backlog.md` R47.
+
+
+4g. Lead management + User Creation Form (Nishita): merged in PR #33 (7 Nov)
+
+   i.    Contacts, contact page, Koko and internal leads, tasks on a lead; admin Users page and form. Migration 0015.
+         Decisions: `memory.md` items 27–29. Follow-ups: R47, A83, A84, I15.
+
+
+4h. Attendance page with one sidebar + seed fix (Nishita): PR #34 (7 Nov)
+
+   i.    Views in the ••• menu, sections in a bottom bar. `python -m app.seed` works again (decision 31).
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
