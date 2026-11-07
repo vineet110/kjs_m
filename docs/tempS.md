@@ -35,3 +35,24 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Direction: a card at the left edge of its grid grows to the right, one at the right edge grows to the left, the middle ones grow evenly. `HoverGrowSides.tsx` (one `mouseover` listener in the public layout) measures this when the cursor enters, so it works on 2, 3 or 4 columns.
 - Styles in `globals.css`, outside the Tailwind layers so they win over the cards' own hover lift. The grid cell is put on top with `:has()`, because the cards' `Reveal` wrappers would otherwise paint later cards over the grown one.
 - Only with a mouse at tablet/desktop widths (`hover: hover` and 768px+). Phones: no effect. Reduced motion: no animation.
+
+## Lead Management and User Creation Form (feat/lead-management, 6 Nov)
+
+- New sidebar group "Lead Management": Contacts, Tasks (moved here from My work), Koko Lead, Internal lead. Same pages for admin and staff (`/employee/...`): `leads.view_all` sees everyone's leads, others their own + unassigned.
+- Contacts = leads grouped per person (same last 10 phone digits, else same email). Table copies the LEMAI screenshot: S.No, Name, Email, Phone No, Converted Value, Active / In-Active Opportunities, Total, Actions. Active = new or contacted enquiries, In-Active = closed. Converted Value shows "—" (deal values are not recorded yet). Search and pages run in the browser (`DataTable.tsx`).
+- Contact page (`/employee/contacts/<lead id>`): header (phone hidden until clicked), the person's other enquiries as chips, Lead Pipeline (our 3 stages New / Contacted / Closed; closing asks for an outcome), tabs Info / Notes / Task / Timeline / Proposals, quick actions Notes / Task / Lead Share. Removed as asked: the top-right buttons (AI, money, mic, Call, Communication), Call Logs, Meeting, Recording and Payments tabs, Last proposal sent, Meetings, Opportunities box, Engagement summary.
+- Proposals tab is an empty "not recorded yet" box. Notes can be Note / Call / Email (a call or email still stops the respond timer).
+- Internal lead: staff type it in ("+ Add lead"). Source `internal`, assigned to and created by that person. Guess to check with KJS: no consent tick box, the staff member's conversation with the buyer counts as consent.
+- Tasks on a lead: `GET/POST /employee/leads/{id}/tasks`, saved as tasks with source `lead`, `source_ref` `lead:<id>`, so they also show on the Tasks page.
+- Admin: new Users page (`/admin/users`) and User Creation Form (`/admin/users/new`, edit at `/admin/users/<id>`), with the live profile card on the right. Fields: name, email, phone, employee code, branch, role, reporting to, profile image. New accounts are active at once; the admin sees a one-time password once. Only an admin can give the admin role or edit existing accounts.
+- Branch is free text with "Main Branch" suggested. Waiting for KJS's real branch list.
+- Profile page: same card on the right; employee code, branch, role and reporting to are read-only there. Staff can change their own photo. Photos are files owned by `("user", id)`.
+- New migration 0015 (users: employee_code, branch, reporting_to; leads: created_by). Tell Vineet before he adds a migration.
+- New routes: `GET /employee/contacts`, `GET /employee/contacts/{lead_id}`, `POST /employee/leads`, `?source=` on both lead lists, `POST /admin/users`, `PATCH /admin/users/{id}`. Tests: `tests/test_lead_management.py` (14), full suite 194 passed.
+- The "Let's connect" popup text change that was uncommitted on `preview/all` is in `git stash` ("ConnectPopup text change"), not in this branch.
+
+### Lead management: second review fixes (7 Nov)
+
+- "Reporting to" can be empty (top of the chain). Form option "No one (top of the chain)"; the backend skips the manager checks when empty.
+- Task due times are read as IST (`+05:30`) on the contact page and the Tasks page, whatever the computer's time zone.
+- Contacts: two leads are one person when they share the full phone number (country code included) OR the email, also through a third lead (`group_contacts` in `lead_service.py`). The list and the contact page use the same grouping.
