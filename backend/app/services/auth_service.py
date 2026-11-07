@@ -1,9 +1,11 @@
 """Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
 import asyncio
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -13,7 +15,7 @@ from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permi
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
 from app.models.user import User, UserSession
 from app.schemas.auth import SignupIn
-from app.services import audit_service
+from app.services import audit_service, file_service
 
 log = logging.getLogger(__name__)
 
@@ -167,10 +169,96 @@ async def ensure_admin(db: AsyncSession, email: str, password: str, name: str = 
     return True
 
 
+# ---------- User Creation Form (admin) ----------
+STAFF_FIELDS = ("name", "phone", "employee_code", "branch", "role", "reporting_to")
+
+
+async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | None, data) -> None:
+    """Rules shared by create and edit: only an admin makes someone an admin, and "reporting to" must be
+    an active colleague (not the person themselves, and no loop like "A reports to B, B reports to A")."""
+    if data.role == "admin" and actor.role != "admin":
+        raise AppError(403, "forbidden", "Only an admin can give the admin role.")
+    if data.reporting_to == target_id:
+        raise AppError(422, "bad_manager", "A person can't report to themselves.")
+    boss = await db.get(User, data.reporting_to)
+    if boss is None or boss.status != "active":
+        raise AppError(422, "bad_manager", "Pick an active colleague for 'Reporting to'.")
+    # Walk up the chain from the new manager: reaching this person again would make a loop.
+    # A new account (target_id None) can't be anyone's manager yet. `seen` stops on an old bad loop.
+    seen, up = set(), boss.reporting_to
+    while target_id is not None and up is not None and up not in seen:
+        if up == target_id:
+            raise AppError(422, "bad_manager", "This would make a reporting loop: they already report to this person.")
+        seen.add(up)
+        up = await db.scalar(select(User.reporting_to).where(User.id == up))
+
+
+async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
+    """An account the admin makes directly (no sign-up, no approval step): active at once. A one-time
+    password is returned for the admin to pass on; the person changes it on their Profile page."""
+    await _check_staff_details(db, admin, None, data)
+    if await db.scalar(select(func.count()).select_from(User).where(User.email == data.email)):
+        raise AppError(409, "email_taken", "An account with this email already exists.")
+    temp_password = secrets.token_urlsafe(9)  # 12 characters, above the 10 a password needs
+    user = User(
+        name=data.name, email=data.email, phone=data.phone, role=data.role, status="active",
+        password_hash=await asyncio.to_thread(hash_password, temp_password),
+        permissions=list(EMPLOYEE_DEFAULTS), employee_code=data.employee_code, branch=data.branch,
+        reporting_to=data.reporting_to, approved_by=admin.id, approved_at=datetime.now(timezone.utc),
+    )
+    db.add(user)
+    try:
+        await db.flush()
+    except IntegrityError:  # the same email saved at the same moment by another request
+        await db.rollback()
+        raise AppError(409, "email_taken", "An account with this email already exists.")
+    audit_service.record(db, actor=admin, action="user.created", entity_type="user", entity_id=user.id,
+                         after={"email": user.email, **{k: getattr(user, k) for k in STAFF_FIELDS}})
+    await db.commit()
+    return user, temp_password
+
+
+async def update_user(db: AsyncSession, admin: User, user_id: int, data) -> User:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise AppError(404, "not_found", "User not found.")
+    _check_can_manage(admin, user)
+    if admin.role != "admin":  # same rule as approve(): existing accounts are the admin's to change
+        raise AppError(403, "forbidden", "Only an admin can change an existing account.")
+    await _check_staff_details(db, admin, user.id, data)
+    before = {k: getattr(user, k) for k in STAFF_FIELDS}
+    for k in STAFF_FIELDS:
+        setattr(user, k, getattr(data, k))
+    audit_service.record(db, actor=admin, action="user.updated", entity_type="user", entity_id=user.id,
+                         before=before, after={k: getattr(user, k) for k in STAFF_FIELDS})
+    await db.commit()
+    return user
+
+
+# Profile photos are files owned by the user ("user", "<id>"). Every staff member may see them (they show
+# next to names); only the person or someone who manages staff may upload one. The account must exist, and
+# an admin's photo is only an admin's to change (same rule as "only an admin makes someone an admin").
+async def _photo_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
+    if action == "read":
+        return True
+    if owner_id == str(user.id):
+        return True
+    if "staff.approve" not in effective_permissions(user.role, user.permissions) or not owner_id.isdigit():
+        return False
+    owner = await db.get(User, int(owner_id))
+    return owner is not None and (owner.role != "admin" or user.role == "admin")
+
+
+file_service.register_owner("user", _photo_access)
+
+
 # ---------- Profile ----------
-def profile_out(u: User) -> dict:
+async def profile_out(db: AsyncSession, u: User) -> dict:
+    boss = await db.get(User, u.reporting_to) if u.reporting_to else None
     return {"id": u.id, "name": u.name, "email": u.email, "phone": u.phone or "", "role": u.role,
-            "categories": u.categories or [], "notify_email": u.notify_email, "notify_whatsapp": u.notify_whatsapp}
+            "categories": u.categories or [], "notify_email": u.notify_email, "notify_whatsapp": u.notify_whatsapp,
+            # Set by the admin; shown read-only on the profile
+            "employee_code": u.employee_code, "branch": u.branch, "reporting_to_name": boss.name if boss else ""}
 
 
 async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
@@ -180,7 +268,7 @@ async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
     audit_service.record(db, actor=user, action="user.profile", entity_type="user", entity_id=user.id,
                          before=before, after=changes)
     await db.commit()
-    return profile_out(user)
+    return await profile_out(db, user)
 
 
 async def change_password(db: AsyncSession, user: User, current: str, new: str, keep_token_hash: str) -> None:

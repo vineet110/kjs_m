@@ -66,6 +66,33 @@ class LeadOut(BaseModel):
     sla_label: str = ""
     respond_due_at: datetime | None = None
     resolve_due_at: datetime | None = None
+    updated_at: datetime | None = None
+    created_by_name: str | None = None  # internal leads: who typed it in
+
+
+class InternalLeadIn(BaseModel):
+    """A lead staff type in by hand (a phone call, a trade fair, a walk-in). It is theirs from the start."""
+    name: OneLine = Field(min_length=2, max_length=120)
+    company: OneLine = Field(default="", max_length=200)
+    email: Email | None = None
+    phone: RequiredPhone = Field(max_length=30)
+    country: OneLine = Field(default="", max_length=80)
+    buyer_type: OneLine = Field(default="", max_length=40)
+    category_slug: str | None = Field(default=None, max_length=120)
+    quantity: OneLine = Field(default="", max_length=120)
+    message: str = Field(default="", max_length=4000)
+
+
+class Contact(BaseModel):
+    """One person who sent us enquiries (leads with the same phone number, or email, are one contact)."""
+    lead_id: int  # their newest enquiry: the contact page opens on it
+    name: str
+    email: str
+    phone: str
+    active: int  # open enquiries (new or contacted)
+    inactive: int  # closed ones
+    total: int
+    last_at: datetime
 
 
 class KokoIn(BaseModel):
