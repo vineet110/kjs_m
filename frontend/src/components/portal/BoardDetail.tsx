@@ -1,10 +1,11 @@
 'use client';
-// One order board: a summary, the steps as a timeline, and tabs for Steps, Files and People.
+// One order board: a summary, the steps as a timeline, and tabs for Steps, Files, People and History.
 // Everyone on the board sees it and updates it (checklists, files). A step's people (its head
 // included) or the owner mark it done. The owner (or boards.manage) changes people and finishes it.
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiFailure, type Board, type BoardStep, type BoardSummary, type Colleague } from '@/lib/api';
+import BoardHistory from './BoardHistory';
 import FileList from './FileList';
 import { Icon } from './icons';
 import { useToast } from './Toast';
@@ -39,7 +40,7 @@ function Avatar({ name, head = false }: { name: string; head?: boolean }) {
   );
 }
 
-type Tab = 'steps' | 'files' | 'people';
+type Tab = 'steps' | 'files' | 'people' | 'history';
 
 export default function BoardDetail({ code, backHref }: { code: string; backHref: string }) {
   const [b, setB] = useState<Board | null>(null);
@@ -101,10 +102,10 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
         {b.final_status && <p className="text-sm">Final status: <b>{b.final_status}</b></p>}
       </header>
 
-      <div role="tablist" aria-label="Board sections" className="flex gap-1 border-b">
-        {([['steps', `Steps (${b.steps.length})`], ['files', 'Files'], ['people', `People (${b.people.length})`]] as [Tab, string][]).map(([t, label]) => (
+      <div role="tablist" aria-label="Board sections" className="flex gap-1 overflow-x-auto overflow-y-hidden border-b">
+        {([['steps', `Steps (${b.steps.length})`], ['files', 'Files'], ['people', `People (${b.people.length})`], ['history', 'History']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${tab === t ? 'border-gold text-ink' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm font-semibold ${tab === t ? 'border-gold text-ink' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             {label}
           </button>
         ))}
@@ -130,6 +131,8 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
       )}
 
       {tab === 'people' && <PeoplePanel b={b} staff={staff} run={run} />}
+
+      {tab === 'history' && <BoardHistory code={b.code} version={b} />}
 
       {b.can_edit && running && (
         <section className="card flex flex-wrap items-center gap-2 p-4">
