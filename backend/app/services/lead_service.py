@@ -171,15 +171,38 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
 
 
 # ---------- Lead management: contacts, one lead, internal leads, tasks on a lead ----------
-def contact_key(lead: Lead) -> str:
-    """Leads of the same person share a key: the phone's digits (the last 10, so "+91 98765 43210" and
-    "9876543210" match), else the email, else the lead itself (nothing to match on)."""
+def _match_keys(lead: Lead) -> list[str]:
+    """What ties a lead to a person: its full phone number (every digit, country code included, so
+    "+91 98765 43210" and "+1 98765 43210" stay two people) and its email."""
+    keys = []
     digits = "".join(ch for ch in lead.phone if ch in "0123456789")
     if len(digits) >= 6:
-        return f"p:{digits[-10:]}"
+        keys.append(f"p:{digits}")
     if lead.email:
-        return f"e:{lead.email.lower()}"
-    return f"l:{lead.id}"
+        keys.append(f"e:{lead.email.lower()}")
+    return keys
+
+
+def group_contacts(leads: list[Lead]) -> list[list[Lead]]:
+    """Leads of the same person, grouped. Two leads are one person when they share the phone OR the email,
+    also through a third lead (A and B share a phone, B and C an email: all three are one person).
+    Keeps the order given (newest first), inside each group and between groups."""
+    parent = list(range(len(leads)))  # "union-find": each lead points towards its group's first lead
+
+    def top(i: int) -> int:
+        while parent[i] != i:
+            i = parent[i]
+        return i
+
+    first_with: dict[str, int] = {}
+    for i, lead in enumerate(leads):
+        for k in _match_keys(lead):
+            a, b = top(i), top(first_with.setdefault(k, i))
+            parent[max(a, b)] = min(a, b)  # the newer lead stays the group's head
+    groups: dict[int, list[Lead]] = {}
+    for i, lead in enumerate(leads):
+        groups.setdefault(top(i), []).append(lead)
+    return list(groups.values())
 
 
 def _visible(q, user: User):
@@ -190,29 +213,27 @@ def _visible(q, user: User):
 
 
 async def contacts(db: AsyncSession, user: User) -> list[dict]:
-    """One row per person, newest first. Grouped in Python: a few thousand leads is nothing, and the
-    phone matching rule (last 10 digits) is easier to read here than in SQL."""
+    """One row per person, newest first. Grouped in Python (group_contacts): a few thousand leads is
+    nothing, and "same phone or same email" is easier to read here than in SQL."""
     q = _visible(select(Lead).order_by(Lead.created_at.desc(), Lead.id.desc()), user).limit(5000)
-    groups: dict[str, dict] = {}
-    for lead in (await db.scalars(q)).all():
-        k = contact_key(lead)
-        g = groups.get(k)
-        if g is None:  # newest lead first: its name / email / phone are the ones shown
-            g = groups[k] = {"lead_id": lead.id, "name": lead.name, "email": lead.email, "phone": lead.phone,
-                             "active": 0, "inactive": 0, "total": 0, "last_at": lead.created_at}
-        g["email"] = g["email"] or lead.email  # an older enquiry may carry the email the newest one left out
-        g["total"] += 1
-        g["inactive" if lead.status == "closed" else "active"] += 1
-    return list(groups.values())
+    out = []
+    for g in group_contacts(list((await db.scalars(q)).all())):
+        newest = g[0]  # its name / phone are the ones shown
+        inactive = sum(x.status == "closed" for x in g)
+        out.append({"lead_id": newest.id, "name": newest.name, "phone": newest.phone,
+                    # an older enquiry may carry the email the newest one left out
+                    "email": next((x.email for x in g if x.email), newest.email),
+                    "active": len(g) - inactive, "inactive": inactive, "total": len(g), "last_at": newest.created_at})
+    return out
 
 
 async def contact_detail(db: AsyncSession, user: User, lead_id: int) -> dict:
     """One lead, with every other enquiry of the same person (for the contact page)."""
     lead = await _lead_for(db, user, lead_id)
-    key = contact_key(lead)
-    # Same matching as the contacts list, so both always agree on who belongs to whom
-    q = _visible(select(Lead).order_by(Lead.created_at.desc()), user).limit(5000)
-    same = [x.id for x in (await db.scalars(q)).all() if contact_key(x) == key]
+    # Same grouping as the contacts list, so both always agree on who belongs to whom
+    q = _visible(select(Lead).order_by(Lead.created_at.desc(), Lead.id.desc()), user).limit(5000)
+    groups = group_contacts(list((await db.scalars(q)).all()))
+    same = next(([x.id for x in g] for g in groups if any(x.id == lead.id for x in g)), [])
     rows = await list_for(db, user, all_leads=True, limit=200, lead_ids=same or [lead.id])
     this = next((r for r in rows if r.id == lead.id), None)
     if this is None:  # can see it (checked above) but the list didn't bring it: never expected

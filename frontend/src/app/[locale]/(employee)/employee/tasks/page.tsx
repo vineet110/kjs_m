@@ -38,7 +38,8 @@ export default function TasksPage() {
         method: 'POST',
         body: {
           title: f.title, notes: f.notes ?? '',
-          due_at: f.due ? new Date(f.due).toISOString() : null,
+          // The box shows IST, whatever the computer's own time zone: read it as IST (+05:30)
+          due_at: f.due ? new Date(`${f.due}:00+05:30`).toISOString() : null,
           assignee_id: f.assignee_id ? Number(f.assignee_id) : null,
         },
       });
@@ -57,7 +58,7 @@ export default function TasksPage() {
       <PageTitle title="Tasks" sub="Due times in IST." />
       <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-4">
         <div className="md:col-span-2"><label className="label">Task</label><input name="title" required minLength={2} maxLength={200} className="input" placeholder="Send spec sheet to Al Noor" /></div>
-        <div><label className="label">Due</label><input type="datetime-local" name="due" className="input" /></div>
+        <div><label className="label">Due (IST)</label><input type="datetime-local" name="due" className="input" /></div>
         {canAssign ? (
           <div><label className="label">For</label>
             <select name="assignee_id" className="input"><option value="">Me</option>{staff.filter((c) => c.id !== me.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>

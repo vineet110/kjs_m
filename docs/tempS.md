@@ -50,3 +50,9 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - New migration 0015 (users: employee_code, branch, reporting_to; leads: created_by). Tell Vineet before he adds a migration.
 - New routes: `GET /employee/contacts`, `GET /employee/contacts/{lead_id}`, `POST /employee/leads`, `?source=` on both lead lists, `POST /admin/users`, `PATCH /admin/users/{id}`. Tests: `tests/test_lead_management.py` (14), full suite 194 passed.
 - The "Let's connect" popup text change that was uncommitted on `preview/all` is in `git stash` ("ConnectPopup text change"), not in this branch.
+
+### Lead management: second review fixes (7 Nov)
+
+- "Reporting to" can be empty (top of the chain). Form option "No one (top of the chain)"; the backend skips the manager checks when empty.
+- Task due times are read as IST (`+05:30`) on the contact page and the Tasks page, whatever the computer's time zone.
+- Contacts: two leads are one person when they share the full phone number (country code included) OR the email, also through a third lead (`group_contacts` in `lead_service.py`). The list and the contact page use the same grouping.
