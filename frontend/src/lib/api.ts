@@ -190,14 +190,22 @@ export type StoredFile = {
 export type BoardStep = {
   id: number; position: number; name: string; percent: number | null; days: number | null;
   planned_start: string; planned_end: string; status: 'pending' | 'active' | 'done'; started_at: string | null; done_at: string | null;
-  used_pct: number; task_templates: string[]; checklist: { text: string; done: boolean }[]; members: Colleague[];
+  used_pct: number; task_templates: string[]; checklist: { text: string; done: boolean }[];
+  members: (Colleague & { is_head: boolean })[]; // the step's people; heads first
 };
+/** Someone on a board: the owner first, then by name. `steps` = positions of the steps they work on. */
+export type BoardPerson = Colleague & { is_owner: boolean; steps: number[] };
 export type BoardSummary = {
   code: string; name: string; client: string; priority: string; start: string; deadline: string; split_mode: string;
   status: string; final_status: string | null; notes: string; state: 'on_track' | 'at_risk' | 'late_board' | 'finished';
   steps_done: number; steps_total: number; current_step: string | null; current_used_pct: number | null;
 };
-export type Board = BoardSummary & { steps: BoardStep[]; my_step_ids: number[]; can_manage: boolean };
+export type Board = BoardSummary & {
+  steps: BoardStep[]; my_step_ids: number[]; can_manage: boolean;
+  owner: { id: number | null; name: string }; people: BoardPerson[];
+  can_edit: boolean; // owner or boards.manage: people, step people, finishing
+  can_decide_deletes: boolean; // may approve / reject file delete requests on this board
+};
 
 // ---------- Public content ----------
 export type PublicConfig = {

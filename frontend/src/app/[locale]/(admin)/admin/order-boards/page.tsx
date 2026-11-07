@@ -6,8 +6,8 @@ import { fmtDay, Msg, PageTitle, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type BoardSummary, type Colleague } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 
-type StepDraft = { name: string; size: number; member_ids: number[]; tasks: string; checklist: string };
-const NEW_STEP: StepDraft = { name: '', size: 0, member_ids: [], tasks: '', checklist: '' };
+type StepDraft = { name: string; size: number; member_ids: number[]; head_ids: number[]; tasks: string; checklist: string };
+const NEW_STEP: StepDraft = { name: '', size: 0, member_ids: [], head_ids: [], tasks: '', checklist: '' };
 
 export default function AdminBoards() {
   const [boards, setBoards] = useState<BoardSummary[] | null>(null);
@@ -23,7 +23,7 @@ export default function AdminBoards() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title="Order boards" sub="Steps are planned on working days (Mon–Sat minus holidays). Alerts at 50, 85 and 100% of a step's time.">
+      <PageTitle title="Order boards" sub="Steps are planned on working days (Mon–Sat minus holidays). Alerts at 50, 85 and 100% of a step's time. You own the boards you create.">
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Show finished</label>
           <button onClick={() => setCreating(!creating)} className="btn-dark">{creating ? 'Close form' : 'New board'}</button>
@@ -68,13 +68,15 @@ function NewBoard({ onDone }: { onDone: () => void }) {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    const empty = steps.find((s) => s.member_ids.length === 0);
+    if (empty) return setMsg({ ok: false, text: `Step "${empty.name || 'unnamed'}" needs at least one person.` });
     try {
       await api('/boards', {
         method: 'POST',
         body: {
           ...head,
           steps: steps.map((s) => ({
-            name: s.name, member_ids: s.member_ids, task_templates: lines(s.tasks), checklist: lines(s.checklist),
+            name: s.name, member_ids: s.member_ids, head_ids: s.head_ids.filter((h) => s.member_ids.includes(h)), task_templates: lines(s.tasks), checklist: lines(s.checklist),
             ...(head.split_mode === 'percent' ? { percent: s.size } : { days: s.size }),
           })),
         },
@@ -111,10 +113,28 @@ function NewBoard({ onDone }: { onDone: () => void }) {
             <div className="md:col-span-3"><label className="label">Step {i + 1}</label><input value={s.name} onChange={(e) => setStep(i, { name: e.target.value })} required minLength={2} className="input" /></div>
             <div className="md:col-span-2"><label className="label">{head.split_mode === 'percent' ? '% of time' : 'Working days'}</label><input type="number" min={1} value={s.size || ''} onChange={(e) => setStep(i, { size: Number(e.target.value) })} required className="input" /></div>
             <div className="md:col-span-3">
-              <label className="label">Members</label>
-              <select multiple value={s.member_ids.map(String)} onChange={(e) => setStep(i, { member_ids: Array.from(e.target.selectedOptions).map((o) => Number(o.value)) })} className="input h-20">
-                {staff.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <label className="label">People (★ = head)</label>
+              <ul className="h-28 divide-y overflow-y-auto rounded-lg border bg-white text-sm" aria-label={`People on step ${i + 1}`}>
+                {staff.map((c) => {
+                  const on = s.member_ids.includes(c.id), head = s.head_ids.includes(c.id);
+                  return (
+                    <li key={c.id} className="flex items-center gap-2 px-2 py-1">
+                      <label className="flex flex-1 items-center gap-2">
+                        <input type="checkbox" checked={on} onChange={() => setStep(i, on
+                          ? { member_ids: s.member_ids.filter((m) => m !== c.id), head_ids: s.head_ids.filter((h) => h !== c.id) }
+                          : { member_ids: [...s.member_ids, c.id] })} />
+                        {c.name}
+                      </label>
+                      {on && (
+                        <button type="button" aria-pressed={head} title="Head of this step"
+                          onClick={() => setStep(i, { head_ids: head ? s.head_ids.filter((h) => h !== c.id) : [...s.head_ids, c.id] })}
+                          className={`rounded px-1.5 text-xs font-semibold ${head ? 'bg-gold text-ink' : 'text-slate-400 hover:text-gold-dark'}`}>★</button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {s.member_ids.length === 0 && <p className="mt-1 text-xs text-amber-700">Pick at least one person.</p>}
             </div>
             <div className="md:col-span-2"><label className="label">Tasks (one per line)</label><textarea value={s.tasks} onChange={(e) => setStep(i, { tasks: e.target.value })} rows={3} className="input" /></div>
             <div className="md:col-span-2"><label className="label">Checklist (one per line)</label><textarea value={s.checklist} onChange={(e) => setStep(i, { checklist: e.target.value })} rows={3} className="input" /></div>
