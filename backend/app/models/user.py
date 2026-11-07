@@ -25,6 +25,10 @@ class User(Base, TimestampMixin):
     notify_whatsapp: Mapped[bool] = mapped_column(Boolean, default=False)  # opt-in (after Meta verification)
     joined_on: Mapped[date | None] = mapped_column(Date, default=date.today)
     shift_id: Mapped[int | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"), nullable=True)
+    # Set by the admin (User Creation Form). Staff see them on their profile but can't change them.
+    employee_code: Mapped[str] = mapped_column(String(40), default="")
+    branch: Mapped[str] = mapped_column(String(80), default="")
+    reporting_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

@@ -1,20 +1,42 @@
 'use client';
-// Profile: my details, notification settings, password.
+// Profile: my details, notification settings, password. On the right, my profile card (same look as the
+// admin's User Creation Form). Employee code, branch, role and reporting to are set by the admin: shown
+// here, not editable. My photo I can change myself.
 import { useEffect, useState } from 'react';
 import { Msg, PageTitle } from '@/components/portal/ui';
+import UserCard, { uploadPhoto, usePhoto } from '@/components/portal/UserCard';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 
-type Profile = { id: number; name: string; email: string; phone: string; role: string; categories: string[]; notify_email: boolean; notify_whatsapp: boolean };
+type Profile = {
+  id: number; name: string; email: string; phone: string; role: string; categories: string[]; notify_email: boolean; notify_whatsapp: boolean;
+  employee_code: string; branch: string; reporting_to_name: string;
+};
 
 export default function ProfilePage() {
   const [p, setP] = useState<Profile | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [photoVersion, setPhotoVersion] = useState(0);
+  const photo = usePhoto(p?.id ?? null, photoVersion);
   useEffect(() => {
     api<Profile>('/auth/profile').then(setP);
   }, []);
+
+  async function changePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !p) return;
+    try {
+      await uploadPhoto(p.id, file);
+      setPhotoVersion((n) => n + 1);
+      setPhotoMsg({ ok: true, text: 'Photo updated.' });
+    } catch (err) {
+      setPhotoMsg({ ok: false, text: err instanceof ApiFailure ? err.message : 'Could not upload the photo.' });
+    }
+    e.target.value = '';
+  }
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -52,8 +74,10 @@ export default function ProfilePage() {
 
   if (!p) return <Loading />;
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <PageTitle title="Profile" sub={`${p.email} · ${p.role}${p.categories.length ? ` · categories: ${p.categories.join(', ')}` : ''}`} />
+      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
       <form onSubmit={save} className="card space-y-3 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label">Name</label><input name="name" defaultValue={p.name} required minLength={2} className="input" /></div>
@@ -77,6 +101,20 @@ export default function ProfilePage() {
         <Msg msg={pwMsg} />
         <button className="btn-dark">Change password</button>
       </form>
+      </div>
+      <div className="space-y-3">
+        <UserCard
+          v={{ name: p.name, email: p.email, phone: p.phone, employee_code: p.employee_code, branch: p.branch, role: p.role, reporting_to: p.reporting_to_name }}
+          photo={photo}
+        />
+        <div className="card space-y-2 p-4 text-sm">
+          <label className="label" htmlFor="me-photo">Profile Image</label>
+          <input id="me-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={changePhoto} className="input py-1.5" />
+          <Msg msg={photoMsg} />
+          <p className="text-xs text-slate-500">Employee code, branch, role and reporting to are set by the admin. Ask them to change these.</p>
+        </div>
+      </div>
+      </div>
     </div>
   );
 }

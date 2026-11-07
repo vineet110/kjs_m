@@ -14,7 +14,7 @@ from app.core.permissions import PERMISSIONS, effective_permissions
 from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
-from app.schemas.auth import ApproveIn, UserOut
+from app.schemas.auth import ApproveIn, UserCreateIn, UserOut, UserUpdateIn
 from app.schemas.catalog import ProductIn, ProductOut, ProductPatchIn
 from app.schemas.lead import LeadOut
 from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
@@ -63,6 +63,20 @@ async def approve_user(
     return await auth_service.approve(db, admin, user_id, data.permissions)
 
 
+@router.post("/users", status_code=201)
+async def create_user(data: UserCreateIn, admin: User = Depends(require_permission("staff.approve")),
+                      db: AsyncSession = Depends(get_db)):
+    """User Creation Form. The one-time password is shown to the admin once, never stored readable."""
+    user, temp_password = await auth_service.create_user(db, admin, data)
+    return {"user": UserOut.model_validate(user).model_dump(), "temp_password": temp_password}
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+async def update_user(user_id: int, data: UserUpdateIn, admin: User = Depends(require_permission("staff.approve")),
+                      db: AsyncSession = Depends(get_db)):
+    return await auth_service.update_user(db, admin, user_id, data)
+
+
 class StatusIn(BaseModel):
     status: Literal["active", "disabled"]
 
@@ -103,11 +117,13 @@ async def update_product(
 @router.get("/leads", response_model=list[LeadOut])
 async def all_leads(
     status: str | None = None, owner: int | None = None, sla: str | None = None,
+    source: str | None = Query(None, max_length=30),  # e.g. "koko", "internal"
     offset: int = Query(0, ge=0),  # 500 per page: offset=500 for the next page
     user: User = Depends(require_permission("leads.view_all")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=500, offset=offset)
+    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=500, offset=offset,
+                                       source=source)
 
 
 class AssignIn(BaseModel):

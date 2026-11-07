@@ -59,8 +59,8 @@ class ProfileIn(BaseModel):
 
 
 @router.get("/profile")
-async def profile(user: User = Depends(current_user)):
-    return auth_service.profile_out(user)
+async def profile(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await auth_service.profile_out(db, user)
 
 
 @router.patch("/profile")

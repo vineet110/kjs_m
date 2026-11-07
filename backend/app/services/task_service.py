@@ -31,6 +31,9 @@ def _out(t: Task, names: dict[int, str], now: datetime) -> dict:
             "completed_at": t.completed_at, "created_at": t.created_at}
 
 
+task_out = _out  # for other services that show tasks (e.g. the tasks on a lead)
+
+
 async def _names(db: AsyncSession) -> dict[int, str]:
     return dict((await db.execute(select(User.id, User.name))).all())
 

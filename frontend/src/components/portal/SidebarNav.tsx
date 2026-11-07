@@ -23,10 +23,19 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/employee/dashboard', label: 'My day', icon: 'sun', perm: null },
       { href: '/employee/attendance', label: 'Attendance', icon: 'clock', perm: null },
-      { href: '/employee/tasks', label: 'My tasks', icon: 'tasks', perm: null },
       { href: '/employee/batches', label: 'My batches', icon: 'layers', perm: null },
       { href: '/employee/order-boards', label: 'Order boards', icon: 'board', perm: null },
       { href: '/employee/me', label: 'Profile', icon: 'user', perm: null },
+    ],
+  },
+  {
+    // Same pages for admin and staff: leads.view_all sees everyone's leads, others their own + unassigned
+    group: 'Lead Management',
+    items: [
+      { href: '/employee/contacts', label: 'Contacts', icon: 'contact', perm: 'leads.view' },
+      { href: '/employee/tasks', label: 'Tasks', icon: 'tasks', perm: null },
+      { href: '/employee/koko-leads', label: 'Koko Lead', icon: 'chat', perm: 'leads.view' },
+      { href: '/employee/internal-leads', label: 'Internal lead', icon: 'userPlus', perm: 'leads.view' },
     ],
   },
   {
@@ -37,7 +46,8 @@ const NAV: NavGroup[] = [
     group: 'People',
     items: [
       { href: '/admin/approvals', label: 'Approvals', icon: 'check', perm: APPROVE_PERMS, badge: 'approvals' },
-      { href: '/admin/team-attendance', label: 'Team attendance', icon: 'users', perm: 'attendance.manage' },
+      { href: '/admin/users', label: 'Users', icon: 'users', perm: 'staff.approve' },
+      { href: '/admin/team-attendance', label: 'Team attendance', icon: 'clock', perm: 'attendance.manage' },
     ],
   },
   {
