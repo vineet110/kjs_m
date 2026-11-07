@@ -176,6 +176,20 @@ async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[S
         raise AppError(404, "not_found", "File not found.") from e
 
 
+async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, Path | bytes]:
+    """The file's bytes for the in-page preview (staff only, same access as download). Always sent by
+    our API, never a storage link: the page shows it inside our own site, and R2 stays private."""
+    f = await _get(db, file_id)
+    await _check(db, user, f.owner_type, f.owner_id, "read")
+    store = storage()
+    try:
+        if hasattr(store, "file_path"):
+            return f, store.file_path(f.key)
+        return f, await asyncio.to_thread(store.get, f.key)
+    except StorageError as e:
+        raise AppError(404, "not_found", "File not found.") from e
+
+
 async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str) -> dict:
     f = await _get(db, file_id, lock=True)
     await _check(db, user, f.owner_type, f.owner_id, "write")  # seeing a file isn't enough to ask to delete it

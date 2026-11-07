@@ -117,3 +117,40 @@ async def test_approvals_inbox_sections_follow_permissions(client):
     inbox = (await client.get("/api/v1/admin/approvals")).json()
     assert [u["email"] for u in inbox["signups"]] == ["new@kjsindia.com"]
     assert inbox["regularizations"] == [] and inbox["file_deletes"] == []
+
+
+async def test_view_shows_the_file_in_the_page_to_allowed_staff_only(client):
+    """In-page preview (order boards PR 2): inline, never cached, nosniff; sandboxed except PDFs."""
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await make_user("e@kjsindia.com")
+    await login(client, "cat@kjsindia.com")
+    pdf = (await _upload(client)).json()["id"]
+    csv = (await _upload(client, file=("prices.csv", b"item,qty\nA,1\n", "text/csv"))).json()["id"]
+
+    r = await client.get(f"/api/v1/files/{pdf}/view")
+    assert r.status_code == 200 and r.content == b"%PDF-1.4 test"
+    assert r.headers["content-type"] == "application/pdf" and r.headers["content-disposition"] == "inline"
+    assert r.headers["cache-control"] == "private, no-store" and r.headers["x-content-type-options"] == "nosniff"
+    assert "content-security-policy" not in r.headers  # Chrome's PDF viewer won't open a sandboxed PDF
+    r = await client.get(f"/api/v1/files/{csv}/view")
+    assert r.status_code == 200 and r.content == b"item,qty\nA,1\n"
+    assert r.headers["content-security-policy"] == "sandbox" and r.headers["content-type"].startswith("text/csv")
+
+    client.cookies.clear()
+    assert (await client.get(f"/api/v1/files/{pdf}/view")).status_code == 401
+
+
+async def test_view_of_a_board_file_only_for_people_on_the_board(client):
+    from tests.test_boards import _ids, board_body
+    await make_user("boss@kjsindia.com", permissions=["leads.view", "boards.manage"])
+    await make_user("pack@kjsindia.com")
+    await make_user("other@kjsindia.com")
+    pack, = await _ids("pack@kjsindia.com")
+    await login(client, "boss@kjsindia.com")
+    assert (await client.post("/api/v1/boards", json=board_body(pack, pack), headers=HDR)).status_code == 201
+    fid = (await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
+                             files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()["id"]
+    await login(client, "pack@kjsindia.com")
+    assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 200
+    await login(client, "other@kjsindia.com")
+    assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 403

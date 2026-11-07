@@ -1,8 +1,12 @@
 'use client';
-// Files of one owner (an order board, a product): upload, download, ask to delete.
-// Deleting needs an approver (files.approve), so staff can't lose documents by accident.
+// Files of one owner (an order board, a product): upload, preview, download, ask to delete.
+// Deleting needs an approver (files.approve, or e.g. the board's owner), so staff can't lose documents by accident.
+// Preview: click a file to see it beside the list (half the width on a computer, below it on a phone),
+// or full screen (Esc closes). Download is always there too.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, upload, type StoredFile } from '@/lib/api';
+import { downloadUrl } from '@/lib/preview';
+import FilePreview from './FilePreview';
 import { fmtIST, Pill } from './ui';
 
 function size(n: number) {
@@ -18,6 +22,19 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const [isPublic, setIsPublic] = useState(publicToggle);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [full, setFull] = useState(false);
+  const open = files.find((f) => f.id === openId) ?? null; // a deleted file closes by itself
+
+  // Full screen: Esc goes back to the side panel, and the page behind doesn't scroll
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false);
+    document.addEventListener('keydown', onKey);
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
+  }, [full]);
 
   const load = useCallback(() => {
     api<StoredFile[]>(`/files?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`).then(setFiles).catch(() => setFiles([]));
@@ -83,14 +100,19 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
         </div>
       )}
       {err && <p className="text-sm text-red-700">{err}</p>}
-      <div className="divide-y rounded-lg border">
+      <div className={open && !full ? 'grid gap-3 lg:grid-cols-2' : ''}>
+      <div className="h-fit divide-y rounded-lg border bg-white">
         {files.length === 0 && <p className="p-3 text-sm text-slate-500">No files yet.</p>}
         {files.map((f) => (
-          <div key={f.id} className="flex flex-wrap items-center gap-2 p-2 text-sm">
-            <a href={`/api/v1/files/${f.id}/download`} className="font-medium underline">{f.name}</a>
+          <div key={f.id} className={`flex flex-wrap items-center gap-2 p-2 text-sm ${f.id === openId ? 'bg-gold/10' : ''}`}>
+            <button onClick={() => { setOpenId(f.id === openId ? null : f.id); setFull(false); }} aria-pressed={f.id === openId}
+              className="text-left font-medium underline">
+              {f.name}
+            </button>
             <span className="text-xs text-slate-500">{size(f.size)} · {f.uploaded_by_name} · {fmtIST(f.created_at)}</span>
             {f.is_public && <Pill value="ok" label="on website" />}
             <span className="ml-auto flex items-center gap-2">
+              <a href={downloadUrl(f.id)} className="text-xs underline">Download</a>
               {f.delete_status === 'requested'
                 ? <Pill value="pending" label="delete requested" />
                 : <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
@@ -106,6 +128,19 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
             )}
           </div>
         ))}
+      </div>
+      {open && (
+        <section aria-label={`Preview of ${open.name}`}
+          className={full ? 'fixed inset-0 z-50 flex flex-col gap-3 bg-paper p-4' : 'flex h-[75vh] flex-col gap-2 rounded-lg border bg-paper p-3 lg:sticky lg:top-16'}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={open.name}>{open.name}</p>
+            <button onClick={() => setFull(!full)} className="btn-ghost py-1 text-xs">{full ? 'Exit full screen' : 'Full screen'}</button>
+            <a href={downloadUrl(open.id)} className="btn-ghost py-1 text-xs">Download</a>
+            <button onClick={() => { setOpenId(null); setFull(false); }} className="btn-ghost py-1 text-xs" aria-label="Close preview">Close</button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto"><FilePreview file={open} /></div>
+        </section>
+      )}
       </div>
     </div>
   );

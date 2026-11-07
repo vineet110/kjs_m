@@ -309,3 +309,34 @@ test('approvalsChanged() reaches the sidebar badge listener, and stops after it 
     globalThis.window = before;
   }
 });
+
+// ---------- in-page file preview (lib/preview.ts, order boards PR 2) ----------
+const previewLib = await load('preview');
+const { previewKind, colName } = previewLib;
+
+test('previewKind: how each uploaded type is shown', () => {
+  const k = (name, content_type) => previewKind({ name, content_type });
+  assert.equal(k('po.pdf', 'application/pdf'), 'pdf');
+  assert.equal(k('label.PNG', 'image/png'), 'image');
+  assert.equal(k('prices.csv', 'text/csv'), 'sheet');
+  assert.equal(k('plan.XLSX', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), 'sheet');
+  assert.equal(k('old.xls', 'application/vnd.ms-excel'), 'sheet');
+  assert.equal(k('spec.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 'word');
+  assert.equal(k('notes.txt', 'text/plain'), 'text');
+  for (const [n, t] of [['old.doc', 'application/msword'], ['all.zip', 'application/zip'], ['noext', 'text/plain']]) {
+    assert.equal(k(n, t), 'none', n);
+  }
+});
+
+test('colName: Excel column letters', () => {
+  assert.deepEqual([0, 1, 25, 26, 27, 51, 52, 701, 702].map(colName), ['A', 'B', 'Z', 'AA', 'AB', 'AZ', 'BA', 'ZZ', 'AAA']);
+});
+
+test('safeLinks: only web and email links keep their address in a Word preview', () => {
+  const { safeLinks } = previewLib;
+  assert.equal(safeLinks('<a href="https://kjsindia.com">a</a>'), '<a href="https://kjsindia.com">a</a>');
+  assert.equal(safeLinks('<a href="mailto:x@y.in">m</a>'), '<a href="mailto:x@y.in">m</a>');
+  for (const bad of ['javascript:alert(1)', 'JavaScript:alert(1)', ' javascript:x', 'java\tscript:x', 'data:text/html,x', 'vbscript:x', '//evil.com', 'file:///c:/x']) {
+    assert.equal(safeLinks(`<a href="${bad}">b</a>`), '<a>b</a>', bad);
+  }
+});
