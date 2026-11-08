@@ -134,7 +134,8 @@ async def list_files(db: AsyncSession, user: User, owner_type: str, owner_id: st
         StoredFile.owner_type == owner_type, StoredFile.owner_id == owner_id, StoredFile.deleted_at.is_(None))
         .order_by(StoredFile.id.desc()))).all()
     names = dict((await db.execute(select(User.id, User.name))).all())
-    return [out(f, names) for f in rows]
+    # own_request: this person asked for the delete, so someone else must decide it (admins excepted)
+    return [out(f, names) | {"own_request": f.delete_requested_by == user.id and user.role != "admin"} for f in rows]
 
 
 async def public_files(db: AsyncSession, owner_type: str, owner_id: str) -> list[dict]:
@@ -149,7 +150,7 @@ async def public_files(db: AsyncSession, owner_type: str, owner_id: str) -> list
 
 async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile:
     # lock=True: hold the row until commit, so two approvers can't decide the same request at once
-    f = await db.get(StoredFile, file_id, with_for_update=lock)
+    f = await db.get(StoredFile, file_id, with_for_update=lock, populate_existing=lock)
     if f is None or f.deleted_at is not None:
         raise AppError(404, "not_found", "File not found.")
     return f
@@ -216,9 +217,13 @@ async def delete_requests(db: AsyncSession) -> list[dict]:
 
 
 async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve: bool) -> dict:
-    f = await _get(db, file_id, lock=True)
-    if not await can_decide(db, approver, f.owner_type, f.owner_id):
+    # Check rights on a plain read first: someone who may not decide gets the same 403 whether the
+    # file exists or not, and never takes the row lock.
+    f = await db.get(StoredFile, file_id)
+    allowed = f is not None and await can_decide(db, approver, f.owner_type, f.owner_id)
+    if not allowed and "files.approve" not in effective_permissions(approver.role, approver.permissions):
         raise AppError(403, "forbidden", "Only the owner or an approver can decide this.")
+    f = await _get(db, file_id, lock=True)
     if f.delete_status != "requested":
         raise AppError(409, "not_requested", "No delete request for this file.")
     if f.delete_requested_by == approver.id and approver.role != "admin":

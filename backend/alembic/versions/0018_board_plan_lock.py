@@ -5,16 +5,16 @@ step sizes, adding, renaming, removing and reordering steps). Existing boards st
 
 Only adds a column with a default: no data can be lost.
 
-Revision ID: 0017
-Revises: 0016
+Revision ID: 0018
+Revises: 0017
 """
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = '0017'
-down_revision: Union[str, None] = '0016'
+revision: str = '0018'
+down_revision: Union[str, None] = '0017'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

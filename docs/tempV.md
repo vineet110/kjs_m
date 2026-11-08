@@ -104,8 +104,8 @@ Vineet's decisions (7 Nov): remove a step = anyone while unlocked, only steps no
 deleted (History keeps a copy), its tasks closed with a note (not deleted); the plan can change any time;
 the owner can lock it; the lock covers the whole plan; only steps not started can be moved.
 
-1. Migration 0017: `order_boards.plan_locked` (false for old boards). Only adds a column. Checked on the
-   test database: upgrade, downgrade, upgrade. Nishita told: 0017 is taken too.
+1. Migration 0018 (was 0017; 0017 is now the audit_log index from PR 3's review fixes): `order_boards.plan_locked` (false for old boards). Only adds a column. Checked on the
+   test database: upgrade, downgrade, upgrade. Nishita told: 0017 and 0018 are taken too.
 2. Rules (`board_service.edit_plan`, `set_plan_lock`):
    i.    `PUT /boards/{code}/plan`: start, deadline, split and all steps in the new order, saved together.
          Anyone on the board while unlocked; the owner or boards.manage when locked (403 `plan_locked`).

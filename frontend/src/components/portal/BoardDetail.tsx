@@ -3,7 +3,7 @@
 // Everyone on the board sees it and updates it (checklists, files). A step's people (its head
 // included) or the owner mark it done. The owner (or boards.manage) changes people and finishes it.
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiFailure, type Board, type BoardStep, type BoardSummary, type Colleague } from '@/lib/api';
 import BoardHistory from './BoardHistory';
 import FileList from './FileList';
@@ -60,11 +60,24 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
   // The staff list is only needed by people who can change who is on the board or add steps.
   const needStaff = !!b && b.status === 'active' && (b.can_edit || b.can_edit_plan);
   useEffect(() => {
-    if (needStaff) api<Colleague[]>('/employee/colleagues').then(setStaff).catch(() => setStaff([]));
+    if (needStaff) api<Colleague[]>('/employee/colleagues').then(setStaff)
+      .catch(() => { setStaff([]); setErr('Could not load the staff list. Reload the page to change people.'); });
   }, [needStaff]);
+
+  // Changes go one at a time, in the order clicked, so an older answer never overwrites a newer
+  // one (fast checklist ticks); the same change clicked twice while it is still sending is ignored.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const sending = useRef(new Set<string>());
 
   /** Sends a change; the answer is the whole board again. Returns true when it worked. */
   async function run(path: string, init: { method: string; body?: unknown }, done?: string): Promise<boolean> {
+    const key = `${init.method} ${path} ${JSON.stringify(init.body ?? null)}`;
+    if (sending.current.has(key)) return false; // double click
+    sending.current.add(key);
+    const before = queue.current;
+    let release = () => {};
+    queue.current = new Promise<void>((r) => { release = r; });
+    await before;
     setErr('');
     try {
       setB(await api<Board>(path, init));
@@ -74,6 +87,9 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
       // Errors stay on the page (not a toast that goes away before it's read): see Toast.tsx
       setErr(e instanceof ApiFailure ? e.message : 'Could not save.');
       return false;
+    } finally {
+      sending.current.delete(key);
+      release();
     }
   }
 
@@ -260,9 +276,12 @@ function StepPeopleEditor({ b, s, staff, run, onClose }: { b: Board; s: BoardSte
   const [heads, setHeads] = useState<Set<number>>(() => new Set(s.members.filter((m) => m.is_head).map((m) => m.id)));
   const [q, setQ] = useState('');
   const onBoard = useMemo(() => new Set(b.people.map((p) => p.id)), [b.people]);
+  // The step's people who are no longer active staff aren't in `staff`: list them too, so they can be unticked
+  const all = useMemo(() => [...staff, ...s.members.filter((m) => !staff.some((c) => c.id === m.id))
+    .map((m) => ({ id: m.id, name: m.name, inactive: true }))], [staff, s.members]);
   // People on the board first, then everyone else; filtered by the search box
-  const list = useMemo(() => [...staff].sort((x, y) => Number(onBoard.has(y.id)) - Number(onBoard.has(x.id)) || x.name.localeCompare(y.name))
-    .filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase())), [staff, onBoard, q]);
+  const list = useMemo(() => [...all].sort((x, y) => Number(onBoard.has(y.id)) - Number(onBoard.has(x.id)) || x.name.localeCompare(y.name))
+    .filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase())), [all, onBoard, q]);
 
   const toggle = (id: number) => {
     const p = new Set(picked), h = new Set(heads);
@@ -292,6 +311,7 @@ function StepPeopleEditor({ b, s, staff, run, onClose }: { b: Board; s: BoardSte
             <label className="flex flex-1 items-center gap-2">
               <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} />
               {c.name}
+              {'inactive' in c && <span className="text-xs text-slate-400">(no longer active)</span>}
               {!onBoard.has(c.id) && <span className="text-xs text-slate-400">(will be added to the board)</span>}
             </label>
             {picked.has(c.id) && (

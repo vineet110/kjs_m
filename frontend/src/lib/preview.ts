@@ -22,10 +22,11 @@ export function colName(i: number): string {
 }
 
 /** Word files can hold any link, even `javascript:`. The preview frame can't run scripts anyway; as a
- *  second guard, every link that isn't a plain web or email address loses its address (the text stays). */
+ *  second guard, every link that isn't a plain web or email address, or a jump inside the document
+ *  (footnotes, contents: "#..."), loses its address (the text stays). */
 export function safeLinks(html: string): string {
   return html.replace(/\shref="([^"]*)"/gi, (whole, url: string) =>
-    /^(https?:\/\/|mailto:)/i.test(url) ? whole : '');
+    /^(https?:\/\/|mailto:|#[\w-]+$)/i.test(url) ? whole : '');
 }
 
 export const viewUrl =(id: number) => `/api/v1/files/${id}/view`;
