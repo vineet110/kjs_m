@@ -131,7 +131,10 @@ async def test_view_shows_the_file_in_the_page_to_allowed_staff_only(client):
     assert r.status_code == 200 and r.content == b"%PDF-1.4 test"
     assert r.headers["content-type"] == "application/pdf" and r.headers["content-disposition"] == "inline"
     assert r.headers["cache-control"] == "private, no-store" and r.headers["x-content-type-options"] == "nosniff"
-    assert "content-security-policy" not in r.headers  # Chrome's PDF viewer won't open a sandboxed PDF
+    # Chrome's PDF viewer won't open a sandboxed PDF: a real PDF may only be framed by our own pages
+    assert r.headers["content-security-policy"] == "frame-ancestors 'self'"
+    fake = (await _upload(client, file=("trick.pdf", b"<html><script>x</script>", "application/pdf"))).json()["id"]
+    assert (await client.get(f"/api/v1/files/{fake}/view")).headers["content-security-policy"] == "sandbox"
     r = await client.get(f"/api/v1/files/{csv}/view")
     assert r.status_code == 200 and r.content == b"item,qty\nA,1\n"
     assert r.headers["content-security-policy"] == "sandbox" and r.headers["content-type"].startswith("text/csv")

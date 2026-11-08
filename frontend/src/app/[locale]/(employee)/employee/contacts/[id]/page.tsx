@@ -309,7 +309,7 @@ function Tasks({ lead }: { lead: Lead }) {
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
     try {
-      await api(`/employee/leads/${lead.id}/tasks`, { method: 'POST', body: { title: f.title, due_at: f.due ? new Date(f.due).toISOString() : null } });
+      await api(`/employee/leads/${lead.id}/tasks`, { method: 'POST', body: { title: f.title, due_at: f.due ? new Date(`${f.due}:00+05:30`).toISOString() : null } }); // the box is IST, whatever the computer's zone
       form.reset();
       setMsg({ ok: true, text: 'Task added. It is also in your Tasks page.' });
       load();

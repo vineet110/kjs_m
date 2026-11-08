@@ -322,7 +322,9 @@ async def _step_for_action(db: AsyncSession, user: User, code: str, step_id: int
                            assignees_only: bool = False) -> tuple[OrderBoard, BoardStep]:
     """Anyone on the board may update a step; with assignees_only, only its assignees (head
     included), the owner or boards.manage may (marking it done)."""
-    b = await _visible_board(db, user, code)
+    # Marking done locks the board too (like the people changes), so removing someone can't
+    # race with the next step starting and handing them new tasks.
+    b = await _visible_board(db, user, code, lock=assignees_only)
     # Locked until commit: a double "done" click would otherwise start the next step twice
     # (duplicate tasks), and two members ticking the checklist at once would lose one tick.
     step = await db.get(BoardStep, step_id, with_for_update=True, populate_existing=True)
@@ -344,7 +346,7 @@ async def complete_step(db: AsyncSession, user: User, code: str, step_id: int) -
     if nxt:
         await _start_step(db, b, nxt, user)
     managers = await notification_service.users_with(db, "boards.manage")
-    notification_service.notify(db, set(managers) - {user.id}, "board.step_done", f"{b.code}: '{step.name}' done",
+    notification_service.notify(db, (set(managers) | {b.created_by}) - {user.id, None}, "board.step_done", f"{b.code}: '{step.name}' done",
                                 f"By {user.name}." + (f" Next: {nxt.name}." if nxt else " All steps done."),
                                 f"/admin/order-boards/{b.code}")
     audit_service.record(db, actor=user, action="board.step_done", entity_type="board", entity_id=b.code,
@@ -458,8 +460,8 @@ async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, m
         raise AppError(422, "no_assignee", "A step needs at least one person.")
     if heads - new:
         raise AppError(422, "bad_head", "The head must be one of the step's people.")
-    await _active_staff(db, new)
     old, old_heads = await _member_ids(db, b.id, step.id), await _heads(db, step.id)
+    await _active_staff(db, new - old)  # only people being added must be active; leavers can stay till changed
     if (new, heads) == (old, old_heads):
         return await detail(db, user, code)
     await db.execute(delete(BoardMember).where(BoardMember.step_id == step.id, BoardMember.user_id.in_(old - new)))
@@ -577,7 +579,7 @@ async def board_alerts(db: AsyncSession, today: date | None = None) -> dict:
         if crossed <= step.alerted_pct:
             continue
         step.alerted_pct = crossed
-        who = await _member_ids(db, board.id, step.id) | set(managers)
+        who = (await _member_ids(db, board.id, step.id) | set(managers) | {board.created_by}) - {None}
         word = "is out of time" if crossed >= 100 else f"has used {crossed}% of its time"
         notification_service.notify(db, who, "board.alert", f"{board.code}: '{step.name}' {word}",
                                     f"Planned {step.planned_start:%d %b}–{step.planned_end:%d %b}. Deadline {local_day(board.deadline_at):%d %b}.",

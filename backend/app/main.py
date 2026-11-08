@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import app.jobs  # noqa: F401  (registers background jobs)
 from app.api.v1.router import api_router
 from app.core.config import production_problems, settings
 from app.core.config.ini import public_config
@@ -16,6 +15,9 @@ from app.core.errors import AppError
 from app.core.errors import install_error_handlers
 from app.core.logs import RequestContextMiddleware, setup_logging
 from app.jobs import runner
+from app.services import (  # noqa: F401  (importing them registers their background jobs)
+    assign_service, board_service, file_service, lead_service, notification_service,
+)
 
 setup_logging()
 log = logging.getLogger("app")

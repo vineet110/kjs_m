@@ -43,9 +43,14 @@ export default function FilePreview({ file }: { file: StoredFile }) {
         return { html: safeLinks((await mammoth.convertToHtml({ arrayBuffer: buf })).value) };
       }
       const XLSX = await import('xlsx');
-      // raw: CSV cells stay as written (no turning "1-2" into a date). dateNF: Excel's built-in "short
-      // date" follows the computer's country; here it is shown the Indian way (20-Nov-2026).
-      const wb = XLSX.read(buf, { type: 'array', raw: file.name.toLowerCase().endsWith('.csv'), dateNF: 'dd-mmm-yyyy' });
+      // CSV: read as UTF-8 text first (SheetJS would read the bytes as Latin-1 and garble ₹ and Hindi), and
+      // raw, so cells stay as written (no turning "1-2" into a date). dateNF: Excel's built-in "short date"
+      // follows the computer's country; here it is shown the Indian way (20-Nov-2026). sheetRows: read only
+      // the rows we show (+1 to know it was cut), so a huge sheet can't freeze the tab.
+      const opts = { dateNF: 'dd-mmm-yyyy', sheetRows: MAX_ROWS + 1 };
+      const wb = file.name.toLowerCase().endsWith('.csv')
+        ? XLSX.read(new TextDecoder().decode(buf), { ...opts, type: 'string', raw: true })
+        : XLSX.read(buf, { ...opts, type: 'array' });
       return {
         sheets: wb.SheetNames.map((name) => {
           const all = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, raw: false, defval: '' });
@@ -61,6 +66,9 @@ export default function FilePreview({ file }: { file: StoredFile }) {
 
   if (kind === 'none') return <Fallback text="This type of file can't be shown here." />;
   if (err) return <Fallback text={err} />;
+  // Phones (Android) and some browsers can't show a PDF inside a page: they would download it instead
+  if (kind === 'pdf' && typeof navigator !== 'undefined' && navigator.pdfViewerEnabled === false)
+    return <Fallback text="This browser can't show PDFs inside the page. Use Download to open it." />;
   if (kind === 'pdf') return <iframe src={viewUrl(file.id)} title={file.name} className="h-full min-h-[60vh] w-full rounded border bg-white" />;
   if (kind === 'image') {
     // eslint-disable-next-line @next/next/no-img-element -- a private file from our API, not a site picture
@@ -69,7 +77,8 @@ export default function FilePreview({ file }: { file: StoredFile }) {
   if (!data) return <p className="p-6 text-sm text-slate-500">Opening {file.name}…</p>;
   if ('text' in data) return <pre className="h-full overflow-auto whitespace-pre-wrap break-words rounded border bg-white p-4 text-sm">{data.text}</pre>;
   if ('html' in data) {
-    // sandbox="": no scripts, no forms, links can't open, and it isn't treated as our site
+    // sandbox="": no scripts, no forms, no new windows, and it isn't treated as our site. Links open
+    // nowhere: <base target="_blank"> sends them to a new window, which the sandbox blocks.
     return <iframe sandbox="" srcDoc={wordPage(data.html)} title={file.name} className="h-full min-h-[60vh] w-full rounded border bg-white" />;
   }
   const s = data.sheets[sheet];
@@ -118,7 +127,7 @@ function Fallback({ text }: { text: string }) {
 
 /** The Word file's HTML inside a small readable page. */
 function wordPage(body: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>
     body{font:14px/1.6 system-ui,sans-serif;color:#111714;margin:24px;max-width:800px}
     table{border-collapse:collapse;margin:12px 0} td,th{border:1px solid #cbd5e1;padding:4px 8px;vertical-align:top}
     img{max-width:100%;height:auto} h1,h2,h3{line-height:1.25}

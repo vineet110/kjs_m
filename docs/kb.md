@@ -699,6 +699,22 @@ Sections:
    Why    The running app should never hold its password (codeReview CR11). See "Least privilege".
 
 
+### Circular import
+
+   What   Two Python files that import each other, directly or through others. The second one gets the first
+          while it is only half loaded, and crashes with "partially initialized module".
+   Where  Fixed 7 Nov: `app/jobs/__init__.py` imports nothing now (memory decision 31). `tests/test_imports.py`
+          imports each entry point alone, because the normal tests can't see this.
+
+
+### Union-find (grouping)
+
+   What   A way to put items into groups when "same group" can go through a third item (A matches B, B matches C:
+          all three together). Each item points to its group's first item.
+   Where  `group_contacts` in `lead_service.py`: leads with the same phone or email are one contact.
+
+
+
 
 ===================================================================================================
 
@@ -1012,6 +1028,20 @@ Sections:
           (`model_dump(exclude_unset=True)` in Pydantic).
    Why    Two tabs or a script can't undo each other's changes by sending old values back.
    Where  `ProductPatchIn` in `backend/app/schemas/catalog.py`, `catalog_service.update_product`.
+
+
+### datetime-local input
+
+   What   A date-and-time box with no time zone. `new Date(value)` reads it in the computer's own zone, so a
+          laptop set to another zone saves the wrong time.
+   Where  Our task forms add `:00+05:30` to read it as IST (memory decision 29).
+
+
+### sessionStorage
+
+   What   Like localStorage, but only for this browser tab, and gone when the tab closes.
+   Where  The "Let's connect" popup (`kjs-connect`) and the open sidebar (`kjs_menu_open`).
+
 
 
 

@@ -47,6 +47,16 @@ async def download(file_id: int, user: User = Depends(current_user), db: AsyncSe
     return send_file(*await file_service.download(db, user, file_id))
 
 
+def _looks_like_pdf(data: Path | bytes) -> bool:
+    """A real PDF starts with "%PDF-" (readers accept it within the first 1 KB)."""
+    if isinstance(data, Path):
+        with data.open("rb") as fh:
+            head = fh.read(1024)
+    else:
+        head = data[:1024]
+    return b"%PDF-" in head
+
+
 @router.get("/{file_id}/view")
 async def view(file_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """The file for the in-page preview: shown inside the page (inline), never cached, never a storage link.
@@ -57,7 +67,9 @@ async def view(file_id: int, user: User = Depends(current_user), db: AsyncSessio
     f, data = await file_service.view(db, user, file_id)
     headers = {"content-disposition": "inline", "x-content-type-options": "nosniff",
                "cache-control": "private, no-store"}
-    if f.content_type != "application/pdf":
+    if f.content_type == "application/pdf" and _looks_like_pdf(data):
+        headers["content-security-policy"] = "frame-ancestors 'self'"  # only our own pages may frame it
+    else:  # everything else, and a ".pdf" that isn't really a PDF, stays sandboxed
         headers["content-security-policy"] = "sandbox"
     if isinstance(data, Path):
         return FileResponse(data, media_type=f.content_type, headers=headers)

@@ -340,3 +340,20 @@ test('safeLinks: only web and email links keep their address in a Word preview',
     assert.equal(safeLinks(`<a href="${bad}">b</a>`), '<a>b</a>', bad);
   }
 });
+
+test('safeLinks: jumps inside the document (footnotes, contents) keep working', () => {
+  const { safeLinks } = previewLib;
+  assert.equal(safeLinks('<a href="#footnote-1">1</a>'), '<a href="#footnote-1">1</a>');
+  assert.equal(safeLinks('<a href="#x&quot;y">b</a>'), '<a>b</a>');
+});
+
+test('CSV preview: UTF-8 text (₹, Hindi) and a row limit that stops reading early', async () => {
+  const XLSX = await import('xlsx');
+  const csv = new TextEncoder().encode('item,price\nचाय,₹100\n');
+  const wb = XLSX.read(new TextDecoder().decode(csv), { type: 'string', raw: true, sheetRows: 1001 });
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+  assert.deepEqual(rows[1], ['चाय', '₹100']);
+  const big = Array.from({ length: 5000 }, (_, i) => `r${i},1`).join('\n');
+  const wb2 = XLSX.read(big, { type: 'string', raw: true, sheetRows: 1001 });
+  assert.equal(XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1 }).length, 1001);
+});

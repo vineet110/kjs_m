@@ -10,6 +10,22 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 7 Nov 2026 (lead management reviews, attendance, seed fix, PRs #33 and #34, Nishita)
+
+1. (T) Tests that start the whole app can't find an import loop: by then everything is already loaded in a
+   working order. Import each entry point alone in a fresh Python to catch it.
+
+2. (T) A `datetime-local` box has no time zone. Say which zone you mean (`+05:30`), or the computer decides.
+
+3. (T) "Same person" by phone OR email needs groups that join through a third lead. A single key per lead
+   (phone, else email) splits people.
+
+4. (T) Two PRs that add notes to the end of the same file always clash. Keep both blocks when merging.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 3 Nov 2026 (admin redesign, PR #17, Nishita)
 
 1. (T) A slow answer can arrive after the user has moved on (logged out, someone else logged in). Count the
