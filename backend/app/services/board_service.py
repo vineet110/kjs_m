@@ -12,6 +12,9 @@ People (migration 0016):
   people, change a step's assignees and head, finish the board, and approve file deletes.
 - Everyone on the board sees it and updates it (checklists, files). Only a step's assignees
   (its head included), the owner or `boards.manage` mark that step done.
+- The plan (dates, step sizes, adding / renaming / removing / reordering steps) can change at any
+  time: by anyone on the board while it is unlocked, only by the owner or boards.manage once the
+  owner locks it. Only steps that haven't started can be removed or moved.
 - Every step keeps at least one assignee. Nothing is deleted for good: removing someone only ends
   their access (their uploads and the history stay), and every change is in the audit log.
 
@@ -314,7 +317,8 @@ async def detail(db: AsyncSession, user: User, code: str) -> dict:
         "people": [{"id": p, "name": names.get(p, ""), "is_owner": p == b.created_by, "steps": on_steps.get(p, [])}
                    for p in people],
         # can_edit: people, assignees, finishing. can_decide_deletes: approve / reject file delete requests.
-        "can_edit": can_admin(user, b), "can_decide_deletes": await file_service.can_decide(db, user, "board", b.code)}
+        "can_edit": can_admin(user, b), "can_decide_deletes": await file_service.can_decide(db, user, "board", b.code),
+        "plan_locked": b.plan_locked, "can_edit_plan": b.status == "active" and (can_admin(user, b) or not b.plan_locked)}
 
 
 # ---------- Run ----------
@@ -491,6 +495,150 @@ async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, m
     return await detail(db, user, code)
 
 
+# ---------- Plan: edit and lock ----------
+async def set_plan_lock(db: AsyncSession, user: User, code: str, locked: bool) -> dict:
+    b = await _admin_board(db, user, code)  # owner or boards.manage, running board
+    if b.plan_locked != locked:
+        b.plan_locked = locked
+        audit_service.record(db, actor=user, action="board.plan_locked" if locked else "board.plan_unlocked",
+                             entity_type="board", entity_id=b.code)
+        await db.commit()
+    return await detail(db, user, code)
+
+
+def _size(s: BoardStep, mode: str) -> int | None:
+    return s.percent if mode == "percent" else s.days
+
+
+async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
+    """Save the whole plan at once: start, deadline, split, and the steps in their new order.
+    `data.steps` lists every step to keep (by id) and new ones (no id). Steps that are running or
+    done stay first, in their order; only steps that haven't started can be moved or left out
+    (= removed: the step and its checklist are deleted, the history keeps a copy). All planned dates
+    are worked out again."""
+    b = await _visible_board(db, user, code, lock=True)
+    if b.status != "active":
+        raise AppError(409, "finished", "This board is finished.")
+    if b.plan_locked and not can_admin(user, b):
+        raise AppError(403, "plan_locked", "The owner has locked the plan.")
+    old = list((await db.scalars(select(BoardStep).where(BoardStep.board_id == b.id)
+                                 .order_by(BoardStep.position).with_for_update())).all())
+    by_id = {s.id: s for s in old}
+    wanted = [x.id for x in data.steps if x.id is not None]
+    if len(wanted) != len(set(wanted)) or set(wanted) - set(by_id):
+        raise AppError(422, "bad_steps", "The step list doesn't match this board. Reload and try again.")
+    started = [s.id for s in old if s.status != "pending"]
+    if wanted[:len(started)] != started or [x.id for x in data.steps[:len(started)]] != started:
+        raise AppError(422, "started_steps", "Steps that are running or done stay where they are, first in the list.")
+    removed = [s for s in old if s.id not in wanted]
+    if any(s.status != "pending" for s in removed):
+        raise AppError(422, "started_steps", "Only steps that haven't started can be removed.")
+    new_people: set[int] = set()
+    for x in data.steps:
+        if x.id is None:
+            if not x.member_ids:
+                raise AppError(422, "no_assignee", f"New step '{x.name}' needs at least one person.")
+            if set(x.head_ids) - set(x.member_ids):
+                raise AppError(422, "bad_head", f"The head of '{x.name}' must be one of its people.")
+            new_people |= set(x.member_ids)
+    if new_people:
+        await _active_staff(db, new_people)
+
+    holidays = await holiday_set(db, data.start.year, data.deadline.year + 1)
+    plan, plan_late = plan_steps(data.start, data.deadline, data.split_mode, [x.size for x in data.steps], holidays)
+    names = dict((await db.execute(select(User.id, User.name))).all())
+
+    # What changed, in words, for the history
+    summary: list[str] = []
+    old_start, old_deadline = local_day(b.start_at), local_day(b.deadline_at)
+    if data.start != old_start:
+        summary.append(f"start {old_start:%d %b} → {data.start:%d %b}")
+    if data.deadline != old_deadline:
+        summary.append(f"deadline {old_deadline:%d %b} → {data.deadline:%d %b}")
+    if data.split_mode != b.split_mode:
+        summary.append("split by " + ("% of the time" if data.split_mode == "percent" else "fixed working days"))
+    unit = "%" if data.split_mode == "percent" else " days"
+    for x in data.steps:
+        if x.id is None:
+            summary.append(f"added step '{x.name.strip()}' ({_names_of(sorted(set(x.member_ids)), names)})")
+            continue
+        s = by_id[x.id]
+        if x.name.strip() != s.name:
+            summary.append(f"renamed '{s.name}' to '{x.name.strip()}'")
+        if data.split_mode == b.split_mode and x.size != _size(s, b.split_mode):
+            summary.append(f"'{x.name.strip()}' {_size(s, b.split_mode)}{unit} → {x.size}{unit}")
+    for s in removed:
+        summary.append(f"removed step '{s.name}'")
+    if wanted != [s.id for s in old if s.id in wanted]:  # kept steps moved (new steps are listed above)
+        summary.append("new order: " + ", ".join(x.name.strip() for x in data.steps))
+
+    # Removed steps: their tasks (none before a step starts) are closed, never deleted
+    for s in removed:
+        members = sorted(await _member_ids(db, b.id, s.id))
+        await _close_tasks(db, b.code, f"step '{s.name}' removed", step_position=s.position)
+        audit_service.record(db, actor=user, action="board.step_removed", entity_type="board", entity_id=b.code,
+                             before={"step": s.position, "name": s.name, "checklist": s.checklist,
+                                     "task_templates": s.task_templates, "people": members})
+        await db.delete(s)
+    await db.flush()
+
+    # New positions. (board_id, position) must stay unique at every moment, so park the kept steps
+    # on negative numbers first. Running and done steps keep their numbers (they come first), so
+    # their tasks ("board:CODE:step:N") still point to the right step.
+    for i in wanted:
+        by_id[i].position = -by_id[i].id
+    await db.flush()
+    active = next((s for s in old if s.status == "active"), None)
+    old_active_end = active.planned_end if active else None
+    today = local_day(datetime.now(timezone.utc))
+    for pos, (x, (p_start, p_end)) in enumerate(zip(data.steps, plan), start=1):
+        if x.id is None:
+            st = BoardStep(board_id=b.id, position=pos, name=x.name.strip(), status="pending", alerted_pct=0,
+                           task_templates=[t.strip() for t in x.task_templates if t.strip()],
+                           checklist=[{"text": t.strip(), "done": False} for t in x.checklist if t.strip()])
+            db.add(st)
+        else:
+            st = by_id[x.id]
+            st.position, st.name = pos, x.name.strip()
+        st.percent = x.size if data.split_mode == "percent" else None
+        st.days = x.size if data.split_mode == "days" else None
+        st.planned_start, st.planned_end = p_start, p_end
+        if x.id is None:
+            await db.flush()
+            for uid in set(x.member_ids):
+                db.add(BoardMember(board_id=b.id, step_id=st.id, user_id=uid, is_head=uid in x.head_ids))
+    for uid in new_people - await _people_ids(db, b.id):
+        db.add(BoardPerson(board_id=b.id, user_id=uid, added_by=user.id))
+
+    c = cfg().app
+    b.start_at, b.deadline_at, b.split_mode = to_utc(data.start, c.shift_start), to_utc(data.deadline, c.shift_end), data.split_mode
+    await db.flush()
+
+    if active is not None:
+        if active.planned_end != old_active_end:  # its open tasks follow the new planned end
+            await db.execute(update(Task).where(Task.source == "board", Task.status != "done",
+                                                Task.source_ref == f"board:{b.code}:step:{active.position}")
+                             .values(due_at=to_utc(active.planned_end, c.shift_end)))
+        # More time: alerts can fire again later. Less time: a newly crossed level is still sent.
+        crossed = max((t for t in cfg().alerts.thresholds if used_pct(active, today, holidays) >= t), default=0)
+        active.alerted_pct = min(active.alerted_pct, crossed)
+    else:
+        # Everything before was done (e.g. a step added after the last one): start the first new one
+        first = await db.scalar(select(BoardStep).where(BoardStep.board_id == b.id, BoardStep.status == "pending")
+                                .order_by(BoardStep.position))
+        if first is not None:
+            await _start_step(db, b, first, user)
+
+    audit_service.record(db, actor=user, action="board.plan_changed", entity_type="board", entity_id=b.code,
+                         after={"summary": summary, "plan_late": plan_late})
+    who = (await _people_ids(db, b.id) | ({b.created_by} if b.created_by else set())) - {user.id}
+    if summary:
+        notification_service.notify(db, who, "board.plan_changed", f"{b.code}: plan changed by {user.name}",
+                                    "; ".join(summary)[:500], f"/employee/order-boards/{b.code}")
+    await db.commit()
+    return await detail(db, user, code)
+
+
 # ---------- History (read only) ----------
 def _names_of(ids: list | None, names: dict[int, str]) -> str:
     return ", ".join(names.get(i, f"#{i}") for i in ids or []) or "nobody"
@@ -514,6 +662,8 @@ def describe(action: str, before: dict | None, after: dict | None, names: dict[i
     if action == "board.finished":
         return f"closed the board as {a.get('final_status')}" + (
             f" ({a['tasks_closed']} open tasks closed)" if a.get("tasks_closed") else "")
+    if action == "board.step_removed":
+        return f"removed step {b.get('step')} \"{b.get('name')}\" (it hadn't started)"
     if action == "board.person_added":
         return f"added {a.get('name')} to the board"
     if action == "board.person_removed":
@@ -529,6 +679,12 @@ def describe(action: str, before: dict | None, after: dict | None, names: dict[i
         if set(b.get("heads") or []) != set(a.get("heads") or []):
             parts.append(f"head now {_names_of(a.get('heads'), names)}")
         return f"changed the people on {step}: " + ("; ".join(parts) or "no change")
+    if action == "board.plan_changed":
+        return "changed the plan: " + ("; ".join(a.get("summary") or []) or "no change")
+    if action == "board.plan_locked":
+        return "locked the plan (only the owner can change it now)"
+    if action == "board.plan_unlocked":
+        return "unlocked the plan (everyone on the board can change it)"
     if action == "file.uploaded":
         return f"uploaded {a.get('name')}"
     if action == "file.delete_requested":

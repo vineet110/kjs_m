@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiFailure, type Board, type BoardStep, type BoardSummary, type Colleague } from '@/lib/api';
 import BoardHistory from './BoardHistory';
 import FileList from './FileList';
+import PlanEditor from './PlanEditor';
 import { Icon } from './icons';
 import { useToast } from './Toast';
 import { fmtDay, Pill } from './ui';
@@ -55,11 +56,12 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
   useEffect(() => {
     load();
   }, [load]);
-  // The staff list is only needed by people who can change who is on the board.
-  const canEdit = !!b?.can_edit && b.status === 'active';
+  const [editingPlan, setEditingPlan] = useState(false);
+  // The staff list is only needed by people who can change who is on the board or add steps.
+  const needStaff = !!b && b.status === 'active' && (b.can_edit || b.can_edit_plan);
   useEffect(() => {
-    if (canEdit) api<Colleague[]>('/employee/colleagues').then(setStaff).catch(() => setStaff([]));
-  }, [canEdit]);
+    if (needStaff) api<Colleague[]>('/employee/colleagues').then(setStaff).catch(() => setStaff([]));
+  }, [needStaff]);
 
   /** Sends a change; the answer is the whole board again. Returns true when it worked. */
   async function run(path: string, init: { method: string; body?: unknown }, done?: string): Promise<boolean> {
@@ -117,6 +119,26 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
         </p>
       )}
 
+      {tab === 'steps' && running && (
+        <div className="flex flex-wrap items-center gap-2">
+          {b.can_edit_plan && !editingPlan && (
+            <button onClick={() => setEditingPlan(true)} className="btn-ghost py-1">Edit plan</button>
+          )}
+          {b.can_edit ? (
+            <button onClick={() => run(`/boards/${b.code}/plan-lock`, { method: 'POST', body: { locked: !b.plan_locked } },
+              b.plan_locked ? 'Plan unlocked' : 'Plan locked')} aria-pressed={b.plan_locked} className="btn-ghost py-1">
+              {b.plan_locked ? '🔒 Plan locked · Unlock' : 'Lock plan'}
+            </button>
+          ) : b.plan_locked && <Pill value="closed" label="🔒 Plan locked by the owner" />}
+          <span className="text-xs text-slate-500">
+            {b.plan_locked ? 'Only the owner can change dates and steps.' : 'Everyone on the board can change dates and steps.'}
+          </span>
+        </div>
+      )}
+      {tab === 'steps' && editingPlan && b.can_edit_plan && (
+        <PlanEditor b={b} staff={staff} onClose={() => setEditingPlan(false)}
+          onSave={(body) => run(`/boards/${b.code}/plan`, { method: 'PUT', body }, 'Plan saved')} />
+      )}
       {tab === 'steps' && (
         <ol className="space-y-3">
           {b.steps.map((s) => <StepCard key={s.id} b={b} s={s} staff={staff} run={run} />)}

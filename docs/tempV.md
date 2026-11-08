@@ -98,6 +98,48 @@ Assumptions (fold into backlog later)
 2. No database index for it yet: the audit log is small. Add one on (entity_type, entity_id) if it
    grows past about 100,000 rows.
 
+PR 4: edit the plan (branch `feat/board-edit-plan`, on top of the History branch)
+
+Vineet's decisions (7 Nov): remove a step = anyone while unlocked, only steps not started, its checklist
+deleted (History keeps a copy), its tasks closed with a note (not deleted); the plan can change any time;
+the owner can lock it; the lock covers the whole plan; only steps not started can be moved.
+
+1. Migration 0017: `order_boards.plan_locked` (false for old boards). Only adds a column. Checked on the
+   test database: upgrade, downgrade, upgrade. Nishita told: 0017 is taken too.
+2. Rules (`board_service.edit_plan`, `set_plan_lock`):
+   i.    `PUT /boards/{code}/plan`: start, deadline, split and all steps in the new order, saved together.
+         Anyone on the board while unlocked; the owner or boards.manage when locked (403 `plan_locked`).
+   ii.   `POST /boards/{code}/plan-lock`: owner or boards.manage.
+   iii.  Running and done steps stay first, in their order, and can't be removed (422 `started_steps`).
+   iv.   Every step's planned dates are worked out again. The running step's open tasks get its new end
+         as due date. Its alerts: more time = they can fire again; less time = a newly crossed level is sent.
+   v.    A removed step: deleted with its checklist and people; the history keeps a copy (name,
+         checklist, tasks, people). Its tasks (none before a step starts) are closed with a note.
+   vi.   A new step needs at least 1 person (put on the board too). If every other step is done, it
+         starts at once.
+   vii.  One history line says what changed ("deadline 28 Nov → 05 Dec; 'Production' 50% → 40%; added
+         step 'Labelling' (Admin)"). Everyone else on the board gets a notification.
+   viii. `/boards/preview` (date maths only, saves nothing) is now open to any logged-in staff, because
+         people on a board may edit an unlocked plan. Was boards.manage.
+3. Screen: Steps tab has "Edit plan" and, for the owner, "Lock plan / Unlock" (`PlanEditor.tsx`):
+   dates, split, steps with name and size, ↑ ↓ and Remove only for steps not started, Add step with
+   people (★ head), tasks and checklist, live planned dates, the % total, "Will be removed: …".
+   Others see "Plan locked by the owner" and no Edit plan button.
+4. Tests: `tests/test_board_plan.py` (7): the lock and who may edit; add + rename + reorder + resize in
+   one save with the history line and notifications; only steps not started removed or moved, history
+   keeps the removed step; running step tasks follow its new end; a step added after the last starts
+   at once; bad plans refused and nothing changed, finished board 409; preview for logged-in staff only.
+5. Checked in Chrome (local e2e database), through the page (screenshots timed out on Chrome's side):
+   Meena (unlocked) extended the deadline, added and moved a step (Save stays off until it has a
+   person), saved; Priya locked and removed a step not started; Meena then saw the lock badge, no Edit
+   plan, and the API answered 403. History showed every change.
+
+Assumptions (fold into backlog later)
+
+1. Checklists and task lists of existing steps aren't editable in the plan editor (only for new steps).
+2. Renaming a running step doesn't rename the tasks already given for it.
+3. Changing the split (% / days) keeps the numbers typed; the person fixes them before saving.
+
 Found on PR #33 (Nishita): `python -m app.seed` fails with a circular import (auth_service -> file_service
 -> app.jobs -> board_service -> file_service). The app itself starts. `main` is fine. The deploy guide uses
 app.seed for the first admin, so it needs fixing in PR #33.
