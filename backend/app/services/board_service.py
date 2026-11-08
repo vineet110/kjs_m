@@ -24,6 +24,8 @@ Running:
 - The `board_alerts` job tells the step members and board managers when a running step has
   used 50 / 85 / 100 % of its planned time (thresholds in config/alerts.ini), once each.
 """
+import hashlib
+import json
 import logging
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -318,7 +320,8 @@ async def detail(db: AsyncSession, user: User, code: str) -> dict:
                    for p in people],
         # can_edit: people, assignees, finishing. can_decide_deletes: approve / reject file delete requests.
         "can_edit": can_admin(user, b), "can_decide_deletes": await file_service.can_decide(db, user, "board", b.code),
-        "plan_locked": b.plan_locked, "can_edit_plan": b.status == "active" and (can_admin(user, b) or not b.plan_locked)}
+        "plan_locked": b.plan_locked, "can_edit_plan": b.status == "active" and (can_admin(user, b) or not b.plan_locked),
+        "plan_version": _plan_version(b, steps)}
 
 
 # ---------- Run ----------
@@ -512,6 +515,14 @@ def _size(s: BoardStep, mode: str) -> int | None:
     return s.percent if mode == "percent" else s.days
 
 
+def _plan_version(b: OrderBoard, steps: list[BoardStep]) -> str:
+    """A short fingerprint of the plan as it is now. The editor sends back the one it started from;
+    if the plan changed in between, the save is refused instead of silently undoing someone's change."""
+    plan = [b.start_at.isoformat(), b.deadline_at.isoformat(), b.split_mode,
+            [[s.id, s.position, s.name, s.percent, s.days, s.status] for s in steps]]
+    return hashlib.sha1(json.dumps(plan).encode()).hexdigest()[:12]
+
+
 async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
     """Save the whole plan at once: start, deadline, split, and the steps in their new order.
     `data.steps` lists every step to keep (by id) and new ones (no id). Steps that are running or
@@ -525,12 +536,15 @@ async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
         raise AppError(403, "plan_locked", "The owner has locked the plan.")
     old = list((await db.scalars(select(BoardStep).where(BoardStep.board_id == b.id)
                                  .order_by(BoardStep.position).with_for_update())).all())
+    if data.version and data.version != _plan_version(b, old):
+        raise AppError(409, "plan_changed", "Someone changed the plan while you were editing it. "
+                       "Copy your changes, reload the page and try again.")
     by_id = {s.id: s for s in old}
     wanted = [x.id for x in data.steps if x.id is not None]
     if len(wanted) != len(set(wanted)) or set(wanted) - set(by_id):
         raise AppError(422, "bad_steps", "The step list doesn't match this board. Reload and try again.")
     started = [s.id for s in old if s.status != "pending"]
-    if wanted[:len(started)] != started or [x.id for x in data.steps[:len(started)]] != started:
+    if [x.id for x in data.steps[:len(started)]] != started:
         raise AppError(422, "started_steps", "Steps that are running or done stay where they are, first in the list.")
     removed = [s for s in old if s.id not in wanted]
     if any(s.status != "pending" for s in removed):
@@ -543,6 +557,11 @@ async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
             if set(x.head_ids) - set(x.member_ids):
                 raise AppError(422, "bad_head", f"The head of '{x.name}' must be one of its people.")
             new_people |= set(x.member_ids)
+    people_before = await _people_ids(db, b.id) | ({b.created_by} if b.created_by else set())
+    joining = new_people - people_before
+    if joining and not can_admin(user, b):  # adding people to the board is the owner's call
+        raise AppError(403, "owner_adds_people", "Only the board's owner can bring new people onto the board. "
+                       "Pick people who are already on it, or ask the owner.")
     if new_people:
         await _active_staff(db, new_people)
 
@@ -573,6 +592,8 @@ async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
         summary.append(f"removed step '{s.name}'")
     if wanted != [s.id for s in old if s.id in wanted]:  # kept steps moved (new steps are listed above)
         summary.append("new order: " + ", ".join(x.name.strip() for x in data.steps))
+    if not summary:  # nothing changed: no history line, no notices
+        return await detail(db, user, code)
 
     # Removed steps: their tasks (none before a step starts) are closed, never deleted
     for s in removed:
@@ -609,8 +630,12 @@ async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
             await db.flush()
             for uid in set(x.member_ids):
                 db.add(BoardMember(board_id=b.id, step_id=st.id, user_id=uid, is_head=uid in x.head_ids))
-    for uid in new_people - await _people_ids(db, b.id):
+    for uid in joining:  # the owner brought new people in with a new step: same record as adding them
         db.add(BoardPerson(board_id=b.id, user_id=uid, added_by=user.id))
+        audit_service.record(db, actor=user, action="board.person_added", entity_type="board", entity_id=b.code,
+                             after={"user_id": uid, "name": names.get(uid, "")})
+        notification_service.notify(db, {uid} - {user.id}, "board.added", f"You are on order board {b.code}",
+                                    f"{b.name} for {b.client}.", f"/employee/order-boards/{b.code}")
 
     c = cfg().app
     b.start_at, b.deadline_at, b.split_mode = to_utc(data.start, c.shift_start), to_utc(data.deadline, c.shift_end), data.split_mode
@@ -633,7 +658,7 @@ async def edit_plan(db: AsyncSession, user: User, code: str, data) -> dict:
 
     audit_service.record(db, actor=user, action="board.plan_changed", entity_type="board", entity_id=b.code,
                          after={"summary": summary, "plan_late": plan_late})
-    who = (await _people_ids(db, b.id) | ({b.created_by} if b.created_by else set())) - {user.id}
+    who = people_before - {user.id}  # people who just joined got "You are on order board" instead
     if summary:
         notification_service.notify(db, who, "board.plan_changed", f"{b.code}: plan changed by {user.name}",
                                     "; ".join(summary)[:500], f"/employee/order-boards/{b.code}")

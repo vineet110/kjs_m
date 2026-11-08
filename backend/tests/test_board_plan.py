@@ -69,6 +69,10 @@ async def test_add_rename_reorder_and_resize_in_one_save(client):
          "checklist": ["Arabic labels"], "task_templates": ["Print labels"]},
         keep(packing, size=40),
     ], deadline="2026-11-14")
+    # Bringing someone new onto the board is the owner's call, also through a new step
+    r = await client.put(f"{B}/plan", json=body, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "owner_adds_people"
+    await login(client, "owner@kjsindia.com")
     r = await client.put(f"{B}/plan", json=body, headers=HDR)
     assert r.status_code == 200, r.text
     steps = r.json()["steps"]
@@ -78,13 +82,16 @@ async def test_add_rename_reorder_and_resize_in_one_save(client):
     assert steps[2]["planned_end"] == "2026-11-14"  # the plan fills to the new deadline
     assert ids["extra"] in [p["id"] for p in r.json()["people"]]  # put on the board
 
-    history = (await client.get(f"{B}/history")).json()["items"][0]
-    assert history["who"] == "pack" and history["text"] == (
+    lines = (await client.get(f"{B}/history")).json()["items"]
+    assert lines[1]["action"] == "board.person_added"  # the same record as adding them by hand
+    history = lines[0]
+    assert history["who"] == "owner" and history["text"] == (
         "changed the plan: deadline 07 Nov → 14 Nov; renamed 'Blending' to 'Blending + QC'; "
         "'Blending + QC' 50% → 40%; added step 'Labelling' (extra); 'Packing' 50% → 40%")
     async with AsyncSessionLocal() as db:  # everyone else on the board is told
         told = set((await db.scalars(select(Notification.user_id).where(Notification.kind == "board.plan_changed"))).all())
-    assert told == {ids["owner"], ids["blend"], ids["extra"]}
+        added = set((await db.scalars(select(Notification.user_id).where(Notification.kind == "board.added"))).all())
+    assert told == {ids["blend"], ids["pack"]} and ids["extra"] in added  # the newcomer: "You are on order board"
 
 
 async def test_only_steps_that_have_not_started_can_be_removed_or_moved(client):
@@ -166,3 +173,21 @@ async def test_plan_preview_for_logged_in_staff_only(client):
     await login(client, "blend@kjsindia.com")  # no boards.manage: may still preview (edits unlocked plans)
     r = await client.post("/api/v1/boards/preview", json=body, headers=HDR)
     assert r.status_code == 200 and len(r.json()["steps"]) == 2
+
+
+async def test_a_stale_editor_cannot_undo_a_newer_change_and_an_empty_save_writes_nothing(client):
+    ids = await _team()
+    blending, packing = await _board(client, ids)
+    await login(client, "blend@kjsindia.com")
+    opened = (await client.get(B)).json()["plan_version"]
+    r = await client.put(f"{B}/plan", json=plan([keep(blending), keep(packing)]) | {"version": opened}, headers=HDR)
+    assert r.status_code == 200 and r.json()["plan_version"] == opened  # nothing changed
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(AuditLog).where(AuditLog.action == "board.plan_changed")) is None
+
+    await login(client, "pack@kjsindia.com")  # someone else saves first
+    assert (await client.put(f"{B}/plan", json=plan([keep(blending), keep(packing, name="Packing 2")]),
+                             headers=HDR)).status_code == 200
+    await login(client, "blend@kjsindia.com")  # the older draft is refused, not saved over it
+    r = await client.put(f"{B}/plan", json=plan([keep(blending)], deadline="2026-11-14") | {"version": opened}, headers=HDR)
+    assert r.status_code == 409 and r.json()["code"] == "plan_changed"

@@ -69,6 +69,7 @@ class PlanIn(BaseModel):
     deadline: date
     split_mode: Literal["percent", "days"] = "percent"
     steps: list[PlanStepIn] = Field(min_length=1, max_length=20)  # in the new order
+    version: str | None = Field(default=None, max_length=40)  # plan_version the editor started from
 
     @model_validator(mode="after")
     def sane_dates(self):

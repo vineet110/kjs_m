@@ -31,6 +31,9 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
   const [previewErr, setPreviewErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [newKey, setNewKey] = useState(0);
+  const [version] = useState(b.plan_version); // the plan this draft started from (b itself may refresh)
+  // Only the owner brings new people onto the board; others pick from the people already on it
+  const choices = useMemo(() => (b.can_edit ? staff : staff.filter((c) => b.people.some((p) => p.id === c.id))), [b, staff]);
 
   const started = steps.filter((s) => s.status !== 'pending').length; // they stay first
   const total = steps.reduce((a, s) => a + (s.size || 0), 0);
@@ -39,13 +42,15 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
   // Live dates whenever dates, split or sizes change
   const sizes = steps.map((s) => s.size).join(',');
   useEffect(() => {
+    setPreviewErr('');
     if (!start || !deadline || steps.some((s) => !s.size)) return setPreview(null);
+    let stale = false; // an answer for inputs that have changed since is ignored (it may arrive late)
     const t = setTimeout(() => {
       api<Preview>('/boards/preview', { method: 'POST', body: { start, deadline, split_mode: mode, sizes: steps.map((s) => s.size) } })
-        .then((p) => { setPreview(p); setPreviewErr(''); })
-        .catch((e) => { setPreview(null); setPreviewErr(e instanceof ApiFailure ? e.message : ''); });
+        .then((p) => { if (!stale) setPreview(p); })
+        .catch((e) => { if (!stale) { setPreview(null); setPreviewErr(e instanceof ApiFailure ? e.message : ''); } });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { stale = true; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `sizes` stands for the step sizes
   }, [start, deadline, mode, sizes]);
 
@@ -68,7 +73,7 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
     if (removed.length && !confirm(`Remove ${removed.map((s) => `"${s.name}"`).join(', ')}? Its checklist is deleted (History keeps a copy).`)) return;
     setSaving(true);
     const ok = await onSave({
-      start, deadline, split_mode: mode,
+      start, deadline, split_mode: mode, version,
       steps: steps.map((s) => (s.id !== null
         ? { id: s.id, name: s.name.trim(), size: s.size }
         : { name: s.name.trim(), size: s.size, member_ids: s.member_ids, head_ids: s.head_ids.filter((h) => s.member_ids.includes(h)),
@@ -127,7 +132,7 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
                 <p className="pl-8 text-xs text-slate-500">
                   {preview?.steps[i] ? `Planned ${fmtDay(preview.steps[i].start)} → ${fmtDay(preview.steps[i].end)}` : ' '}
                 </p>
-                {s.id === null && <NewStepFields s={s} staff={staff} set={(p) => set(s.key, p)} />}
+                {s.id === null && <NewStepFields s={s} staff={choices} set={(p) => set(s.key, p)} />}
               </li>
             );
           })}
