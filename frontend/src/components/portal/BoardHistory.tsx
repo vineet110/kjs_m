@@ -27,13 +27,26 @@ export default function BoardHistory({ code, version }: { code: string; version:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // Another board: start again (don't show the old board's lines meanwhile)
+  useEffect(() => {
+    setItems(null);
+    setMore(false);
+  }, [code]);
+
   const load = useCallback(async (beforeId?: number) => {
     setBusy(true);
     setErr('');
     try {
       const h = await api<History>(`/boards/${code}/history${beforeId ? `?before_id=${beforeId}` : ''}`);
-      setItems((old) => (beforeId ? [...(old ?? []), ...h.items] : h.items));
-      setMore(h.more);
+      // Answers are merged by line id (newest first), never swapped in: so a refresh after a change
+      // keeps the older pages already shown, and answers that arrive out of order can't drop or repeat lines.
+      let first = false;
+      setItems((old) => {
+        first = !old?.length;
+        const byId = new Map([...(old ?? []), ...h.items].map((i) => [i.id, i]));
+        return [...byId.values()].sort((x, y) => y.id - x.id);
+      });
+      if (beforeId || first) setMore(h.more); // "older lines exist" comes from the oldest page
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Could not load the history.');
     } finally {
@@ -47,7 +60,7 @@ export default function BoardHistory({ code, version }: { code: string; version:
   if (items === null) return err ? <p className="text-sm text-red-700">{err}</p> : <Loading />;
 
   // Group the lines by day, keeping the newest-first order
-  const groups: { day: string; lines: BoardHistoryItem[] }[] = [];
+  const groups: { day: string; lines: BoardHistoryItem[] }[] = []; // the same day can come twice (rare): keyed by its first line
   for (const i of items) {
     const d = day(i.at);
     if (groups.at(-1)?.day !== d) groups.push({ day: d, lines: [] });
@@ -59,7 +72,7 @@ export default function BoardHistory({ code, version }: { code: string; version:
       <p className="text-sm text-slate-500">Every change on this board, newest first. Nobody can edit or delete these lines.</p>
       {items.length === 0 && <p className="card p-6 text-sm text-slate-500">Nothing has happened on this board yet.</p>}
       {groups.map((g) => (
-        <div key={g.day} className="space-y-2">
+        <div key={g.lines[0].id} className="space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{g.day}</h3>
           <ol className="card divide-y">
             {g.lines.map((i) => (

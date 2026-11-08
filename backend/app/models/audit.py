@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,8 @@ class AuditLog(Base):
     (see the first migration). Always written in the same transaction as the change."""
 
     __tablename__ = "audit_log"
+    # One thing's history (a board's History tab) without reading the whole log (migration 0017)
+    __table_args__ = (Index("ix_audit_log_entity", "entity_type", "entity_id", "id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

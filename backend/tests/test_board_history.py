@@ -71,7 +71,20 @@ async def test_history_pages_back_and_shows_only_this_board(client):
     rest = (await client.get(f"{B}/history?limit=2&before_id={first['items'][-1]['id']}")).json()
     assert [i["action"] for i in rest["items"]] == ["board.check_ticked", "board.created"]
     assert rest["more"] is False
-    assert all("XYZ1-1" not in t and "Other" not in t for t in await _texts(client))
+    every = (await client.get(f"{B}/history?limit=100")).json()["items"]
+    assert "board.finished" not in [i["action"] for i in every]  # XYZ1-1 was closed; ABC117-3 wasn't
+
+
+async def test_an_odd_old_row_never_breaks_the_tab_and_no_emails_show(client):
+    ids = await _team()
+    await _create_as_plain_owner(client, ids)
+    async with engine.begin() as conn:  # rows can be added (never changed): one with a missing deadline
+        await conn.execute(text(
+            "INSERT INTO audit_log (actor_id, actor_label, action, entity_type, entity_id, after) "
+            "VALUES (NULL, 'Ghost (ghost@kjsindia.com)', 'board.created', 'board', 'ABC117-3', '{\"deadline\": null}')"))
+    await login(client, "blend@kjsindia.com")
+    top = (await client.get(f"{B}/history")).json()["items"][0]
+    assert top["who"] == "Ghost" and top["text"] == "made a change (board.created)"
 
 
 async def test_history_only_for_people_on_the_board(client):

@@ -499,7 +499,21 @@ def _names_of(ids: list | None, names: dict[int, str]) -> str:
 
 
 def describe(action: str, before: dict | None, after: dict | None, names: dict[int, str]) -> str:
-    """One plain sentence for a history line ("who" is shown next to it)."""
+    """One plain sentence for a history line ("who" is shown next to it). Audit rows can never be
+    fixed, so a row that doesn't have the expected shape gets a plain line instead of breaking the tab."""
+    try:
+        return _describe(action, before, after, names)
+    except Exception:  # noqa: BLE001 - any odd old row
+        log.warning("board.history_odd_row", extra={"action": action})
+        return f"made a change ({action})"
+
+
+def _actor(label: str) -> str:
+    """The name part of an audit actor label ("Priya (priya@…)" -> "Priya"): no emails on the board."""
+    return re.sub(r"\s*\([^()]*@[^()]*\)\s*$", "", label or "") or "Someone"
+
+
+def _describe(action: str, before: dict | None, after: dict | None, names: dict[int, str]) -> str:
     b, a = before or {}, after or {}
     step = f"step {a.get('step') or b.get('step')}"
     if action == "board.created":
@@ -557,7 +571,7 @@ async def history(db: AsyncSession, user: User, code: str, before_id: int | None
     rows = (await db.scalars(q.order_by(AuditLog.id.desc()).limit(limit + 1))).all()
     names = dict((await db.execute(select(User.id, User.name))).all())
     return {
-        "items": [{"id": r.id, "at": r.at, "who": names.get(r.actor_id or 0) or r.actor_label, "action": r.action,
+        "items": [{"id": r.id, "at": r.at, "who": names.get(r.actor_id or 0) or _actor(r.actor_label), "action": r.action,
                    "text": describe(r.action, r.before, r.after, names)} for r in rows[:limit]],
         "more": len(rows) > limit,  # older lines exist: ask again with before_id = the last id
     }
