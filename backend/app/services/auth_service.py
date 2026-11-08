@@ -178,6 +178,8 @@ async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | N
     an active colleague (not the person themselves, and no loop like "A reports to B, B reports to A")."""
     if data.role == "admin" and actor.role != "admin":
         raise AppError(403, "forbidden", "Only an admin can give the admin role.")
+    if data.reporting_to is None:  # top of the chain: no manager, so nothing to check
+        return
     if data.reporting_to == target_id:
         raise AppError(422, "bad_manager", "A person can't report to themselves.")
     boss = await db.get(User, data.reporting_to)
