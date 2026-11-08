@@ -227,3 +227,43 @@ async def test_boards_manage_can_do_what_the_owner_can(client):
     await login(client, "manager@kjsindia.com")
     r = await client.post(f"{B}/people", json={"user_id": ids["extra"]}, headers=HDR)
     assert r.status_code == 200 and r.json()["can_edit"] is True
+
+
+async def test_owner_hears_about_steps_and_a_leaver_does_not_block_changes(client):
+    """Review fixes: the owner gets step-done news; a step that still lists someone who has left can
+    still have its people changed (only people being added must be active)."""
+    ids = await _team()
+    b = await _create_as_plain_owner(client, ids)
+    step1, step2 = b["steps"]
+    await login(client, "owner@kjsindia.com")
+    assert (await client.put(f"{B}/steps/{step2['id']}/people", headers=HDR,
+                             json={"member_ids": [ids["pack"], ids["extra"]], "head_ids": []})).status_code == 200
+    async with AsyncSessionLocal() as db:  # pack leaves the company
+        (await db.get(User, ids["pack"])).status = "inactive"
+        await db.commit()
+    r = await client.put(f"{B}/steps/{step2['id']}/people", headers=HDR,
+                         json={"member_ids": [ids["pack"], ids["extra"]], "head_ids": [ids["extra"]]})
+    assert r.status_code == 200, r.text
+    r = await client.put(f"{B}/steps/{step2['id']}/people", headers=HDR,  # adding a leaver is still refused
+                         json={"member_ids": [ids["extra"], ids["pack"], ids["stranger"]], "head_ids": []})
+    assert r.status_code == 200
+    async with AsyncSessionLocal() as db:
+        (await db.get(User, ids["stranger"])).status = "inactive"
+        await db.commit()
+    r = await client.put(f"{B}/steps/{step1['id']}/people", headers=HDR,
+                         json={"member_ids": [ids["blend"], ids["stranger"]], "head_ids": []})
+    assert r.status_code == 422
+
+    await login(client, "blend@kjsindia.com")
+    assert (await client.post(f"{B}/steps/{step1['id']}/done", headers=HDR)).status_code == 200
+    async with AsyncSessionLocal() as db:
+        n = await db.scalar(text("SELECT count(*) FROM notifications WHERE user_id = :u AND kind = 'board.step_done'"),
+                            {"u": ids["owner"]})
+    assert n == 1
+
+
+async def test_delete_decision_says_the_same_to_outsiders_whether_or_not_the_file_exists(client):
+    await make_user("plain@kjsindia.com")
+    await login(client, "plain@kjsindia.com")
+    r = await client.post("/api/v1/files/999999/delete-decision", json={"approve": True}, headers=HDR)
+    assert r.status_code == 403

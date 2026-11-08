@@ -459,6 +459,19 @@ A82. A hidden product's photos may show for up to 1 hour  🟠 (planned, R44)
    i.    Photos are cached for 1 hour, so hiding a product takes up to an hour to hide its photos too.
 
 
+A83. Internal leads need no consent tick box  🟠 (check with KJS)
+
+   i.    A lead a staff member types in has no visitor consent box: their conversation with the buyer counts
+         as consent. KJS should confirm.
+
+
+A84. Contacts match on the full phone number  🟢
+
+   i.    Old numbers saved without a country code (`9876543210`) don't join the same number saved with +91.
+         All forms now save the code, so this only affects old rows.
+
+
+
 ### Notifications, permissions, login
 
 A18. Email for every notification  🟠
@@ -940,6 +953,12 @@ I12. Confirm the partner programme offer (A47)  🔴 before go-live
 I13. Original pack images (PNG/JPG per item) to replace the ones cut from the PDF (A74)  🟢
 
 I14. Correct sales phone number: catalogue vs website (A76)  🔴 before go-live
+
+
+
+I15. Real branch list for the User Creation Form  🟢
+
+   i.    Branch is free text for now, with "Main Branch" suggested.
 
 
 
@@ -1492,3 +1511,21 @@ Already logged, found again in the same check:
    i.    No error pages (`not-found.tsx`, `error.tsx`, `global-error.tsx`): CR4.
    ii.   Backups stay on the same server: R11. "Loading…" forever: R40. Uploads checked by name only: R9.
    iii.  Light spam protection: A31. Waiting on KJS: I10, B6, B3, A54, and before go-live A76 / I14, A47 / I12.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 15. Lead management, website and attendance follow-ups (5–7 Nov)
+
+
+R47. Small follow-ups from PRs #27, #30, #33 and #34  🟢 later
+
+   i.    "Converted Value" on Contacts shows "—" and the Proposals tab is empty: deal values and proposals are
+         not recorded yet.
+   ii.   Popups that cover phone pages can lower Google ranking; the bottom sheet is the gentler form. Watch
+         Search Console after launch (decision 26).
+   iii.  Still green on the public site: hover colour on category names and a few other pages.
+   iv.   Tea is hidden (`HIDDEN_CATEGORIES`). Show it again when KJS says so.
+   v.    `PortalShell.tsx` still has `isAttendance` layout checks; with the page's own bar gone they can probably go.
+   vi.   A "Let's connect" popup text change is in Nishita's `git stash` ("ConnectPopup text change"), not in main.

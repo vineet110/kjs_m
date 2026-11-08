@@ -21,17 +21,20 @@ async def _web_lead(client, **extra) -> None:
 
 
 # ---------- Contacts ----------
-async def test_contacts_group_by_phone(client):
+async def test_contacts_group_by_phone_or_email(client):
     await make_user("a@kjs.in")
     await _web_lead(client)
-    await _web_lead(client, phone="9876543210", email=None)  # same person, number typed without the code
-    await _web_lead(client, name="Sara", phone="+91 91111 22222", email="sara@x.com")
+    await _web_lead(client, phone="+91 95555 00000")  # same email, another phone: same person
+    await _web_lead(client, email=None)  # same phone, no email: same person
+    await _web_lead(client, name="Sara", phone="+1 98765 43210", email="sara@x.com")  # same last 10 digits, other country
     await login(client, "a@kjs.in")
     rows = (await client.get("/api/v1/employee/contacts")).json()
     assert len(rows) == 2
     omar = next(r for r in rows if r["name"] == "Omar")
-    assert (omar["total"], omar["active"], omar["inactive"]) == (2, 2, 0)
-    assert omar["email"] == "omar@alnoor.ae"  # taken from the older enquiry when the newest has none
+    assert (omar["total"], omar["active"], omar["inactive"]) == (3, 3, 0)
+    assert omar["email"] == "omar@alnoor.ae"  # taken from an older enquiry when the newest has none
+    d = (await client.get(f"/api/v1/employee/contacts/{omar['lead_id']}")).json()
+    assert len(d["enquiries"]) == 3  # the contact page agrees with the list
 
 
 async def test_contacts_closed_count_and_detail(client):
@@ -152,6 +155,12 @@ async def test_create_user_rules(client):
     assert (await client.post("/api/v1/admin/users", json=await _form(boss), headers=HDR)).status_code == 409
     bad = await _form(9999, email="z@kjs.in")
     assert (await client.post("/api/v1/admin/users", json=bad, headers=HDR)).status_code == 422
+    # "Reporting to" may be empty: the top of the chain reports to no one, and can still be edited
+    top = await _form(None, email="top@kjs.in")
+    assert (await client.post("/api/v1/admin/users", json=top, headers=HDR)).status_code == 201
+    edit = {k: v for k, v in top.items() if k != "email"} | {"branch": "HQ"}
+    r = await client.patch(f"/api/v1/admin/users/{await _uid('top@kjs.in')}", json=edit, headers=HDR)
+    assert r.status_code == 200, r.text
 
 
 async def test_staff_cannot_create_users(client):
