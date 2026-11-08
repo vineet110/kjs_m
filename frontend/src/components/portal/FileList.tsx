@@ -25,16 +25,32 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
   const [openId, setOpenId] = useState<number | null>(null);
   const [full, setFull] = useState(false);
   const open = files.find((f) => f.id === openId) ?? null; // a deleted file closes by itself
+  const isFull = full && !!open; // and leaves full screen with it
+  const panel = useRef<HTMLElement>(null);
 
-  // Full screen: Esc goes back to the side panel, and the page behind doesn't scroll
+  // Full screen uses the browser's own full screen where it can, because then Esc works even after a
+  // click inside the PDF or Word frame (a key pressed in a frame never reaches this page). Elsewhere
+  // (iPhone) the panel just covers the page. Either way the page behind doesn't scroll.
   useEffect(() => {
-    if (!full) return;
+    if (!isFull) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false);
+    const onExit = () => { if (!document.fullscreenElement) setFull(false); };
     document.addEventListener('keydown', onKey);
+    document.addEventListener('fullscreenchange', onExit);
     const before = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
-  }, [full]);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onExit);
+      document.body.style.overflow = before;
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+  }, [isFull]);
+  function toggleFull() {
+    if (isFull) return setFull(false);
+    setFull(true);
+    panel.current?.requestFullscreen?.().catch(() => {}); // not allowed (iPhone): the covering panel is used
+  }
 
   const load = useCallback(() => {
     api<StoredFile[]>(`/files?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`).then(setFiles).catch(() => setFiles([]));
@@ -133,15 +149,15 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
         ))}
       </div>
       {open && (
-        <section aria-label={`Preview of ${open.name}`}
-          className={full ? 'fixed inset-0 z-50 flex flex-col gap-3 bg-paper p-4' : 'flex h-[75vh] flex-col gap-2 rounded-lg border bg-paper p-3 lg:sticky lg:top-16'}>
+        <section ref={panel} aria-label={`Preview of ${open.name}`}
+          className={isFull ? 'fixed inset-0 z-50 flex flex-col gap-3 bg-paper p-4' : 'flex h-[75vh] flex-col gap-2 rounded-lg border bg-paper p-3 lg:sticky lg:top-16'}>
           <div className="flex flex-wrap items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={open.name}>{open.name}</p>
-            <button onClick={() => setFull(!full)} className="btn-ghost py-1 text-xs">{full ? 'Exit full screen' : 'Full screen'}</button>
+            <button onClick={toggleFull} className="btn-ghost py-1 text-xs">{isFull ? 'Exit full screen' : 'Full screen'}</button>
             <a href={downloadUrl(open.id)} className="btn-ghost py-1 text-xs">Download</a>
             <button onClick={() => { setOpenId(null); setFull(false); }} className="btn-ghost py-1 text-xs" aria-label="Close preview">Close</button>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto"><FilePreview file={open} /></div>
+          <div className="min-h-0 flex-1 overflow-auto"><FilePreview key={open.id} file={open} /></div>
         </section>
       )}
       </div>
