@@ -184,6 +184,7 @@ export type StoredFile = {
   id: number; name: string; content_type: string; size: number; owner_type: string; owner_id: string;
   is_public: boolean; uploaded_by_name: string; created_at: string; delete_status: string; delete_reason: string;
   requested_by_name?: string;
+  own_request?: boolean; // I asked for this delete: someone else decides it
 };
 
 // ---------- Order boards ----------

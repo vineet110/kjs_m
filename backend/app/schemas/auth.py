@@ -51,7 +51,7 @@ class StaffDetailsIn(BaseModel):
     employee_code: OneLine = Field(min_length=1, max_length=40)
     branch: OneLine = Field(min_length=1, max_length=80)
     role: Literal["admin", "employee"]
-    reporting_to: int
+    reporting_to: int | None = None  # empty = top of the chain (the top admin reports to no one)
 
 
 class UserCreateIn(StaffDetailsIn):

@@ -44,7 +44,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
     e.preventDefault();
     // PhoneInput keeps its own state: read the composed number from the form
     const phone = String(new FormData(e.currentTarget).get('phone') ?? '');
-    const body = { name: v.name, phone, employee_code: v.employee_code, branch: v.branch, role: v.role, reporting_to: Number(v.reporting_to) };
+    const body = { name: v.name, phone, employee_code: v.employee_code, branch: v.branch, role: v.role, reporting_to: v.reporting_to ? Number(v.reporting_to) : null };
     setBusy(true);
     setMsg(null);
     try {
@@ -121,9 +121,10 @@ export default function UserForm({ user }: { user?: StaffUser }) {
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="u-boss">Reporting To<Star /></label>
-            <select id="u-boss" value={v.reporting_to} onChange={set('reporting_to')} required className="input">
-              <option value="">Select an Option</option>
+            <label className="label" htmlFor="u-boss">Reporting To</label>
+            {/* Empty = top of the chain (e.g. the top admin reports to no one) */}
+            <select id="u-boss" value={v.reporting_to} onChange={set('reporting_to')} className="input">
+              <option value="">No one (top of the chain)</option>
               {staff.filter((s) => s.id !== user?.id).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>

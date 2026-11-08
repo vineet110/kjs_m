@@ -7,6 +7,20 @@ import { api, ApiFailure, type Holiday, type LeaveRequest, type MonthView, type 
 import Loading from '@/components/ui/Loading';
 
 type ActiveNav = 'list' | 'tabular' | 'calendar' | 'overtime' | 'leaves' | 'regularization' | 'reports' | 'shifts';
+// The four views: picked from the ••• menu at the top right
+const VIEWS: { id: ActiveNav; label: string }[] = [
+  { id: 'list', label: 'List View' },
+  { id: 'tabular', label: 'Tabular View' },
+  { id: 'calendar', label: 'Calendar View' },
+  { id: 'overtime', label: 'Overtime View' },
+];
+// The four sections: shown in the bar at the bottom of the page
+const SECTIONS: { id: ActiveNav; label: string }[] = [
+  { id: 'leaves', label: 'Leave Applications' },
+  { id: 'regularization', label: 'Regularization' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'shifts', label: 'Shift Schedule' },
+];
 
 function getMondayIST(isoDate?: string) {
   const base = isoDate || todayIST();
@@ -25,6 +39,7 @@ export default function AttendancePage() {
   const [breakStatus, setBreakStatus] = useState<string | null>(null);
   const [breakTimer, setBreakTimer] = useState(0);
   const [showBreakMenu, setShowBreakMenu] = useState(false);
+  const [showViewsMenu, setShowViewsMenu] = useState(false); // the ••• menu with the four views
 
   // Date range navigation (Week / Month) - Always aligned to Monday in IST
   const [weekStart, setWeekStart] = useState(() => getMondayIST());
@@ -226,73 +241,6 @@ export default function AttendancePage() {
 
   return (
     <div className="flex h-full w-full bg-white select-none overflow-hidden">
-      {/* 1. Left Zoho Sidebar (#1E2238) - Flush to Top and Bottom */}
-      <aside className="w-56 shrink-0 bg-[#1E2238] text-slate-300 flex flex-col justify-between py-4 px-3 select-none h-full border-r border-[#151828]">
-        <div className="space-y-5">
-          {/* Views Group matching reference */}
-          <div>
-            <p className="px-3 py-1 text-sm font-semibold text-slate-200">Views</p>
-            <div className="mt-1 space-y-0.5">
-              {[
-                { id: 'list', label: 'List View' },
-                { id: 'tabular', label: 'Tabular View' },
-                { id: 'calendar', label: 'Calendar View' },
-                { id: 'overtime', label: 'Overtime View' },
-              ].map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => setActiveNav(v.id as ActiveNav)}
-                  className={`w-full text-left px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    activeNav === v.id
-                      ? 'bg-[#272D4D] text-[#4E89F8] font-semibold'
-                      : 'text-slate-300 hover:bg-[#252A47] hover:text-white'
-                  }`}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Secondary Sections */}
-          <div className="space-y-0.5 pt-2 border-t border-slate-700/30">
-            {[
-              { id: 'leaves', label: 'Leave Applications', badge: leaves.filter((l) => l.status === 'pending').length },
-              { id: 'regularization', label: 'Regularization', badge: regs.filter((r) => r.status === 'pending').length },
-              { id: 'reports', label: 'Reports' },
-              { id: 'shifts', label: 'Shift Schedule' },
-            ].map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setActiveNav(m.id as ActiveNav)}
-                className={`w-full flex items-center justify-between text-left px-3 py-2 rounded text-xs font-medium transition-colors ${
-                  activeNav === m.id
-                    ? 'bg-[#272D4D] text-[#4E89F8] font-semibold'
-                    : 'text-slate-300 hover:bg-[#252A47] hover:text-white'
-                }`}
-              >
-                <span>{m.label}</span>
-                {Boolean(m.badge) && (
-                  <span className="rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] text-white font-bold">
-                    {m.badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Clean Bottom Action */}
-        <div className="pt-3 border-t border-slate-700/40">
-          <button
-            onClick={() => setShowLeaveModal(true)}
-            className="w-full rounded bg-[#272D4D] hover:bg-[#343D68] text-white py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <span>+ Apply Leave</span>
-          </button>
-        </div>
-      </aside>
-
       {/* 2. Main Workspace - Edge to Edge */}
       <main className="flex-1 flex flex-col h-full bg-white overflow-hidden">
         {/* Top Bar with Centered Date Range Navigator & View Quick Icons */}
@@ -340,13 +288,40 @@ export default function AttendancePage() {
                 📅
               </button>
             </div>
-            <button
-              onClick={() => setActiveNav('tabular')}
-              className="px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs text-slate-600 hover:bg-slate-50 shadow-2xs font-bold"
-              title="More Views / Tabular"
-            >
-              •••
-            </button>
+            {/* ••• opens the list of views (they used to be in the page's own left sidebar) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowViewsMenu(!showViewsMenu)}
+                aria-haspopup="menu"
+                aria-expanded={showViewsMenu}
+                className={`px-2.5 py-1.5 rounded border border-slate-300 text-xs shadow-2xs font-bold transition-colors ${showViewsMenu ? 'bg-slate-200 text-slate-900' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                title="Views"
+              >
+                •••
+              </button>
+              {showViewsMenu && (
+                <>
+                  {/* Click anywhere else to close */}
+                  <div className="fixed inset-0 z-20" onClick={() => setShowViewsMenu(false)} />
+                  <div role="menu" className="absolute right-0 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg z-30 text-xs">
+                    <p className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Views</p>
+                    {VIEWS.map((v) => (
+                      <button
+                        key={v.id}
+                        role="menuitem"
+                        onClick={() => {
+                          setActiveNav(v.id);
+                          setShowViewsMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 transition-colors ${activeNav === v.id ? 'bg-blue-50 text-[#4E89F8] font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -492,7 +467,7 @@ export default function AttendancePage() {
           {activeNav === 'list' && (
             <div className="w-full space-y-1">
               {/* Table Column Headers */}
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-700 pb-2.5 border-b border-slate-200 px-2">
+              <div className="flex items-center justify-between text-[13px] font-semibold text-slate-700 pb-2.5 border-b border-slate-200 px-2">
                 <div className="w-20"></div>
                 <div className="w-20 text-center">Check-in</div>
                 <div className="relative flex-1">
@@ -523,12 +498,12 @@ export default function AttendancePage() {
                         }`}
                       >
                         {/* Day label */}
-                        <div className="w-20 text-xs font-medium text-slate-800">
+                        <div className="w-20 text-[13px] font-medium text-slate-800">
                           <span className={isToday ? 'font-bold text-slate-900' : ''}>{label}</span>
                         </div>
 
                         {/* Check-in time */}
-                        <div className="w-20 text-center text-xs font-mono text-slate-600">
+                        <div className="w-20 text-center text-[13px] font-mono text-slate-600">
                           {d.check_in ? format12h(d.check_in) : '--'}
                         </div>
 
@@ -546,28 +521,28 @@ export default function AttendancePage() {
                           {isSunday ? (
                             <div className="w-full relative flex items-center justify-center">
                               <div className="w-full h-[1.5px] bg-[#ECC94B]" />
-                              <span className="absolute rounded border border-[#ECC94B] bg-white px-2.5 py-0.5 text-[10px] font-medium text-[#B7791F]">
+                              <span className="absolute rounded border border-[#ECC94B] bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#B7791F]">
                                 Weekend
                               </span>
                             </div>
                           ) : d.state === 'leave' ? (
                             <div className="w-full relative flex items-center justify-center">
                               <div className="w-full h-[1.5px] bg-sky-300" />
-                              <span className="absolute rounded border border-sky-300 bg-white px-2.5 py-0.5 text-[10px] font-medium text-sky-800">
+                              <span className="absolute rounded border border-sky-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-sky-800">
                                 Leave
                               </span>
                             </div>
                           ) : d.state === 'holiday' ? (
                             <div className="w-full relative flex items-center justify-center">
                               <div className="w-full h-[1.5px] bg-violet-300" />
-                              <span className="absolute rounded border border-violet-300 bg-white px-2.5 py-0.5 text-[10px] font-medium text-violet-800">
+                              <span className="absolute rounded border border-violet-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-violet-800">
                                 Holiday
                               </span>
                             </div>
                           ) : d.state === 'not_joined' ? (
                             <div className="w-full relative flex items-center justify-center">
                               <div className="w-full h-[1.5px] bg-slate-200" />
-                              <span className="absolute rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                              <span className="absolute rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-400">
                                 Not Joined
                               </span>
                             </div>
@@ -590,12 +565,12 @@ export default function AttendancePage() {
                         </div>
 
                         {/* Check-out time */}
-                        <div className="w-20 text-center text-xs font-mono text-slate-600">
+                        <div className="w-20 text-center text-[13px] font-mono text-slate-600">
                           {d.check_out ? format12h(d.check_out) : '--'}
                         </div>
 
                         {/* Total hours (with live ticking seconds for Today while clocked in!) */}
-                        <div className="w-24 text-right text-xs font-mono font-bold text-slate-900">
+                        <div className="w-24 text-right text-[13px] font-mono font-bold text-slate-900">
                           {isToday && isCheckedIn
                             ? todayLiveElapsed || '00:00:00 Hrs'
                             : d.hours > 0
@@ -920,6 +895,32 @@ export default function AttendancePage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Bottom bar: the four sections (they used to be in the page's own left sidebar) */}
+        <div className="flex items-center gap-1 border-t border-slate-200 bg-white px-6 py-2 shrink-0 overflow-x-auto">
+          {SECTIONS.map((m) => {
+            const badge = m.id === 'leaves' ? leaves.filter((l) => l.status === 'pending').length
+              : m.id === 'regularization' ? regs.filter((r) => r.status === 'pending').length : 0;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setActiveNav(m.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeNav === m.id ? 'bg-blue-50 text-[#4E89F8] font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <span>{m.label}</span>
+                {badge > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] text-white font-bold">{badge}</span>}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowLeaveModal(true)}
+            className="ml-auto whitespace-nowrap rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
+          >
+            + Apply Leave
+          </button>
         </div>
       </main>
 

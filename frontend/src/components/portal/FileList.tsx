@@ -116,7 +116,10 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
               {f.delete_status === 'requested'
                 ? <Pill value="pending" label="delete requested" />
                 : <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
-              {f.delete_status === 'requested' && canDecide && (
+              {f.delete_status === 'requested' && canDecide && f.own_request && (
+                <span className="text-xs text-slate-500">You asked: someone else decides</span>
+              )}
+              {f.delete_status === 'requested' && canDecide && !f.own_request && (
                 <>
                   <button onClick={() => decide(f, true)} className="text-xs font-semibold text-red-700 underline">Approve delete</button>
                   <button onClick={() => decide(f, false)} className="text-xs underline">Keep file</button>
