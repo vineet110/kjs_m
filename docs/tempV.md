@@ -112,3 +112,10 @@ and a never-seen network doesn't). Auth, content, prod-readiness, leads: 79 pass
 Tests: mail outage 5 runs then back (none lost, all sent), features off (Koko, configurator, partners refused,
 enquiry form works), disable with a half-done batch, offer switch keeps the text, one-field account edit.
 Related suites 88 pass. CI runs the rest.
+
+Decisions (Vineet, 9 Nov):
+1. Approved deletes stay in the off-site backup (`kjs-bkp-prod`) for 30 days, then go for good. Fold into
+   backlog as an assumption (DPDP: "deleted means deleted" applies to the live app; backups keep 30 days).
+2. The backup bucket's own R2 token is made (local `.env`, `R2_BACKUP_*`; temporary, rotate before handover).
+   Real check: `python -m app.backup_r2 sync-files` copied the 2 test uploads to `kjs-bkp-prod`, a second
+   run copied nothing.
