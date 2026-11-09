@@ -394,6 +394,9 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Each PR got a code review; findings were checked one by one and only the real ones fixed.
    iv.   Not run after the last changes: the full `test-restore.sh` drill (Vineet: run it on the server).
          The first real off-site copy worked (2 test files to `kjs-bkp-prod`). Follow-ups: backlog R50.
+   v.    Nishita, PRs #46 and #49: order boards checked in Chrome (R49 i); `scripts/e2e` now covers lead
+         management, leave and shifts, and order boards; no app bugs found. e2e runs use `STORAGE_DRIVER=local`
+         (a local `.env` with `r2` had sent test uploads to the real bucket: R50 iii). Login suite unsteady: R51.
 
 
 2. 8–9 Nov 2026 (order boards review fixes, Vineet, PRs #35–#39 merged)

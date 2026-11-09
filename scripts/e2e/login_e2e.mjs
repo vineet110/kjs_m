@@ -103,7 +103,7 @@ check('2 the button never flashes back to "Log in" before the page changes', fir
 let spinning = false;
 for (let i = 0; i < 60 && !spinning; i++) { spinning = await evaluate(`!!document.querySelector('[role=status] .animate-spin')`); await sleep(50); }
 check('2 the account loading screen shows the spinner', spinning);
-check('2 the admin lands on Admin overview', await waitText('Admin overview', 15000));
+check('2 the admin lands on the admin dashboard', await waitText('Live numbers', 15000));
 
 // ---------- 3. "who am I" fails (502): error screen with Try again, Log out and an error code ----------
 mode.meFail = 1;
@@ -116,7 +116,7 @@ check('3 the error screen shows a code for support', alert && alert.code.length 
 await evaluate(`[...document.querySelectorAll('[role=alert] button')].find(x => x.textContent.includes('Try again')).click()`);
 await sleep(300);
 check('3 "Try again" shows the spinner while it asks again (the error is gone)', await evaluate(`!!document.querySelector('[role=status] .animate-spin') && !document.querySelector('[role=alert]')`));
-check('3 "Try again" then loads the page', await waitText('Admin overview', 10000));
+check('3 "Try again" then loads the page', await waitText('Live numbers', 10000));
 
 // ---------- 4. "who am I" never answers: after the time limit, the error screen (not loading forever) ----------
 mode.meSilent = true;
@@ -157,7 +157,7 @@ await logout();
 // ---------- 6. a login link that points back to the login page: go to the dashboard instead ----------
 await open('/employee/login?next=%2Femployee%2Flogin');
 await fill(ADMIN.password);
-check('6 next=/employee/login: logging in opens the dashboard (not the form again)', await waitText('Admin overview', 15000));
+check('6 next=/employee/login: logging in opens the dashboard (not the form again)', await waitText('Live numbers', 15000));
 await logout();
 
 // ---------- 7. reduced motion: the ring is shown but doesn't spin ----------

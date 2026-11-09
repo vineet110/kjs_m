@@ -10,6 +10,22 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 9 Nov 2026 (frontend safety, board check, e2e tests: PRs #41, #46, #49, Nishita)
+
+1. (T) A time-out on a save doesn't mean "not saved": the server may finish anyway. Say "may have been saved,
+   check first", or people click again and save twice.
+
+2. (T) A failing test is not a bug until you read why. Most of today's failures were tests out of date with the
+   screens, or a deliberate change (a switched-off feature now says 404).
+
+3. (T) Before running tests, check where they write: our `.env` sent test uploads to the real R2 bucket.
+
+4. (T) Stopping a background shell may leave its server running. Check the port, or the next run tests old code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 9 Nov 2026 (go-live safety, PRs #42–#45, Vineet)
 
 1. (V) A review finding is not automatically a fix: check each one against the code. 6 of 10 were real.

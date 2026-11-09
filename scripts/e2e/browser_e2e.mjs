@@ -234,13 +234,14 @@ await evaluate(`(() => { const set = Object.getOwnPropertyDescriptor(HTMLInputEl
   set.call(e, 'admin@e2e.test'); e.dispatchEvent(new Event('input', { bubbles: true }));
   set.call(p, 'e2e-admin-pass-1'); p.dispatchEvent(new Event('input', { bubbles: true }));
   p.form.requestSubmit(); return true; })()`);
-check('login form works (admin lands on Admin overview)', await waitFor('Admin overview', 10000), errors.join(' | '));
+check('login form works (admin lands on the admin dashboard)', await waitFor('Live numbers', 10000), errors.join(' | '));
 
 // ---- Portal pages ----
 const PORTAL = {
-  '/employee/dashboard': 'My leads', '/employee/attendance': 'Missed a punch?', '/employee/tasks': 'Add task',
-  '/employee/batches': 'My batches', '/employee/order-boards': 'My order boards', '/employee/order-boards/E2E117-1': 'Documents',
-  '/employee/me': 'Change password', '/admin/dashboard': 'Admin overview', '/admin/leads': 'All leads', '/admin/approvals': 'Approvals',
+  '/employee/dashboard': 'My leads', '/employee/attendance': 'Total Hours', '/employee/tasks': 'Add task',
+  '/employee/batches': 'My batches', '/employee/order-boards': 'My order boards', '/employee/order-boards/E2E117-1': 'Files',
+  '/employee/contacts': 'Kiran Rao', '/employee/internal-leads': 'Kiran Rao', '/employee/koko-leads': 'Koko',
+  '/employee/me': 'Change password', '/admin/dashboard': 'Live numbers', '/admin/users': 'Gita', '/admin/leads': 'All leads', '/admin/approvals': 'Approvals',
   '/admin/team-attendance': 'Team attendance', '/admin/order-boards': 'New board', '/admin/order-boards/E2E117-1': 'Packing',
   '/admin/auto-assign': 'Import buyer records', '/admin/products': 'Add a product', '/admin/website': 'Text & SEO', '/admin/koko': 'Recent chats',
   '/admin/holidays': 'Diwali', '/admin/analytics': 'New leads per week', '/admin/alerts': 'Alerts sent', '/admin/audit': 'Audit',
@@ -269,12 +270,120 @@ await evaluate(`(() => { const set = Object.getOwnPropertyDescriptor(HTMLInputEl
   const d = document.querySelectorAll('input[type=date]')[1]; set.call(d, '2026-11-20'); d.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 check('board form shows planned step dates', await waitFor('Planned ', 6000), errors.join(' | '));
 
+// ---- Lead management (PR #33): contact page, its notes and tasks (data from api_e2e.py) ----
+const clickText = (label) => evaluate(`(() => { const b = [...document.querySelectorAll('button, a, [role=tab]')].find((e) => e.innerText.trim() === ${JSON.stringify(label)}); if (!b) return false; b.click(); return true; })()`);
+await open('/employee/contacts', 500);
+await waitFor('Kiran Rao');
+await clickText('Kiran Rao');
+const contactOk = await waitFor('Rao Foods', 8000);
+await clickText('Notes');
+const noteOk = await waitFor('Prefers WhatsApp', 4000);
+await clickText('Task');
+const taskOk = await waitFor('Send samples to Kiran', 4000);
+check('contact page: details, notes and tasks', contactOk && noteOk && taskOk && errors.length === 0, errors.join(' | ') || `details ${contactOk}, notes ${noteOk}, tasks ${taskOk}`);
+
+// ---- Order boards (PRs #35-#39): file previews, full screen, History, People, plan lock ----
+const BOARD = '/admin/order-boards/E2E117-1';
+const openTab = async (start) => { await evaluate(`[...document.querySelectorAll('[role=tab]')].find((e) => e.innerText.trim().startsWith(${JSON.stringify(start)}))?.click()`); await sleep(1200); };
+const preview = async (name) => { await clickText(name); await sleep(2500); };
+await open(BOARD, 2500);
+await openTab('Files');
+await preview('rates-hindi.csv');
+let pt = await text();
+check('board preview: CSV shows Hindi and ₹ as written', pt.includes('कॉफ़ी स्टिक') && pt.includes('₹ 2.50') && pt.includes('₹ 1,250'), pt.slice(-200));
+await preview('plan.xlsx');
+pt = await text();
+const sheetOk = pt.includes('Coffee stick') && pt.includes('Rate (₹)');
+await clickText('Notes');
+await sleep(500);
+check('board preview: Excel table and its second sheet', sheetOk && (await text()).includes('दूसरी शीट'), pt.slice(-200));
+await preview('po-117.docx');
+const doc = (await evaluate(`(() => { const f = document.querySelector('iframe[srcdoc]'); return f ? { html: f.srcdoc, sandbox: f.getAttribute('sandbox') } : null; })()`)) ?? {};
+check('board preview: Word in a sandboxed frame (text, Hindi, table)', doc.sandbox === '' && doc.html?.includes('Purchase order PO-117') && doc.html.includes('दर ₹ 2.50') && doc.html.includes('<table'), JSON.stringify(doc).slice(0, 200));
+await preview('board-test.pdf');
+const pdfFrame = await evaluate(`document.querySelector('section iframe:not([srcdoc])')?.getAttribute('src') ?? null`);
+check('board preview: PDF in a frame from /view', /\/files\/\d+\/view$/.test(pdfFrame ?? ''), String(pdfFrame));
+await preview('label.png');
+check('board preview: picture shown', await evaluate(`!!document.querySelector('section img[src$="/view"]')`));
+await preview('fake.pdf');
+check('board preview: a fake PDF never runs as a page', !(await evaluate(`[...document.querySelectorAll('iframe')].some((f) => { try { return f.contentDocument?.querySelector('script'); } catch { return false; } })`)) && errors.length === 0, errors.join(' | '));
+await clickText('Full screen');
+await sleep(800);
+const fullOn = await evaluate(`!!document.querySelector('section.fixed.inset-0')`);
+await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+await sleep(800);
+check('board preview: full screen opens and Esc closes it', fullOn && !(await evaluate(`!!document.querySelector('section.fixed.inset-0')`)));
+// (Esc after a click INSIDE a PDF needs a real key press: Chrome leaves its own full screen then. Checked by hand, PR #46.)
+await openTab('History');
+pt = await text();
+check('board History tab: who did what, newest first', /removed Gita from the board[\s\S]*added Gita to the board[\s\S]*created the board/.test(pt), pt.slice(-300));
+await openTab('People');
+pt = await text();
+// The list itself (Gita was removed: she is only in the "Add someone…" picker now)
+const people = (await evaluate(`[...document.querySelectorAll('li')].map((l) => l.innerText.replace(/\\s+/g, ' ').trim()).filter((t) => /Owner|Works on|Not on a step/.test(t))`)) ?? [];
+check('board People tab: owner first, then the people', people.length === 3 && /Admin.*Owner/.test(people[0])
+  && people.some((p) => p.includes('Esha')) && people.some((p) => p.includes('Farhan')) && !people.some((p) => p.includes('Gita')), JSON.stringify(people));
+await openTab('Steps');
+if ((await text()).includes('Lock plan')) await clickText('Lock plan');
+check('owner locks the plan from the board', await waitFor('Plan locked · Unlock', 4000), errors.join(' | '));
+await clickText('Edit plan');
+check('locked: the owner can still open the plan editor', await waitFor('Edit the plan', 4000));
+
+// Log in as Esha (a member; api_e2e.py changed her password): locked plan, her leave, phone width of the board
+async function login(email, password, landing) {
+  await send('Network.clearBrowserCookies');
+  await open('/employee/login', 500);
+  await evaluate(`(() => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    const e = document.querySelector('input[type=email]'); const p = document.querySelector('input[type=password]');
+    set.call(e, ${JSON.stringify(email)}); e.dispatchEvent(new Event('input', { bubbles: true }));
+    set.call(p, ${JSON.stringify(password)}); p.dispatchEvent(new Event('input', { bubbles: true }));
+    p.form.requestSubmit(); return true; })()`);
+  return waitFor(landing, 10000);
+}
+check('Esha logs in', await login('esha@e2e.test', 'staff-pass-456', 'Good '));
+await open('/employee/order-boards/E2E117-1', 2500);
+pt = await text();
+check('member: sees the lock and no "Edit plan"', /plan locked by the owner/i.test(pt) && !pt.includes('Edit plan'), pt.slice(0, 300));
+// The attendance page's other views open from its "•••" Views menu
+const view = async (label) => { await evaluate(`document.querySelector('button[title="Views"]')?.click()`); await sleep(300); await clickText(label); await sleep(1500); return text(); };
+await open('/employee/attendance', 2500);
+pt = await view('Leave Applications');
+check('Esha\'s Leave Applications lists her approved leave', pt.includes('My Leave Applications') && /casual/i.test(pt) && /approved/i.test(pt), pt.slice(-300));
+pt = await view('Shift Schedule');
+check('Esha\'s Shift Schedule shows the shift the admin gave her', pt.includes('E2E Early') || pt.includes('E2EEARLY'), pt.slice(-300));
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+const wide = () => evaluate('document.documentElement.scrollWidth > window.innerWidth + 1');
+const phoneProblems = [];
+await open('/employee/order-boards/E2E117-1', 2500);
+for (const tab of ['Steps', 'Files', 'People', 'History']) {
+  await openTab(tab);
+  if (await wide()) phoneProblems.push(`${tab} tab scrolls sideways`);
+}
+await openTab('Files');
+for (const name of ['rates-hindi.csv', 'plan.xlsx', 'po-117.docx', 'board-test.pdf']) {
+  await preview(name);
+  if (await wide()) phoneProblems.push(`${name} preview scrolls sideways`);
+}
+check('phone: board tabs and file previews fit 390 px', phoneProblems.length === 0 && errors.length === 0, [...phoneProblems, ...errors].join('; '));
+await send('Emulation.clearDeviceMetricsOverride');
+
+// Back to the admin: unlock the plan again (leave the data as it was)
+check('admin logs in again', await login('admin@e2e.test', 'e2e-admin-pass-1', 'Live numbers'));
+await open(BOARD, 2500);
+await clickText('🔒 Plan locked · Unlock');
+check('owner unlocks the plan', await waitFor('Lock plan', 4000));
+
 // Phone width: menu button exists and opens the sidebar
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 800, deviceScaleFactor: 2, mobile: true });
 await open('/employee/tasks', 500);
 await waitFor('Add task');
+// The sidebar's groups start closed, so check where the sidebar is, not a link's text: off screen before, on screen after
+const navLeft = () => evaluate('Math.round(document.querySelector("aside, nav")?.getBoundingClientRect().left ?? -9999)');
+const before = await navLeft();
 await evaluate(`document.querySelector('button[aria-label="Open menu"]').click()`);
-check('phone: menu opens the sidebar', await waitFor('Attendance'), errors.join(' | '));
+await sleep(800);
+const after = await navLeft();
+check('phone: menu slides the sidebar onto the screen', before < 0 && after >= 0, `left before ${before}, after ${after}`);
 const overflow = await evaluate('document.documentElement.scrollWidth > window.innerWidth + 1');
 check('phone: no sideways scrolling on tasks page', !overflow);
 await open('/', 1500);

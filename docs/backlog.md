@@ -1592,10 +1592,13 @@ R48. Website pictures: real address before go-live  🔴 before go-live
    ii.   After about a week on R2, remove the copies in `frontend/public/images` and `public/flags`.
 
 
-R49. Order boards follow-ups (PRs #35–#39)  🟡 next small PR
+R49. Order boards follow-ups (PRs #35–#39)  🟡 ii–vi open
 
-   i.    Not seen in a browser yet: the review fixes (real full screen, ₹ / Hindi CSV, a PDF under
-         `frame-ancestors 'self'`, phones without a PDF viewer) and phone width in general.
+   i.    ✅ Checked in Chrome (PR #46, 9 Nov, Nishita): CSV with ₹ and Hindi, Excel, Word, PDF previews, full
+         screen and Esc (also after a click inside a PDF, by hand), History, People, the plan lock (member refused,
+         owner allowed), every tab and preview at 390 px. One screen bug fixed: on a phone the preview header cut
+         the file name to "po-11…". The same checks now run in `scripts/e2e` (PR #49). Not checked: a phone
+         without a PDF viewer.
    ii.   R2 previews are read through the API in one piece; stream them if files get big.
    iii.  Board pages make some extra database lookups (every user's name, members per step); fine for now.
    iv.   The staff picker and date preview are copied between the create form and the plan editor: share them.
@@ -1623,3 +1626,12 @@ R50. Before and after go-live  🔴 i–iii before go-live
          holidays and offers buttons can still be double-clicked.
    vii.  Left from the PR #42 review on purpose: no limit on how many files one sync moves to `deleted/`, an
          extra INSERT per check-in, R2 server-side copy (speed only).
+
+
+R51. `scripts/e2e/login_e2e.mjs` is unsteady  🟢 after go-live (Nishita)
+
+   i.    9 Nov, on main with PRs #41–#45: once all 20 checks passed (alone, after a backend restart); other runs
+         failed steps 1, 2 or 5 (the button still says "Logging in…" when the check looks). No app bug seen.
+   ii.   Look at: the timing of the held requests, and the new login lockout counting (PR #44).
+   iii.  The other suites pass: api 196, browser 73, sidebar 25 (PR #49). Esc inside a PDF in full screen stays a
+         hand check (a script's key press can't leave Chrome's own full screen).

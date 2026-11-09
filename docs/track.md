@@ -112,6 +112,13 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          Decisions: `memory.md` items 39–44. Follow-ups: `backlog.md` R50 (drill on the server, key rotation).
 
 
+4l. Order boards browser check + e2e tests for the new features (Nishita): PRs #46, #49 (9 Nov)
+
+   i.    #46: order boards checked in Chrome (backlog R49 i), one phone screen bug fixed.
+   ii.   #49: `scripts/e2e` covers lead management, leave and shifts, order boards (people, previews, History,
+         lock). api 196, browser 73, sidebar 25 passing; `login_e2e.mjs` unsteady (backlog R51). No app bugs found.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
