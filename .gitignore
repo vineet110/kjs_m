@@ -52,6 +52,7 @@ backend/storage-e2e/
 .env.*
 !.env.example
 !.env.production.example
+!.env.backup.example
 *.dump
 *.tgz
 

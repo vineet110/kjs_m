@@ -115,13 +115,24 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
         await asyncio.to_thread(storage().put, key, data, TYPES[ext])
     except StorageError as e:
         raise AppError(502, "storage", "Could not save the file. Please try again.") from e
-    f = StoredFile(key=key, name=name[:200], content_type=TYPES[ext], size=len(data),
-                   sha256=hashlib.sha256(data).hexdigest(), owner_type=owner_type, owner_id=owner_id,
-                   is_public=is_public, uploaded_by=user.id, delete_status="none", delete_reason="")
-    db.add(f)
-    await db.flush()
-    audit_service.record(db, actor=user, action="file.uploaded", entity_type="file", entity_id=f.id,
-                         after={"name": f.name, "owner": f"{owner_type}:{owner_id}", "size": f.size})
+    try:
+        f = StoredFile(key=key, name=name[:200], content_type=TYPES[ext], size=len(data),
+                       sha256=hashlib.sha256(data).hexdigest(), owner_type=owner_type, owner_id=owner_id,
+                       is_public=is_public, uploaded_by=user.id, delete_status="none", delete_reason="")
+        db.add(f)
+        await db.flush()
+        audit_service.record(db, actor=user, action="file.uploaded", entity_type="file", entity_id=f.id,
+                             after={"name": f.name, "owner": f"{owner_type}:{owner_id}", "size": f.size})
+    except Exception:
+        # Failed before the save: no row will point to the stored copy, so remove it ("deleted" must mean
+        # deleted, and nothing else would ever find it). If even that fails, it is logged for a clean-up.
+        try:
+            await asyncio.to_thread(storage().delete, key)
+        except Exception:  # noqa: BLE001 - the first error is the one to report
+            log.warning("file.orphan_left", extra={"key": key})
+        raise
+    # Not inside the clean-up: a commit that fails on the way back may still have saved the row, and
+    # deleting the file then would lose it. An unused copy (logged by nobody) is the safer mistake.
     await db.commit()
     return out(f, {user.id: user.name})
 
