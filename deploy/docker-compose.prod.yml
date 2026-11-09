@@ -39,6 +39,11 @@ services:
     env_file: .env
     environment:
       APP_ENV: production
+      # .env also holds secrets the running API must never have (CR11, R7). These lines win over the
+      # env_file. Only the migration step gets MIGRATION_DATABASE_URL (deploy.sh / restore.sh pass it).
+      MIGRATION_DATABASE_URL: ""
+      POSTGRES_PASSWORD: ""
+      CLOUDFLARE_TUNNEL_TOKEN: ""
       CONFIG_DIR: /config
       FILE_STORAGE_PATH: /srv/kjs_files
       # config/ is shared with development; these always win on the server
