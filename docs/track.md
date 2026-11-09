@@ -119,6 +119,13 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          lock). api 196, browser 73, sidebar 25 passing; `login_e2e.mjs` unsteady (backlog R51). No app bugs found.
 
 
+4m. Koko fixed + catalogue cards (Nishita): merged in PR #50 (9 Nov)
+
+   i.    Koko had failed every message (whole catalogue over Groq's limit). Now only the products that matter,
+         and product cards on product and category pages. Decision: `memory.md` 45. Follow-ups: `backlog.md`
+         R52 (paid Groq tier before real traffic), A92 (card rules).
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say

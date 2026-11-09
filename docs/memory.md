@@ -288,6 +288,11 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     user edits change only the fields sent. Screens (PR #41): reads give up after 20 s; saves wait 90 s and
     say "may have been saved, refresh to check" when there is no clear answer.
 
+45. 9 Nov. Koko sends the AI only the products that matter, never the whole catalogue (PR #50): the viewed
+    product, then products the visitor's last 3 messages name, then the page's category; max 8, prompt about
+    2,000 tokens (a test guards the size). On product and category pages the first reply carries a catalogue
+    card from the database (backlog A92). Cards, not a PDF per category. Groq's free tier: backlog R52.
+
 
 
 ---------------------------------------------------------------------------------------------------
@@ -397,6 +402,9 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Nishita, PRs #46 and #49: order boards checked in Chrome (R49 i); `scripts/e2e` now covers lead
          management, leave and shifts, and order boards; no app bugs found. e2e runs use `STORAGE_DRIVER=local`
          (a local `.env` with `r2` had sent test uploads to the real bucket: R50 iii). Login suite unsteady: R51.
+   vi.   Nishita, PR #50: Koko answered every message "Sorry, I can't answer" (all 72 products went to Groq,
+         over the free 8,000 tokens a minute). Now only the products that matter, plus catalogue cards
+         (decision 45). The review's 10 findings were checked against the code, all real, all fixed.
 
 
 2. 8–9 Nov 2026 (order boards review fixes, Vineet, PRs #35–#39 merged)

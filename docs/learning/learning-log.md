@@ -10,6 +10,20 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 9 Nov 2026 (Koko catalogue, PR #50, Nishita)
+
+1. (T) An AI request has a size, counted in tokens, and providers limit tokens per minute. Sending
+   everything "just in case" broke Koko once the catalogue grew. Send only what the question needs.
+
+2. (T) Retrieval without embeddings: pick by the page and the words in the question. Good enough for a small
+   catalogue; embeddings later, when it isn't.
+
+3. (T) The order of what you send matters when there is a cap: what the buyer asked for first.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 9 Nov 2026 (frontend safety, board check, e2e tests: PRs #41, #46, #49, Nishita)
 
 1. (T) A time-out on a save doesn't mean "not saved": the server may finish anyway. Say "may have been saved,

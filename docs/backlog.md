@@ -955,6 +955,14 @@ A91. Deleted files stay in the off-site backup for 30 days  🟢 (Vineet decided
          then goes for good. Normal for backups; check with KJS that this is fine under DPDP.
 
 
+A92. Koko's catalogue card  🟢 (Nishita, PR #50, 9 Nov)
+
+   i.    Only on product and category pages, on Koko's first real reply, up to 6 products: the product being
+         viewed first, then best sellers and offers, then one of each kind. Built from the database, not the AI.
+   ii.   Products for the AI are picked by page and keywords (max 8), not embeddings: enough for 72 products.
+         Embeddings (pgvector, a new dependency) only when the facts outgrow this (`memory.md` decision 45).
+
+
 
 
 
@@ -1626,6 +1634,14 @@ R50. Before and after go-live  🔴 i–iii before go-live
          holidays and offers buttons can still be double-clicked.
    vii.  Left from the PR #42 review on purpose: no limit on how many files one sync moves to `deleted/`, an
          extra INSERT per check-in, R2 server-side copy (speed only).
+
+
+R52. Koko on Groq's free tier fits only a few messages a minute  🔴 before real traffic (Vineet / KJS decide)
+
+   i.    Free tier: 8,000 tokens a minute for the whole site. One Koko message is about 3,000 tokens (prompt about
+         2,000 after PR #50, plus the chat and the reply), so about 2–3 messages a minute; more get the fallback.
+   ii.   Fix: a paid Groq tier (much higher limits, low cost), or another provider (`llm.py`, decision D4).
+   iii.  Before PR #50 every message failed (413: all 72 products, about 8,300 tokens). See A92.
 
 
 R51. `scripts/e2e/login_e2e.mjs` is unsteady  🟢 after go-live (Nishita)
