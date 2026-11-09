@@ -6,6 +6,8 @@ import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
 import { partnerLabel } from '@/lib/partners';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
+import { useToast } from '@/components/portal/Toast';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
 type OfferRow = { id: number; text: string; link: string; starts_at: string | null; ends_at: string | null; is_active: boolean; sort_order: number };
@@ -37,10 +39,12 @@ export default function WebsiteAdmin() {
 }
 
 function Texts() {
-  const [rows, setRows] = useState<TextRow[]>([]);
+  const [rows, setRows] = useState<TextRow[] | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const load = useCallback(() => {
-    api<TextRow[]>('/content/texts').then((r) => setRows(r.filter((x) => !x.key.startsWith('koko.'))));
+    setLoadErr(null);
+    api<TextRow[]>('/content/texts').then((r) => setRows(r.filter((x) => !x.key.startsWith('koko.')))).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
@@ -56,9 +60,12 @@ function Texts() {
     }
   }
 
+  // Only when nothing has loaded yet: after a save, the boxes (and what is typed in them) stay
+  if (rows === null) return loadErr ? <LoadError error={loadErr} onRetry={load} /> : <Loading />;
   return (
     <div className="space-y-3">
       <Msg msg={msg} />
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       {rows.map((r) => (
         <TextEditor key={r.key} row={r} onSave={save} />
       ))}
@@ -91,8 +98,11 @@ function TextEditor({ row, onSave }: { row: TextRow; onSave: (k: string, v: stri
 function Offers() {
   const [rows, setRows] = useState<OfferRow[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const toast = useToast();
   const load = useCallback(() => {
-    api<OfferRow[]>('/content/offers').then(setRows);
+    setLoadErr(null);
+    api<OfferRow[]>('/content/offers').then(setRows).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
@@ -113,14 +123,22 @@ function Offers() {
   }
 
   async function toggle(o: OfferRow) {
-    await api(`/content/offers/${o.id}`, { method: 'PATCH', body: { ...o, is_active: !o.is_active } });
-    load();
+    try {
+      await api(`/content/offers/${o.id}`, { method: 'PATCH', body: { ...o, is_active: !o.is_active } });
+      load();
+    } catch (e) {
+      toast(e instanceof ApiFailure ? e.message : 'Could not change it. Please try again.', 'error');
+    }
   }
 
   async function remove(o: OfferRow) {
     if (!confirm(`Delete "${o.text}"?`)) return;
-    await api(`/content/offers/${o.id}`, { method: 'DELETE' });
-    load();
+    try {
+      await api(`/content/offers/${o.id}`, { method: 'DELETE' });
+      load();
+    } catch (e) {
+      toast(e instanceof ApiFailure ? e.message : 'Could not delete it. Please try again.', 'error');
+    }
   }
 
   return (
@@ -135,7 +153,8 @@ function Offers() {
         <div className="md:col-span-6"><Msg msg={msg} /></div>
       </form>
       <div className="card divide-y">
-        {rows.length === 0 && <p className="p-4 text-sm text-slate-500">No offers yet. The ticker stays hidden until there is a live one.</p>}
+        {loadErr ? <LoadError error={loadErr} onRetry={load} className="m-3" />
+          : rows.length === 0 && <p className="p-4 text-sm text-slate-500">No offers yet. The ticker stays hidden until there is a live one.</p>}
         {rows.map((o) => (
           <div key={o.id} className="flex flex-wrap items-center gap-2 p-3 text-sm">
             <span className="font-medium">{o.text}</span>
@@ -155,16 +174,24 @@ function Offers() {
 
 function Partners() {
   const [rows, setRows] = useState<Partner[] | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const toast = useToast();
   const load = useCallback(() => {
-    api<Partner[]>('/content/partners').then(setRows).catch(() => setRows([]));
+    setLoadErr(null);
+    api<Partner[]>('/content/partners').then(setRows).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
   }, [load]);
   async function setStatus(p: Partner, status: string) {
-    await api(`/content/partners/${p.id}/status`, { method: 'POST', body: { status } });
-    load();
+    try {
+      await api(`/content/partners/${p.id}/status`, { method: 'POST', body: { status } });
+      load();
+    } catch (e) {
+      toast(e instanceof ApiFailure ? e.message : 'Could not save. Please try again.', 'error');
+    }
   }
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (rows === null) return <Loading />;
   return (
     <div className="space-y-2">

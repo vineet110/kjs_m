@@ -54,7 +54,8 @@ test('safeNext never leads back to the login page (repeated slashes, encoded let
 });
 
 // ---------- api(): every answer is either the data or an ApiFailure ----------
-const { api, upload, ApiFailure } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {};");
+// cache() (React) is used at the top of api.ts, so its stub goes first; here it just returns the function
+const { api, upload, ApiFailure, DEFAULT_TIMEOUT_MS } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {};", 'const cache = (fn) => fn;');
 const answer = (body, status = 200, type = 'application/json') => async () => new Response(body, { status, headers: { 'content-type': type } });
 
 test('api returns readable JSON data', async () => {
@@ -105,6 +106,17 @@ test('api: a server that never answers ends as a time-out (timeoutMs)', async ()
   } finally {
     clearTimeout(keepAlive);
   }
+});
+
+test('api: every call has a time limit, even without timeoutMs (R40); upload has none', async () => {
+  assert.equal(DEFAULT_TIMEOUT_MS, 20_000);
+  let seen;
+  globalThis.fetch = async (_url, init) => { seen = init.signal; return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  await api('/tasks');
+  assert.ok(seen instanceof AbortSignal, 'api() sends a signal by default');
+  seen = 'none';
+  await upload('/files', new FormData());
+  assert.equal(seen, undefined, 'upload() has no time limit: a big file on a slow line may take long');
 });
 
 // ---------- partner types: "broker" is shown as "Referral partner" (UI step 4) ----------

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, upload, type Category } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type StaffRow = {
   user_id: number; name: string; categories: string[]; is_available: boolean; checked_in: boolean;
@@ -22,14 +23,16 @@ export default function AutoAssign() {
   const [cats, setCats] = useState<Category[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
 
   const load = useCallback(() => {
-    api<Overview>('/assign/overview').then(setO);
+    setLoadErr(null);
+    api<Overview>('/assign/overview').then(setO).catch(setLoadErr);
+    api<Category[]>('/public/categories').then(setCats).catch(setLoadErr);
     setPlan(null);
   }, []);
   useEffect(() => {
     load();
-    api<Category[]>('/public/categories').then(setCats);
   }, [load]);
 
   async function importFile(e: React.FormEvent<HTMLFormElement>) {
@@ -53,11 +56,12 @@ export default function AutoAssign() {
   }
 
   async function runNow() {
-    const r = await api<{ batches: number; given: { name: string; records: number }[] }>('/assign/run', { method: 'POST' });
+    const r = await api<{ batches: number; given: { name: string; records: number }[] }>('/assign/run', { method: 'POST', timeoutMs: 60_000 }) // hands out every batch at once: may take longer than 20 s;
     setMsg({ ok: true, text: r.batches ? `Gave ${r.given.map((g) => `${g.records} to ${g.name}`).join(', ')}.` : 'Nobody could get a batch right now (see the rules above).' });
     load();
   }
 
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!o) return <Loading />;
   const s = o.settings;
 

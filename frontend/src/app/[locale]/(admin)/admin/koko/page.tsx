@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState, fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
 type Chat = { id: number; page: string; messages: { role: string; content: string }[]; suggested_enquiry: boolean; updated_at: string };
@@ -15,14 +16,16 @@ export default function KokoAdmin() {
   const [chats, setChats] = useState<{ total: number; items: Chat[] } | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
 
   const load = useCallback(() => {
+    setLoadErr(null);
     api<TextRow[]>('/content/texts').then((rows) => {
       const f = rows.find((r) => r.key === 'koko.facts') ?? null;
       setFacts(f);
       setDraft(f?.value ?? '');
-    });
-    api<{ total: number; items: Chat[] }>('/content/koko-chats').then(setChats);
+    }).catch(setLoadErr);
+    api<{ total: number; items: Chat[] }>('/content/koko-chats').then(setChats).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
@@ -41,6 +44,7 @@ export default function KokoAdmin() {
   return (
     <div className="space-y-8">
       <PageTitle title="Koko" sub="Koko answers only from these facts and the product catalogue. It never gives prices, lead times or capacities." />
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold">Facts</h2>

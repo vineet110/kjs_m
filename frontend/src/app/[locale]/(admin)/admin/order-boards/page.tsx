@@ -5,6 +5,7 @@ import { BoardList } from '@/components/portal/BoardDetail';
 import { fmtDay, Msg, PageTitle, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type BoardSummary, type Colleague } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type StepDraft = { name: string; size: number; member_ids: number[]; head_ids: number[]; tasks: string; checklist: string };
 const NEW_STEP: StepDraft = { name: '', size: 0, member_ids: [], head_ids: [], tasks: '', checklist: '' };
@@ -13,9 +14,11 @@ export default function AdminBoards() {
   const [boards, setBoards] = useState<BoardSummary[] | null>(null);
   const [showFinished, setShowFinished] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
 
   const load = useCallback(() => {
-    api<BoardSummary[]>(`/boards?include_finished=${showFinished}`).then(setBoards).catch(() => setBoards([]));
+    setLoadErr(null);
+    api<BoardSummary[]>(`/boards?include_finished=${showFinished}`).then(setBoards).catch(setLoadErr);
   }, [showFinished]);
   useEffect(() => {
     load();
@@ -30,7 +33,7 @@ export default function AdminBoards() {
         </div>
       </PageTitle>
       {creating && <NewBoard onDone={() => { setCreating(false); load(); }} />}
-      {boards === null ? <Loading /> : <BoardList base="/admin/order-boards" boards={boards} />}
+      {loadErr ? <LoadError error={loadErr} onRetry={load} /> : boards === null ? <Loading /> : <BoardList base="/admin/order-boards" boards={boards} />}
     </div>
   );
 }
@@ -44,10 +47,15 @@ function NewBoard({ onDone }: { onDone: () => void }) {
   const [preview, setPreview] = useState<{ steps: { start: string; end: string }[]; plan_late: boolean } | null>(null);
   const [previewErr, setPreviewErr] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [staffErr, setStaffErr] = useState<unknown>(null);
 
-  useEffect(() => {
-    api<Colleague[]>('/employee/colleagues').then(setStaff);
+  const loadStaff = useCallback(() => {
+    setStaffErr(null);
+    api<Colleague[]>('/employee/colleagues').then(setStaff).catch(setStaffErr);
   }, []);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   // Live plan preview whenever dates or sizes change.
   const sizes = steps.map((s) => s.size).join(',');
@@ -92,6 +100,7 @@ function NewBoard({ onDone }: { onDone: () => void }) {
 
   return (
     <form onSubmit={save} className="card space-y-4 p-5">
+      {staffErr != null && <LoadError error={staffErr} onRetry={loadStaff} />}
       <div className="grid gap-3 md:grid-cols-4">
         <div><label className="label">Board code</label><input value={head.code} onChange={h('code')} required placeholder="ABC117-3" className="input uppercase" /></div>
         <div className="md:col-span-2"><label className="label">Order name</label><input value={head.name} onChange={h('name')} required minLength={2} placeholder="3-in-1 coffee sticks, 18 g" className="input" /></div>

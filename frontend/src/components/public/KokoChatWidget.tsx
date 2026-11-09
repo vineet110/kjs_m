@@ -43,6 +43,7 @@ export default function KokoChatWidget() {
       const res = await api<{ reply: string; suggest_enquiry: boolean }>('/koko/chat', {
         method: 'POST',
         body: { messages: next.slice(1), page: window.location.pathname, chat_id: chatId.current },
+        timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
       });
       setMsgs([...next, { role: 'assistant', content: res.reply }]);
       if (res.suggest_enquiry && !sent) setShowForm(true);

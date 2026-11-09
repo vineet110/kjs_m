@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Colleague, type Lead, type LeadNote } from '@/lib/api';
 import { fmtIST, Pill } from './ui';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 const SOURCE_LABEL: Record<string, string> = { enquiry_form: 'Enquiry', price_sheet: 'Price sheet', koko: 'Koko chat', gated: 'Gated form' };
 const OUTCOMES = ['quote_sent', 'sample_sent', 'order_won', 'not_interested', 'no_reply', 'spam'];
@@ -16,20 +17,28 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
   const [owner, setOwner] = useState('');
   const [staff, setStaff] = useState<Colleague[]>([]);
   const [open, setOpen] = useState<number | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const [staffErr, setStaffErr] = useState<unknown>(null);
 
+  // A failed refresh keeps the list already shown and puts the error with "Try again" above it
   const load = useCallback(() => {
+    setLoadErr(null);
     const qs = new URLSearchParams();
     if (status) qs.set('status', status);
     if (admin && sla) qs.set('sla', sla);
     if (admin && owner) qs.set('owner', owner);
-    api<Lead[]>(`${admin ? '/admin/leads' : '/employee/leads'}?${qs}`).then(setLeads).catch(() => setLeads([]));
+    api<Lead[]>(`${admin ? '/admin/leads' : '/employee/leads'}?${qs}`).then(setLeads).catch(setLoadErr);
   }, [status, sla, owner, admin]);
   useEffect(() => {
     load();
   }, [load]);
-  useEffect(() => {
-    api<Colleague[]>('/employee/colleagues').then(setStaff);
+  const loadStaff = useCallback(() => {
+    setStaffErr(null);
+    api<Colleague[]>('/employee/colleagues').then(setStaff).catch(setStaffErr);
   }, []);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
   // Timers move: refresh every minute.
   useEffect(() => {
     const t = setInterval(load, 60_000);
@@ -56,7 +65,9 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
           </>
         )}
       </div>
-      {leads === null && <Loading />}
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
+      {staffErr != null && <LoadError error={staffErr} onRetry={loadStaff} />}
+      {leads === null && !loadErr && <Loading />}
       {leads?.length === 0 && <div className="card p-6 text-sm text-slate-500">No leads here. New ones appear as soon as a visitor sends an enquiry or talks to Koko.</div>}
       {leads?.map((l) => (
         <div key={l.id} className={`card space-y-2 p-4 ${l.sla_state === 'overdue' ? 'border-red-300' : ''}`}>
@@ -98,23 +109,28 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [notesErr, setNotesErr] = useState<unknown>(null);
 
   const loadNotes = useCallback(() => {
-    api<LeadNote[]>(`/employee/leads/${lead.id}/notes`).then(setNotes).catch(() => setNotes([]));
+    setNotesErr(null);
+    api<LeadNote[]>(`/employee/leads/${lead.id}/notes`).then(setNotes).catch(setNotesErr);
   }, [lead.id]);
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
 
-  async function run(fn: () => Promise<unknown>) {
+  /** Returns true when it worked, so the caller knows whether to clear what was typed. */
+  async function run(fn: () => Promise<unknown>): Promise<boolean> {
     setBusy(true);
     setErr('');
     try {
       await fn();
       loadNotes();
       onDone();
+      return true;
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Could not save.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -124,12 +140,13 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
     e.preventDefault();
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form));
-    await run(() => api(`/employee/leads/${lead.id}/notes`, { method: 'POST', body: f }));
-    form.reset();
+    // Clear the box only after a successful save: if it failed, what was typed stays to try again
+    if (await run(() => api(`/employee/leads/${lead.id}/notes`, { method: 'POST', body: f }))) form.reset();
   }
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+      {notesErr != null && <LoadError error={notesErr} onRetry={loadNotes} />}
       {notes.length > 0 && (
         <ul className="space-y-1 text-sm">
           {notes.map((n) => (
