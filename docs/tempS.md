@@ -79,3 +79,47 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 
 12. `scripts/e2e/reset_e2e_db.sh` has Vineet's own path (`cd /c/VINEET_WORK/KJS_v1/backend`): it fails on
    other computers. Fix in Task 3 (PR F).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## E2E tests for the new features (branch test/e2e-new-features, 9 Nov)
+
+Only `scripts/e2e/` changed. Run on the local test database (port 5433), backend with `STORAGE_DRIVER=local`.
+
+1. `api_e2e.py`, new checks:
+
+   i.    Lead management and contacts (PR #33): internal lead (hers from the start, phone required), source lists,
+         one contact row per person, contact page, task and note on a lead, privacy (a colleague gets 404, can't add
+         notes), admin sees all, admin reassigns (then the new owner can open it and the old one can't).
+   ii.   Leave and shifts (PR #31): create a shift (admin only, bad times refused), assign it, it shows on the day;
+         leave request, overlap and bad dates refused, approver list, approve, decide twice refused, the leave shows
+         in the month; half-day leave, can't approve your own, reject with a reason.
+   iii.  Order boards (PRs #35-#39): add a person (owner only, twice refused, they are told), step people and head
+         (head must be on the step, a step needs someone, done steps fixed, members can't), owner and last person on
+         a running step can't be removed, remove (they lose the board and its files and are told).
+         File preview of CSV, Excel, Word, PDF, PNG and a fake PDF: same bytes, inline, no-store, nosniff; a real
+         PDF may be framed by our pages only, everything else is sandboxed; no preview without logging in.
+         History: who did what, newest first, paging back, staff only. Plan edit with the lock: a member edits when
+         unlocked, an old copy is refused (409), only the owner locks, locked = member refused (403) and owner allowed.
+   iv.   The configurator lead now follows its on/off switch (PR #45 made switched-off features refuse their API);
+         the third website lead comes from "Get a quote".
+   v.    Product lists and the sitemap are checked after the 60 s cache refresh (they failed right after a fresh build).
+
+2. `browser_e2e.mjs`: contact page (details, notes, tasks); board previews of every type, full screen and Esc,
+   History, People, lock from the board; as a member: the lock, her approved leave and her new shift; board tabs
+   and previews at 390 px; the 5 out-of-date checks fixed (new headings, sidebar groups start closed).
+
+3. `login_e2e.mjs`, `sidebar_e2e.mjs`: the admin dashboard heading is now "Live numbers" (was "Admin overview").
+
+4. `reset_e2e_db.sh`: finds the repo's own backend folder (it had one person's path), stops on the first error,
+   clears the last run's files. README: start the backend with `STORAGE_DRIVER=local` (and both database URLs).
+
+5. Real app bugs found: none.
+
+6. Final run on main with PRs #41-#45 (9 Nov): api 196 passed, browser 73, sidebar 25, all passing.
+   `login_e2e.mjs` is unsteady: once all 20 passed (run alone after a backend restart), other runs failed
+   different steps (1, 2 or 5: the button still says "Logging in…" when the check looks). My only change there is
+   the heading text. Not an app bug as far as seen; needs a look after go-live (timing of the held requests, or the
+   new login lockout counting from PR #44).

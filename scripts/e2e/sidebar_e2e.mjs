@@ -72,7 +72,15 @@ const STATE = `(() => {
 })()`;
 const state = () => evaluate(STATE);
 const toggle = () => evaluate(`document.querySelector('button[aria-controls="portal-sidebar"]').click()`);
-const clickLink = (text) => evaluate(`[...document.querySelectorAll('#portal-sidebar a')].find((a) => a.textContent.trim().startsWith(${JSON.stringify(text)})).click()`);
+// The sidebar's groups can be closed (they start closed): open them first if the link isn't shown
+const clickLink = async (text) => {
+  const find = `[...document.querySelectorAll('#portal-sidebar a')].find((a) => a.textContent.trim().startsWith(${JSON.stringify(text)}))`;
+  if (!(await evaluate(`!!${find}`))) {
+    await evaluate(`document.querySelectorAll('#portal-sidebar button[aria-expanded="false"][aria-controls]').forEach((b) => b.click())`);
+    await sleep(300);
+  }
+  return evaluate(`${find}.click()`);
+};
 const key = async (k) => { await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: k }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: k }); };
 
 // ---------- log in (through the API, from our own page) ----------
@@ -83,7 +91,7 @@ check('setup: logged in as the e2e admin', login === 200, `status ${login} (429 
 
 // ---------- computer (1280 px) ----------
 await open('/admin/dashboard');
-check('setup: the admin page is open', await waitText('Admin overview', 15000));
+check('setup: the admin page is open', await waitText('Live numbers', 15000));
 let s = await state();
 check('computer: hidden by default (off screen, not reachable with Tab)', s.right <= 0 && s.inert === true && s.expanded === 'false' && s.label === 'Open menu', JSON.stringify(s));
 check('computer: the page uses the full width while it is hidden', s.headerLeft === 0, JSON.stringify(s));
@@ -106,7 +114,7 @@ await waitText('My leads', 15000);
 s = await state();
 check('computer: still open on an employee page (another frame), without sliding in again', s.left === 0 && !s.sliding, JSON.stringify(s));
 await open('/admin/dashboard');
-await waitText('Admin overview', 15000);
+await waitText('Live numbers', 15000);
 s = await state();
 check('computer: still open after a reload (this tab remembers)', s.left === 0 && !s.sliding, JSON.stringify(s));
 // An Escape meant for something else (focus outside the sidebar) leaves it alone
@@ -132,7 +140,7 @@ check('computer: hidden again, the page takes the full width', s.right <= 0 && s
 await toggle();
 await sleep(SLIDE_DONE_MS);
 const B = await tab(encodeURIComponent(WEB + '/admin/dashboard'));
-await waitText('Admin overview', 15000, B);
+await waitText('Live numbers', 15000, B);
 const other = await B.evaluate(STATE);
 await B.close();
 check('computer: a new tab starts with it hidden', other.right <= 0, JSON.stringify(other));
@@ -140,7 +148,7 @@ check('computer: a new tab starts with it hidden', other.right <= 0, JSON.string
 // ---------- phone (390 px): it is open in this tab's memory now, but must not reopen on a phone ----------
 await size(390, 844, true);
 await open('/admin/dashboard');
-await waitText('Admin overview', 15000);
+await waitText('Live numbers', 15000);
 s = await state();
 check('phone: hidden by default (never reopened from memory), no sideways scrolling', s.right <= 0 && s.inert === true && !s.scrollX, JSON.stringify(s));
 await toggle();
@@ -173,7 +181,7 @@ await size(1280, 900, false);
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
 await evaluate(`sessionStorage.removeItem('kjs_menu_open')`);
 await open('/admin/dashboard');
-await waitText('Admin overview', 15000);
+await waitText('Live numbers', 15000);
 s = await state();
 check('reduced motion: no slide animation', s.transition === 'none', s.transition);
 await toggle();
