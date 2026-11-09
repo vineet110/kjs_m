@@ -18,8 +18,8 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
         raise AppError(404, "feature_off", "Koko is not available right now.")
     ip_hash, rate = visitor_keys(request)
     koko_limiter.check(rate)  # so nobody can burn our LLM quota
-    reply, suggest = await koko_service.reply(db, data.messages)
+    reply, suggest, card = await koko_service.reply(db, data.messages, data.page)
     if data.chat_id:  # keep the transcript (Admin > Koko) so we can improve the facts
         convo = [m.model_dump() for m in data.messages] + [{"role": "assistant", "content": reply}]
         await content_service.save_chat(db, data.chat_id, data.page, convo, suggest, ip_hash)
-    return KokoOut(reply=reply, suggest_enquiry=suggest)
+    return KokoOut(reply=reply, suggest_enquiry=suggest, catalogue=card)

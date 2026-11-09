@@ -17,6 +17,8 @@
   },
   "koko": {
     "askPlaceholder": "Ask Koko about products, packaging...",
-    "enquiryPrompt": "Would you like me to connect you with our sales team?"
+    "enquiryPrompt": "Would you like me to connect you with our sales team?",
+    "cardTitle": "{category}: our products",
+    "seeAll": "See all {category} products"
   }
 }

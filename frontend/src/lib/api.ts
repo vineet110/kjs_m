@@ -251,6 +251,12 @@ export type PublicConfig = {
   features: { koko: boolean; offers_ticker: boolean; configurator: boolean; partners: boolean; gated_actions: boolean; whatsapp_button: boolean; connect_popup?: boolean };
 };
 export type Offer = { id: number; text: string; link: string };
+/** Koko's catalogue card: on the first reply on a product or category page (from the database, not the AI). */
+export type KokoCatalogue = {
+  category_name: string; category_slug: string;
+  products: { name: string; slug: string; image_path: string }[];
+};
+export type KokoReply = { reply: string; suggest_enquiry: boolean; catalogue?: KokoCatalogue | null };
 export type Texts = Record<string, string>;
 export type PublicFile = { id: number; name: string; content_type: string; url: string };
 

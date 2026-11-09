@@ -227,6 +227,16 @@ await evaluate(`(() => { const i = document.querySelector('input[placeholder^="A
 const kokoAnswered = await waitFor('ISO', 25000);
 check('Koko chat opens and answers in the browser', kokoOpen && kokoAnswered && errors.length === 0, errors.join(' | ') || 'no answer mentioning ISO');
 
+// Koko on a category page: "hi" gets the reply plus that category's products as cards (from our database)
+await open('/categories/coffee');
+await click('💬 Ask Koko');
+await waitFor('Koko · KJS assistant');
+await evaluate(`(() => { const i = document.querySelector('input[placeholder^="Ask about"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'hi'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); return true; })()`);
+const cardShown = await waitFor('See all Coffee products', 25000);
+const cardLinks = (await evaluate(`[...document.querySelectorAll('section[aria-label$="our products"] a[href^="/products/"]')].map((a) => a.getAttribute('href'))`)) ?? [];
+check('Koko on the coffee page: "hi" shows the coffee products as cards', cardShown && cardLinks.includes('/products/instant-coffee-3-in-1-stick') && errors.length === 0,
+  errors.join(' | ') || `card ${cardShown}, links ${JSON.stringify(cardLinks)}`);
+
 // ---- Log in through the real form ----
 await open('/employee/login');
 await evaluate(`(() => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
