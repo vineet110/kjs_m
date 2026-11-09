@@ -4,6 +4,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from pydantic import ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +16,8 @@ from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permi
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
 from app.models.audit import AuditLog
 from app.models.user import User, UserSession
-from app.schemas.auth import SignupIn
-from app.services import audit_service, file_service
+from app.schemas.auth import SignupIn, UserUpdateIn
+from app.services import assign_service, audit_service, file_service
 
 log = logging.getLogger(__name__)
 
@@ -167,11 +168,15 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
         raise AppError(403, "forbidden", "Only an admin can turn an account back on.")
     before = {"status": user.status}
     user.status = status
+    returned = 0
     if status != "active":
         await db.execute(delete(UserSession).where(UserSession.user_id == user.id))  # log them out
+        # Their open batch would be stuck for ever (only they can work on it) and hidden (CR9): its
+        # unfinished buyers go back to "new" for the next person, and the batch is marked "returned".
+        returned = await assign_service.return_open_batch(db, user.id)
     audit_service.record(
         db, actor=admin, action=f"user.{status}", entity_type="user", entity_id=user.id,
-        before=before, after={"status": status},
+        before=before, after={"status": status} | ({"buyers_returned": returned} if returned else {}),
     )
     await db.commit()
     return user
@@ -243,13 +248,19 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
     return user, temp_password
 
 
-async def update_user(db: AsyncSession, admin: User, user_id: int, data) -> User:
-    user = await db.get(User, user_id)
+async def update_user(db: AsyncSession, admin: User, user_id: int, changes: dict) -> User:
+    """Only the fields in `changes` change; the account as a whole is then checked (UserUpdateIn)."""
+    user = await db.get(User, user_id, with_for_update=True)
     if user is None:
         raise AppError(404, "not_found", "User not found.")
     _check_can_manage(admin, user)
     if admin.role != "admin":  # same rule as approve(): existing accounts are the admin's to change
         raise AppError(403, "forbidden", "Only an admin can change an existing account.")
+    try:
+        data = UserUpdateIn(**({k: getattr(user, k) for k in STAFF_FIELDS} | changes))
+    except ValidationError as e:
+        bad = sorted({str(err["loc"][0]) for err in e.errors() if err.get("loc")})
+        raise AppError(422, "validation_error", f"Please check: {', '.join(bad)}.", {"fields": bad}) from e
     await _check_staff_details(db, admin, user.id, data)
     before = {k: getattr(user, k) for k in STAFF_FIELDS}
     for k in STAFF_FIELDS:

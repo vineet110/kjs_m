@@ -140,3 +140,29 @@ async def test_admin_routes_need_assign_manage(client):
     for method, path in (("get", "/api/v1/assign/overview"), ("get", "/api/v1/assign/preview"), ("post", "/api/v1/assign/run")):
         assert (await client.request(method, path, headers=HDR)).status_code == 403
     assert (await client.get("/api/v1/assign/my-batches")).json() == []
+
+
+async def test_disabling_someone_gives_their_unfinished_buyers_back(client):
+    """CR9: a disabled person's open batch used to be stuck for ever, and hidden."""
+    from app.models.batch import Batch, BuyerRecord
+    await make_user("admin@kjsindia.com", role="admin")
+    await _boss(client)
+    await _import(client)
+    await make_user("a@kjsindia.com")
+    a = await _uid("a@kjsindia.com")
+    await client.post(f"/api/v1/assign/staff/{a}/categories", json={"categories": ["coffee"]}, headers=HDR)
+    await login(client, "a@kjsindia.com")
+    await client.post("/api/v1/attendance/check-in", headers=HDR)
+    async with AsyncSessionLocal() as db:
+        await assign_service.run(db, None, datetime.now(timezone.utc))
+    first = (await client.get("/api/v1/assign/my-batches")).json()[0]["records"][0]
+    await client.patch(f"/api/v1/assign/records/{first['id']}", json={"status": "done", "outcome": "Called"}, headers=HDR)
+
+    await login(client, "admin@kjsindia.com")
+    assert (await client.post(f"/api/v1/admin/users/{a}/status", json={"status": "disabled"}, headers=HDR)).status_code == 200
+    async with AsyncSessionLocal() as db:
+        batch = await db.scalar(select(Batch).where(Batch.user_id == a))
+        recs = (await db.scalars(select(BuyerRecord).order_by(BuyerRecord.id))).all()
+    assert batch.status == "returned"  # not "done": half of it was never worked on
+    assert sorted(r.status for r in recs if r.id != first["id"] and r.category == "coffee") == ["new"]
+    assert next(r for r in recs if r.id == first["id"]).status == "done"  # finished work stays finished

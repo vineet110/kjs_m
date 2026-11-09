@@ -193,3 +193,30 @@ async def test_product_name_of_only_spaces_is_refused(client):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Filter Coffee"}, headers=HDR)).json()
     for bad in ("   ", "  x "):
         assert (await client.patch(f"/api/v1/admin/products/{p['id']}", json={"name": bad}, headers=HDR)).status_code == 422, bad
+
+
+async def test_switching_an_offer_off_keeps_another_admins_text(client):
+    """Only the fields sent change: the on/off switch can't undo a text edit made in between."""
+    await _editor(client)
+    oid = (await client.post("/api/v1/content/offers", json={"text": "Free samples"}, headers=HDR)).json()["id"]
+    await client.patch(f"/api/v1/content/offers/{oid}", json={"text": "Free samples for distributors"}, headers=HDR)
+    r = await client.patch(f"/api/v1/content/offers/{oid}", json={"is_active": False}, headers=HDR)
+    assert r.status_code == 200 and (r.json()["text"], r.json()["is_active"]) == ("Free samples for distributors", False)
+    assert (await client.patch(f"/api/v1/content/offers/{oid}", json={"text": None}, headers=HDR)).status_code == 422
+
+
+async def test_switched_off_features_refuse_their_api(client, monkeypatch):
+    """CR8: turning a feature off used to only hide its button; the API kept working (and spending)."""
+    from app.core.config import ini
+    monkeypatch.setattr(ini.cfg().features, "koko", False)
+    monkeypatch.setattr(ini.cfg().features, "partners", False)
+    r = await client.post("/api/v1/koko/chat", json={"messages": [{"role": "user", "content": "Hi"}]}, headers=HDR)
+    assert r.status_code == 404 and r.json()["code"] == "feature_off"
+    lead = {"name": "Buyer", "email": "b@example.com", "consent": True, "phone": "+91 98765 43210"}
+    assert (await client.post("/api/v1/public/leads", json=lead | {"source": "configurator"}, headers=HDR)).json()["code"] == "feature_off"
+    assert (await client.post("/api/v1/public/leads", json=lead | {"source": "koko"}, headers=HDR)).json()["code"] == "feature_off"
+    assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201  # the normal form still works
+    partner = {"name": "Ravi", "company": "Ravi Traders", "partner_type": "agent", "country": "India",
+               "email": "r@example.com", "phone": "+91 98765 43210", "message": "Interested", "consent": True}
+    r = await client.post("/api/v1/public/partners", json=partner, headers=HDR)
+    assert r.status_code == 404, r.text
