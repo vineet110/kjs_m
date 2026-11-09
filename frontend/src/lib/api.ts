@@ -194,6 +194,9 @@ export type BoardStep = {
   used_pct: number; task_templates: string[]; checklist: { text: string; done: boolean }[];
   members: (Colleague & { is_head: boolean })[]; // the step's people; heads first
 };
+/** One line of a board's History tab (read from the audit log, which nobody can edit). */
+export type BoardHistoryItem = { id: number; at: string; who: string; action: string; text: string };
+export type BoardHistory = { items: BoardHistoryItem[]; more: boolean };
 /** Someone on a board: the owner first, then by name. `steps` = positions of the steps they work on. */
 export type BoardPerson = Colleague & { is_owner: boolean; steps: number[] };
 export type BoardSummary = {

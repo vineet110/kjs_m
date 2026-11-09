@@ -78,6 +78,26 @@ Assumptions (fold into backlog later)
    shows empty cells there (Excel and Google Sheets save them).
 2. Preview cap 10 MB, 1000 rows, 50 columns.
 
+PR 3: History tab (branch `feat/board-history`, on top of the preview branch)
+
+1. Backend: `GET /boards/{code}/history?before_id=&limit=` (everyone on the board). Reads the audit log
+   only, never writes: the board's own changes plus its files' uploads and delete decisions (also of
+   files deleted since). Newest first, 50 at a time, `more` says if older lines exist.
+   `board_service.describe` turns each row into a sentence ("removed Imran Khan from the board").
+2. No migration. The audit log already can't be edited or deleted (trigger + the app's database user
+   has no UPDATE/DELETE on it). New test: UPDATE of a history line is blocked (the old test only did DELETE).
+3. Screen: History tab (`BoardHistory.tsx`): grouped by day (India time), a colour dot per kind of change,
+   "Show older". Refreshes after every change on the board. The tab bar scrolls sideways on small screens.
+4. Tests: `tests/test_board_history.py` (4: the whole story in order incl. a deleted file, paging and
+   only this board, strangers 404 / logged out 401, a line can't be edited).
+5. Checked in Chrome (local e2e database): the full story of the test board, a tick shows at once.
+
+Assumptions (fold into backlog later)
+
+1. Everyone on the board can read its history (not only the owner).
+2. No database index for it yet: the audit log is small. Add one on (entity_type, entity_id) if it
+   grows past about 100,000 rows.
+
 Found on PR #33 (Nishita): `python -m app.seed` fails with a circular import (auth_service -> file_service
 -> app.jobs -> board_service -> file_service). The app itself starts. `main` is fine. The deploy guide uses
 app.seed for the first admin, so it needs fixing in PR #33.

@@ -32,6 +32,8 @@ from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.core.permissions import effective_permissions
 from app.jobs.runner import job
+from app.models.audit import AuditLog
+from app.models.file import StoredFile
 from app.models.order_board import BoardMember, BoardPerson, BoardStep, OrderBoard
 from app.models.task import Task
 from app.models.user import User
@@ -489,6 +491,90 @@ async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, m
                                 "tasks_closed": closed})
     await db.commit()
     return await detail(db, user, code)
+
+
+# ---------- History (read only) ----------
+def _names_of(ids: list | None, names: dict[int, str]) -> str:
+    return ", ".join(names.get(i, f"#{i}") for i in ids or []) or "nobody"
+
+
+def describe(action: str, before: dict | None, after: dict | None, names: dict[int, str]) -> str:
+    """One plain sentence for a history line ("who" is shown next to it). Audit rows can never be
+    fixed, so a row that doesn't have the expected shape gets a plain line instead of breaking the tab."""
+    try:
+        return _describe(action, before, after, names)
+    except Exception:  # noqa: BLE001 - any odd old row
+        log.warning("board.history_odd_row", extra={"action": action})
+        return f"made a change ({action})"
+
+
+def _actor(label: str) -> str:
+    """The name part of an audit actor label ("Priya (priya@…)" -> "Priya"): no emails on the board."""
+    return re.sub(r"\s*\([^()]*@[^()]*\)\s*$", "", label or "") or "Someone"
+
+
+def _describe(action: str, before: dict | None, after: dict | None, names: dict[int, str]) -> str:
+    b, a = before or {}, after or {}
+    step = f"step {a.get('step') or b.get('step')}"
+    if action == "board.created":
+        try:  # saved as 2026-11-28; shown as 28 Nov 2026
+            deadline = f"{date.fromisoformat(a.get('deadline', '')):%d %b %Y}"
+        except ValueError:
+            deadline = a.get("deadline") or "?"
+        return f"created the board ({a.get('steps')} steps, deadline {deadline})"
+    if action == "board.step_done":
+        return f"marked step {a.get('step')} \"{a.get('name')}\" done"
+    if action in ("board.check_ticked", "board.check_unticked"):
+        verb = "ticked" if action == "board.check_ticked" else "unticked"
+        return f"{verb} \"{a.get('item')}\" on {step}"
+    if action == "board.finished":
+        return f"closed the board as {a.get('final_status')}" + (
+            f" ({a['tasks_closed']} open tasks closed)" if a.get("tasks_closed") else "")
+    if action == "board.person_added":
+        return f"added {a.get('name')} to the board"
+    if action == "board.person_removed":
+        on = f" (was on step {', '.join(map(str, b['steps']))})" if b.get("steps") else ""
+        return f"removed {b.get('name')} from the board{on}"
+    if action == "board.step_people_changed":
+        old, new = set(b.get("people") or []), set(a.get("people") or [])
+        parts = []
+        if new - old:
+            parts.append(f"added {_names_of(sorted(new - old), names)}")
+        if old - new:
+            parts.append(f"took off {_names_of(sorted(old - new), names)}")
+        if set(b.get("heads") or []) != set(a.get("heads") or []):
+            parts.append(f"head now {_names_of(a.get('heads'), names)}")
+        return f"changed the people on {step}: " + ("; ".join(parts) or "no change")
+    if action == "file.uploaded":
+        return f"uploaded {a.get('name')}"
+    if action == "file.delete_requested":
+        return f"asked to delete {a.get('name')}: \"{a.get('reason')}\""
+    if action == "file.delete_approved":
+        return f"approved deleting {b.get('name')}"
+    if action == "file.delete_rejected":
+        return f"kept {b.get('name')} (delete request turned down)"
+    return action  # a new kind of change still shows, by its name
+
+
+async def history(db: AsyncSession, user: User, code: str, before_id: int | None = None, limit: int = 50) -> dict:
+    """The board's changes, newest first, read from the audit log (which nobody can edit or delete:
+    a database trigger blocks it). Everyone on the board may read it. Includes its files' uploads and
+    delete decisions, also of files deleted since. `before_id` pages back to older lines."""
+    b = await _visible_board(db, user, code)
+    file_ids = [str(i) for i in (await db.scalars(select(StoredFile.id).where(
+        StoredFile.owner_type == "board", StoredFile.owner_id == b.code))).all()]
+    q = select(AuditLog).where(
+        ((AuditLog.entity_type == "board") & (AuditLog.entity_id == b.code))
+        | ((AuditLog.entity_type == "file") & AuditLog.entity_id.in_(file_ids)))
+    if before_id:
+        q = q.where(AuditLog.id < before_id)
+    rows = (await db.scalars(q.order_by(AuditLog.id.desc()).limit(limit + 1))).all()
+    names = dict((await db.execute(select(User.id, User.name))).all())
+    return {
+        "items": [{"id": r.id, "at": r.at, "who": names.get(r.actor_id or 0) or _actor(r.actor_label), "action": r.action,
+                   "text": describe(r.action, r.before, r.after, names)} for r in rows[:limit]],
+        "more": len(rows) > limit,  # older lines exist: ask again with before_id = the last id
+    }
 
 
 # ---------- Alerts job ----------

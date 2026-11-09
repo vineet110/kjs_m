@@ -5,7 +5,7 @@ Files: /files with owner_type=board, owner_id=<code>."""
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -89,6 +89,14 @@ async def preview_plan(data: PreviewIn, _: User = Depends(require_permission("bo
 @router.get("/{code}")
 async def board(code: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     return await board_service.detail(db, user, code)
+
+
+@router.get("/{code}/history")
+async def board_history(code: str, before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=200),
+                        user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Who changed what on the board, newest first. Read only (the audit log can't be edited).
+    Everyone on the board."""
+    return await board_service.history(db, user, code, before_id, limit)
 
 
 @router.post("/{code}/steps/{step_id}/done")
