@@ -52,7 +52,23 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    our error page with the header; cached ones keep their last good copy.
    API e2e: 113 passed.
 
-10. Found while testing (not caused by this PR):
+10. PR #41 review fixes:
+
+   i.    Time limits: reads 20 s (`READ_TIMEOUT_MS`), saves 90 s (`SAVE_TIMEOUT_MS`, longer than nginx's 60 s).
+         POSTs that only read or are harmless to repeat pass `safeToRepeat: true` and get the read limit:
+         board plan preview (PlanEditor, new board), settings "Re-read files now", log in, log out, Koko chat.
+   ii.   A save that ends without a clear answer (time-out, network cut, 502 / 504, an "OK" we can't read) gives
+         code `unconfirmed`: "The server didn't confirm. It may have been saved: refresh to check before trying
+         again." Before, it said "failed", so people clicked again and could save twice (a second user or punch).
+   iii.  Auto-assign: Run now, category buttons and Preview show errors, are off while one runs, and reload the
+         page after an error so batches already given show before anyone clicks again.
+   iv.   Tests: `npm test` 44 pass. Browser: 8 new checks (a 25 s save finishes normally, a cut save says "may have
+         been saved" and keeps the text, auto-assign buttons off while running, silent run ends after 90 s,
+         board preview still ends after 20 s), and the 38 earlier checks pass again.
+   v.    For Vineet, Phase 2: a one-time key per save (the server ignores a repeat) is the real fix for duplicates.
+   vi.   Later: other save buttons (e.g. holidays, offers) can still be clicked twice quickly. Not changed in the freeze.
+
+11. Found while testing (not caused by this PR):
 
    i.    Local `.env` has `STORAGE_DRIVER=r2`, so the e2e run sends its test uploads to the real R2 bucket.
          Start the e2e backend with `STORAGE_DRIVER=local`. Fix the README in Task 3 (PR F).
@@ -61,5 +77,5 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    ii.   `browser_e2e.mjs` has 5 out-of-date checks ("Admin overview", "Missed a punch?", "Documents" no longer
          exist in the code; sidebar groups start closed). Fix in Task 3 (PR F).
 
-11. `scripts/e2e/reset_e2e_db.sh` has Vineet's own path (`cd /c/VINEET_WORK/KJS_v1/backend`): it fails on
+12. `scripts/e2e/reset_e2e_db.sh` has Vineet's own path (`cd /c/VINEET_WORK/KJS_v1/backend`): it fails on
    other computers. Fix in Task 3 (PR F).

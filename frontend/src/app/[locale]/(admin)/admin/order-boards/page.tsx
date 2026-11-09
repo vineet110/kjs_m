@@ -63,7 +63,7 @@ function NewBoard({ onDone }: { onDone: () => void }) {
     if (!head.start || !head.deadline || steps.some((s) => !s.size)) return setPreview(null);
     const t = setTimeout(() => {
       api<{ steps: { start: string; end: string }[]; plan_late: boolean }>('/boards/preview', {
-        method: 'POST', body: { start: head.start, deadline: head.deadline, split_mode: head.split_mode, sizes: steps.map((s) => s.size) },
+        method: 'POST', safeToRepeat: true, body: { start: head.start, deadline: head.deadline, split_mode: head.split_mode, sizes: steps.map((s) => s.size) },
       }).then((p) => { setPreview(p); setPreviewErr(''); })
         .catch((e) => { setPreview(null); setPreviewErr(e instanceof ApiFailure ? e.message : ''); });
     }, 300);

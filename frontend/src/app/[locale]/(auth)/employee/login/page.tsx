@@ -68,7 +68,7 @@ function LoginInner() {
     window.clearTimeout(slowTimer.current);
     try {
       if (tab === 'login') {
-        const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password }, timeoutMs: LOGIN_TIMEOUT_MS });
+        const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true });
         forgetAccount(); // also if this tab opened the login page without leaving the portal first
         const to = safeNext(next) ?? (me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
         setPageOpening(true);

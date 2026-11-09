@@ -24,6 +24,7 @@ export default function AutoAssign() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false); // one action at a time: a double click can't hand out batches twice
 
   const load = useCallback(() => {
     setLoadErr(null);
@@ -49,17 +50,35 @@ export default function AutoAssign() {
     }
   }
 
-  async function toggleCat(row: StaffRow, slug: string) {
+  /** Runs one action with the buttons off. On any error: say so, and load the page again, so what the server
+   *  really did (e.g. batches given before a time-out) shows before anyone clicks again. */
+  async function act(fn: () => Promise<void>, failed: string) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fn();
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof ApiFailure ? err.message : failed });
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const toggleCat = (row: StaffRow, slug: string) => act(async () => {
     const next = row.categories.includes(slug) ? row.categories.filter((c) => c !== slug) : [...row.categories, slug];
     await api(`/assign/staff/${row.user_id}/categories`, { method: 'POST', body: { categories: next } });
     load();
-  }
+  }, 'Could not change the categories.');
 
-  async function runNow() {
-    const r = await api<{ batches: number; given: { name: string; records: number }[] }>('/assign/run', { method: 'POST', timeoutMs: 60_000 }) // hands out every batch at once: may take longer than 20 s;
+  const runNow = () => act(async () => {
+    // A save: waits up to 90 s (api()), longer than handing out every batch takes
+    const r = await api<{ batches: number; given: { name: string; records: number }[] }>('/assign/run', { method: 'POST' });
     setMsg({ ok: true, text: r.batches ? `Gave ${r.given.map((g) => `${g.records} to ${g.name}`).join(', ')}.` : 'Nobody could get a batch right now (see the rules above).' });
     load();
-  }
+  }, 'Could not run auto-assign.');
+
+  const preview = () => act(async () => setPlan(await api<Plan>('/assign/preview')), 'Could not load the preview.');
 
   if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!o) return <Loading />;
@@ -72,8 +91,8 @@ export default function AutoAssign() {
         sub={`Batches of ${s.batch_size} records, max ${s.max_batches_per_day} per person per day, ${s.work_start}–${s.work_end} IST. Only to people who are checked in, receiving tasks, and have categories. (Edit config/assign.ini to change.)`}
       >
         <div className="flex gap-2">
-          <button onClick={() => api<Plan>('/assign/preview').then(setPlan)} className="btn-ghost">Preview</button>
-          <button onClick={runNow} className="btn-dark">Run now</button>
+          <button disabled={busy} onClick={preview} className="btn-ghost">Preview</button>
+          <button disabled={busy} onClick={runNow} className="btn-dark">{busy ? 'Working…' : 'Run now'}</button>
         </div>
       </PageTitle>
       <Msg msg={msg} />
@@ -111,7 +130,7 @@ export default function AutoAssign() {
                   <td className="p-3">
                     <div className="flex flex-wrap gap-1">
                       {cats.map((c) => (
-                        <button key={c.slug} onClick={() => toggleCat(r, c.slug)}
+                        <button key={c.slug} disabled={busy} onClick={() => toggleCat(r, c.slug)}
                           className={`rounded-full px-2 py-0.5 text-xs ${r.categories.includes(c.slug) ? 'bg-ink text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}>
                           {c.name}
                         </button>

@@ -111,20 +111,30 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
   return data as T;
 }
 
-/** Every call gives up after DEFAULT_TIMEOUT_MS (R40), so a server that takes the request but never answers
- *  ends as an error (ApiFailure, status 0, code "timeout") instead of a wait with no end, and no caller
- *  has to remember it. timeoutMs: a different limit for one call (e.g. Koko's chat, which waits for the AI).
- *  Uploads use upload(), which has no limit. */
-export const DEFAULT_TIMEOUT_MS = 20_000;
+/** Every call has a time limit (R40), so a server that takes the request but never answers ends as an error
+ *  instead of a wait with no end, and no caller has to remember it:
+ *  - reads (GET, or safeToRepeat) give up after READ_TIMEOUT_MS: ApiFailure, status 0, code "timeout";
+ *  - saves (POST / PUT / PATCH / DELETE) wait SAVE_TIMEOUT_MS, longer than nginx's 60 s, so the server's
+ *    own answer (or nginx's 504) normally comes first.
+ *  A save that ends without a clear answer (time-out, network cut, 502 / 504, an unreadable "OK") may still
+ *  have been saved by the server. Saying "failed" would make people click again and save it twice (a second
+ *  user, a second punch), so it ends as code "unconfirmed" with a "refresh to check" message instead.
+ *  timeoutMs: a different limit for one call. safeToRepeat: a POST that only reads or is harmless to repeat
+ *  (a preview, log in): treated as a read. Uploads use upload(), which has no limit. */
+export const READ_TIMEOUT_MS = 20_000;
+export const SAVE_TIMEOUT_MS = 90_000;
+const UNCONFIRMED = "The server didn't confirm. It may have been saved: refresh to check before trying again.";
 export async function api<T = unknown>(
   path: string,
-  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+  init: { method?: string; body?: unknown; timeoutMs?: number; safeToRepeat?: boolean } = {},
 ): Promise<T> {
   const requestId = newRequestId(); // shows up on every backend log line for this click
-  const signal = AbortSignal.timeout(init.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const method = init.method || 'GET';
+  const isSave = method !== 'GET' && !init.safeToRepeat;
+  const signal = AbortSignal.timeout(init.timeoutMs ?? (isSave ? SAVE_TIMEOUT_MS : READ_TIMEOUT_MS));
   try {
     const res = await fetch(`/api/v1${path}`, {
-      method: init.method || 'GET',
+      method,
       headers: {
         'content-type': 'application/json',
         'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
@@ -136,10 +146,18 @@ export async function api<T = unknown>(
     });
     return await readAnswer<T>(res, requestId, signal, 'Something went wrong.');
   } catch (err) {
+    if (isSave && unclear(err, signal))
+      throw new ApiFailure(0, { code: 'unconfirmed', message: UNCONFIRMED, details: {}, request_id: requestId });
     if (signal.aborted)
       throw new ApiFailure(0, { code: 'timeout', message: 'The server took too long to answer.', details: {}, request_id: requestId });
     throw err;
   }
+}
+
+/** Did this request end without a clear yes or no from our server? */
+function unclear(err: unknown, signal: AbortSignal) {
+  if (signal.aborted || !(err instanceof ApiFailure)) return true; // time-out, or the network failed
+  return err.status === 502 || err.status === 504 || err.body.code === 'bad_response'; // nginx gave up, or an unreadable answer
 }
 
 // ---------- Attendance ----------

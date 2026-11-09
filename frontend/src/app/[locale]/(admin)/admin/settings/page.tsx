@@ -27,7 +27,7 @@ export default function SettingsPage() {
 
   async function reload() {
     try {
-      setRows(await api<Row[]>('/admin/config/reload', { method: 'POST' }));
+      setRows(await api<Row[]>('/admin/config/reload', { method: 'POST', safeToRepeat: true }));
     } catch (e) {
       toast(e instanceof ApiFailure ? e.message : 'Could not reload. Please try again.', 'error');
     }
