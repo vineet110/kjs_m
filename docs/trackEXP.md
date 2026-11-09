@@ -222,3 +222,11 @@ Add changes here, newest at the bottom, like this:
    a head for each step; everyone on the board can update it. Files open right in the page (PDF, Excel, Word,
    pictures), side by side or full screen. A History tab shows every change, and nobody can edit it. The plan
    (dates, steps, their order) can be changed any time, unless the owner locks it.
+
+10. 9 Nov
+
+   Getting ready for real data. Every night the system now keeps an encrypted copy of the database and of all
+   uploaded files in a separate, protected place, so a broken server or a mistaken delete loses nothing.
+   Attendance hours are always counted from the real punches. Login is safer against attacks, but the office
+   is never blocked by its own staff. If the email server is down, no email is lost. Staff screens show a
+   clear message with "Try again" instead of loading for ever.

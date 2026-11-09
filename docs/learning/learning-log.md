@@ -10,6 +10,22 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 9 Nov 2026 (go-live safety, PRs #42–#45, Vineet)
+
+1. (V) A review finding is not automatically a fix: check each one against the code. 6 of 10 were real.
+
+2. (V) CI runs the whole test suite on every PR. Locally, run only the tests of what you touched.
+
+3. (V) Docker compose: `environment:` beats `env_file:`. One line blanks a secret for one service.
+
+4. (V) Git Bash on Windows: native tools can't open `/tmp/...` paths. Let the shell open files with `<` and `>`.
+
+5. (V) Scripts that patch files: use raw strings. `"\r"` and `"\1"` silently became control characters.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 6–9 Nov 2026 (R2 pictures, order boards PRs #32, #35–#39, Vineet)
 
 1. (V) Alembic picks `MIGRATION_DATABASE_URL` before `DATABASE_URL`. Setting only one sent my "local" check to
