@@ -133,10 +133,10 @@ PARTNER_LABELS = {"agent": "Sales agent", "broker": "Referral partner", "forward
                   "distributor": "Distributor", "other": "Other"}
 
 
-async def apply_partner(db: AsyncSession, data, ip_hash: str | None) -> None:
+async def apply_partner(db: AsyncSession, data, ip_hash: str | None, rate_key: str | None = None) -> None:
     if data.website:  # honeypot
         return
-    lead_limiter.check(ip_hash)
+    lead_limiter.check(rate_key or ip_hash)
     p = PartnerApplication(name=data.name.strip(), company=data.company.strip(), partner_type=data.partner_type,
                            country=data.country.strip(), email=data.email, phone=data.phone.strip(),
                            message=data.message.strip(), status="new", ip_hash=ip_hash,

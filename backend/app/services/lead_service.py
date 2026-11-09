@@ -77,10 +77,10 @@ def _human(mins: int) -> str:
 
 
 # ---------- Capture ----------
-async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None) -> Lead | None:
+async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: str | None = None) -> Lead | None:
     if data.website:  # honeypot filled = bot. Pretend success, save nothing.
         return None
-    lead_limiter.check(ip_hash)
+    lead_limiter.check(rate_key or ip_hash)
     # The AI summary first, before any database query: an LLM call takes seconds, and holding a
     # database connection that long would starve other requests when several visitors chat.
     summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""

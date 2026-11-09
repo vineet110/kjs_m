@@ -42,6 +42,8 @@ class AppIni(BaseModel):
     page_size: int = Field(50, ge=1, le=500)
     lead_rate_per_hour: int = Field(5, ge=1)  # enquiries per IP per hour
     koko_rate_per_hour: int = Field(40, ge=1)  # chat messages per IP per hour
+    login_failures_per_ip: int = Field(100, ge=1)  # wrong passwords per network per 15 min (all emails)
+    signups_per_ip_per_hour: int = Field(30, ge=1)  # the office shares one address: go-live day
     jobs_enabled: bool = True
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat

@@ -8,8 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.files import send_file
 from app.core.config.ini import public_config
 from app.core.database import get_db
-from app.core.deps import client_ip
-from app.core.security import hash_ip
+from app.core.deps import visitor_keys
 from app.schemas.catalog import CategoryOut, ProductOut
 from app.schemas.common import Email, OneLine, RequiredPhone
 from app.schemas.lead import LeadIn
@@ -43,7 +42,7 @@ async def product(slug: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/leads", status_code=201)
 async def create_lead(data: LeadIn, request: Request, db: AsyncSession = Depends(get_db)):
-    await lead_service.create(db, data, hash_ip(client_ip(request)))
+    await lead_service.create(db, data, *visitor_keys(request))
     return {"status": "received", "message": "Thank you! Our sales team will contact you soon."}
 
 
@@ -79,7 +78,7 @@ class PartnerIn(BaseModel):
 
 @router.post("/partners", status_code=201)
 async def partner_apply(data: PartnerIn, request: Request, db: AsyncSession = Depends(get_db)):
-    await content_service.apply_partner(db, data, hash_ip(client_ip(request)))
+    await content_service.apply_partner(db, data, *visitor_keys(request))
     return {"status": "received", "message": "Thank you! Our partnerships team will contact you."}
 
 
