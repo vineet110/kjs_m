@@ -14,6 +14,7 @@ AWS Signature V4 (standard library hmac/hashlib; see sigv4_presign / _sign_heade
 """
 import hashlib
 import hmac
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -106,15 +107,15 @@ def sigv4_presign(*, method: str, host: str, path: str, access_key: str, secret_
 
 
 def _sign_headers(*, method: str, host: str, path: str, body: bytes, access_key: str, secret_key: str,
-                  region: str, now: datetime, content_type: str = "") -> dict[str, str]:
-    """Headers for a normal signed request (upload / delete)."""
+                  region: str, now: datetime, content_type: str = "", query: dict[str, str] | None = None) -> dict[str, str]:
+    """Headers for a normal signed request (upload / delete / list). `query`: the URL's ?a=b part."""
     stamp, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
     payload_hash = hashlib.sha256(body).hexdigest()
     headers = {"host": host, "x-amz-content-sha256": payload_hash, "x-amz-date": stamp}
     if content_type:
         headers["content-type"] = content_type
     names = sorted(headers)
-    canonical = "\n".join([method, quote(path, safe="/-_.~"), "",
+    canonical = "\n".join([method, quote(path, safe="/-_.~"), _canonical_query(query or {}),
                            "".join(f"{n}:{headers[n]}\n" for n in names), ";".join(names), payload_hash])
     scope = f"{day}/{region}/s3/aws4_request"
     to_sign = "\n".join(["AWS4-HMAC-SHA256", stamp, scope, hashlib.sha256(canonical.encode()).hexdigest()])
@@ -125,24 +126,46 @@ def _sign_headers(*, method: str, host: str, path: str, body: bytes, access_key:
     return headers
 
 
+def parse_list(xml: bytes) -> tuple[list[dict], str | None]:
+    """One page of an S3 ListObjectsV2 answer: [{key, size, etag}], and the token for the next page."""
+    root = ET.fromstring(xml)
+    ns = {"s": root.tag.split("}")[0].strip("{")} if root.tag.startswith("{") else {}
+    p = "s:" if ns else ""
+    items = [{"key": c.findtext(f"{p}Key", namespaces=ns), "size": int(c.findtext(f"{p}Size", "0", namespaces=ns)),
+              "etag": (c.findtext(f"{p}ETag", "", namespaces=ns) or "").strip('"')}
+             for c in root.findall(f"{p}Contents", namespaces=ns)]
+    more = (root.findtext(f"{p}IsTruncated", "false", namespaces=ns) or "").lower() == "true"
+    return items, (root.findtext(f"{p}NextContinuationToken", namespaces=ns) if more else None)
+
+
 class R2Storage:
-    """Cloudflare R2. Needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET."""
+    """Cloudflare R2. Needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET.
+    The backup copy (app/backup_r2.py) makes a second one for the backup bucket with its own key."""
 
     region = "auto"
 
-    def __init__(self):
-        if not all([settings.R2_ACCOUNT_ID, settings.R2_ACCESS_KEY_ID, settings.R2_SECRET_ACCESS_KEY, settings.R2_BUCKET]):
+    def __init__(self, bucket: str = "", access_key: str = "", secret_key: str = ""):
+        self.bucket = bucket or settings.R2_BUCKET
+        self.access_key = access_key or settings.R2_ACCESS_KEY_ID
+        self.secret_key = secret_key or settings.R2_SECRET_ACCESS_KEY
+        if not all([settings.R2_ACCOUNT_ID, self.access_key, self.secret_key, self.bucket]):
             raise StorageError("R2 settings missing in .env")
         self.host = f"{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     def _path(self, key: str) -> str:
-        return f"/{settings.R2_BUCKET}/{key}"
+        if not key:  # an empty key would address the bucket itself: never for put / get / delete
+            raise StorageError("empty file key")
+        return f"/{self.bucket}/{key}"
 
-    def _request(self, method: str, key: str, body: bytes = b"", content_type: str = "") -> httpx.Response:
-        headers = _sign_headers(method=method, host=self.host, path=self._path(key), body=body,
-                                access_key=settings.R2_ACCESS_KEY_ID, secret_key=settings.R2_SECRET_ACCESS_KEY,
+    def _request(self, method: str, key: str, body: bytes = b"", content_type: str = "",
+                 query: dict[str, str] | None = None) -> httpx.Response:
+        path = f"/{self.bucket}" if key is None else self._path(key)  # None = the bucket (listing only)
+        headers = _sign_headers(method=method, host=self.host, path=path, body=body,
+                                access_key=self.access_key, secret_key=self.secret_key, query=query,
                                 region=self.region, now=datetime.now(timezone.utc), content_type=content_type)
-        url = f"https://{self.host}{quote(self._path(key), safe='/-_.~')}"
+        url = f"https://{self.host}{quote(path, safe='/-_.~')}"
+        if query:
+            url += "?" + _canonical_query(query)
         try:
             r = httpx.request(method, url, content=body, headers=headers, timeout=60)
         except httpx.HTTPError as e:  # network down, timeout: same error type as a refused request
@@ -160,10 +183,20 @@ class R2Storage:
     def delete(self, key: str) -> None:
         self._request("DELETE", key)
 
+    def list(self, prefix: str = "") -> list[dict]:
+        """Every object whose key starts with `prefix`: [{key, size, etag}] (1000 per request)."""
+        out, token = [], None
+        while True:
+            q = {"list-type": "2", "prefix": prefix} | ({"continuation-token": token} if token else {})
+            items, token = parse_list(self._request("GET", None, query=q).content)
+            out += items
+            if not token:
+                return out
+
     def url(self, key: str, filename: str = "") -> str | None:
         extra = {"response-content-disposition": f'attachment; filename="{filename}"'} if filename else None
         return sigv4_presign(method="GET", host=self.host, path=self._path(key),
-                             access_key=settings.R2_ACCESS_KEY_ID, secret_key=settings.R2_SECRET_ACCESS_KEY,
+                             access_key=self.access_key, secret_key=self.secret_key,
                              region=self.region, expires=300, now=datetime.now(timezone.utc), extra_query=extra)
 
 

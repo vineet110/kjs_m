@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str = ""
     R2_SECRET_ACCESS_KEY: str = ""
     R2_BUCKET: str = ""
+    # Off-site backup bucket (kjs-bkp-prod) and its OWN key: given only to deploy/backup.sh, never to the app
+    R2_BACKUP_BUCKET: str = ""
+    R2_BACKUP_ACCESS_KEY_ID: str = ""
+    R2_BACKUP_SECRET_ACCESS_KEY: str = ""
 
     @property
     def is_production(self) -> bool:

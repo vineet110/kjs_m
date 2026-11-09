@@ -17,7 +17,9 @@ echo "deploying $TAG"
 $COMPOSE build
 
 # Back up before the migration changes anything (skipped on the very first deploy)
-if [ -n "$($COMPOSE ps -q db 2>/dev/null)" ]; then ./backup.sh; fi
+# KJS_SKIP_OFFSITE: the nightly backup sends the off-site copy; a deploy must not wait on it or fail
+# because R2 is down (backup.sh step 4).
+if [ -n "$($COMPOSE ps -q db 2>/dev/null)" ]; then KJS_SKIP_OFFSITE=1 ./backup.sh; fi
 
 $COMPOSE up -d db
 $COMPOSE run --rm backend alembic upgrade head

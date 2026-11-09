@@ -157,3 +157,32 @@ async def test_view_of_a_board_file_only_for_people_on_the_board(client):
     assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 200
     await login(client, "other@kjsindia.com")
     assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 403
+
+
+async def test_a_failed_save_leaves_no_stored_copy(client, monkeypatch):
+    """If the database save fails after the file was stored, the stored copy is removed again."""
+    from app.core.storage import storage
+    from app.services import file_service
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    kept: list[str] = []
+    real_put = type(storage()).put
+
+    def put(self, key, data, content_type):
+        kept.append(key)
+        return real_put(self, key, data, content_type)
+
+    def broken(*a, **k):
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(type(storage()), "put", put)
+    monkeypatch.setattr(file_service.audit_service, "record", broken)
+    try:
+        await _upload(client)
+    except RuntimeError:
+        pass  # the test client may pass the server error through
+    import pytest
+    from app.core.storage import StorageError
+    assert kept
+    with pytest.raises(StorageError):  # gone from storage
+        storage().get(kept[0])
