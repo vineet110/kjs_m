@@ -12,8 +12,11 @@ import { api, ApiFailure, type KokoCatalogue, type KokoReply } from '@/lib/api';
 import { imageOf } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
-// card: shown under that reply only; never sent back to the server (the AI gets the words, not the card)
-type Msg = { role: 'user' | 'assistant'; content: string; card?: KokoCatalogue };
+// card: shown under that reply only; never sent back to the server (the AI gets the words, not the card).
+// local: a line this widget wrote itself (an error, "thank you"): shown, but never sent to the server, so the AI
+// and the transcript in Admin > Koko only see what Koko really said, and the server knows Koko hasn't answered yet.
+type Msg = { role: 'user' | 'assistant'; content: string; card?: KokoCatalogue; local?: boolean };
+const forServer = (msgs: Msg[]) => msgs.slice(1).filter((m) => !m.local).map(({ role, content }) => ({ role, content })); // not the greeting
 
 const HELLO: Msg = {
   role: 'assistant',
@@ -47,10 +50,9 @@ export default function KokoChatWidget() {
     setInput('');
     setBusy(true);
     try {
-      // Don't send our greeting; the server only needs the real conversation.
       const res = await api<KokoReply>('/koko/chat', {
         method: 'POST',
-        body: { messages: next.slice(1).map(({ role, content }) => ({ role, content })), page: window.location.pathname, chat_id: chatId.current },
+        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current },
         timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
         safeToRepeat: true, // asking again only gives another reply
       });
@@ -58,7 +60,7 @@ export default function KokoChatWidget() {
       if (res.suggest_enquiry && !sent) setShowForm(true);
     } catch (err) {
       const msg = err instanceof ApiFailure ? err.message : 'Sorry, I could not reply.';
-      setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.` }]);
+      setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.`, local: true }]);
     } finally {
       setBusy(false);
     }
@@ -74,12 +76,12 @@ export default function KokoChatWidget() {
         body: {
           source: 'koko', name: f.get('name'), email: email || null, phone: f.get('phone'),
           company: f.get('company'), consent: f.get('consent') === 'on',
-          chat: msgs.slice(1).map(({ role, content }) => ({ role, content })), source_page: window.location.pathname,
+          chat: forServer(msgs), source_page: window.location.pathname,
         },
       });
       setSent(true);
       setShowForm(false);
-      setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.' }]);
+      setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.', local: true }]);
     } catch (err) {
       alert(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
     }

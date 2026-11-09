@@ -105,9 +105,9 @@ async def test_prompt_stays_small_even_with_long_facts(client, catalogue, seen):
     """Admin > Koko facts can grow: then fewer products go in, the prompt still fits."""
     async with AsyncSessionLocal() as db:
         cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
-    long_facts = "KJS fact line about our factory.\n" * 200  # about 6,600 characters (today: about 2,700)
+    long_facts = "KJS fact line about our factory.\n" * 125  # about 4,100 characters (today: about 2,700)
     cat = next(c for c in cats if c.slug == "confectionery")
-    prompt = koko_service.build_prompt(long_facts, "wafers biscuits chocolate", cat, cats, prods)
+    prompt = koko_service.build_prompt(long_facts, ["wafers biscuits chocolate"], cat, cats, prods)
     assert len(prompt) <= PROMPT_LIMIT and "- Product:" in prompt  # fewer products, but still some
 
 
@@ -129,3 +129,86 @@ async def test_wafer_question_names_wafers_not_everything(client, catalogue, see
 def test_page_paths_never_raise():
     for page in ("", "/", "//", "/en/", "/en/categories", "%%%", "/categories/" + "a" * 500, "?", "#"):
         assert koko_service.page_category(page, [], []) is None
+
+
+# ---------- Review fixes (PR #50) ----------
+
+async def products_of(client, category: str) -> list[dict]:
+    return (await client.get(f"/api/v1/public/products?category={category}")).json()
+
+
+async def test_asked_for_products_come_before_the_pages_category(client, catalogue, seen):
+    """Review 1: "instant coffee?" on the Confectionery page (58 products) used to send no coffee at all."""
+    coffee = [p["name"] for p in await products_of(client, "coffee")]
+    await client.post(CHAT, json=ask("Do you make instant coffee?", "/categories/confectionery"), headers=HDR)
+    assert coffee and all(name in seen[0] for name in coffee)
+
+
+async def test_follow_up_questions_keep_their_products(client, catalogue, seen):
+    """Review 2: "and the pack sizes?" after a coffee question used to send no products."""
+    before = [{"role": "user", "content": "What coffee do you make?"}, {"role": "assistant", "content": "We make..."}]
+    await client.post(CHAT, json=ask("and the pack sizes?", "/", before), headers=HDR)
+    coffee = [p["name"] for p in await products_of(client, "coffee")]
+    assert all(name in seen[0] for name in coffee)
+
+
+async def test_the_viewed_product_is_always_sent_and_first_on_the_card(client, catalogue, seen):
+    """Review 3: on a product page in a big category, that product could be left out of both."""
+    confectionery = await products_of(client, "confectionery")
+    last = sorted(confectionery, key=lambda p: p["name"])[-1]  # the one that used to fall off
+    r = (await client.post(CHAT, json=ask("hi", f"/products/{last['slug']}"), headers=HDR)).json()
+    assert last["name"] in seen[0]
+    assert r["catalogue"]["products"][0]["slug"] == last["slug"]
+
+
+async def test_card_after_a_failed_first_try(client, catalogue, seen):
+    """Review 4: "hi" timed out (the widget keeps its error line to itself), the visitor asks again: still the card."""
+    before = [{"role": "user", "content": "hi"}]  # no Koko reply in between: it never arrived
+    r = (await client.post(CHAT, json=ask("hello?", "/categories/wafers", before), headers=HDR)).json()
+    assert r["catalogue"]["category_slug"] == "wafers"
+
+
+async def test_card_mixes_kinds_and_puts_sales_picks_first(client, catalogue, seen):
+    """Smaller 1: the Confectionery card was all wafers. Best sellers and offers first, then one of each kind."""
+    from sqlalchemy import update
+    from app.models.catalog import Product
+    biscuit = (await products_of(client, "biscuits"))[-1]
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Product).where(Product.slug == biscuit["slug"]).values(is_best_seller=True))
+        await db.commit()
+    card = (await client.post(CHAT, json=ask("hi", "/categories/confectionery"), headers=HDR)).json()["catalogue"]
+    on_card = {c["slug"] for c in card["products"]}
+    kinds = {p["category_slug"] for p in await products_of(client, "confectionery") if p["slug"] in on_card}
+    assert card["products"][0]["slug"] == biscuit["slug"]  # the best seller first
+    assert len(kinds) == 4  # wafers, biscuits, bars, cakes: all on the card
+
+
+async def test_no_database_work_once_the_budget_is_used_and_no_card_is_due(client, catalogue, monkeypatch):
+    """Smaller 2: later messages after today's budget is used: answered without loading the catalogue."""
+    monkeypatch.setattr(koko_service, "_within_daily_budget", lambda: False)
+
+    async def boom(*a, **k):
+        raise AssertionError("the catalogue should not be loaded")
+    monkeypatch.setattr(catalog_service, "list_products", boom)
+    before = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "Hello!"}]
+    r = (await client.post(CHAT, json=ask("wafers?", "/categories/wafers", before), headers=HDR)).json()
+    assert r["reply"] == koko_service.FALLBACK and r["catalogue"] is None
+
+
+@pytest.mark.parametrize("page", ["/hi/categories/wafers", "/ar/categories/wafers", "/en/categories/wafers"])
+async def test_any_language_prefix_still_gets_the_card(client, catalogue, seen, page):
+    """Smaller 4: adding Hindi or Arabic later must not silently drop the card."""
+    r = (await client.post(CHAT, json=ask("hi", page), headers=HDR)).json()
+    assert r["catalogue"]["category_slug"] == "wafers"
+
+
+def test_plurals_match_the_singular():
+    """Smaller 5: only a trailing "s" was dropped, so "pouches" or "boxes" never matched."""
+    words = koko_service._words("Pouches, boxes, varieties, wafers, glass")
+    assert {"pouch", "box", "variety", "wafer", "glass"} <= words
+
+
+async def test_prompt_asks_for_plain_text_and_stays_small(client, catalogue, seen):
+    """Koko's **bold** showed as stars; and the prompt is now about half, so more chats fit in Groq's minute."""
+    await client.post(CHAT, json=ask("chocolate wafers biscuits coffee tea cakes", "/categories/confectionery"), headers=HDR)
+    assert "no markdown" in seen[0] and len(seen[0]) <= 8_000

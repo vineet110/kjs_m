@@ -34,3 +34,13 @@ Plan: Vineet's "Koko: send the right catalogue…" (tempV.md). Cards in the chat
 
 7. Seen, not changed: Koko sometimes answers with `**bold**` markdown, shown as stars (the chat shows plain text).
    The card shows the category's first 6 products by name (for Confectionery: mostly wafers).
+
+8. PR #50 review fixes (all checked real first): the AI gets the viewed product, then the products the last 3
+   visitor messages name, then the page's category (sales' picks first), max 8; the card puts the viewed product
+   first, then best sellers / offers, one of each kind; card on Koko's first real reply (the widget no longer
+   sends its own error and "thank you" lines); no database work once the budget is used and no card is due; any
+   2-letter language prefix; plurals (-es, -ies); no markdown in replies. Prompt now about 2,000 tokens.
+   Tests: Koko 32, backend 291, frontend 44, e2e api 196, browser 74. Real key, full catalogue: 5 chats in one minute.
+
+9. For Vineet / KJS: Groq's free tier (8,000 tokens a minute for the whole site) fits only a few Koko messages a
+   minute. A paid tier before real traffic.
