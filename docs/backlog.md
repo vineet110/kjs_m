@@ -701,15 +701,16 @@ A53. Database on the company server  🟠
 
 A54. Uploaded files in production  🟠
 
-   i.    Default is a Docker volume on the server (`STORAGE_DRIVER=local`), included in the nightly backup.
-   ii.   Switch to Cloudflare R2 once KJS gives keys (D16).
-   iii.  Where: `deploy/.env.production.example`
+   i.    (UPDATED 9 Nov) Production uses Cloudflare R2 (`STORAGE_DRIVER=r2`, private bucket `kjs-prod-files`).
+         Uploads are copied every night to the backup bucket `kjs-bkp-prod` (`memory.md` decision 39).
+   ii.   `local` (a Docker volume, in the nightly archive) still works if R2 is ever dropped.
+   iii.  Where: `deploy/.env.production.example`, `deploy/.env.backup.example`
 
 
 A55. Backups  🟠
 
    i.    Every night at 02:30, database + files, kept 14 days, in `/srv/kjs/backups` on the server.
-   ii.   No off-site copy yet: needs a decision with KJS IT (for example rclone to R2, a new tool).
+   ii.   ✅ Off-site copy since 9 Nov: encrypted, to R2 `kjs-bkp-prod`, kept 30 days (decision 39). No new tool.
    iii.  Where: `deploy/backup.sh`, `deploy/README.md`
 
 
@@ -948,6 +949,13 @@ A90. Site pictures on R2  🟠
    i.    `r2.dev` is for testing only (Cloudflare slows it). The copies in `frontend/public/` stay as a fallback
          for about a week. A new or changed picture must be uploaded with a NEW file name (Cloudflare caches).
          The 5 videos in `images/kjs/video/` aren't used anywhere.
+A91. Deleted files stay in the off-site backup for 30 days  🟢 (Vineet decided, 9 Nov)
+
+   i.    An approved delete removes the file from the app at once; the copy in `kjs-bkp-prod` stays 30 days,
+         then goes for good. Normal for backups; check with KJS that this is fine under DPDP.
+
+
+
 
 
 
@@ -1096,7 +1104,7 @@ R6. Portal pages don't check permissions in the browser  🟢
    ii.   When a session ends during a click, an error shows instead of sending the person to the login page.
 
 
-R7. The backend container receives every secret in `.env`  🟢
+R7. The backend container receives every secret in `.env`  ✅ fixed (PR #43, 9 Nov: decision 41)
 
    i.    Including the tunnel token it doesn't need. Fix: a separate env file per service. Also includes
          the superuser password: see `codeReview.md` CR11 for the plan and rollout order.
@@ -1121,7 +1129,7 @@ R10. CSP allows inline scripts  🟢
 R11. Backups: failure alerts, off-site copy, encryption  🟠 (with KJS IT)
 
    i.    A failed nightly backup only writes to `backup.log`. Nobody is told.
-   ii.   No off-site copy yet (A55). It should be encrypted before it leaves the server.
+   ii.   ✅ Off-site copy, encrypted (PR #42, 9 Nov). Still open: i (nobody is told when a backup fails: R50).
 
 
 R12. Failed logins are only in the app log, not in the audit log  🟢
@@ -1398,7 +1406,7 @@ R39. Nishita's UI list (30 Oct): 7 small PRs  🔵 in progress (track 4d)
 ---------------------------------------------------------------------------------------------------
 
 
-R40. Staff pages: a failed or silent request means "Loading…" forever  🟠 next small PR
+R40. Staff pages: a failed or silent request means "Loading…" forever  ✅ fixed (PR #41, 9 Nov)
 
    i.    About 15 staff pages call `api(...).then(set)` with no error handling and no time limit: a 500, a 403
          or a server that never answers leaves the Loading spinner on for good. (Found in the PR #12 review;
@@ -1450,8 +1458,8 @@ CR1. `restore.sh` can empty the database and still say "restore done"  ✅ fixed
 
    i.    Fixed and tested by `deploy/test-restore.sh` (192 checks). See `codeReview.md` CR1.
    ii.   Still open: a restore drill on the real server, once there is one (`track.md` go-live checklist, item 2).
-   iii.  `backup.sh` and `restore.sh` no longer need the backend running. Check what is left of CR3.
-   iv.   Do first, in the follow-up PR: when a restore fails after the database was replaced, the app is
+   iii.  ✅ CR3 closed (9 Nov): `backup.sh` and `restore.sh` don't need the backend running.
+   iv.   ✅ Done (PR #43, 9 Nov): the app now stays stopped. Was: when a restore fails after the database was replaced, the app is
          started anyway, without migrations or rights. Users get errors (nothing is saved or lost) until
          the undo runs. Keep the app stopped there, like the "unknown" case.
    v.    Follow-ups from the 8 PR #13 reviews (none must-fix):
@@ -1593,3 +1601,25 @@ R49. Order boards follow-ups (PRs #35–#39)  🟡 next small PR
    iv.   The staff picker and date preview are copied between the create form and the plan editor: share them.
    v.    Removing a `boards.manage` person from a board tells them "you were removed", but they can still open it.
    vi.   A step can have several heads (★); the screens assume few. Decide if one is the rule.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 17. Go-live safety follow-ups (9 Nov, PRs #41–#45)
+
+
+R50. Before and after go-live  🔴 i–iii before go-live
+
+   i.    On the server: run `deploy/test-restore.sh` once (it was not run after the last changes to
+         `backup.sh` / `restore.sh`), then a real restore drill using an off-site copy (`deploy/README.md` 5.4).
+   ii.   Rotate every key that was pasted in chat (R2 app and backup keys, database passwords) and put
+         `BACKUP_PASSPHRASE` in a password manager.
+   iii.  Delete the e2e test uploads from `kjs-prod-files` and their copies in `kjs-bkp-prod`. Local e2e runs
+         use `STORAGE_DRIVER=local` from now on.
+   iv.   Nobody is told when the nightly backup fails (R11.i): cron mail or an uptime check.
+   v.    CR9's leave case: an admin "take back batch" button (Nishita, decide first).
+   vi.   Duplicate saves: a one-time key per save, so the server ignores a repeat (Nishita, Phase 2). The
+         holidays and offers buttons can still be double-clicked.
+   vii.  Left from the PR #42 review on purpose: no limit on how many files one sync moves to `deleted/`, an
+         extra INSERT per check-in, R2 server-side copy (speed only).

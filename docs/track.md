@@ -105,13 +105,20 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          Follow-ups: `backlog.md` R48–R49, A85–A90.
 
 
+4k. Go-live safety (Vineet, Nishita): merged in PRs #41–#45 (9 Nov)
+
+   i.    Off-site backup to R2 `kjs-bkp-prod`, attendance hours, secrets out of the API, `/healthz`, login and
+         rate limits, no lost emails, feature switches, error pages and time limits. Code review CR2–CR11 done.
+         Decisions: `memory.md` items 39–44. Follow-ups: `backlog.md` R50 (drill on the server, key rotation).
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
          "restore done". 192 checks pass in `deploy/test-restore.sh` on a local Docker copy. Still to do:
          the restore drill on the real server. Follow-ups: `backlog.md` CR1.
-   ii.   🟠 CR2–CR11 should be fixed before go-live: health check, backups, public error page, rate limits,
-         feature flags, disabled user's batch, lost emails, superuser password in the API container.
+   ii.   ✅ CR2–CR11 fixed and merged (PRs #41–#45, 9 Nov). Still to do on the server: the restore drill
+         and `deploy/test-restore.sh` (backlog R50).
    iii.  Plan: 5 small code PRs, each with a failing test first (`codeReview.md` section 2, `prompt.md` section 6).
 
 
