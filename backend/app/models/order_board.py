@@ -23,6 +23,8 @@ class OrderBoard(Base, TimestampMixin):
     final_status: Mapped[str | None] = mapped_column(String(30))  # Delivered | Returned | Cancelled
     notes: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # Locked: only the owner (or boards.manage) changes the plan. Unlocked: anyone on the board (0018).
+    plan_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class BoardStep(Base, TimestampMixin):

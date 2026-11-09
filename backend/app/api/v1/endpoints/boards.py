@@ -53,6 +53,34 @@ class BoardIn(BaseModel):
         return self
 
 
+class PlanStepIn(BaseModel):
+    """A step in the edited plan. id = an existing step; no id = a new step (needs people)."""
+    id: int | None = None
+    name: str = Field(min_length=2, max_length=120)
+    size: int = Field(ge=1, le=365)  # % of the time, or working days (split_mode)
+    member_ids: list[int] = Field(default_factory=list, max_length=50)  # new steps only
+    head_ids: list[int] = Field(default_factory=list, max_length=50)  # new steps only
+    task_templates: list[str] = Field(default_factory=list, max_length=30)  # new steps only
+    checklist: list[str] = Field(default_factory=list, max_length=30)  # new steps only
+
+
+class PlanIn(BaseModel):
+    start: date
+    deadline: date
+    split_mode: Literal["percent", "days"] = "percent"
+    steps: list[PlanStepIn] = Field(min_length=1, max_length=20)  # in the new order
+    version: str | None = Field(default=None, max_length=40)  # plan_version the editor started from
+
+    @model_validator(mode="after")
+    def sane_dates(self):
+        _check_dates(self.start, self.deadline)
+        return self
+
+
+class LockIn(BaseModel):
+    locked: bool
+
+
 @router.get("")
 async def boards(include_finished: bool = False, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Managers see all boards; everyone else sees the boards they are a member of."""
@@ -78,9 +106,9 @@ class PreviewIn(BaseModel):
 
 
 @router.post("/preview")
-async def preview_plan(data: PreviewIn, _: User = Depends(require_permission("boards.manage")),
-                       db: AsyncSession = Depends(get_db)):
-    """Planned step dates before saving (the create form shows them live)."""
+async def preview_plan(data: PreviewIn, _: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Planned step dates before saving (the create form and the plan editor show them live). Any
+    logged-in staff: anyone on a board may edit its unlocked plan, and this only works out dates."""
     holidays = await holiday_set(db, data.start.year, data.deadline.year + 1)
     plan, late = board_service.plan_steps(data.start, data.deadline, data.split_mode, data.sizes, holidays)
     return {"steps": [{"start": s, "end": e} for s, e in plan], "plan_late": late}
@@ -89,6 +117,18 @@ async def preview_plan(data: PreviewIn, _: User = Depends(require_permission("bo
 @router.get("/{code}")
 async def board(code: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     return await board_service.detail(db, user, code)
+
+
+@router.put("/{code}/plan")
+async def edit_plan(code: str, data: PlanIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Dates, split and steps, saved together. Anyone on the board while unlocked; owner or
+    boards.manage when locked. Rules in board_service.edit_plan."""
+    return await board_service.edit_plan(db, user, code, data)
+
+
+@router.post("/{code}/plan-lock")
+async def plan_lock(code: str, data: LockIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await board_service.set_plan_lock(db, user, code, data.locked)  # owner or boards.manage
 
 
 @router.get("/{code}/history")

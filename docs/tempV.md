@@ -98,6 +98,48 @@ Assumptions (fold into backlog later)
 2. No database index for it yet: the audit log is small. Add one on (entity_type, entity_id) if it
    grows past about 100,000 rows.
 
+PR 4: edit the plan (branch `feat/board-edit-plan`, on top of the History branch)
+
+Vineet's decisions (7 Nov): remove a step = anyone while unlocked, only steps not started, its checklist
+deleted (History keeps a copy), its tasks closed with a note (not deleted); the plan can change any time;
+the owner can lock it; the lock covers the whole plan; only steps not started can be moved.
+
+1. Migration 0018 (was 0017; 0017 is now the audit_log index from PR 3's review fixes): `order_boards.plan_locked` (false for old boards). Only adds a column. Checked on the
+   test database: upgrade, downgrade, upgrade. Tell Nishita: 0016, 0017 and 0018 are taken.
+2. Rules (`board_service.edit_plan`, `set_plan_lock`):
+   i.    `PUT /boards/{code}/plan`: start, deadline, split and all steps in the new order, saved together.
+         Anyone on the board while unlocked; the owner or boards.manage when locked (403 `plan_locked`).
+   ii.   `POST /boards/{code}/plan-lock`: owner or boards.manage.
+   iii.  Running and done steps stay first, in their order, and can't be removed (422 `started_steps`).
+   iv.   Every step's planned dates are worked out again. The running step's open tasks get its new end
+         as due date. Its alerts: more time = they can fire again; less time = a newly crossed level is sent.
+   v.    A removed step: deleted with its checklist and people; the history keeps a copy (name,
+         checklist, tasks, people). Its tasks (none before a step starts) are closed with a note.
+   vi.   A new step needs at least 1 person (put on the board too). If every other step is done, it
+         starts at once.
+   vii.  One history line says what changed ("deadline 28 Nov → 05 Dec; 'Production' 50% → 40%; added
+         step 'Labelling' (Admin)"). Everyone else on the board gets a notification.
+   viii. `/boards/preview` (date maths only, saves nothing) is now open to any logged-in staff, because
+         people on a board may edit an unlocked plan. Was boards.manage.
+3. Screen: Steps tab has "Edit plan" and, for the owner, "Lock plan / Unlock" (`PlanEditor.tsx`):
+   dates, split, steps with name and size, ↑ ↓ and Remove only for steps not started, Add step with
+   people (★ head), tasks and checklist, live planned dates, the % total, "Will be removed: …".
+   Others see "Plan locked by the owner" and no Edit plan button.
+4. Tests: `tests/test_board_plan.py` (7): the lock and who may edit; add + rename + reorder + resize in
+   one save with the history line and notifications; only steps not started removed or moved, history
+   keeps the removed step; running step tasks follow its new end; a step added after the last starts
+   at once; bad plans refused and nothing changed, finished board 409; preview for logged-in staff only.
+5. Checked in Chrome (local e2e database), through the page (screenshots timed out on Chrome's side):
+   Meena (unlocked) extended the deadline, added and moved a step (Save stays off until it has a
+   person), saved; Priya locked and removed a step not started; Meena then saw the lock badge, no Edit
+   plan, and the API answered 403. History showed every change.
+
+Assumptions (fold into backlog later)
+
+1. Checklists and task lists of existing steps aren't editable in the plan editor (only for new steps).
+2. Renaming a running step doesn't rename the tasks already given for it.
+3. Changing the split (% / days) keeps the numbers typed; the person fixes them before saving.
+
 Found on PR #33 (Nishita): `python -m app.seed` fails with a circular import (auth_service -> file_service
 -> app.jobs -> board_service -> file_service). The app itself starts. `main` is fine. The deploy guide uses
 app.seed for the first admin, so it needs fixing in PR #33.
@@ -148,3 +190,38 @@ Decisions and assumptions (fold into backlog later)
 5. The 5 videos in `images/kjs/video/` are not used anywhere in the code.
 
 New terms for kb.md: public bucket, r2.dev, asset base address, remotePatterns.
+
+## 8 Nov: review fixes for order boards PRs #35 to #39
+
+A code review of each PR found these; all fixed on each PR's own branch, then merged down the chain.
+main (#33, #34) was merged into #35 first: no real conflicts (GitHub's flag was out of date).
+
+1. #35 people backend: the owner now gets step-done and 85%/100% alerts; a step that still lists someone
+   who left can have its people changed (only people being added must be active); the delete-decision
+   route checks rights before locking the file (outsiders get 403 whether the file exists or not);
+   marking a step done locks the board, so removing someone at the same moment can't hand them a task.
+2. #36 screens: board changes are sent one at a time in click order, and a double click is ignored;
+   "Change people" lists people who left (marked "no longer active") so they can be unticked; the person
+   who asked for a delete doesn't get Approve / Keep (new `own_request` on each file); a failed staff
+   list load shows an error.
+3. #37 preview: CSV read as UTF-8 (₹ and Hindi showed garbled); Excel and CSV stop reading at 1000 rows
+   (a big sheet froze the tab); full screen uses the browser's own full screen, so Esc works after a
+   click inside the PDF or Word frame; a ".pdf" that isn't really a PDF (doesn't start with %PDF-) is
+   sandboxed, a real one may only be framed by our pages (`frame-ancestors 'self'`); phones without an
+   inline PDF viewer get "Download" instead of a blank frame; footnote links in Word files work.
+4. #38 History: an odd old audit row shows "made a change (…)" instead of breaking the tab for good; no
+   emails show (the name part of the actor label only); pages are merged by id, so "Show older" and a
+   refresh can't drop or repeat lines; new migration 0017 adds an index on audit_log
+   (entity_type, entity_id, id). The plan lock moved from 0017 to 0018.
+5. #39 plan: only the owner can bring new people onto the board through a new step (others pick from
+   people already on it): closes a way round the owner-only "add person" rule; people brought in get
+   "You are on order board" and a "person added" History line; the editor sends the plan version it
+   started from, and an older draft is refused (409) instead of undoing someone's newer change; a save
+   with no change writes nothing; late preview answers are ignored.
+
+Decision kept (Vineet, PR 4): anyone on the board may remove a step that hasn't started while the plan is
+unlocked, and add steps with people already on the board. The owner's lock is the way to stop that.
+
+Left for later (from the review, not bugs): R2 previews are read through the API in one piece (fine for
+our file sizes; stream it if files get big); some extra database lookups per page; shared helpers for
+code that is copied between the create form and the plan editor.

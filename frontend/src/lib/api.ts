@@ -209,6 +209,9 @@ export type Board = BoardSummary & {
   owner: { id: number | null; name: string }; people: BoardPerson[];
   can_edit: boolean; // owner or boards.manage: people, step people, finishing
   can_decide_deletes: boolean; // may approve / reject file delete requests on this board
+  plan_locked: boolean; // the owner locked the plan: only the owner (or boards.manage) changes it
+  can_edit_plan: boolean; // this person may change dates, sizes and steps now
+  plan_version: string; // fingerprint of the plan; the editor sends it back so a newer change isn't undone
 };
 
 // ---------- Public content ----------
