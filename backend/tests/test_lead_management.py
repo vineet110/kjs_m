@@ -237,3 +237,18 @@ async def test_photo_rules(client):
     assert await _photo(client, 99999) == 403
     assert await _photo(client, "abc") == 403
     assert await _photo(client, await _uid("a@kjs.in")) == 201
+
+
+async def test_editing_one_field_of_an_account_leaves_the_rest(client):
+    """Only the fields sent change: two admins editing different fields don't undo each other."""
+    await make_user("boss@kjs.in", role="admin")
+    await make_user("a@kjs.in")
+    await login(client, "boss@kjs.in")
+    a = await _uid("a@kjs.in")
+    full = {k: v for k, v in (await _form(await _uid("boss@kjs.in"), branch="Pashamylaram")).items() if k != "email"}
+    assert (await client.patch(f"/api/v1/admin/users/{a}", json=full, headers=HDR)).status_code == 200
+    r = await client.patch(f"/api/v1/admin/users/{a}", json={"branch": "Hyderabad"}, headers=HDR)
+    assert r.status_code == 200, r.text
+    assert (r.json()["branch"], r.json()["name"]) == ("Hyderabad", full["name"])
+    r = await client.patch(f"/api/v1/admin/users/{a}", json={"reporting_to": a}, headers=HDR)
+    assert r.status_code == 422  # the whole account is still checked (nobody reports to themselves)

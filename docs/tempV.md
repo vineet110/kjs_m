@@ -96,3 +96,19 @@ syntax checked. Full drill NOT run (Vineet's call: test on the server).
 
 Tests: 3 new (IPv6 key, office logins + 30 sign-ups, 10 attacker networks then the office still gets in
 and a never-seen network doesn't). Auth, content, prod-readiness, leads: 79 pass. CI runs the rest.
+
+## Reliability (9 Nov, branch `fix/reliability`, on top of `fix/security-reliability`)
+
+1. CR10: when the mail server can't be reached, the emails go back in the queue without using up an
+   attempt (one email used to be lost about every 3 minutes of an outage). One try per run.
+2. CR8: a feature switched off in `config/features.ini` also refuses its API (404 `feature_off`): Koko
+   chat (no AI calls), Koko and configurator leads, partner applications. The normal enquiry form always works.
+3. CR9: disabling an account gives the unfinished buyers of its open batch back ("new") and marks the batch
+   "returned" (not "done"). Finished records stay finished. Audited (`buyers_returned`). The leave case
+   (an admin "take back batch" button) is screen work: on Nishita's list, needs a decision first.
+4. Nishita's PR #41 asks: `PATCH /content/offers/{id}` and `PATCH /admin/users/{id}` change only the
+   fields sent. The account is still checked as a whole (e.g. nobody reports to themselves).
+
+Tests: mail outage 5 runs then back (none lost, all sent), features off (Koko, configurator, partners refused,
+enquiry form works), disable with a half-done batch, offer switch keeps the text, one-field account edit.
+Related suites 88 pass. CI runs the rest.

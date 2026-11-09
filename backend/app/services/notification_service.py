@@ -128,13 +128,19 @@ async def send_emails(db: AsyncSession) -> dict:
                 continue
             link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if n.link else ""
             note = VISITOR_TEXT_NOTE if n.kind.startswith(("lead.", "partner.")) else ""
+            if conn is None:
+                try:
+                    conn = await asyncio.to_thread(_smtp_connect)
+                except Exception as e:
+                    # Can't reach or log in to the mail server: not this email's fault (CR10). It goes back
+                    # in the queue WITHOUT using up an attempt, the rest of the batch too, and the next run
+                    # tries again. (Counting it lost about one email every 3 minutes during an outage.)
+                    server_down = True
+                    n.email_status = "pending"
+                    await db.commit()
+                    log.warning("email.server_down", extra={"reason": f"{type(e).__name__}: {str(e)[:200]}"})
+                    continue
             try:
-                if conn is None:
-                    try:
-                        conn = await asyncio.to_thread(_smtp_connect)
-                    except Exception:
-                        server_down = True  # can't reach or log in: don't try 50 times, retry next run
-                        raise
                 await asyncio.to_thread(conn.send_message, _message(u.email, f"[KJS] {n.title}", f"{n.body}{link}{note}"))
                 n.email_status = "sent"
                 sent += 1

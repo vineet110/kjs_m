@@ -148,12 +148,29 @@ async def test_mail_server_down_costs_one_try_not_fifty(client, monkeypatch):
 
     monkeypatch.setattr(notification_service.settings, "SMTP_HOST", "smtp.example.com")
     monkeypatch.setattr(notification_service, "_smtp_connect", down)
-    result = await runner.run_job("send_emails")
-    assert len(tries) == 1 and result["failed"] == 1
+    from app.models.notification import Notification
+    for _ in range(5):  # CR10: an outage of 5 runs used to use up the oldest emails' attempts, then lose them
+        result = await runner.run_job("send_emails")
+        assert result["failed"] == 0
+    assert len(tries) == 5  # one try per run, not one per email
     async with AsyncSessionLocal() as db:
-        from app.models.notification import Notification
-        states = (await db.scalars(select(Notification.email_status))).all()
-    assert set(states) == {"pending"}  # all wait for the next run, none lost
+        rows = (await db.execute(select(Notification.email_status, Notification.email_attempts))).all()
+    assert {s for s, _ in rows} == {"pending"} and {a for _, a in rows} == {0}  # all wait, none lost
+
+    sent = []
+
+    class Server:
+        def send_message(self, msg):
+            sent.append(msg["To"])
+
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(notification_service, "_smtp_connect", lambda: Server())
+    await runner.run_job("send_emails")  # the server is back: every email goes out
+    async with AsyncSessionLocal() as db:
+        assert set((await db.scalars(select(Notification.email_status))).all()) == {"sent"}
+    assert sent
 
 
 # ---------- Batches and imports ----------

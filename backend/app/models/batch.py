@@ -48,4 +48,4 @@ class Batch(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     day: Mapped[date] = mapped_column(Date, index=True)  # IST date
     size: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(20), default="open")  # open | done
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open | done | returned (owner disabled)

@@ -14,7 +14,7 @@ from app.core.permissions import PERMISSIONS, effective_permissions
 from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
-from app.schemas.auth import ApproveIn, UserCreateIn, UserOut, UserUpdateIn
+from app.schemas.auth import ApproveIn, UserCreateIn, UserOut, UserPatchIn
 from app.schemas.catalog import ProductIn, ProductOut, ProductPatchIn
 from app.schemas.lead import LeadOut
 from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
@@ -72,9 +72,9 @@ async def create_user(data: UserCreateIn, admin: User = Depends(require_permissi
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
-async def update_user(user_id: int, data: UserUpdateIn, admin: User = Depends(require_permission("staff.approve")),
+async def update_user(user_id: int, data: UserPatchIn, admin: User = Depends(require_permission("staff.approve")),
                       db: AsyncSession = Depends(get_db)):
-    return await auth_service.update_user(db, admin, user_id, data)
+    return await auth_service.update_user(db, admin, user_id, data.model_dump(exclude_unset=True))
 
 
 class StatusIn(BaseModel):

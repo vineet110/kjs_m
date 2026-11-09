@@ -18,7 +18,7 @@ import zlib
 from datetime import datetime, timezone
 
 from openpyxl import load_workbook
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -228,6 +228,19 @@ async def my_batches(db: AsyncSession, user: User) -> list[dict]:
         out.append({"id": b.id, "day": b.day, "status": b.status, "size": b.size, "done": done,
                     "records": [record_out(r) for r in recs] if b.status == "open" else []})
     return out
+
+
+async def return_open_batch(db: AsyncSession, user_id: int) -> int:
+    """Give back the unfinished buyers of this person's open batch (they left, or were disabled). The
+    batch becomes "returned" (not "done": half of it was never worked on). Returns how many came back.
+    The caller commits."""
+    batch = await db.scalar(select(Batch).where(Batch.user_id == user_id, Batch.status == "open").with_for_update())
+    if batch is None:
+        return 0
+    back = (await db.execute(update(BuyerRecord).where(BuyerRecord.batch_id == batch.id, BuyerRecord.status == "assigned")
+                             .values(status="new", batch_id=None))).rowcount
+    batch.status = "returned"
+    return back
 
 
 async def update_record(db: AsyncSession, user: User, record_id: int, status: str, outcome: str) -> dict:
