@@ -1,5 +1,5 @@
 """Files: upload, list, download, request delete. Who may do what depends on the owner
-(order board, product); approving deletes needs `files.approve`."""
+(order board, product); approving deletes needs `files.approve` or the owner's approvers (a board's owner)."""
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pathlib import Path
 
@@ -67,6 +67,6 @@ class DecideIn(BaseModel):
 
 
 @router.post("/{file_id}/delete-decision")
-async def decide(file_id: int, data: DecideIn, user: User = Depends(require_permission("files.approve")),
-                 db: AsyncSession = Depends(get_db)):
+async def decide(file_id: int, data: DecideIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    # files.approve, or the owner's own approvers (e.g. an order board's owner): checked in the service
     return await file_service.decide_delete(db, user, file_id, data.approve)
