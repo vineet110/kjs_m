@@ -48,6 +48,36 @@ Screen (branch `feat/board-members-ui`, on top of the backend branch)
    (the requester's own approval refused), member view without owner buttons. tsc and 37 unit tests pass.
    Not tested: phone width, submitting the create form in the browser (the API refusal is tested).
 
+PR 2: file preview (branch `feat/board-file-preview`, on top of the screens branch)
+
+1. New packages (Vineet approved, 7 Nov):
+   i.    `xlsx` 0.20.3 (SheetJS) from cdn.sheetjs.com, NOT npm: npm only has 0.18.5, which has known
+         security bugs when reading untrusted files. SheetJS publishes fixed versions only on its own site.
+   ii.   `mammoth` 1.13.0 (Word .docx to HTML) from npm.
+   iii.  Both load only when someone opens such a file (dynamic import). `npm audit`: 0 vulnerabilities.
+2. Backend: `GET /files/{id}/view`. Same access as download; always sent by our API (never an R2 link,
+   so the bucket stays private); inline; never cached; nosniff. Sandboxed, except PDFs: Chrome shows
+   "This page has been blocked by Chrome" for a sandboxed PDF (checked in Chrome, 7 Nov).
+3. Screen: click a file to see it beside the list (half the width on a computer, below on a phone),
+   Full screen (Esc goes back), Download, Close. `FilePreview.tsx`, helpers in `lib/preview.ts`.
+   i.    PDF: the browser's PDF viewer. Images: a picture. Text: as text.
+   ii.   CSV and Excel: a table drawn by React (cell text can't run as code), sheet tabs, column letters,
+         row numbers, first 1000 rows and 50 columns. Dates shown as 20-Nov-2026. CSV cells stay as written.
+   iii.  Word .docx: mammoth HTML in a frame with scripts off (sandbox=""); links that aren't http(s) or
+         mailto lose their address. Old .doc and zip: Download only.
+   iv.   Files over 10 MB: Download only (reading them could freeze the tab).
+4. Tests: backend 2 (view: inline headers, PDF without sandbox, CSV sandboxed, not logged in 401, not on
+   the board 403); unit 3 (`previewKind`, `colName`, `safeLinks`).
+5. Checked in Chrome (local e2e database): Excel (2 sheets; a cell with `<img onerror>` shows as text),
+   CSV, Word (heading, table; a `javascript:` link has no address), PDF, picture, text, full screen + Esc.
+   Not checked: phone width, a real Excel file saved by Excel, a big file near 10 MB.
+
+Assumptions (fold into backlog later)
+
+1. Formulas show the result saved in the file. A file made by a program that doesn't save results
+   shows empty cells there (Excel and Google Sheets save them).
+2. Preview cap 10 MB, 1000 rows, 50 columns.
+
 Found on PR #33 (Nishita): `python -m app.seed` fails with a circular import (auth_service -> file_service
 -> app.jobs -> board_service -> file_service). The app itself starts. `main` is fine. The deploy guide uses
 app.seed for the first admin, so it needs fixing in PR #33.
