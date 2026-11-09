@@ -1,5 +1,6 @@
 """Passwords, session tokens and IP hashing. Standard library only (no extra packages)."""
 import hashlib
+import ipaddress
 import hmac
 import secrets
 
@@ -36,6 +37,24 @@ def new_session_token() -> str:
 def hash_token(token: str) -> str:
     """We store only a hash of the session token, so a DB leak doesn't leak live sessions."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def rate_key(ip: str | None) -> str | None:
+    """The key the rate limits count by (CR6). One home or phone connection gets a whole IPv6 /64 block
+    (billions of addresses), so the block counts as one visitor. IPv4, and IPv4 written as IPv6
+    (::ffff:1.2.3.4), stay per address. Never fails: anything that isn't an address is used as it is.
+    Only for limits: leads and audit rows keep the hash of the real address."""
+    if not ip:
+        return None
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
 
 
 def hash_ip(ip: str | None) -> str | None:

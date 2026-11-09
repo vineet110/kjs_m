@@ -80,3 +80,19 @@ Tests: `/healthz` on a dev server (503 with no API, 200 with one, home page 200 
 problem); `docker compose config` shows the API's three secrets blank; `run -e` passes the migration
 address and a plain run gets none; Alembic refuses in production without it, works locally. Shell
 syntax checked. Full drill NOT run (Vineet's call: test on the server).
+
+## Login and rate limits (9 Nov, branch `fix/security-reliability`, on top of `fix/deploy-safety`)
+
+1. CR6: rate limits count a whole IPv6 /64 block as one visitor (`security.rate_key`, `deps.visitor_keys`);
+   IPv4 written as IPv6 is IPv4; anything odd is used as it is (never a 500). Leads, audit rows and
+   chats still keep the hash of the real address.
+2. CR7: the per-network login limit counts only WRONG passwords (the office shares one address) and is
+   100 per 15 min; sign-ups 30 per network per hour. Both in `config/app.ini` (`login_failures_per_ip`,
+   `signups_per_ip_per_hour`).
+3. CR5: a stranger can no longer lock someone out with wrong passwords from many networks: a network the
+   person logged in from in the last 30 days skips the any-network counter. Every successful login now
+   writes an audit row (`auth.login_ok`, hashed network), which is where that is looked up: it survives
+   an API restart, and no migration was needed (the plan said a new table first).
+
+Tests: 3 new (IPv6 key, office logins + 30 sign-ups, 10 attacker networks then the office still gets in
+and a never-seen network doesn't). Auth, content, prod-readiness, leads: 79 pass. CI runs the rest.

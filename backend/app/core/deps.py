@@ -64,6 +64,13 @@ def _is_our_proxy(peer: str) -> bool:
     return ip.is_loopback or ip.is_private
 
 
+def visitor_keys(request: Request) -> tuple[str | None, str | None]:
+    """(hash of the real address: saved with leads and audit rows, hash of the rate-limit key: CR6)."""
+    from app.core.security import hash_ip, rate_key
+    ip = client_ip(request)
+    return hash_ip(ip), hash_ip(rate_key(ip))
+
+
 def client_ip(request: Request) -> str | None:
     """The visitor's IP. Browsers reach us through the Next.js proxy, so without this every
     visitor would look like 127.0.0.1 and share one rate limit (found in the 24 Oct e2e test)."""
