@@ -83,6 +83,8 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 10. Whole-repo code review and its fix list (29 Oct): `codeReview.md`
 
+11. Tools we use now, and ideas for later (none approved yet): `tools.md`
+
 
 
 ---------------------------------------------------------------------------------------------------
