@@ -727,6 +727,14 @@ Sections:
           and sends it back when saving. If someone else saved in between, the save is refused (409) instead of
           silently undoing their change.
    Where  Order board plan editor: `plan_version` (`board_service._plan_version`).
+### Partial update (PATCH)
+
+   What   Only the fields sent change; the rest stay as they are. "Send the whole form" can undo another
+          person's change made in between.
+   Where  Products, offers, accounts (`exclude_unset`, `OfferPatchIn`, `UserPatchIn`).
+
+
+
 
 
 
@@ -1370,6 +1378,14 @@ Sections:
    Why    An uploaded file must never run as our website. Chrome won't open a sandboxed PDF, so a real PDF
           (starts with `%PDF-`) gets `frame-ancestors 'self'`; anything else stays sandboxed.
    Where  `backend/app/api/v1/endpoints/files.py` (`view`).
+### Rate-limit key / IPv6 /64
+
+   What   The value a rate limit counts by. One home or phone line gets a whole IPv6 "/64" block (billions of
+          addresses), so the block counts as one visitor; IPv4 counts per address.
+   Where  `core/security.py` `rate_key`, `core/deps.py` `visitor_keys`. Leads and audit rows keep the real address hash.
+
+
+
 
 
 
@@ -1795,6 +1811,21 @@ Sections:
 
    What   The list of outside addresses Next.js may load and resize pictures from.
    Where  `frontend/next.config.mjs`; the R2 bucket is added there when the asset base is set.
+### Off-site backup
+
+   What   A copy of the backups somewhere else than the server, so a dead disk or a wrong delete loses nothing.
+          Ours: R2 bucket `kjs-bkp-prod`, its own key, encrypted with `openssl`, kept 30 days.
+   Where  `backend/app/backup_r2.py`, `deploy/backup.sh` step 4, `deploy/README.md` 5.4.
+
+
+### Health check (/healthz)
+
+   What   An address a deploy or Docker asks "are you really working?". Ours answers 200 only when Next.js
+          reaches the API and the database right now.
+   Where  `frontend/src/app/[locale]/healthz/route.ts`, `deploy/deploy.sh`, `frontend/Dockerfile`.
+
+
+
 
 
 

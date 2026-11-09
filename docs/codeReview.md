@@ -118,7 +118,7 @@ CR1. `restore.sh` can wipe the database and still print "restore done"  🔴  FI
 ### 🟠 Should fix
 
 
-CR2. Health checks pass even when the home page is broken  🟠
+CR2. Health checks pass even when the home page is broken  ✅ FIXED (PR #43, 9 Nov)
 
    Where: `frontend/src/app/[locale]/(public)/(home)/loading.tsx`, `deploy/deploy.sh:31`,
           `frontend/Dockerfile:40`
@@ -141,7 +141,7 @@ CR2. Health checks pass even when the home page is broken  🟠
    would "fail". Put it under `app/[locale]/`, or exclude it in the proxy matcher.
 
 
-CR3. Backups need the backend to be running, so a crashing backend blocks deploys and restores  🟠
+CR3. Backups need the backend to be running, so a crashing backend blocks deploys and restores  ✅ FIXED (earlier: backups use `run`, 9 Nov)
 
    Where: `deploy/backup.sh:32` (called by `deploy.sh` and `restore.sh`)
 
@@ -155,7 +155,7 @@ CR3. Backups need the backend to be running, so a crashing backend blocks deploy
    `restore.sh` already uses, instead of `exec` into the running backend.
 
 
-CR4. The public site has no error page and no time limit on API calls  🟠
+CR4. The public site has no error page and no time limit on API calls  ✅ FIXED (PR #41, 9 Nov)
 
    Where: `frontend/src/lib/api.ts:43` (fetch, no timeout), `api.ts:55` (throw);
           no `error.tsx` or `not-found.tsx` anywhere under `frontend/src/app`
@@ -180,7 +180,7 @@ CR4. The public site has no error page and no time limit on API calls  🟠
        (API down, unknown URL, layout crash) in the browser.
 
 
-CR5. A stranger can still lock the admin out (backlog section 9 says this is fixed)  🟠
+CR5. A stranger can still lock the admin out (backlog section 9 says this is fixed)  ✅ FIXED (PR #44, 9 Nov)
 
    Where: `backend/app/services/auth_service.py:53`, `backend/app/core/rate_limit.py:76`
 
@@ -205,7 +205,7 @@ CR5. A stranger can still lock the admin out (backlog section 9 says this is fix
        after an API restart.
 
 
-CR6. Every IPv6 address gets its own rate limit, so all per-IP limits can be skipped  🟠
+CR6. Every IPv6 address gets its own rate limit, so all per-IP limits can be skipped  ✅ FIXED (PR #44, 9 Nov)
 
    Where: `backend/app/core/deps.py:67` (`client_ip`), `backend/app/core/security.py:41` (`hash_ip`)
 
@@ -226,7 +226,7 @@ CR6. Every IPv6 address gets its own rate limit, so all per-IP limits can be ski
          visitors on a dual-stack server share one limit.
 
 
-CR7. The office shares one IP, so the login and sign-up limits will block KJS staff  🟠
+CR7. The office shares one IP, so the login and sign-up limits will block KJS staff  ✅ FIXED (PR #44, 9 Nov)
 
    Where: `backend/app/core/rate_limit.py:77-78`, `backend/app/services/auth_service.py:51`
 
@@ -245,7 +245,7 @@ CR7. The office shares one IP, so the login and sign-up limits will block KJS st
    c.  Optional: an allow-list for the office IP, if KJS IT gives it to us.
 
 
-CR8. Turning a feature off only hides it; the API still works  🟠
+CR8. Turning a feature off only hides it; the API still works  ✅ FIXED (PR #45, 9 Nov)
 
    Where: `config/features.ini` is only read for the frontend (`core/config/ini.py`);
           `api/v1/endpoints/koko.py` and `public.py` never check it
@@ -259,7 +259,7 @@ CR8. Turning a feature off only hides it; the API still works  🟠
    whose feature is off. Add a test per flag.
 
 
-CR9. A disabled employee's open batch of buyers is stuck forever, and admins can't see it  🟠
+CR9. A disabled employee's open batch of buyers is stuck forever, and admins can't see it  ✅ FIXED (PR #45 (disabled accounts; leave case: backlog R50), 9 Nov)
 
    Where: `backend/app/services/auth_service.py:134` (`set_status`), `assign_service.py`
           (`has_open`, `update_record`, `overview`)
@@ -281,7 +281,7 @@ CR9. A disabled employee's open batch of buyers is stuck forever, and admins can
    c.  Test both cases.
 
 
-CR10. When the mail server is down, emails are lost for good, about one every 3 minutes  🟠
+CR10. When the mail server is down, emails are lost for good, about one every 3 minutes  ✅ FIXED (PR #45, 9 Nov)
 
    Where: `backend/app/services/notification_service.py:131-145`
 
@@ -296,7 +296,7 @@ CR10. When the mail server is down, emails are lost for good, about one every 3 
    `send_message` itself fails. Test: connection fails 5 runs in a row, then works, and every email is sent.
 
 
-CR11. The running API has the database superuser password  🟠  (adds to R7)
+CR11. The running API has the database superuser password  ✅ FIXED (PR #43, with R7, 9 Nov)  (adds to R7)
 
    Where: `deploy/docker-compose.prod.yml:39` (`env_file: .env`),
           `deploy/.env.production.example:16` (`POSTGRES_PASSWORD`), `:19` (`MIGRATION_DATABASE_URL`)

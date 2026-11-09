@@ -261,6 +261,33 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     manual `alembic` command, set BOTH `DATABASE_URL` and `MIGRATION_DATABASE_URL`, because `.env` points the
     second at Neon and Alembic prefers it (kb: "Alembic / migration"). Tests already override both.
 
+39. 9 Nov. Off-site backup: the R2 bucket `kjs-bkp-prod`, with its OWN token in `deploy/.env.backup` (never in
+    `.env`, so the running app never has it). Every night `backup.sh` sends the database backup encrypted
+    (`openssl`, AES-256, `BACKUP_PASSPHRASE`) and copies new uploads (`app/backup_r2.py`). Uploads that
+    disappear or are rewritten, and the database backups, stay 30 days (Vineet's decision: the live app
+    deletes at once, the backups keep 30 days). Backups taken by a restore or a deploy never go off-site.
+
+40. 9 Nov. Attendance hours always come from the punches. Approving a correction moves the day's first
+    check-in (and last check-out, if given); breaks stay breaks. Check-in and check-out lock the day's row
+    (a double tap stores one punch).
+
+41. 9 Nov. The running API never holds the database superuser password, the migration address or the tunnel
+    token: `docker-compose.prod.yml` blanks them for the backend. `deploy.sh` and `restore.sh` pass
+    `MIGRATION_DATABASE_URL` to the migration step only; in production Alembic refuses without it.
+
+42. 9 Nov. The health check is `/healthz` (Next.js -> API -> database, no cache), not `/` (the home page's
+    `loading.tsx` answers 200 even when the page fails). `deploy.sh` and the Docker HEALTHCHECK use it.
+
+43. 9 Nov. Rate limits count a whole IPv6 /64 as one visitor. The per-network login limit counts only wrong
+    passwords (100 per 15 min); sign-ups 30 per network per hour (`config/app.ini`). A network where the
+    person logged in during the last 30 days can't be locked by strangers: every login writes an
+    `auth.login_ok` audit row (hashed network), and the check reads it.
+
+44. 9 Nov. A feature switched off in `config/features.ini` also refuses its API (404 `feature_off`).
+    Disabling an account gives its open batch's unfinished buyers back (batch "returned"). The offer and
+    user edits change only the fields sent. Screens (PR #41): reads give up after 20 s; saves wait 90 s and
+    say "may have been saved, refresh to check" when there is no clear answer.
+
 
 
 ---------------------------------------------------------------------------------------------------
@@ -356,7 +383,23 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 8–9 Nov 2026 (order boards review fixes, Vineet, PRs #35–#39 merged)
+1. 9 Nov 2026 (go-live safety, Vineet PRs #42–#45, Nishita PR #41, all merged 9 Nov)
+
+   i.    A whole-repo audit before real data: no business row is ever hard-deleted, every migration only adds;
+         but uploads in R2 had no backup and the database backup sat on the same disk (decision 39).
+   ii.   Fixed: off-site backup, attendance hours, double taps, failed uploads (#42); secrets out of the API,
+         `/healthz`, a failed restore keeps the app stopped (#43); IPv6, office and lockout limits (#44); lost
+         emails, switched-off features, a disabled person's batch, partial edits (#45); error pages, time
+         limits, no endless "Loading…", typed text kept on a failed save (#41). Code review CR2–CR11 done.
+   iii.  Each PR got a code review; findings were checked one by one and only the real ones fixed.
+   iv.   Not run after the last changes: the full `test-restore.sh` drill (Vineet: run it on the server).
+         The first real off-site copy worked (2 test files to `kjs-bkp-prod`). Follow-ups: backlog R50.
+   v.    Nishita, PRs #46 and #49: order boards checked in Chrome (R49 i); `scripts/e2e` now covers lead
+         management, leave and shifts, and order boards; no app bugs found. e2e runs use `STORAGE_DRIVER=local`
+         (a local `.env` with `r2` had sent test uploads to the real bucket: R50 iii). Login suite unsteady: R51.
+
+
+2. 8–9 Nov 2026 (order boards review fixes, Vineet, PRs #35–#39 merged)
 
    i.    A code review of each PR found issues; all fixed on each PR's own branch and merged down the chain.
          Owner gets step and time alerts; double clicks ignored; CSV shows ₹ and Hindi; big sheets can't freeze
@@ -368,7 +411,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          the merge. Backend 241, unit 42 pass.
 
 
-2. 7 Nov 2026 (order boards overhaul, Vineet, PRs #35–#39)
+3. 7 Nov 2026 (order boards overhaul, Vineet, PRs #35–#39)
 
    i.    #35 people, owner, step heads (migration 0016: `board_people`, `board_members.is_head`); #36 screens
          (summary card, timeline, tabs Steps / Files / People, board list filters); #37 file preview (PDF, images,
@@ -378,7 +421,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          fixes in a browser (backlog R49).
 
 
-3. 6 Nov 2026 (site pictures on R2, Vineet, PR #32)
+4. 6 Nov 2026 (site pictures on R2, Vineet, PR #32)
 
    i.    97 images and 245 flags uploaded to the public bucket `kjs-site-assets` with the same paths as
          `frontend/public/` (with our own `R2Storage`; the dashboard's folder upload dropped the paths).
@@ -386,7 +429,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Decision 32. Before go-live: `cdn.kjsindia.com` (backlog R48).
 
 
-4. 7 Nov 2026 (attendance one sidebar + seed fix, Nishita, PR #34)
+5. 7 Nov 2026 (attendance one sidebar + seed fix, Nishita, PR #34)
 
    i.    The attendance page's own dark left bar is gone. Views (List / Tabular / Calendar / Overtime) in the •••
          menu; the four sections and "+ Apply Leave" in a white bar at the bottom. List view text one step bigger.
@@ -396,7 +439,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  `PortalShell.tsx` still has its `isAttendance` layout checks (backlog R47).
 
 
-5. 6–7 Nov 2026 (lead management + User Creation Form, Nishita, PR #33 merged 7 Nov)
+6. 6–7 Nov 2026 (lead management + User Creation Form, Nishita, PR #33 merged 7 Nov)
 
    i.    Sidebar group "Lead Management": Contacts, Tasks, Koko Lead, Internal lead. Same pages for admin and staff;
          `leads.view_all` sees every lead, others their own + unassigned.
@@ -410,7 +453,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          IST due times, contact grouping (decisions 27–29). Backend 206 pass.
 
 
-6. 5 Nov 2026 (home look, popup, card hover, Nishita, PR #27 and #30 merged 5 Nov)
+7. 5 Nov 2026 (home look, popup, card hover, Nishita, PR #27 and #30 merged 5 Nov)
 
    i.    Home: taller banner, item count in the stats box, Best sellers on a white band, dark "How it works",
          chocolate picture under the category menu. Tried floating pack photos without cards: looked worse, undone.
@@ -420,7 +463,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          `HoverGrowSides.tsx`); only with a mouse at 768 px+, no animation with reduced motion.
 
 
-7. 3 Nov 2026 (admin redesign, Nishita, PR #17 merged 3 Nov)
+8. 3 Nov 2026 (admin redesign, Nishita, PR #17 merged 3 Nov)
 
    i.    Account menu (initials, name, role, My profile, Log out) in `components/portal/AccountMenu.tsx`. Log out
          asks first (native `<dialog>`), and the login page says "You've logged out safely" once (`?bye=1`).
@@ -435,7 +478,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Two review rounds, all must-fix points fixed. Unit 34, backend 177 pass. Follow-ups: backlog R42.
 
 
-8. 2–3 Nov 2026 (UI steps 4 to 7, Nishita, PR #16 merged 3 Nov)
+9. 2–3 Nov 2026 (UI steps 4 to 7, Nishita, PR #16 merged 3 Nov)
 
    i.    Step 4 partner page: "Referral partner", "Who can apply", "How it works", "What your buyers can order"
          (live categories, hidden if they don't load). The made-up referral link card is gone.
@@ -452,7 +495,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vi.   Two reviews by Vineet and one of our own. Backend 176, unit 29, API 114, browser 55 pass.
 
 
-9. 30 Oct – 3 Nov 2026 (CR1 restore fix, Vineet, PR #13 merged 3 Nov)
+10. 30 Oct – 3 Nov 2026 (CR1 restore fix, Vineet, PR #13 merged 3 Nov)
 
    i.    `restore.sh` order: read both backups in full (app still running), stop the app, safety backup,
          unpack files aside, replace the database in one transaction, swap files, migrations + rights,
@@ -471,7 +514,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          the harm is realistic, a test can show it) were fixed; the rest went to `backlog.md` CR1.
 
 
-10. 2 Nov 2026 (PR #14 review, Nishita, branch feat/uiUpdates-home)
+11. 2 Nov 2026 (PR #14 review, Nishita, branch feat/uiUpdates-home)
 
    i.    Two review rounds fixed: space above the green card; the stats box shows only with the real product
          count (else the quote card fills the column); every capability page linked from the footer is checked.
@@ -479,7 +522,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          unit 12 pass.
 
 
-11. 31 Oct 2026 (home removals, Nishita, branch feat/uiUpdates-home)
+12. 31 Oct 2026 (home removals, Nishita, branch feat/uiUpdates-home)
 
    i.    PR #12 (steps 1 and 2) merged. UI step 3: the home page no longer shows the Capabilities section or the
          "250+ products" line. The capability pages stay, linked from the footer, private-label and sitemap
@@ -488,7 +531,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          database must be reset before a re-run (`reset_e2e_db.sh`), or the API test hits its own old products.
 
 
-12. 31 Oct 2026 (sliding sidebar, Nishita, branch feat/uiUpdates-sidebar)
+13. 31 Oct 2026 (sliding sidebar, Nishita, branch feat/uiUpdates-sidebar)
 
    i.    UI step 2: the staff sidebar is hidden until the menu button slides it in; the next click hides it.
          Computer: pushes the page aside, remembered per tab. Phone: slides over the page with a backdrop and
@@ -497,7 +540,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          failed 13 on the old code. Unit 12, API 114, browser 38, login all pass.
 
 
-13. 30 Oct 2026 (login spinner, Nishita, branch feat/uiUpdates)
+14. 30 Oct 2026 (login spinner, Nishita, branch feat/uiUpdates)
 
    i.    Nishita's UI list split into 7 small PRs, lowest risk first (track 4d). Decisions: "Broker" becomes
          "Referral partner" (label only; the saved value stays `broker`); partner page uses real content only (no
@@ -527,7 +570,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. Tested: unit 12/12, login checks 24/24, e2e API 114/114 and browser 38/38.
 
 
-14. 30 Oct 2026 (code review PR redone, Vineet)
+15. 30 Oct 2026 (code review PR redone, Vineet)
 
    i.    PR #10 was closed and the same work redone on top of PR #9 as PR #11, to avoid conflicts in the docs.
    ii.   Nishita's reviews of it found mistakes in the fix directions (CR1, CR2, CR11, CR13, CR27 and more), all
@@ -535,7 +578,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Anything found after this goes straight into the real fix PRs. Next: CR1 as real code, failing test first.
 
 
-15. 30 Oct 2026 (PR #9 fifth review, Nishita)
+16. 30 Oct 2026 (PR #9 fifth review, Nishita)
 
    i.    Vineet's fifth review: 1 blocking point, real, fixed. Products taken off the site stayed in the saved
          enquiry list and used up slots; adding a product could then silently remove one the visitor sees.
@@ -552,7 +595,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          phone) + 30/30 + 20/20 + 12/12, e2e API 114/114 and browser 38/38. Independent review: 4 real, fixed.
 
 
-16. 29 Oct 2026 (whole-repo code review, Vineet)
+17. 29 Oct 2026 (whole-repo code review, Vineet)
 
    i.    Full review of the repo at `7d117aa`, written up in `codeReview.md` (CR1–CR39). No security holes.
    ii.   One must-fix: `restore.sh` can empty the database and still say "restore done" (CR1).
@@ -564,7 +607,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          direction. New process in `prompt.md` section 6 (failing test first, at most 2 review rounds per PR).
 
 
-17. 29 Oct 2026 (PR #9 fourth review, Nishita)
+18. 29 Oct 2026 (PR #9 fourth review, Nishita)
 
    i.    Vineet's fourth review: 9 points, all real, all fixed; his cleanups went to the backlog (R34).
    ii.   (REPLACED on 30 Oct, see the fifth review) Enquiry list rule: products this page doesn't
@@ -582,7 +625,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          + 20/20 + 12/12 (incl. zoom 90%/110% and phone 390px), e2e API 114/114 and browser 38/38.
 
 
-18. 29 Oct 2026 (PR #9 third review, Nishita)
+19. 29 Oct 2026 (PR #9 third review, Nishita)
 
    i.    Vineet's third review: 7 points, all real, all fixed. Back on home after visiting another page shows
          the latest list (cached snapshot dropped when nothing listens); the first-load fade keeps going when
@@ -597,7 +640,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Tested: browser checks 30/30 (this round) + 20/20 + 12/12, e2e API 114/114 and browser 38/38.
 
 
-19. 29 Oct 2026 (PR #9 review, Nishita)
+20. 29 Oct 2026 (PR #9 review, Nishita)
 
    i.    Vineet's review of PR #9: 7 points, all real, all fixed. Private window now personalises for the visit
          (history kept in memory per key when storage is blocked or full); one shared hook `useHistory` for the
@@ -610,7 +653,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Tested: logic 6/6, browser checks 12/12 (review fixes) + 20/20, e2e API 114/114 and browser 38/38.
 
 
-20. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
+21. 29 Oct 2026 (recommendations + pop-in cards, Nishita, branch kjs_n2)
 
    i.    "Recommended" section on the home page. Personal picks come from what the visitor opened (product page,
          quick view) or put in their enquiry list, kept in THEIR browser only (localStorage `kjs_viewed`,
@@ -625,7 +668,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Still to decide (R31–R33): deals strip, best sellers, frequently searched (no made-up claims).
 
 
-21. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
+22. 28 Oct 2026 (PR #6 merged, database moved to Singapore, Vineet)
 
    i.    New Neon project in Singapore (aws-ap-southeast-1). Migrations to 0011, `app.seed`, `app.seed_catalogue`
          (58 products). v1 and v2 `.env` both point to it; old US lines kept as comments. The URL must stay
@@ -638,7 +681,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          still uses only the connection string (decision 13).
 
 
-22. 28 Oct 2026 (PR #6 third review, Nishita)
+23. 28 Oct 2026 (PR #6 third review, Nishita)
 
    i.    e2e `browser_e2e.mjs` expected the old home text ("Explore products"): now "Explore the range".
    ii.   Home texts come from the backend defaults (`content_service.TEXTS`), which always win over a frontend
@@ -649,7 +692,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Follow-ups R21–R24 added; R20 closed (the API already checks image_path).
 
 
-23. 28 Oct 2026 (PR #6 second review, Nishita)
+24. 28 Oct 2026 (PR #6 second review, Nishita)
 
    i.    4 blockers fixed: category panel gap (padding, not margin), search results stay open while focus is in
          the search box (no timer), one progress bar inside the header (CSS: <html data-navigating> or a
@@ -663,7 +706,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Safari, Firefox. Follow-ups R17–R20 in backlog.
 
 
-24. 28 Oct 2026 (PR #6 review fixes, Nishita)
+25. 28 Oct 2026 (PR #6 review fixes, Nishita)
 
    i.    Vineet's review of PR #6: 4 blocking + 6 follow-ups, all fixed. Enquiry form now opens in a portal
          (a CSS transform on the bar squeezed it), stale saved products dropped, list emptied after sending,
@@ -679,7 +722,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          missing pages answer 200 instead of 404. Rule: no loading.tsx above pages that call notFound().
 
 
-25. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
+26. 27 Oct 2026 (catalogue + marketplace home page, Nishita)
 
    i.    Read the 50-page catalogue PDF (pictures only, no text): 58 product families, 156 items.
    ii.   New `backend/app/seed_catalogue.py`: 4 new categories (old ones kept) and 58 products. Only file
@@ -693,7 +736,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  New assumptions A73–A77, inputs I13, I14 (phone number mismatch).
 
 
-26. 27 Oct 2026 (production-readiness review)
+27. 27 Oct 2026 (production-readiness review)
 
    i.    `docs/` is now committed (shared with the teammate). `.env` stays private: each person makes their
          own from `.env.example`.
@@ -711,7 +754,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  Merged into `main` with pull request #5 (CI green). Needs `alembic upgrade head` (migration 0011).
 
 
-27. 26 Oct 2026 (merge, speed, Smart App Control)
+28. 26 Oct 2026 (merge, speed, Smart App Control)
 
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
@@ -727,7 +770,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    vii.  next-intl kept although unused today (B16): ready for Stage 2 languages.
 
 
-28. 25 Oct 2026 (senior review)
+29. 25 Oct 2026 (senior review)
 
    i.    Four independent reviews: login and access, untrusted input and files, backend logic, frontend and server.
          About 50 findings; every high and medium one fixed and tested. Not committed yet (Vineet decides).
@@ -749,7 +792,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          assumptions A59–A65.
 
 
-29. 25 Oct 2026
+30. 25 Oct 2026
 
    i.    Merged Phase 1 into `main` (pull request #2, CI green).
    ii.   Production setup in `deploy/`: Docker images (non-root), production compose (Postgres 17, nginx,
@@ -763,7 +806,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    viii. New guesses A53–A58 in `backlog.md` section 3.
 
 
-30. 24 Oct 2026 (morning)
+31. 24 Oct 2026 (morning)
 
    i.    Committed and pushed all Phase 1 work to `kjs_v` (`3a88c65`).
    ii.   Docs cleaned up: tables replaced with numbered lists; new `kb.md` (look up any word);
@@ -771,7 +814,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Next: production setup.
 
 
-31. 23–24 Oct 2026 (night)
+32. 23–24 Oct 2026 (night)
 
    i.    New plan from `master-build-prompt.pdf`: Phase 1 in 2 weeks, one list (`checklist.md`).
    ii.   Built every Phase 1 feature: settings files with live reload, JSON logs with request IDs, background jobs,
@@ -784,21 +827,21 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    v.    Every guess written in `backlog.md` section 3 (A1–A52).
 
 
-32. 23 Oct 2026 (5)
+33. 23 Oct 2026 (5)
 
    i.    Holidays table and calendar API, SEO (sitemap, robots, JSON-LD), CI workflow, Koko rules hardened. 52 tests.
 
 
-33. 23 Oct 2026 (4)
+34. 23 Oct 2026 (4)
 
    i.    First working slice: website, Koko on Groq, login, leads, admin.
 
 
-34. 23 Oct 2026 (2 and 3)
+35. 23 Oct 2026 (2 and 3)
 
    i.    Installed Docker and gh, cloned the repo, decided D1–D8, made `trackEXP.md`, summarised the demo video.
 
 
-35. 23 Oct 2026 (1)
+36. 23 Oct 2026 (1)
 
    i.    Read all the planning documents, listed the conflicts, set up `docs/`.

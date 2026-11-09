@@ -10,6 +10,38 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 9 Nov 2026 (frontend safety, board check, e2e tests: PRs #41, #46, #49, Nishita)
+
+1. (T) A time-out on a save doesn't mean "not saved": the server may finish anyway. Say "may have been saved,
+   check first", or people click again and save twice.
+
+2. (T) A failing test is not a bug until you read why. Most of today's failures were tests out of date with the
+   screens, or a deliberate change (a switched-off feature now says 404).
+
+3. (T) Before running tests, check where they write: our `.env` sent test uploads to the real R2 bucket.
+
+4. (T) Stopping a background shell may leave its server running. Check the port, or the next run tests old code.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 9 Nov 2026 (go-live safety, PRs #42–#45, Vineet)
+
+1. (V) A review finding is not automatically a fix: check each one against the code. 6 of 10 were real.
+
+2. (V) CI runs the whole test suite on every PR. Locally, run only the tests of what you touched.
+
+3. (V) Docker compose: `environment:` beats `env_file:`. One line blanks a secret for one service.
+
+4. (V) Git Bash on Windows: native tools can't open `/tmp/...` paths. Let the shell open files with `<` and `>`.
+
+5. (V) Scripts that patch files: use raw strings. `"\r"` and `"\1"` silently became control characters.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 6–9 Nov 2026 (R2 pictures, order boards PRs #32, #35–#39, Vineet)
 
 1. (V) Alembic picks `MIGRATION_DATABASE_URL` before `DATABASE_URL`. Setting only one sent my "local" check to

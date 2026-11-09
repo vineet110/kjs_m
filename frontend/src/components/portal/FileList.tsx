@@ -156,7 +156,8 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
         <section ref={panel} aria-label={`Preview of ${open.name}`}
           className={isFull ? 'fixed inset-0 z-50 flex flex-col gap-3 bg-paper p-4' : 'flex h-[75vh] flex-col gap-2 rounded-lg border bg-paper p-3 lg:sticky lg:top-16'}>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={open.name}>{open.name}</p>
+            {/* Phones: the name gets its own line (beside three buttons it was cut to "po-11…"); wider: one row */}
+            <p className="min-w-0 basis-full truncate text-sm font-semibold sm:basis-auto sm:flex-1" title={open.name}>{open.name}</p>
             <button onClick={toggleFull} className="btn-ghost py-1 text-xs">{isFull ? 'Exit full screen' : 'Full screen'}</button>
             <a href={downloadUrl(open.id)} className="btn-ghost py-1 text-xs">Download</a>
             <button onClick={() => { setOpenId(null); setFull(false); }} className="btn-ghost py-1 text-xs" aria-label="Close preview">Close</button>
