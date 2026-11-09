@@ -1423,6 +1423,12 @@ Sections:
    What   Pieces of words. AI companies charge and limit by tokens.
 
 
+### TPM (tokens per minute)
+
+   What   How many tokens one account may send an AI provider per minute. Groq's free tier allows 8,000
+          for gpt-oss. A request bigger than that is refused (413), so Koko must send only what's needed.
+
+
 ### Hallucination
 
    What   When an AI confidently makes something up. Koko's rules forbid prices, capacities and promises.
