@@ -134,7 +134,8 @@ async def list_files(db: AsyncSession, user: User, owner_type: str, owner_id: st
         StoredFile.owner_type == owner_type, StoredFile.owner_id == owner_id, StoredFile.deleted_at.is_(None))
         .order_by(StoredFile.id.desc()))).all()
     names = dict((await db.execute(select(User.id, User.name))).all())
-    return [out(f, names) for f in rows]
+    # own_request: this person asked for the delete, so someone else must decide it (admins excepted)
+    return [out(f, names) | {"own_request": f.delete_requested_by == user.id and user.role != "admin"} for f in rows]
 
 
 async def public_files(db: AsyncSession, owner_type: str, owner_id: str) -> list[dict]:

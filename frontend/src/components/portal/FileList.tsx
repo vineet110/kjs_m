@@ -9,8 +9,9 @@ function size(n: number) {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-export default function FileList({ ownerType, ownerId, canUpload = true, publicToggle = false }: {
+export default function FileList({ ownerType, ownerId, canUpload = true, publicToggle = false, canDecide = false }: {
   ownerType: string; ownerId: string; canUpload?: boolean; publicToggle?: boolean;
+  canDecide?: boolean; // may approve / reject delete requests here (e.g. an order board's owner)
 }) {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [err, setErr] = useState('');
@@ -57,6 +58,17 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
     }
   }
 
+  async function decide(f: StoredFile, approve: boolean) {
+    if (approve && !confirm(`Delete "${f.name}"? The file is removed for good.`)) return;
+    setErr('');
+    try {
+      await api(`/files/${f.id}/delete-decision`, { method: 'POST', body: { approve } });
+      load();
+    } catch (x) {
+      setErr(x instanceof ApiFailure ? x.message : 'Could not save.');
+    }
+  }
+
   return (
     <div className="space-y-2">
       {canUpload && (
@@ -78,11 +90,23 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
             <a href={`/api/v1/files/${f.id}/download`} className="font-medium underline">{f.name}</a>
             <span className="text-xs text-slate-500">{size(f.size)} · {f.uploaded_by_name} · {fmtIST(f.created_at)}</span>
             {f.is_public && <Pill value="ok" label="on website" />}
-            <span className="ml-auto">
+            <span className="ml-auto flex items-center gap-2">
               {f.delete_status === 'requested'
                 ? <Pill value="pending" label="delete requested" />
                 : <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
+              {f.delete_status === 'requested' && canDecide && f.own_request && (
+                <span className="text-xs text-slate-500">You asked: someone else decides</span>
+              )}
+              {f.delete_status === 'requested' && canDecide && !f.own_request && (
+                <>
+                  <button onClick={() => decide(f, true)} className="text-xs font-semibold text-red-700 underline">Approve delete</button>
+                  <button onClick={() => decide(f, false)} className="text-xs underline">Keep file</button>
+                </>
+              )}
             </span>
+            {f.delete_status === 'requested' && f.delete_reason && (
+              <p className="w-full text-xs text-slate-500">Reason: {f.delete_reason}</p>
+            )}
           </div>
         ))}
       </div>

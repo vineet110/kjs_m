@@ -206,6 +206,10 @@ async def test_owner_cannot_approve_their_own_delete_request(client):
     await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "duplicate"}, headers=HDR)
     r = await client.post(f"/api/v1/files/{fid}/delete-decision", json={"approve": True}, headers=HDR)
     assert r.status_code == 403 and r.json()["code"] == "own_request"
+    files = (await client.get("/api/v1/files?owner_type=board&owner_id=ABC117-3")).json()
+    assert files[0]["own_request"] is True  # the screen hides Approve / Keep for them
+    await login(client, "pack@kjsindia.com")
+    assert (await client.get("/api/v1/files?owner_type=board&owner_id=ABC117-3")).json()[0]["own_request"] is False
 
 
 async def test_finished_board_people_are_frozen_and_owner_can_finish(client):

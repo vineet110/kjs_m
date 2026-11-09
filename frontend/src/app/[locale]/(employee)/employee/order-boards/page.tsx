@@ -13,7 +13,7 @@ export default function MyBoards() {
   }, []);
   return (
     <div className="space-y-6">
-      <PageTitle title="My order boards" sub="Boards where you are on at least one step." />
+      <PageTitle title="My order boards" sub="Boards you are on. Everyone on a board can see and update it." />
       {boards === null ? <Loading /> : <BoardList base="/employee/order-boards" boards={boards} />}
     </div>
   );

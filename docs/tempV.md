@@ -31,6 +31,27 @@ What was done (backend; the screen is the next part of this PR)
    `POST /files/{id}/delete-decision` now check owner-or-permission in the service.
 5. Tests: `tests/test_board_people.py` (8 tests, allowed and forbidden users for every new route).
 
+Screen (branch `feat/board-members-ui`, on top of the backend branch)
+
+1. Board page (`BoardDetail.tsx`): summary card (code, order, client, dates, owner, priority, state),
+   step timeline with progress, tabs Steps / Files / People.
+2. Steps: people with initials, ★ for heads, "Change people" (owner) with search and ★ head, checklist
+   count, time used bar, "Mark step done" only for the step's people or the owner.
+3. People: owner badge, which steps each person works on, Add to board and Remove (owner only).
+   Errors stay on the page (not a toast), as Toast.tsx says.
+4. Files: Approve delete / Keep file for the owner, with the reason shown.
+5. Board list: filters (All, On track, At risk, Late, with counts), search by code / order / client,
+   step progress segments.
+6. Create form: a tick list per step instead of the Ctrl+click box, ★ head, at least one person per step.
+7. Tested in Chrome on the local e2e database (not Neon): list, board, add person, removing the only
+   person on a step refused, remove, change step people and heads, delete approval by the owner
+   (the requester's own approval refused), member view without owner buttons. tsc and 37 unit tests pass.
+   Not tested: phone width, submitting the create form in the browser (the API refusal is tested).
+
+Found on PR #33 (Nishita): `python -m app.seed` fails with a circular import (auth_service -> file_service
+-> app.jobs -> board_service -> file_service). The app itself starts. `main` is fine. The deploy guide uses
+app.seed for the first admin, so it needs fixing in PR #33.
+
 Assumptions (fold into backlog section 3 later)
 
 1. `boards.manage` can do everything the owner can (admins and managers stay in control).
