@@ -518,11 +518,20 @@ Sections:
 
 ### Alembic / migration
 
-   What   A migration is a small script that changes the database structure (add a table, a column).
-          Alembic runs them in order and remembers which ones are done.
-   Rule   One migration per change. Never edit one that has already been applied.
-   Command  `.venv/Scripts/alembic upgrade head`
-   Where  `backend/alembic/versions/` (0001 to 0009).
+   What   A migration is a small numbered script that changes the database structure (add a table, a column,
+          an index). Alembic runs them in order and writes the last number it ran into the database
+          (table `alembic_version`), so each one runs once. `upgrade head` = run every newer one;
+          `downgrade 0016` = undo back to 0016; `current` = which number this database is at.
+   Why    The code and the database must match: new code that reads a new column fails on a database that
+          hasn't run that migration yet. So migrate first (or together), then start the new code.
+   Rule   One migration per change. Never edit one that has already been applied. Ours only add things where
+          possible, so undoing them loses no data. Take the next free number and tell the other person at once
+          (two branches with the same number clash). Before a real database: a backup (Neon: a branch).
+   Watch  Which database does it hit? Alembic uses `MIGRATION_DATABASE_URL` first, and `.env` points it at
+          Neon. For a local check set BOTH `DATABASE_URL` and `MIGRATION_DATABASE_URL` to the local database,
+          then run `current` first. The tests set both for you.
+   Command  `cd backend` then `.venv/Scripts/alembic upgrade head`
+   Where  `backend/alembic/versions/` (0001 to 0018; next free: 0019).
 
 
 ### Table / column / row
@@ -712,6 +721,15 @@ Sections:
    What   A way to put items into groups when "same group" can go through a third item (A matches B, B matches C:
           all three together). Each item points to its group's first item.
    Where  `group_contacts` in `lead_service.py`: leads with the same phone or email are one contact.
+### Optimistic locking / version check
+
+   What   Instead of locking a record while someone edits it, the page remembers which version it started from
+          and sends it back when saving. If someone else saved in between, the save is refused (409) instead of
+          silently undoing their change.
+   Where  Order board plan editor: `plan_version` (`board_service._plan_version`).
+
+
+
 
 
 
@@ -1041,6 +1059,22 @@ Sections:
 
    What   Like localStorage, but only for this browser tab, and gone when the tab closes.
    Where  The "Let's connect" popup (`kjs-connect`) and the open sidebar (`kjs_menu_open`).
+### SheetJS (`xlsx`) / mammoth
+
+   What   SheetJS reads Excel and CSV files in the browser; mammoth turns a Word .docx into HTML.
+   Why    File preview on order boards. Both load only when such a file is opened (dynamic import).
+   Note   SheetJS from cdn.sheetjs.com 0.20.3: the npm copy (0.18.5) is old and has known security bugs.
+   Where  `components/portal/FilePreview.tsx`.
+
+
+### Text encoding (UTF-8)
+
+   What   How letters are stored as bytes. UTF-8 covers every language (₹, Hindi). Reading UTF-8 bytes as an
+          older encoding (Latin-1) turns them into junk like `à¤`.
+   Where  CSV preview decodes the file as UTF-8 first (`FilePreview.tsx`).
+
+
+
 
 
 
@@ -1328,6 +1362,17 @@ Sections:
    What   An IPv4 address written in IPv6 form, like `::ffff:1.2.3.4`. Servers that listen on both kinds
           show IPv4 visitors this way.
    Why    Must be treated as the IPv4 address, or every IPv4 visitor falls into one IPv6 /64 rate limit (codeReview CR6).
+### nosniff / sandbox / frame-ancestors (headers for uploaded files)
+
+   What   nosniff: the browser must trust the file type we send, not guess it. `Content-Security-Policy: sandbox`:
+          the file opens like a page from nowhere, with no scripts and no access to our site.
+          `frame-ancestors 'self'`: only our own pages may show it inside a frame.
+   Why    An uploaded file must never run as our website. Chrome won't open a sandboxed PDF, so a real PDF
+          (starts with `%PDF-`) gets `frame-ancestors 'self'`; anything else stays sandboxed.
+   Where  `backend/app/api/v1/endpoints/files.py` (`view`).
+
+
+
 
 
 
@@ -1738,6 +1783,21 @@ Sections:
 
    What   `exec command` replaces the running script with `command`; nothing after that line runs.
    Why    A way for `deploy.sh` to restart itself as the newly pulled version (codeReview CR35).
+### Public bucket / r2.dev / asset base address
+
+   What   A public bucket is an R2 bucket anyone can read by its link (our website pictures, `kjs-site-assets`).
+          r2.dev is Cloudflare's free test address for it (slowed down; not for real traffic). The asset base
+          address is the bucket's address the site puts in front of `/images/...` and `/flags/...`.
+   Where  `NEXT_PUBLIC_ASSET_BASE` (frontend build) = `ASSET_BASE_URL` (`deploy/.env`); `lib/assets.ts`.
+
+
+### remotePatterns (Next.js images)
+
+   What   The list of outside addresses Next.js may load and resize pictures from.
+   Where  `frontend/next.config.mjs`; the R2 bucket is added there when the asset base is set.
+
+
+
 
 
 
@@ -1777,6 +1837,14 @@ Sections:
 
    What   Decisions go to `memory.md`, open items to `backlog.md`, today's work to `checklist.md`.
           A new session starts by reading them.
+### Stacked pull requests
+
+   What   PRs built on top of each other (#35 → #36 → … → #39), each with its own small diff. Merge them in
+          order. A fix on an early one is merged down into the later branches.
+   Watch  GitHub's "conflicting" flag can be out of date: merge `main` into the first branch locally to check.
+
+
+
 
 
 
