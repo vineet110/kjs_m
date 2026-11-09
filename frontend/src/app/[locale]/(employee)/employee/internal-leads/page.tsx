@@ -2,14 +2,15 @@
 // Lead Management > Internal lead: leads staff type in themselves (a phone call, a trade fair, a walk-in).
 // A lead you add is yours from the start; it then works like any other lead (status, notes, tasks, SLA).
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import LeadSourceList, { useSourceLeads } from '@/components/portal/LeadSourceList';
 import { Msg, PageTitle } from '@/components/portal/ui';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure, type Category, type Lead } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 export default function InternalLeadsPage() {
-  const { rows } = useSourceLeads('internal');
+  const { rows, reload, error } = useSourceLeads('internal');
   const [adding, setAdding] = useState(false);
   return (
     <div className="space-y-5">
@@ -17,7 +18,7 @@ export default function InternalLeadsPage() {
         <button type="button" onClick={() => setAdding(!adding)} className="btn-dark">{adding ? 'Close' : '+ Add lead'}</button>
       </PageTitle>
       {adding && <AddLead />}
-      <LeadSourceList rows={rows} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
+      <LeadSourceList rows={rows} error={error} onRetry={reload} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
     </div>
   );
 }
@@ -27,9 +28,14 @@ function AddLead() {
   const [cats, setCats] = useState<Category[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    api<Category[]>('/public/categories').then(setCats).catch(() => setCats([]));
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const loadCats = useCallback(() => {
+    setLoadErr(null);
+    api<Category[]>('/public/categories').then(setCats).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    loadCats();
+  }, [loadCats]);
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -50,6 +56,7 @@ function AddLead() {
 
   return (
     <form onSubmit={save} className="card space-y-4 p-5">
+      {loadErr != null && <LoadError error={loadErr} onRetry={loadCats} />}
       <h2 className="font-semibold">New internal lead</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className="label" htmlFor="il-name">Name *</label><input id="il-name" name="name" required minLength={2} maxLength={120} className="input" /></div>

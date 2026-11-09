@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type BoardHistory as History, type BoardHistoryItem } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 /** The colour dot in front of a line: what kind of change it was. */
 function dot(action: string): string {
@@ -57,7 +58,7 @@ export default function BoardHistory({ code, version }: { code: string; version:
     load();
   }, [load, version]);
 
-  if (items === null) return err ? <p className="text-sm text-red-700">{err}</p> : <Loading />;
+  if (items === null) return err ? <LoadError error={err} onRetry={() => load()} /> : <Loading />;
 
   // Group the lines by day, keeping the newest-first order
   const groups: { day: string; lines: BoardHistoryItem[] }[] = []; // the same day can come twice (rare): keyed by its first line

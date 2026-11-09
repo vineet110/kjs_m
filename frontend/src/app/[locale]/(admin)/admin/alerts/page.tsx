@@ -1,10 +1,11 @@
 'use client';
 // Alerts: the rules (from config/alerts.ini and config/sla.ini) and the log of alerts sent.
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fmtIST, PageTitle, Pill } from '@/components/portal/ui';
 import { api } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Alerts = {
   rules: { board_thresholds: number[]; channels: string[]; sla: { respond_minutes: number; resolve_minutes: number; escalate_after_minutes: number } };
@@ -13,9 +14,15 @@ type Alerts = {
 
 export default function AlertsPage() {
   const [a, setA] = useState<Alerts | null>(null);
-  useEffect(() => {
-    api<Alerts>('/admin/alerts').then(setA);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setLoadErr(null);
+    api<Alerts>('/admin/alerts').then(setA).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!a) return <Loading />;
   const r = a.rules;
   return (

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, upload, type StoredFile } from '@/lib/api';
 import { downloadUrl } from '@/lib/preview';
 import FilePreview from './FilePreview';
+import LoadError from '@/components/ui/LoadError';
 import { fmtIST, Pill } from './ui';
 
 function size(n: number) {
@@ -52,8 +53,10 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
     panel.current?.requestFullscreen?.().catch(() => {}); // not allowed (iPhone): the covering panel is used
   }
 
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const load = useCallback(() => {
-    api<StoredFile[]>(`/files?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`).then(setFiles).catch(() => setFiles([]));
+    setLoadErr(null);
+    api<StoredFile[]>(`/files?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`).then(setFiles).catch(setLoadErr);
   }, [ownerType, ownerId]);
   useEffect(() => {
     load();
@@ -118,7 +121,8 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
       {err && <p className="text-sm text-red-700">{err}</p>}
       <div className={open && !full ? 'grid gap-3 lg:grid-cols-2' : ''}>
       <div className="h-fit divide-y rounded-lg border bg-white">
-        {files.length === 0 && <p className="p-3 text-sm text-slate-500">No files yet.</p>}
+        {loadErr ? <LoadError error={loadErr} onRetry={load} className="m-3" />
+          : files.length === 0 && <p className="p-3 text-sm text-slate-500">No files yet.</p>}
         {files.map((f) => (
           <div key={f.id} className={`flex flex-wrap items-center gap-2 p-2 text-sm ${f.id === openId ? 'bg-gold/10' : ''}`}>
             <button onClick={() => { setOpenId(f.id === openId ? null : f.id); setFull(false); }} aria-pressed={f.id === openId}

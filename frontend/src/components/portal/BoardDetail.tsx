@@ -12,6 +12,7 @@ import { Icon } from './icons';
 import { useToast } from './Toast';
 import { fmtDay, Pill } from './ui';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 const STATE_LABEL: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', late_board: 'Late', finished: 'Finished' };
 
@@ -48,10 +49,12 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<Tab>('steps');
   const [staff, setStaff] = useState<Colleague[]>([]);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
-    api<Board>(`/boards/${code}`).then(setB).catch((e) => setErr(e instanceof ApiFailure ? e.message : 'Could not load.'));
+    setLoadErr(null);
+    api<Board>(`/boards/${code}`).then(setB).catch(setLoadErr);
   }, [code]);
   useEffect(() => {
     load();
@@ -93,7 +96,7 @@ export default function BoardDetail({ code, backHref }: { code: string; backHref
     }
   }
 
-  if (!b) return err ? <p className="text-sm text-slate-500">{err}</p> : <Loading />;
+  if (!b) return loadErr ? <LoadError error={loadErr} onRetry={load} /> : <Loading />;
   const running = b.status === 'active';
 
   return (

@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Lead } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 import DataTable from './DataTable';
 import { useMe } from './PortalShell';
 import { fmtIST, Pill } from './ui';
@@ -12,16 +13,22 @@ export function useSourceLeads(source: string) {
   const me = useMe();
   const all = me.permissions.includes('leads.view_all');
   const [rows, setRows] = useState<Lead[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const load = useCallback(() => {
-    api<Lead[]>(`${all ? '/admin/leads' : '/employee/leads'}?source=${source}`).then(setRows).catch(() => setRows([]));
+    setError(null);
+    api<Lead[]>(`${all ? '/admin/leads' : '/employee/leads'}?source=${source}`).then(setRows).catch(setError);
   }, [all, source]);
   useEffect(() => {
     load();
   }, [load]);
-  return { rows, reload: load };
+  return { rows, reload: load, error };
 }
 
-export default function LeadSourceList({ rows, empty }: { rows: Lead[] | null; empty: { title: string; text?: string } }) {
+/** error / onRetry: from useSourceLeads; a failed load shows "Try again", not an empty list. */
+export default function LeadSourceList({ rows, empty, error, onRetry }: {
+  rows: Lead[] | null; empty: { title: string; text?: string }; error?: unknown; onRetry?: () => void;
+}) {
+  if (error && onRetry) return <LoadError error={error} onRetry={onRetry} />;
   return (
     <DataTable
       rows={rows}

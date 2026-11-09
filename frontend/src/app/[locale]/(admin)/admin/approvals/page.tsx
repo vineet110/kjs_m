@@ -7,6 +7,7 @@ import { approvalsChanged } from '@/lib/portal-session';
 import { EmptyState, fmtDay, fmtIST, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization, type StoredFile } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Inbox = { signups: StaffUser[] | null; regularizations: Regularization[] | null; file_deletes: StoredFile[] | null };
 
@@ -14,13 +15,16 @@ export default function Approvals() {
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [perms, setPerms] = useState<Perm[]>([]);
   const [err, setErr] = useState('');
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
-    api<Inbox>('/admin/approvals').then((i) => {
+    setLoadErr(null);
+    // Both must load: approving a sign-up from an empty permissions list would give no permissions
+    api<Inbox>('/admin/approvals').then(async (i) => {
+      if (i.signups !== null) setPerms(await api<Perm[]>('/admin/permissions'));
       setInbox(i);
-      if (i.signups !== null) api<Perm[]>('/admin/permissions').then(setPerms);
-    });
+    }).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
@@ -39,6 +43,8 @@ export default function Approvals() {
     }
   }
 
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!inbox) return <Loading />;
   const count = (inbox.signups?.length ?? 0) + (inbox.regularizations?.length ?? 0) + (inbox.file_deletes?.length ?? 0);
 

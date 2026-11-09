@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/portal/ui';
 import { Icon, type IconName } from '@/components/portal/icons';
 import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Stats = {
   leads_total: number; leads_new: number; leads_this_week: number; leads_last_week: number;
@@ -35,22 +36,23 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [perms, setPerms] = useState<Perm[]>([]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<unknown>(null);
   const toast = useToast();
 
   const load = useCallback(async () => {
+    setError(null);
     try {
       const [s, u, p] = await Promise.all([api<Stats>('/admin/stats'), api<User[]>('/admin/users'), api<Perm[]>('/admin/permissions')]);
       setStats(s);
       setUsers(u);
       setPerms(p);
     } catch (e) {
-      setError(e instanceof ApiFailure ? e.message : 'Could not load.');
+      setError(e);
     }
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  if (error) return <div className="card p-6 text-sm text-red-700">{error}</div>;
+  if (error) return <LoadError error={error} onRetry={load} />;
   if (!stats) return <Loading />;
 
   const pending = users.filter((u) => u.status === 'pending');

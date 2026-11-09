@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, fmtDay, Msg, Pill, todayIST } from '@/components/portal/ui';
 import { api, ApiFailure, type Holiday, type LeaveRequest, type MonthView, type Regularization, type Shift, type Today, type Week } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type ActiveNav = 'list' | 'tabular' | 'calendar' | 'overtime' | 'leaves' | 'regularization' | 'reports' | 'shifts';
 // The four views: picked from the ••• menu at the top right
@@ -62,6 +63,7 @@ export default function AttendancePage() {
   const [showRegModal, setShowRegModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null); // R40: show it with "Try again", never a silent blank
 
   // Live second-by-second clock in IST
   useEffect(() => {
@@ -90,17 +92,18 @@ export default function AttendancePage() {
   }, [breakStatus]);
 
   const loadToday = useCallback(() => {
-    api<Today>('/attendance/today').then(setTodayData).catch(() => {});
+    api<Today>('/attendance/today').then(setTodayData).catch(setLoadErr);
   }, []);
 
   const loadWorkspace = useCallback(() => {
+    setLoadErr(null);
     loadToday();
-    api<Week>(`/attendance/week?start=${weekStart}`).then(setWeekData).catch(() => {});
-    api<MonthView>(`/attendance/month?year=${curMonth.year}&month=${curMonth.month}`).then(setMonthData).catch(() => {});
-    api<LeaveRequest[]>('/attendance/leaves').then(setLeaves).catch(() => {});
-    api<Regularization[]>('/attendance/regularizations').then(setRegs).catch(() => {});
-    api<Shift[]>('/attendance/shifts').then(setShifts).catch(() => {});
-    api<Holiday[]>('/attendance/holidays').then(setHolidays).catch(() => {});
+    api<Week>(`/attendance/week?start=${weekStart}`).then(setWeekData).catch(setLoadErr);
+    api<MonthView>(`/attendance/month?year=${curMonth.year}&month=${curMonth.month}`).then(setMonthData).catch(setLoadErr);
+    api<LeaveRequest[]>('/attendance/leaves').then(setLeaves).catch(setLoadErr);
+    api<Regularization[]>('/attendance/regularizations').then(setRegs).catch(setLoadErr);
+    api<Shift[]>('/attendance/shifts').then(setShifts).catch(setLoadErr);
+    api<Holiday[]>('/attendance/holidays').then(setHolidays).catch(setLoadErr);
   }, [weekStart, curMonth, loadToday]);
 
   useEffect(() => {
@@ -459,6 +462,7 @@ export default function AttendancePage() {
           )}
         </div>
 
+        {loadErr != null && <div className="px-6 pt-2 shrink-0"><LoadError error={loadErr} onRetry={loadWorkspace} /></div>}
         {msg && <div className="px-6 pt-2 shrink-0"><Msg msg={msg} /></div>}
 
         {/* 3. Main Views Scrollable Area */}

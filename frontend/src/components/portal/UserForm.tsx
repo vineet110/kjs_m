@@ -3,12 +3,13 @@
 // Also used to edit someone (same form, email fixed). A new account is active at once: the admin gets a
 // one-time password to pass on, and the person changes it on their Profile page.
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure, type StaffUser } from '@/lib/api';
 import { useMe } from './PortalShell';
 import UserCard, { uploadPhoto, usePhoto } from './UserCard';
 import { Msg } from './ui';
+import LoadError from '@/components/ui/LoadError';
 
 const BRANCHES = ['Main Branch']; // suggestions only: any branch name can be typed (KJS to send the real list)
 
@@ -26,9 +27,15 @@ export default function UserForm({ user }: { user?: StaffUser }) {
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    api<StaffUser[]>('/admin/users?status=active').then(setStaff).catch(() => setStaff([]));
+  const [staffErr, setStaffErr] = useState<unknown>(null);
+  // The "Reporting to" list. If it fails the saved choice is kept (the form state holds it), but say so.
+  const loadStaff = useCallback(() => {
+    setStaffErr(null);
+    api<StaffUser[]>('/admin/users?status=active').then(setStaff).catch(setStaffErr);
   }, []);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
   // The picked photo shows in the card before it is uploaded
   useEffect(() => {
     if (!file) return setPreview(null);
@@ -133,6 +140,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
             <input id="u-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input py-1.5 text-sm" />
           </div>
         </div>
+        {staffErr != null && <LoadError error={staffErr} onRetry={loadStaff} />}
         <Msg msg={msg} />
         <div className="flex justify-end gap-2">
           <Link href="/admin/users" className="btn-ghost">Cancel</Link>

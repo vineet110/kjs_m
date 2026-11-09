@@ -2,12 +2,13 @@
 // Profile: my details, notification settings, password. On the right, my profile card (same look as the
 // admin's User Creation Form). Employee code, branch, role and reporting to are set by the admin: shown
 // here, not editable. My photo I can change myself.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Msg, PageTitle } from '@/components/portal/ui';
 import UserCard, { uploadPhoto, usePhoto } from '@/components/portal/UserCard';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Profile = {
   id: number; name: string; email: string; phone: string; role: string; categories: string[]; notify_email: boolean; notify_whatsapp: boolean;
@@ -21,9 +22,14 @@ export default function ProfilePage() {
   const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
   const photo = usePhoto(p?.id ?? null, photoVersion);
-  useEffect(() => {
-    api<Profile>('/auth/profile').then(setP);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setLoadErr(null);
+    api<Profile>('/auth/profile').then(setP).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function changePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -72,7 +78,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (!p) return <Loading />;
+  if (!p) return loadErr ? <LoadError error={loadErr} onRetry={load} /> : <Loading />;
   return (
     <div className="space-y-6">
       <PageTitle title="Profile" sub={`${p.email} · ${p.role}${p.categories.length ? ` · categories: ${p.categories.join(', ')}` : ''}`} />

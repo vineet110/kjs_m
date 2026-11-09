@@ -46,7 +46,7 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
     if (!start || !deadline || steps.some((s) => !s.size)) return setPreview(null);
     let stale = false; // an answer for inputs that have changed since is ignored (it may arrive late)
     const t = setTimeout(() => {
-      api<Preview>('/boards/preview', { method: 'POST', body: { start, deadline, split_mode: mode, sizes: steps.map((s) => s.size) } })
+      api<Preview>('/boards/preview', { method: 'POST', safeToRepeat: true, body: { start, deadline, split_mode: mode, sizes: steps.map((s) => s.size) } }) // only works out dates
         .then((p) => { if (!stale) setPreview(p); })
         .catch((e) => { if (!stale) { setPreview(null); setPreviewErr(e instanceof ApiFailure ? e.message : ''); } });
     }, 300);

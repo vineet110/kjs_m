@@ -2,19 +2,24 @@
 // Users: every staff account, with the admin-set details (employee code, branch, role, reporting to).
 // "+ Create user" opens the User Creation Form; a name opens the same form to edit that person.
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DataTable from '@/components/portal/DataTable';
 import { PageTitle, Pill } from '@/components/portal/ui';
-import { api, ApiFailure, type StaffUser } from '@/lib/api';
+import { api, type StaffUser } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 export default function UsersPage() {
   const [rows, setRows] = useState<StaffUser[] | null>(null);
-  const [err, setErr] = useState('');
-  useEffect(() => {
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setLoadErr(null);
     api<StaffUser[]>('/admin/users')
       .then(setRows)
-      .catch((e) => { setRows([]); setErr(e instanceof ApiFailure ? e.message : 'Could not load users.'); });
+      .catch((e) => { setRows([]); setLoadErr(e); });
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
   const names = new Map((rows ?? []).map((u) => [u.id, u.name]));
 
   return (
@@ -22,7 +27,7 @@ export default function UsersPage() {
       <PageTitle title="Users" sub="Staff accounts. New sign-ups still wait in Approvals.">
         <Link href="/admin/users/new" className="btn-dark">+ Create user</Link>
       </PageTitle>
-      {err && <p className="text-sm text-red-700">{err}</p>}
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       <DataTable
         rows={rows}
         rowKey={(u) => u.id}

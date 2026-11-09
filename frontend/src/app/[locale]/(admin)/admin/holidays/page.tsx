@@ -4,15 +4,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/portal/Toast';
 import { fmtDay, Msg, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Holiday } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 export default function HolidaysPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [rows, setRows] = useState<Holiday[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
-    api<Holiday[]>(`/admin/holidays?year=${year}`).then(setRows);
+    setLoadErr(null);
+    api<Holiday[]>(`/admin/holidays?year=${year}`).then(setRows).catch((e) => { setRows([]); setLoadErr(e); });
   }, [year]);
   useEffect(() => {
     load();
@@ -55,7 +58,8 @@ export default function HolidaysPage() {
         <div className="w-full"><Msg msg={msg} /></div>
       </form>
       <div className="card divide-y">
-        {rows.length === 0 && <p className="p-4 text-sm text-slate-500">No holidays for {year} yet.</p>}
+        {loadErr ? <LoadError error={loadErr} onRetry={load} className="m-3" />
+          : rows.length === 0 && <p className="p-4 text-sm text-slate-500">No holidays for {year} yet.</p>}
         {rows.map((h) => (
           <div key={h.id} className="flex items-center justify-between p-3 text-sm">
             <span><span className="font-medium">{h.name}</span> <span className="text-slate-500">· {fmtDay(h.day, true)}</span></span>

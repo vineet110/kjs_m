@@ -33,6 +33,7 @@ export type Me = { id: number; name: string; email: string; role: 'admin' | 'emp
 
 export type ApiError = { code: string; message: string; details: Record<string, unknown>; request_id: string | null };
 
+import { cache } from 'react';
 import { log, newRequestId } from './logger';
 
 // ---------- Server side (server components): talk to FastAPI directly ----------
@@ -43,14 +44,23 @@ const INTERNAL = process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000';
 // on-demand revalidation (Phase 2) will make that instant.
 const REVALIDATE_SECONDS = 60;
 const IS_BUILD = process.env.NEXT_PHASE === 'phase-production-build';
+// A slow database must not keep a buyer waiting until nginx gives up (CR4): stop after this, and the
+// page's error.tsx shows "Try again" with our phone number.
+const SERVER_TIMEOUT_MS = 15_000;
 
-/** For public pages. Returns null on 404 so the page can call notFound(). */
-export async function serverGet<T>(path: string): Promise<T | null> {
+/** For public pages. Returns null on 404 so the page can call notFound().
+ *  Wrapped in React cache(): the time limit (a `signal`) turns off Next's sharing of identical fetches,
+ *  and cache() brings it back, so the layout, generateMetadata and the page asking for the same path
+ *  during one request cost one API call, not three. */
+export const serverGet = cache(async function serverGet<T>(path: string): Promise<T | null> {
   let res: Response;
   try {
     // No X-Request-ID header here: Next.js caches by URL + headers, and a new ID every time
     // would turn the cache off. We log the ID FastAPI gives back instead.
-    res = await fetch(`${INTERNAL}/api/v1${path}`, { next: { revalidate: REVALIDATE_SECONDS } });
+    res = await fetch(`${INTERNAL}/api/v1${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(SERVER_TIMEOUT_MS),
+    });
   } catch (err) {
     // During `next build` (e.g. in CI) the API may not be running: build with empty data,
     // the page refreshes itself from the API after REVALIDATE_SECONDS.
@@ -65,7 +75,7 @@ export async function serverGet<T>(path: string): Promise<T | null> {
     throw new Error(`API ${path} failed: ${res.status} (request ${requestId})`);
   }
   return res.json();
-}
+});
 
 // ---------- Browser side (client components): same-origin /api, cookie sent automatically ----------
 export class ApiFailure extends Error {
@@ -101,17 +111,30 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
   return data as T;
 }
 
-/** timeoutMs (optional): give up after this long, so a server that takes the request but never answers
- *  ends as an error (ApiFailure, status 0, code "timeout") instead of a wait with no end. */
+/** Every call has a time limit (R40), so a server that takes the request but never answers ends as an error
+ *  instead of a wait with no end, and no caller has to remember it:
+ *  - reads (GET, or safeToRepeat) give up after READ_TIMEOUT_MS: ApiFailure, status 0, code "timeout";
+ *  - saves (POST / PUT / PATCH / DELETE) wait SAVE_TIMEOUT_MS, longer than nginx's 60 s, so the server's
+ *    own answer (or nginx's 504) normally comes first.
+ *  A save that ends without a clear answer (time-out, network cut, 502 / 504, an unreadable "OK") may still
+ *  have been saved by the server. Saying "failed" would make people click again and save it twice (a second
+ *  user, a second punch), so it ends as code "unconfirmed" with a "refresh to check" message instead.
+ *  timeoutMs: a different limit for one call. safeToRepeat: a POST that only reads or is harmless to repeat
+ *  (a preview, log in): treated as a read. Uploads use upload(), which has no limit. */
+export const READ_TIMEOUT_MS = 20_000;
+export const SAVE_TIMEOUT_MS = 90_000;
+const UNCONFIRMED = "The server didn't confirm. It may have been saved: refresh to check before trying again.";
 export async function api<T = unknown>(
   path: string,
-  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+  init: { method?: string; body?: unknown; timeoutMs?: number; safeToRepeat?: boolean } = {},
 ): Promise<T> {
   const requestId = newRequestId(); // shows up on every backend log line for this click
-  const signal = init.timeoutMs ? AbortSignal.timeout(init.timeoutMs) : undefined;
+  const method = init.method || 'GET';
+  const isSave = method !== 'GET' && !init.safeToRepeat;
+  const signal = AbortSignal.timeout(init.timeoutMs ?? (isSave ? SAVE_TIMEOUT_MS : READ_TIMEOUT_MS));
   try {
     const res = await fetch(`/api/v1${path}`, {
-      method: init.method || 'GET',
+      method,
       headers: {
         'content-type': 'application/json',
         'x-requested-with': 'kjs', // CSRF guard: FastAPI rejects state changes without it
@@ -123,10 +146,18 @@ export async function api<T = unknown>(
     });
     return await readAnswer<T>(res, requestId, signal, 'Something went wrong.');
   } catch (err) {
-    if (signal?.aborted)
+    if (isSave && unclear(err, signal))
+      throw new ApiFailure(0, { code: 'unconfirmed', message: UNCONFIRMED, details: {}, request_id: requestId });
+    if (signal.aborted)
       throw new ApiFailure(0, { code: 'timeout', message: 'The server took too long to answer.', details: {}, request_id: requestId });
     throw err;
   }
+}
+
+/** Did this request end without a clear yes or no from our server? */
+function unclear(err: unknown, signal: AbortSignal) {
+  if (signal.aborted || !(err instanceof ApiFailure)) return true; // time-out, or the network failed
+  return err.status === 502 || err.status === 504 || err.body.code === 'bad_response'; // nginx gave up, or an unreadable answer
 }
 
 // ---------- Attendance ----------

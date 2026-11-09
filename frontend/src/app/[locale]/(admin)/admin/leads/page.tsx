@@ -10,7 +10,7 @@ type Sla = { respond_minutes: number; resolve_minutes: number; escalate_after_mi
 export default function AdminLeads() {
   const [sla, setSla] = useState<Sla | null>(null);
   useEffect(() => {
-    api<Sla>('/admin/sla').then(setSla);
+    api<Sla>('/admin/sla').then(setSla).catch(() => undefined); // only the subtitle; the table shows its own error
   }, []);
   return (
     <div className="space-y-6">

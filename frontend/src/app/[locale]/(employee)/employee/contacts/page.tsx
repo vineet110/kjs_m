@@ -3,21 +3,27 @@
 // Same page for admin and staff: leads.view_all sees everyone, others their own + unassigned enquiries.
 // "Opportunities" = enquiries: active = new or contacted, in-active = closed. Converted value: not tracked yet.
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DataTable from '@/components/portal/DataTable';
 import { PageTitle } from '@/components/portal/ui';
 import { api, type Contact } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 export default function ContactsPage() {
   const [rows, setRows] = useState<Contact[] | null>(null);
-  useEffect(() => {
-    api<Contact[]>('/employee/contacts').then(setRows).catch(() => setRows([]));
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setLoadErr(null);
+    api<Contact[]>('/employee/contacts').then(setRows).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div className="space-y-5">
       <PageTitle title="Contacts" sub="Everyone who sent us an enquiry. Open a name to work on it." />
-      <DataTable
+      {loadErr ? <LoadError error={loadErr} onRetry={load} /> : <DataTable
         rows={rows}
         rowKey={(c) => c.lead_id}
         noun="Contacts"
@@ -37,7 +43,7 @@ export default function ContactsPage() {
           ...(c.phone ? [{ label: 'Call', href: `tel:${c.phone.replace(/\s/g, '')}` }] : []),
           ...(c.email ? [{ label: 'Email', href: `mailto:${c.email}` }] : []),
         ]}
-      />
+      />}
     </div>
   );
 }

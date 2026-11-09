@@ -54,7 +54,8 @@ test('safeNext never leads back to the login page (repeated slashes, encoded let
 });
 
 // ---------- api(): every answer is either the data or an ApiFailure ----------
-const { api, upload, ApiFailure } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {};");
+// cache() (React) is used at the top of api.ts, so its stub goes first; here it just returns the function
+const { api, upload, ApiFailure, READ_TIMEOUT_MS, SAVE_TIMEOUT_MS } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {};", 'const cache = (fn) => fn;');
 const answer = (body, status = 200, type = 'application/json') => async () => new Response(body, { status, headers: { 'content-type': type } });
 
 test('api returns readable JSON data', async () => {
@@ -105,6 +106,56 @@ test('api: a server that never answers ends as a time-out (timeoutMs)', async ()
   } finally {
     clearTimeout(keepAlive);
   }
+});
+
+test('api: reads wait 20 s, saves 90 s (longer than nginx), upload has no limit (R40, PR #41 review)', async () => {
+  assert.equal(READ_TIMEOUT_MS, 20_000);
+  assert.equal(SAVE_TIMEOUT_MS, 90_000);
+  const real = AbortSignal.timeout;
+  let limit, seen;
+  AbortSignal.timeout = (ms) => { limit = ms; return real.call(AbortSignal, ms); };
+  globalThis.fetch = async (_url, init) => { seen = init.signal; return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    await api('/tasks');
+    assert.equal(limit, 20_000, 'a read');
+    await api('/tasks', { method: 'POST', body: {} });
+    assert.equal(limit, 90_000, 'a save');
+    await api('/boards/preview', { method: 'POST', body: {}, safeToRepeat: true });
+    assert.equal(limit, 20_000, 'a POST that only reads');
+    await api('/auth/login', { method: 'POST', body: {}, timeoutMs: 7, safeToRepeat: true });
+    assert.equal(limit, 7, 'its own limit wins');
+    seen = 'none';
+    await upload('/files', new FormData());
+    assert.equal(seen, undefined, 'upload() has no time limit: a big file on a slow line may take long');
+  } finally {
+    AbortSignal.timeout = real;
+  }
+});
+
+test('api: a save with no clear answer is "unconfirmed" (may have been saved), never a plain failure', async () => {
+  const unconfirmed = (err) => err instanceof ApiFailure && err.status === 0 && err.body.code === 'unconfirmed' && /may have been saved/.test(err.message);
+  globalThis.fetch = answer('Gateway timeout', 504, 'text/html'); // nginx gave up, FastAPI may still finish
+  await assert.rejects(api('/users', { method: 'POST', body: {} }), unconfirmed);
+  globalThis.fetch = answer('Bad gateway', 502, 'text/html');
+  await assert.rejects(api('/users', { method: 'POST', body: {} }), unconfirmed);
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); }; // network cut
+  await assert.rejects(api('/attendance/check-in', { method: 'POST' }), unconfirmed);
+  globalThis.fetch = answer('<html>proxy page</html>', 200, 'text/html'); // "OK" we can't read
+  await assert.rejects(api('/users', { method: 'POST', body: {} }), unconfirmed);
+  // A time-out on a save
+  globalThis.fetch = (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
+  const keepAlive = setTimeout(() => {}, 5_000);
+  try {
+    await assert.rejects(api('/users', { method: 'POST', body: {}, timeoutMs: 50 }), unconfirmed);
+  } finally {
+    clearTimeout(keepAlive);
+  }
+  // A clear "no" from the server stays a normal error, and so does any problem on a read
+  globalThis.fetch = answer('{"code":"invalid","message":"Name is too short.","details":{},"request_id":"srv-2"}', 422);
+  await assert.rejects(api('/users', { method: 'POST', body: {} }), (err) => err.status === 422 && err.message === 'Name is too short.');
+  globalThis.fetch = answer('Gateway timeout', 504, 'text/html');
+  await assert.rejects(api('/tasks'), (err) => err.status === 504);
+  await assert.rejects(api('/boards/preview', { method: 'POST', body: {}, safeToRepeat: true }), (err) => err.status === 504);
 });
 
 // ---------- partner types: "broker" is shown as "Referral partner" (UI step 4) ----------
