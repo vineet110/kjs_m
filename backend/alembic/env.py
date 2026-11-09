@@ -10,7 +10,12 @@ from app.models.base import Base
 # Import all models for Alembic autogenerate
 import app.models  # noqa: F401
 
-# Migrations use the direct (non-pooled) URL when one is set.
+# Migrations use the direct (non-pooled) URL when one is set. On the server they must: the app's own
+# database user can't change tables, and the running API never gets that URL (CR11), so deploy.sh and
+# restore.sh hand it to the migration step. Locally an empty value falls back to DATABASE_URL.
+if settings.is_production and not settings.MIGRATION_DATABASE_URL:
+    raise SystemExit("MIGRATION_DATABASE_URL is empty: on the server, run migrations through deploy.sh "
+                     "(it passes the value from deploy/.env).")
 DB_URL = settings.MIGRATION_DATABASE_URL or settings.DATABASE_URL
 
 config = context.config

@@ -81,7 +81,7 @@ $COMPOSE build backend >/dev/null || exit 1
 $COMPOSE up -d db >/dev/null 2>&1
 for _ in $(seq 1 60); do sql 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
 sleep 2
-$COMPOSE run --rm --no-deps backend alembic upgrade head || exit 1
+MIGRATION_DATABASE_URL=postgresql+asyncpg://kjs:test-only-owner-password@db:5432/kjs   $COMPOSE run --rm --no-deps -e MIGRATION_DATABASE_URL backend alembic upgrade head || exit 1
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql || exit 1
 $COMPOSE up -d backend >/dev/null 2>&1
 for _ in $(seq 1 30); do sh_backend 'true' >/dev/null 2>&1 && break; sleep 1; done
@@ -429,7 +429,7 @@ hangup_during 7
 says_not "during alembic: does not say nothing changed" 'nothing was changed'
 says_not "during alembic: does not say restore done" 'restore done'
 says_ok "during alembic: prints the undo command" '^  \./restore\.sh '
-check "during alembic: app is back up" backend_running
+check "during alembic: app left stopped (tables may not match)" test -z "$($COMPOSE ps --status running -q backend)"
 
 echo "== 19. a second hangup during the clean-up"
 fake_compose "'stop frontend backend') sleep 5;;

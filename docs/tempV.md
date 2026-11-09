@@ -60,3 +60,23 @@ Code review of this PR (9 Nov): 10 findings, 6 fixed, 4 left on purpose.
 Drill (`test-restore.sh`): the full run before the review fixes gave 202 pass, 4 fail (all in the new
 section 24: openssl couldn't open /tmp paths under Git Bash; fixed by using < and >). After the review
 fixes it was NOT run again (Vineet: skip, test on the server). Run it on the server before go-live.
+
+## Deploy safety (9 Nov, branch `fix/deploy-safety`, on top of `feat/data-safety`)
+
+1. CR11 / R7: the running API no longer gets the database superuser password, the migration address or
+   the Cloudflare tunnel token. Plan first was 3 env files (CR11's own idea); changed to blanking them in
+   `docker-compose.prod.yml` (`environment:` beats `env_file:`): same result, no new files, no rollout
+   order. `deploy.sh` and `restore.sh` read `MIGRATION_DATABASE_URL` from `.env` (plain reading, never run
+   as code) and pass it to the migration step only (`run -e`). In production `alembic/env.py` refuses to
+   fall back to the app user when it is missing (clear message).
+2. CR2: new `/healthz` (`frontend/src/app/[locale]/healthz/route.ts`, a new file in Nishita's area: tell
+   her): 200 only when Next reaches the API and the database now, no cache. `deploy.sh` and the frontend
+   Docker HEALTHCHECK use it instead of `/` (the home page's loading.tsx answers 200 even when it fails).
+3. CR1.iv: a restore that fails after the database was replaced leaves the app STOPPED (it used to start
+   it on tables that may not match) and prints the undo. `test-restore.sh` expectation changed to match.
+4. CR3: already fixed earlier (backups use `run`, not `exec`): close it at the fold.
+
+Tests: `/healthz` on a dev server (503 with no API, 200 with one, home page 200 either way = the CR2
+problem); `docker compose config` shows the API's three secrets blank; `run -e` passes the migration
+address and a plain run gets none; Alembic refuses in production without it, works locally. Shell
+syntax checked. Full drill NOT run (Vineet's call: test on the server).
