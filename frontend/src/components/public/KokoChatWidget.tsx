@@ -1,12 +1,22 @@
 'use client';
 // Koko: answers from KJS facts only (backend decides). When the visitor looks like a buyer,
 // we show a small contact form; the chat goes with it and becomes a lead with a summary.
+// On a product or category page, the first reply also shows that category's products as cards
+// (they come from our database, not the AI, so they are always right).
+import Image from 'next/image';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { PhoneInput } from '@/components/public/CountryPicker';
-import { api, ApiFailure } from '@/lib/api';
+import { api, ApiFailure, type KokoCatalogue, type KokoReply } from '@/lib/api';
+import { imageOf } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
-type Msg = { role: 'user' | 'assistant'; content: string };
+// card: shown under that reply only; never sent back to the server (the AI gets the words, not the card).
+// local: a line this widget wrote itself (an error, "thank you"): shown, but never sent to the server, so the AI
+// and the transcript in Admin > Koko only see what Koko really said, and the server knows Koko hasn't answered yet.
+type Msg = { role: 'user' | 'assistant'; content: string; card?: KokoCatalogue; local?: boolean };
+const forServer = (msgs: Msg[]) => msgs.slice(1).filter((m) => !m.local).map(({ role, content }) => ({ role, content })); // not the greeting
 
 const HELLO: Msg = {
   role: 'assistant',
@@ -20,6 +30,7 @@ export default function KokoChatWidget() {
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
+  const t = useTranslations('koko');
   const endRef = useRef<HTMLDivElement>(null);
   // Random id for this conversation (no personal data), so staff can read the transcript in Admin > Koko.
   const chatId = useRef(`c-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`);
@@ -39,18 +50,17 @@ export default function KokoChatWidget() {
     setInput('');
     setBusy(true);
     try {
-      // Don't send our greeting; the server only needs the real conversation.
-      const res = await api<{ reply: string; suggest_enquiry: boolean }>('/koko/chat', {
+      const res = await api<KokoReply>('/koko/chat', {
         method: 'POST',
-        body: { messages: next.slice(1), page: window.location.pathname, chat_id: chatId.current },
+        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current },
         timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
         safeToRepeat: true, // asking again only gives another reply
       });
-      setMsgs([...next, { role: 'assistant', content: res.reply }]);
+      setMsgs([...next, { role: 'assistant', content: res.reply, card: res.catalogue ?? undefined }]);
       if (res.suggest_enquiry && !sent) setShowForm(true);
     } catch (err) {
       const msg = err instanceof ApiFailure ? err.message : 'Sorry, I could not reply.';
-      setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.` }]);
+      setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.`, local: true }]);
     } finally {
       setBusy(false);
     }
@@ -66,12 +76,12 @@ export default function KokoChatWidget() {
         body: {
           source: 'koko', name: f.get('name'), email: email || null, phone: f.get('phone'),
           company: f.get('company'), consent: f.get('consent') === 'on',
-          chat: msgs.slice(1), source_page: window.location.pathname,
+          chat: forServer(msgs), source_page: window.location.pathname,
         },
       });
       setSent(true);
       setShowForm(false);
-      setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.' }]);
+      setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.', local: true }]);
     } catch (err) {
       alert(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
     }
@@ -90,8 +100,11 @@ export default function KokoChatWidget() {
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {msgs.map((m, i) => (
-              <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-ink text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {m.content}
+              <div key={i} className="space-y-2">
+                <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-ink text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {m.content}
+                </div>
+                {m.card && <CatalogueCard card={m.card} title={t('cardTitle', { category: m.card.category_name })} seeAll={t('seeAll', { category: m.card.category_name })} />}
               </div>
             ))}
             {busy && <div className="w-16 rounded-xl bg-slate-100 px-3 py-2 text-slate-500">…</div>}
@@ -125,5 +138,34 @@ export default function KokoChatWidget() {
         </button>
       )}
     </div>
+  );
+}
+
+/** Up to 6 products of the page's category, two per row, each a link to its product page. */
+function CatalogueCard({ card, title, seeAll }: { card: KokoCatalogue; title: string; seeAll: string }) {
+  return (
+    <section aria-label={title} className="rounded-xl border border-slate-200 bg-white p-2">
+      <p className="px-1 pb-2 text-xs font-semibold text-slate-600">{title}</p>
+      <ul className="grid grid-cols-2 gap-2">
+        {card.products.map((p) => {
+          const image = imageOf(p); // a bad image_path shows the category name instead
+          return (
+            <li key={p.slug}>
+              <Link href={`/products/${p.slug}`} className="group block overflow-hidden rounded-lg border border-slate-100 hover:border-gold">
+                <div className="relative flex h-16 items-center justify-center bg-slate-100">
+                  {image
+                    ? <Image src={image} alt="" fill className="object-cover" sizes="120px" />
+                    : <span className="px-1 text-center text-[10px] text-slate-400">{card.category_name}</span>}
+                </div>
+                <p className="line-clamp-2 px-2 py-1 text-[11px] font-medium leading-tight group-hover:text-forest">{p.name}</p>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link href={`/categories/${card.category_slug}`} className="mt-2 block px-1 text-xs font-semibold text-gold-dark underline">
+        {seeAll} →
+      </Link>
+    </section>
   );
 }

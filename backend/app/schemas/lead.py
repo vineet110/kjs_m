@@ -111,6 +111,20 @@ class KokoIn(BaseModel):
         return self
 
 
+class KokoCardProduct(BaseModel):
+    name: str
+    slug: str
+    image_path: str
+
+
+class KokoCatalogue(BaseModel):
+    """The catalogue card on Koko's first reply on a product or category page (from the database, not the AI)."""
+    category_name: str
+    category_slug: str
+    products: list[KokoCardProduct]
+
+
 class KokoOut(BaseModel):
     reply: str
     suggest_enquiry: bool
+    catalogue: KokoCatalogue | None = None
