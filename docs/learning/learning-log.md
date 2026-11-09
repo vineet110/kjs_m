@@ -10,6 +10,24 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 6–9 Nov 2026 (R2 pictures, order boards PRs #32, #35–#39, Vineet)
+
+1. (V) Alembic picks `MIGRATION_DATABASE_URL` before `DATABASE_URL`. Setting only one sent my "local" check to
+   Neon. Always set both, and run `alembic current` first to see where you are.
+
+2. (V) A key pressed inside a frame (a PDF, a Word preview) never reaches the page. The browser's own full screen
+   still closes on Esc.
+
+3. (V) A CSV is just bytes: read it as UTF-8 text first, or ₹ and Hindi turn into junk.
+
+4. (V) "Save the whole form" can undo someone else's newer save. Send back the version you started from.
+
+5. (V) Reviewing each PR separately found different bugs than reviewing the whole stack at once.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 7 Nov 2026 (lead management reviews, attendance, seed fix, PRs #33 and #34, Nishita)
 
 1. (T) Tests that start the whole app can't find an import loop: by then everything is already loaded in a

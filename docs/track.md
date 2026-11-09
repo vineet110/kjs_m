@@ -92,6 +92,19 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    i.    Views in the ••• menu, sections in a bottom bar. `python -m app.seed` works again (decision 31).
 
 
+4i. Website pictures on Cloudflare R2 (Vineet): merged in PR #32 (6 Nov)
+
+   i.    Pictures and flags from the public bucket `kjs-site-assets` (decision 32). Test address r2.dev for now.
+         Before go-live: `cdn.kjsindia.com` (backlog R48).
+
+
+4j. Order boards overhaul (Vineet): merged in PRs #35–#39 (8–9 Nov)
+
+   i.    People and owner, step heads, new board page and list, file preview, History tab, plan editing with the
+         owner's lock. Migrations 0016–0018, Neon at 0018. Decisions: `memory.md` items 33–38.
+         Follow-ups: `backlog.md` R48–R49, A85–A90.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say

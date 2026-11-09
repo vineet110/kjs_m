@@ -912,6 +912,45 @@ A41. Background jobs inside the API  🟢
 A42. Dashboard numbers  🟢
 
    i.    Only from the database. No data = shows 0. Never sample numbers (D6).
+### Order boards, file preview and site pictures (6–8 Nov)
+
+A85. `boards.manage` can do everything a board's owner can  🟢
+
+   i.    Admins and managers stay in control of every board. The owner can't be removed, and changing the owner
+         isn't possible yet.
+
+
+A86. Closed tasks are marked done with a note  🟢
+
+   i.    There is no "cancelled" status. Removing someone, taking them off a step or removing a step marks their
+         open tasks done with "[Closed: why]". Done steps keep their people (who did the work).
+
+
+A87. The person who asks to delete a file isn't notified about their own request  🟢
+
+
+A88. File preview limits  🟢
+
+   i.    Up to 10 MB, 1000 rows and 50 columns; bigger: Download. Excel formulas show the result saved in the
+         file (Excel and Google Sheets save it). Everyone on a board reads its History.
+
+
+A89. Plan editor limits  🟢
+
+   i.    Checklists and task lists of existing steps can't be edited (only for new steps). Renaming a running step
+         doesn't rename the tasks already given. Changing % / days keeps the typed numbers until fixed.
+   ii.   Anyone on the board may remove a step that hasn't started while unlocked (Vineet's decision): the
+         owner's lock stops that.
+
+
+A90. Site pictures on R2  🟠
+
+   i.    `r2.dev` is for testing only (Cloudflare slows it). The copies in `frontend/public/` stay as a fallback
+         for about a week. A new or changed picture must be uploaded with a NEW file name (Cloudflare caches).
+         The 5 videos in `images/kjs/video/` aren't used anywhere.
+
+
+
 
 
 
@@ -1488,8 +1527,9 @@ R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arriv
          `public, max-age=3600` (as local storage does today). Staff files keep the 5-minute link.
          Cheap once R43 makes photos small.
    iii.  Add a Cloudflare Cache Rule for `/api/v1/public/files/*` (Cloudflare skips addresses without .jpg etc.).
-   iv.   Later, only if traffic grows: a public R2 bucket on a custom domain. Faster, but a hidden product's
-         photos stay reachable by link. Assumption: A82.
+   iv.   (DONE differently, 6 Nov: website pictures already use a public bucket, decision 32. Uploaded product
+         photos still go through the API.) Later, only if traffic grows: a public R2 bucket on a custom domain.
+         Faster, but a hidden product's photos stay reachable by link. Assumption: A82.
    v.    Where: `file_service.py`, `endpoints/files.py`, maybe `core/storage.py`. No new package.
 
 
@@ -1529,3 +1569,27 @@ R47. Small follow-ups from PRs #27, #30, #33 and #34  🟢 later
    iv.   Tea is hidden (`HIDDEN_CATEGORIES`). Show it again when KJS says so.
    v.    `PortalShell.tsx` still has `isAttendance` layout checks; with the page's own bar gone they can probably go.
    vi.   A "Let's connect" popup text change is in Nishita's `git stash` ("ConnectPopup text change"), not in main.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 16. R2 pictures and order boards follow-ups (6–9 Nov)
+
+
+R48. Website pictures: real address before go-live  🔴 before go-live
+
+   i.    Connect `cdn.kjsindia.com` to the `kjs-site-assets` bucket, then change `ASSET_BASE_URL` AND the address in
+         `nginx/security-headers.conf` (`img-src`), and rebuild the frontend.
+   ii.   After about a week on R2, remove the copies in `frontend/public/images` and `public/flags`.
+
+
+R49. Order boards follow-ups (PRs #35–#39)  🟡 next small PR
+
+   i.    Not seen in a browser yet: the review fixes (real full screen, ₹ / Hindi CSV, a PDF under
+         `frame-ancestors 'self'`, phones without a PDF viewer) and phone width in general.
+   ii.   R2 previews are read through the API in one piece; stream them if files get big.
+   iii.  Board pages make some extra database lookups (every user's name, members per step); fine for now.
+   iv.   The staff picker and date preview are copied between the create form and the plan editor: share them.
+   v.    Removing a `boards.manage` person from a board tells them "you were removed", but they can still open it.
+   vi.   A step can have several heads (★); the screens assume few. Decide if one is the rule.

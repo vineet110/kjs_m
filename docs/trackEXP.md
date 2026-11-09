@@ -214,3 +214,11 @@ Add changes here, newest at the bottom, like this:
    Staff portal: a Lead Management section (one list of contacts with all their enquiries, notes and tasks,
    and leads staff add themselves), a form for the admin to create staff accounts, and a cleaner attendance
    page with one menu instead of two.
+
+9. 6–9 Nov
+
+   Website: pictures now load from Cloudflare's storage, which is faster for visitors and lighter for our
+   server. Staff portal: order boards got a big upgrade. The owner of a board adds and removes people and marks
+   a head for each step; everyone on the board can update it. Files open right in the page (PDF, Excel, Word,
+   pictures), side by side or full screen. A History tab shows every change, and nobody can edit it. The plan
+   (dates, steps, their order) can be changed any time, unless the owner locks it.
