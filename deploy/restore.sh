@@ -64,6 +64,12 @@ undo_cmd="$(printf './restore.sh %q %q' "$safety_db" "$safety_files")"
 undo_file="$BACKUP_DIR/restore-undo.txt"
 undo_saved=no
 
+# The superuser address for migrations, read from .env (the running API never has it: CR11).
+# Plain KEY=VALUE reading, never run as shell code.
+MIGRATION_DATABASE_URL="$(grep -E '^MIGRATION_DATABASE_URL=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")"
+[ -n "$MIGRATION_DATABASE_URL" ] || { echo "MIGRATION_DATABASE_URL is missing in deploy/.env (needed for migrations)"; exit 1; }
+export MIGRATION_DATABASE_URL
+
 data_state=unchanged  # unchanged, unknown (we lost sight of the database step) or replaced
 # After psql failed with something other than 3: don't guess, ask the database. Wait until our
 # session ("kjs-restore") is gone, then look for the marker made just before the database step:
@@ -122,16 +128,20 @@ finish() {
         >> "$undo_file" 2>/dev/null || true
     fi
   fi
-  $COMPOSE start backend frontend >/dev/null 2>&1 || app_started=no  # always bring the app back
+  if [ "$status" -ne 0 ] && [ "$data_state" = replaced ]; then
+    # Failed after the data was replaced: the tables may not match the code and the rights may be
+    # missing, so every request would fail. Keep the app stopped until the undo (or a re-run) is done.
+    echo "restore FAILED after the data was replaced. The app was left STOPPED (the site is down)."
+    echo "To go back to how it was before this restore, run:"
+    echo "  $undo_cmd"; echo "(also saved in $undo_file)"
+    return
+  fi
+  $COMPOSE start backend frontend >/dev/null 2>&1 || app_started=no  # bring the app back
   if [ "$status" -eq 0 ] && [ "$app_started" = yes ]; then app_is_healthy || app_started=no; fi
   [ "$app_started" = yes ] || echo "WARNING: the app did not start properly. Check with: $COMPOSE ps"
   if [ "$status" -ne 0 ]; then
     case "$data_state" in
       unchanged) echo "restore FAILED, nothing was changed." ;;
-      replaced)
-        echo "restore FAILED after the data was replaced. The site may be broken until you go back."
-        echo "To go back to how it was before this restore, run:"
-        echo "  $undo_cmd"; echo "(also saved in $undo_file)" ;;
     esac
   elif [ "$app_started" = yes ]; then
     echo "restore done from $db_file${files_file:+ and $files_file}"
@@ -217,5 +227,5 @@ else
 fi
 
 echo "7/7 matching the tables to this code version, then access rights"
-$COMPOSE run --rm --no-deps backend alembic upgrade head
+$COMPOSE run --rm --no-deps -e MIGRATION_DATABASE_URL backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql

@@ -77,10 +77,15 @@ def _human(mins: int) -> str:
 
 
 # ---------- Capture ----------
-async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None) -> Lead | None:
+FEATURE_OF_SOURCE = {"koko": "koko", "configurator": "configurator"}  # lead source -> features.ini switch
+async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: str | None = None) -> Lead | None:
     if data.website:  # honeypot filled = bot. Pretend success, save nothing.
         return None
-    lead_limiter.check(ip_hash)
+    # A source whose feature is switched off (config/features.ini) is refused, not only hidden (CR8)
+    flag = FEATURE_OF_SOURCE.get(data.source)
+    if flag and not getattr(cfg().features, flag):
+        raise AppError(404, "feature_off", "This form is not available right now.")
+    lead_limiter.check(rate_key or ip_hash)
     # The AI summary first, before any database query: an LLM call takes seconds, and holding a
     # database connection that long would starve other requests when several visitors chat.
     summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""

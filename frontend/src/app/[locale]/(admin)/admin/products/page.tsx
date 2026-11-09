@@ -7,8 +7,16 @@ import FileList from '@/components/portal/FileList';
 import { useToast } from '@/components/portal/Toast';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Category, type Product } from '@/lib/api';
+import LoadError from '@/components/ui/LoadError';
 
 type Row = Product & { is_active: boolean };
+
+/** Is a form value the same as the saved one? Empty and null count as the same, and so do the two kinds of
+ *  line break a text box may give. */
+function same(a: unknown, b: unknown) {
+  const norm = (v: unknown) => (typeof v === 'string' ? v.replace(/\r\n/g, '\n') : v ?? '');
+  return norm(a) === norm(b);
+}
 
 export default function AdminProducts() {
   const [cats, setCats] = useState<Category[]>([]);
@@ -16,11 +24,13 @@ export default function AdminProducts() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [filesFor, setFilesFor] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
-    api<Category[]>('/public/categories').then(setCats);
-    api<Row[]>('/admin/products').then(setProducts);
+    setLoadErr(null);
+    api<Category[]>('/public/categories').then(setCats).catch(setLoadErr);
+    api<Row[]>('/admin/products').then(setProducts).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
@@ -30,14 +40,24 @@ export default function AdminProducts() {
     e.preventDefault();
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form));
-    const body = {
+    const body: Record<string, unknown> = {
       ...f, private_label: f.private_label === 'on', is_best_seller: f.is_best_seller === 'on',
       offer_percent: f.offer_percent ? Number(f.offer_percent) : null, // empty = no offer
     };
     try {
       if (editing) {
-        // Hidden / shown is left out: an edit never shows a product someone hid in the meantime
-        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body });
+        // Only the fields changed in this form are sent (the PATCH changes only what it gets). So saving
+        // can't undo what another admin changed in the meantime in a field we didn't touch, and
+        // hidden / shown is never sent: an edit never shows a product someone hid.
+        const before = editing as unknown as Record<string, unknown>;
+        const changed = Object.fromEntries(Object.entries(body).filter(([k, v]) => !same(v, before[k])));
+        if (Object.keys(changed).length === 0) {
+          setMsg(null);
+          setEditing(null);
+          toast('Nothing changed');
+          return;
+        }
+        await api(`/admin/products/${editing.id}`, { method: 'PATCH', body: changed });
         setMsg(null);
         toast(`Saved "${f.name}". The website shows it within a minute`);
         setEditing(null);
@@ -56,10 +76,16 @@ export default function AdminProducts() {
   async function toggleHidden(p: Row) {
     // Only hidden / shown is sent (an edit changes only what it sends), so this can't undo a change made
     // since the list loaded, in another tab or by someone else
-    await api(`/admin/products/${p.id}`, { method: 'PATCH', body: { is_active: !p.is_active } });
-    load();
+    try {
+      await api(`/admin/products/${p.id}`, { method: 'PATCH', body: { is_active: !p.is_active } });
+      load();
+    } catch (err) {
+      toast(err instanceof ApiFailure ? err.message : 'Could not change it. Please try again.', 'error');
+    }
   }
 
+  // Without the categories the form can't be filled in (and an edit would send an empty category)
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   const e = editing;
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from pydantic import ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,18 +14,21 @@ from app.core.errors import AppError
 from app.core.rate_limit import login_email_failures, login_failures, login_ip_limiter, signup_limiter
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
 from app.core.security import hash_password, hash_token, new_session_token, verify_password
+from app.models.audit import AuditLog
 from app.models.user import User, UserSession
-from app.schemas.auth import SignupIn
-from app.services import audit_service, file_service
+from app.schemas.auth import SignupIn, UserUpdateIn
+from app.services import assign_service, audit_service, file_service
 
 log = logging.getLogger(__name__)
+
+KNOWN_NETWORK_DAYS = 30  # CR5: a network this person logged in from recently
 
 # Used when the email doesn't exist, so a login takes as long as a real password check.
 _DUMMY_HASH = hash_password("not-a-real-password-just-for-timing")
 
 
-async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
-    signup_limiter.check(ip_hash)  # before any hashing: password hashing is deliberately expensive
+async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None, rate_key: str | None = None) -> User:
+    signup_limiter.check(rate_key or ip_hash)  # before any hashing: password hashing is deliberately expensive
     exists = await db.scalar(select(func.count()).select_from(User).where(User.email == data.email))
     if exists:
         raise AppError(409, "email_taken", "An account with this email already exists.")
@@ -47,14 +51,31 @@ async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None) -> User:
     return user
 
 
-async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None = None) -> tuple[User, str]:
+async def _known_network(db: AsyncSession, user: User | None, ip_hash: str | None) -> bool:
+    """Did this person log in successfully from this network in the last 30 days? (CR5)"""
+    if user is None or not ip_hash:
+        return False
+    since = datetime.now(timezone.utc) - timedelta(days=KNOWN_NETWORK_DAYS)
+    return bool(await db.scalar(select(AuditLog.id).where(
+        AuditLog.entity_type == "user", AuditLog.entity_id == str(user.id), AuditLog.action == "auth.login_ok",
+        AuditLog.ip_hash == ip_hash, AuditLog.at >= since).limit(1)))
+
+
+async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None = None,
+                rate_key: str | None = None) -> tuple[User, str]:
     # Checked BEFORE the password: once an email is locked, even the right password is refused,
     # otherwise an attacker could keep guessing and simply wait for the one "200".
-    login_ip_limiter.check(ip_hash)  # 30 tries per IP per 15 min (stops guessing across many emails)
-    lock_key = f"{email}|{ip_hash}"
-    if login_failures.blocked(lock_key) or login_email_failures.blocked(email):
-        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
+    net = rate_key or ip_hash
+    if login_ip_limiter.blocked(net):  # too many wrong passwords from this network, over all emails
+        raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
     user = await db.scalar(select(User).where(User.email == email))
+    lock_key = f"{email}|{net}"
+    # The any-network counter is a backstop against guessing from many networks. It must not let a
+    # stranger lock the real person out (CR5): a network they logged in from recently is never blocked
+    # by it. (Kept in the audit log, so a restart of the API doesn't forget it.)
+    email_locked = login_email_failures.blocked(email) and not await _known_network(db, user, ip_hash)
+    if login_failures.blocked(lock_key) or email_locked:
+        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
     # Same message AND about the same time for "no such user" and "wrong password", so nobody can
     # probe which emails exist (scrypt runs against a dummy hash when there is no user).
     stored = user.password_hash if user else _DUMMY_HASH
@@ -62,6 +83,7 @@ async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None
         log.warning("auth.login_failed", extra={"email": email})
         login_failures.hit(lock_key)  # 10 wrong passwords in 15 min from this network -> locked
         login_email_failures.hit(email)
+        login_ip_limiter.hit(net)
         raise AppError(401, "bad_credentials", "Email or password is wrong.")
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
@@ -76,6 +98,8 @@ async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None
     ))
     # Housekeeping: drop this user's expired sessions.
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at < now))
+    # Who logged in from which network (hashed): also what lets this network past a stranger's lockout (CR5)
+    audit_service.record(db, actor=user, action="auth.login_ok", entity_type="user", entity_id=user.id, ip_hash=ip_hash)
     await db.commit()
     log.info("auth.login_ok", extra={"login_user_id": user.id})
     return user, token
@@ -144,11 +168,15 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
         raise AppError(403, "forbidden", "Only an admin can turn an account back on.")
     before = {"status": user.status}
     user.status = status
+    returned = 0
     if status != "active":
         await db.execute(delete(UserSession).where(UserSession.user_id == user.id))  # log them out
+        # Their open batch would be stuck for ever (only they can work on it) and hidden (CR9): its
+        # unfinished buyers go back to "new" for the next person, and the batch is marked "returned".
+        returned = await assign_service.return_open_batch(db, user.id)
     audit_service.record(
         db, actor=admin, action=f"user.{status}", entity_type="user", entity_id=user.id,
-        before=before, after={"status": status},
+        before=before, after={"status": status} | ({"buyers_returned": returned} if returned else {}),
     )
     await db.commit()
     return user
@@ -220,13 +248,19 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
     return user, temp_password
 
 
-async def update_user(db: AsyncSession, admin: User, user_id: int, data) -> User:
-    user = await db.get(User, user_id)
+async def update_user(db: AsyncSession, admin: User, user_id: int, changes: dict) -> User:
+    """Only the fields in `changes` change; the account as a whole is then checked (UserUpdateIn)."""
+    user = await db.get(User, user_id, with_for_update=True)
     if user is None:
         raise AppError(404, "not_found", "User not found.")
     _check_can_manage(admin, user)
     if admin.role != "admin":  # same rule as approve(): existing accounts are the admin's to change
         raise AppError(403, "forbidden", "Only an admin can change an existing account.")
+    try:
+        data = UserUpdateIn(**({k: getattr(user, k) for k in STAFF_FIELDS} | changes))
+    except ValidationError as e:
+        bad = sorted({str(err["loc"][0]) for err in e.errors() if err.get("loc")})
+        raise AppError(422, "validation_error", f"Please check: {', '.join(bad)}.", {"fields": bad}) from e
     await _check_staff_details(db, admin, user.id, data)
     before = {k: getattr(user, k) for k in STAFF_FIELDS}
     for k in STAFF_FIELDS:

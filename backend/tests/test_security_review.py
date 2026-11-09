@@ -31,10 +31,13 @@ async def test_locked_email_refuses_even_the_right_password(client):
 
 
 async def test_signup_is_rate_limited(client):
+    # The limit is config/app.ini signups_per_ip_per_hour (30: the office signs up together, CR7)
+    from app.core.config.ini import cfg
+    n = cfg().app.signups_per_ip_per_hour
     codes = [(await client.post("/api/v1/auth/signup", headers=HDR, json={
         "name": f"Person {i}", "email": f"p{i}@kjsindia.com", "password": "password1234", "phone": "+91 98765 43210"})).status_code
-        for i in range(6)]
-    assert codes == [201] * 5 + [429]
+        for i in range(n + 1)]
+    assert codes == [201] * n + [429]
 
 
 # ---------- staff.approve is not admin ----------

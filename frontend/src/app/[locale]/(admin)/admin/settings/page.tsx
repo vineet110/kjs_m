@@ -1,10 +1,12 @@
 'use client';
 // Settings: every tunable value, where it comes from (env var / ini file / built-in default)
 // and which file to edit. Secrets are never shown (they live only in .env).
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useToast } from '@/components/portal/Toast';
 import { PageTitle, Pill } from '@/components/portal/ui';
-import { api } from '@/lib/api';
+import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Row = { key: string; value: unknown; default: unknown; source: 'env' | 'ini' | 'default'; file: string; env_var: string };
 
@@ -13,14 +15,25 @@ const show = (v: unknown) => (Array.isArray(v) ? v.join(', ') : typeof v === 'ob
 export default function SettingsPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [filter, setFilter] = useState('');
-  useEffect(() => {
-    api<Row[]>('/admin/config').then(setRows);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const toast = useToast();
+  const load = useCallback(() => {
+    setLoadErr(null);
+    api<Row[]>('/admin/config').then(setRows).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function reload() {
-    setRows(await api<Row[]>('/admin/config/reload', { method: 'POST' }));
+    try {
+      setRows(await api<Row[]>('/admin/config/reload', { method: 'POST', safeToRepeat: true }));
+    } catch (e) {
+      toast(e instanceof ApiFailure ? e.message : 'Could not reload. Please try again.', 'error');
+    }
   }
 
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!rows) return <Loading />;
   const shown = rows.filter((r) => r.key.includes(filter.toLowerCase()));
   const groups = Array.from(new Set(shown.map((r) => r.key.split('.')[0])));

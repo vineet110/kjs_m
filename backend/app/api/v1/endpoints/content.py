@@ -3,6 +3,7 @@ partner applications (`leads.view_all`)."""
 from datetime import datetime
 from typing import Literal
 
+from app.core.errors import AppError
 from fastapi import APIRouter, Depends
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,9 +51,23 @@ async def add_offer(data: OfferIn, user: User = Depends(editor), db: AsyncSessio
     return await content_service.save_offer(db, user, None, data.model_dump())
 
 
+class OfferPatchIn(BaseModel):
+    """Only the fields sent change: switching an offer on or off can't undo another admin's text edit."""
+    text: OneLine | None = Field(default=None, min_length=3, max_length=200)
+    link: SafeLink | None = Field(default=None, max_length=255)
+    starts_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
+    is_active: bool | None = None
+    sort_order: int | None = None
+
+
 @router.patch("/offers/{offer_id}")
-async def edit_offer(offer_id: int, data: OfferIn, user: User = Depends(editor), db: AsyncSession = Depends(get_db)):
-    return await content_service.save_offer(db, user, offer_id, data.model_dump())
+async def edit_offer(offer_id: int, data: OfferPatchIn, user: User = Depends(editor), db: AsyncSession = Depends(get_db)):
+    changes = data.model_dump(exclude_unset=True)
+    for k in ("text", "is_active", "sort_order", "link"):  # these can't be emptied, only changed
+        if k in changes and changes[k] is None:
+            raise AppError(422, "bad_value", f"{k} can't be empty.")
+    return await content_service.save_offer(db, user, offer_id, changes)
 
 
 @router.delete("/offers/{offer_id}", status_code=204)

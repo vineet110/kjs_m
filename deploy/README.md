@@ -223,12 +223,31 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
    iv.   Write the date and the result in `docs/track.md`.
 
 
-4. Off-site copy
+4. Off-site copy (R2 bucket `kjs-bkp-prod`)
 
-   A backup on the same disk is lost with the disk. Copy `/srv/kjs/backups` to another place every night,
-   for example a Cloudflare R2 bucket with `rclone` (a new tool: ask before installing).
-   Encrypt it before it leaves the server (for example `age` or `gpg`): it holds customer data.
-   Decide this with the KJS IT contact.
+   A backup on the same disk is lost with the disk, and uploads in R2 have no other copy. So every night
+   `backup.sh` also sends an encrypted copy of the database backup to the R2 bucket `kjs-bkp-prod`, and
+   copies new uploads there (`backend/app/backup_r2.py`). No new tool: our own R2 code and `openssl`.
+
+   i.    Set up once: Cloudflare > R2 > Manage API tokens > a NEW token, "Object Read & Write", only for
+         `kjs-bkp-prod` (not the app's token: then a leaked app key can't wipe the backups). Copy
+         `.env.backup.example` to `.env.backup`, fill it in, `chmod 600 .env.backup`. Keep `BACKUP_PASSPHRASE`
+         in a password manager too: without it the off-site copies can't be opened.
+   ii.   What is kept there: `db/<day>/db-....dump.enc` (one per night), `files/<key>` (every upload),
+         `deleted/<day>/<key>` (an upload that disappeared from the app bucket, e.g. an approved delete or a
+         mistake). Database backups and deleted uploads stay 30 days (`OFFSITE_KEEP_DAYS`), then go for good.
+   iii.  Without `.env.backup`, `backup.sh` still makes the local backup and prints a WARNING every night.
+   iv.   Check it: `docker compose -f docker-compose.prod.yml run --rm -T --no-deps -e R2_BACKUP_BUCKET
+         -e R2_BACKUP_ACCESS_KEY_ID -e R2_BACKUP_SECRET_ACCESS_KEY backend python -m app.backup_r2 list`
+         (after `set -a; . ./.env.backup; set +a`).
+   v.    Get a database backup back (the server is gone, or the local backups are):
+         `... python -m app.backup_r2 get db/<day>/<name>.enc > <name>.enc`, then
+         `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE < <name>.enc > <name>`,
+         then `./restore.sh <name> --yes` (item 2 above).
+   vi.   Put one lost upload back: `... python -m app.backup_r2 restore-file <key>` (the key is in the
+         `files` table). After restoring an older database, uploads it points to that were deleted since are
+         in `deleted/`: put them back the same way.
+   vii.  Do the restore drill (item 3 above) with an off-site copy at least once before go-live.
 
 5. Backups are readable only by the user who runs `backup.sh` (folder 700, files 600).
    Run the cron job as that same user, never as a shared account.

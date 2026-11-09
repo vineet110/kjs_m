@@ -1,10 +1,11 @@
 'use client';
 // Analytics: native charts from real database numbers only (D6). Empty data shows zeros.
 // Colours checked with the dataviz palette validator: series green #2E8A62, second series gold #B8860B.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fmtDay, PageTitle } from '@/components/portal/ui';
 import { api } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 const C1 = '#2E8A62';
 const C2 = '#B8860B';
@@ -27,9 +28,15 @@ const nice = (k: string) => LABEL[k] ?? k.replace(/_/g, ' ');
 
 export default function Analytics() {
   const [d, setD] = useState<Data | null>(null);
-  useEffect(() => {
-    api<Data>('/admin/analytics').then(setD);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setLoadErr(null);
+    api<Data>('/admin/analytics').then(setD).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!d) return <Loading />;
 
   const onTime = d.sla.answered ? Math.round((d.sla.on_time / d.sla.answered) * 100) : null;

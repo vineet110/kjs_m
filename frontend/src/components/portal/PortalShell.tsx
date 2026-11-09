@@ -149,7 +149,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
     setLoggingOut(true);
     latest.current++; // a "who am I" still on its way is ignored (no page update, nothing remembered)
     forgetAccount();
-    await api('/auth/logout', { method: 'POST', timeoutMs: 5_000 }).catch(() => undefined);
+    await api('/auth/logout', { method: 'POST', timeoutMs: 5_000, safeToRepeat: true }).catch(() => undefined);
     router.replace('/employee/login?bye=1');
   }
 

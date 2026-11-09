@@ -368,3 +368,65 @@ async def test_leave_approval_does_not_overwrite_check_in(client):
         assert row.check_in_at is not None
 
 
+
+
+async def _approve_fix(u: User, day: str, check_in: str, check_out: str | None):
+    """A regularization for `day`, approved by a manager (service level)."""
+    from app.models.attendance import Regularization
+    await make_user("boss@kjsindia.com", permissions=["attendance.manage"])
+    async with AsyncSessionLocal() as db:
+        reg = Regularization(user_id=u.id, day=date.fromisoformat(day), check_in_at=ist(day, check_in),
+                             check_out_at=ist(day, check_out) if check_out else None, reason="fix", status="pending")
+        db.add(reg)
+        await db.commit()
+        boss = await db.scalar(select(User).where(User.email == "boss@kjsindia.com"))
+        return await svc.decide(db, boss, reg.id, True)
+
+
+async def test_a_fix_keeps_the_break_and_the_old_total_in_the_audit():
+    """Review finding: approving a fix used to set hours = last out - first in (lunch counted as work)."""
+    from app.models.audit import AuditLog
+    u = await _user(email="lunch@kjsindia.com", joined_on=date(2026, 10, 26))
+    async with AsyncSessionLocal() as db:
+        u = await db.merge(u)
+        for at, fn in (("09:00", svc.check_in), ("13:00", svc.check_out), ("14:00", svc.check_in), ("18:00", svc.check_out)):
+            await fn(db, u, now=ist("2026-10-26", at))
+    await _approve_fix(u, "2026-10-26", "08:30", None)  # "I came at 8:30, the check-in was late"
+    async with AsyncSessionLocal() as db:
+        info = await svc.today(db, await db.merge(u), now=ist("2026-10-26", "19:00"))
+        audit = await db.scalar(select(AuditLog).where(AuditLog.action == "attendance.regularized"))
+    assert (info["check_in"], info["check_out"], info["hours"]) == ("08:30", "18:00", 8.5)  # 4.5 + 4, lunch not counted
+    assert [p["type"] for p in info["punches"]] == ["in", "out", "in", "out"]
+    assert audit.before["hours"] == 8.0 and audit.after["hours"] == 8.5
+
+
+async def test_a_fix_closes_a_day_left_open():
+    u = await _user(email="open@kjsindia.com", joined_on=date(2026, 10, 26))
+    async with AsyncSessionLocal() as db:
+        await svc.check_in(db, await db.merge(u), now=ist("2026-10-26", "09:00"))
+    await _approve_fix(u, "2026-10-26", "09:00", "18:00")
+    async with AsyncSessionLocal() as db:
+        info = await svc.today(db, await db.merge(u), now=ist("2026-10-26", "19:00"))
+    assert (info["check_out"], info["hours"]) == ("18:00", 9.0)
+
+
+async def test_double_taps_store_one_punch():
+    """Two taps at the same moment: one punch, the other a clear 'already' answer (not an error 500)."""
+    import asyncio
+    from app.core.errors import AppError
+    from app.models.attendance import AttendancePunch
+    u = await _user(email="tap@kjsindia.com", joined_on=date(2026, 10, 26))
+
+    async def tap(fn, at):
+        async with AsyncSessionLocal() as db:
+            try:
+                await fn(db, await db.merge(u), now=ist("2026-10-26", at))
+                return "ok"
+            except AppError as e:
+                return e.code
+
+    assert sorted(await asyncio.gather(tap(svc.check_in, "09:00"), tap(svc.check_in, "09:00"))) == ["already_checked_in", "ok"]
+    assert sorted(await asyncio.gather(tap(svc.check_out, "18:00"), tap(svc.check_out, "18:00"))) == ["already_checked_out", "ok"]
+    async with AsyncSessionLocal() as db:
+        kinds = (await db.scalars(select(AttendancePunch.punch_type).where(AttendancePunch.user_id == u.id))).all()
+    assert sorted(kinds) == ["in", "out"]

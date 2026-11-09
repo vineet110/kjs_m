@@ -10,6 +10,7 @@ import { useMe } from '@/components/portal/PortalShell';
 import { Icon, type IconName } from '@/components/portal/icons';
 import { EmptyState, fmtIST, Msg, Pill } from '@/components/portal/ui';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 import { api, ApiFailure, type Colleague, type ContactDetail, type Lead, type LeadNote, type Task } from '@/lib/api';
 
 const SOURCE: Record<string, string> = {
@@ -38,24 +39,30 @@ export default function ContactPage() {
   const [tab, setTab] = useState<Tab>('info');
   const [sharing, setSharing] = useState(false);
   const [notes, setNotes] = useState<LeadNote[] | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null); // any other failure: shown with "Try again"
 
   const load = useCallback(() => {
+    setLoadErr(null);
     api<ContactDetail>(`/employee/contacts/${id}`)
       .then((d) => { setData(d); setFailed(''); })
-      .catch((e) => setFailed(e instanceof ApiFailure && e.status === 404 ? 'This lead was not found, or it belongs to a colleague.' : 'Could not load this contact.'));
-    api<LeadNote[]>(`/employee/leads/${id}/notes`).then(setNotes).catch(() => setNotes([]));
+      .catch((e) => {
+        if (e instanceof ApiFailure && e.status === 404) setFailed('This lead was not found, or it belongs to a colleague.');
+        else setLoadErr(e);
+      });
+    api<LeadNote[]>(`/employee/leads/${id}/notes`).then(setNotes).catch((e) => { setNotes([]); setLoadErr(e); });
   }, [id]);
   useEffect(() => {
     load();
   }, [load]);
 
   if (failed) return <div className="space-y-4"><Back name="" /><EmptyState title="Can't open this contact" text={failed} /></div>;
-  if (!data) return <Loading />;
+  if (!data) return loadErr ? <div className="space-y-4"><Back name="" /><LoadError error={loadErr} onRetry={load} /></div> : <Loading />;
   const lead = data.lead;
 
   return (
     <div className="space-y-4">
       <Back name={lead.name} />
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-4">
           <Header lead={lead} enquiries={data.enquiries} />
@@ -298,8 +305,10 @@ function Notes({ lead, notes, onChange }: { lead: Lead; notes: LeadNote[] | null
 function Tasks({ lead }: { lead: Lead }) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const load = useCallback(() => {
-    api<Task[]>(`/employee/leads/${lead.id}/tasks`).then(setTasks).catch(() => setTasks([]));
+    setLoadErr(null);
+    api<Task[]>(`/employee/leads/${lead.id}/tasks`).then(setTasks).catch(setLoadErr);
   }, [lead.id]);
   useEffect(() => {
     load();
@@ -329,7 +338,7 @@ function Tasks({ lead }: { lead: Lead }) {
         <button className="btn-dark">Add task</button>
       </form>
       <Msg msg={msg} />
-      {tasks === null ? <Loading /> : tasks.length === 0 ? <p className="text-sm text-slate-500">No tasks on this lead.</p> : (
+      {loadErr ? <LoadError error={loadErr} onRetry={load} /> : tasks === null ? <Loading /> : tasks.length === 0 ? <p className="text-sm text-slate-500">No tasks on this lead.</p> : (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
           {tasks.map((t) => (
             <li key={t.id} className="flex flex-wrap items-center gap-2 p-3 text-sm">
@@ -380,9 +389,14 @@ function Share({ lead, onDone }: { lead: Lead; onDone: () => void }) {
   const all = me.permissions.includes('leads.view_all');
   const [staff, setStaff] = useState<Colleague[]>([]);
   const [err, setErr] = useState('');
-  useEffect(() => {
-    api<Colleague[]>('/employee/colleagues').then(setStaff).catch(() => setStaff([]));
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const loadStaff = useCallback(() => {
+    setLoadErr(null);
+    api<Colleague[]>('/employee/colleagues').then(setStaff).catch(setLoadErr);
   }, []);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
   async function give(userId: string) {
     if (!userId) return;
     try {
@@ -396,9 +410,10 @@ function Share({ lead, onDone }: { lead: Lead; onDone: () => void }) {
     <div className="mt-3 space-y-2">
       <label className="label" htmlFor="share-to">Share with</label>
       <select id="share-to" defaultValue="" onChange={(e) => give(e.target.value)} className="input">
-        <option value="">Pick a colleague…</option>
+        <option value="">{loadErr ? 'Could not load the list' : 'Pick a colleague…'}</option>
         {staff.filter((c) => c.id !== lead.assigned_to).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
+      {loadErr != null && <LoadError error={loadErr} onRetry={loadStaff} />}
       {err && <p className="text-sm text-red-700">{err}</p>}
     </div>
   );

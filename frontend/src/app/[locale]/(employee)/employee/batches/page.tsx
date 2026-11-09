@@ -4,16 +4,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { fmtDay, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type BatchInfo, type BuyerRecord } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 export default function MyBatches() {
   const [batches, setBatches] = useState<BatchInfo[] | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
   const load = useCallback(() => {
-    api<BatchInfo[]>('/assign/my-batches').then(setBatches).catch(() => setBatches([]));
+    setLoadErr(null);
+    api<BatchInfo[]>('/assign/my-batches').then(setBatches).catch(setLoadErr);
   }, []);
   useEffect(() => {
     load();
   }, [load]);
 
+  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (batches === null) return <Loading />;
   const open = batches.find((b) => b.status === 'open');
   const past = batches.filter((b) => b.status !== 'open');

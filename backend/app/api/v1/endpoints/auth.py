@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import client_ip, current_user
+from app.core.deps import current_user, visitor_keys
 from app.core.permissions import effective_permissions
-from app.core.security import hash_ip, hash_token
+from app.core.security import hash_token
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut, SignupIn
 from app.schemas.common import OneLine, RequiredPhone
@@ -22,13 +22,13 @@ def _me(user: User) -> MeOut:
 
 @router.post("/signup", status_code=201)
 async def signup(data: SignupIn, request: Request, db: AsyncSession = Depends(get_db)):
-    await auth_service.signup(db, data, hash_ip(client_ip(request)))
+    await auth_service.signup(db, data, *visitor_keys(request))
     return {"status": "pending", "message": "Account created. An admin will approve it soon."}
 
 
 @router.post("/login", response_model=MeOut)
 async def login(data: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    user, token = await auth_service.login(db, data.email, data.password, hash_ip(client_ip(request)))
+    user, token = await auth_service.login(db, data.email, data.password, *visitor_keys(request))
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
         max_age=settings.SESSION_DAYS * 86400,

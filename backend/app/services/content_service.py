@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.core.rate_limit import lead_limiter
 from app.models.content import KokoChat, Offer, PartnerApplication, SiteText
@@ -101,11 +102,13 @@ async def list_offers(db: AsyncSession) -> list[dict]:
 
 
 async def save_offer(db: AsyncSession, user: User, offer_id: int | None, data: dict) -> dict:
-    if data.get("starts_at") and data.get("ends_at") and data["ends_at"] <= data["starts_at"]:
-        raise AppError(422, "bad_dates", "The offer must end after it starts.")
-    o = await db.get(Offer, offer_id) if offer_id else Offer()
+    """New offer: every field. Edit: only the fields in `data` change."""
+    o = await db.get(Offer, offer_id, with_for_update=True) if offer_id else Offer()
     if o is None:
         raise AppError(404, "not_found", "Offer not found.")
+    starts, ends = data.get("starts_at", o.starts_at), data.get("ends_at", o.ends_at)
+    if starts and ends and ends <= starts:
+        raise AppError(422, "bad_dates", "The offer must end after it starts.")
     for k, v in data.items():
         setattr(o, k, v)
     if not offer_id:
@@ -133,10 +136,12 @@ PARTNER_LABELS = {"agent": "Sales agent", "broker": "Referral partner", "forward
                   "distributor": "Distributor", "other": "Other"}
 
 
-async def apply_partner(db: AsyncSession, data, ip_hash: str | None) -> None:
+async def apply_partner(db: AsyncSession, data, ip_hash: str | None, rate_key: str | None = None) -> None:
     if data.website:  # honeypot
         return
-    lead_limiter.check(ip_hash)
+    if not cfg().features.partners:  # partner page switched off: the API is closed too (CR8)
+        raise AppError(404, "feature_off", "Partner applications are closed right now.")
+    lead_limiter.check(rate_key or ip_hash)
     p = PartnerApplication(name=data.name.strip(), company=data.company.strip(), partner_type=data.partner_type,
                            country=data.country.strip(), email=data.email, phone=data.phone.strip(),
                            message=data.message.strip(), status="new", ip_hash=ip_hash,

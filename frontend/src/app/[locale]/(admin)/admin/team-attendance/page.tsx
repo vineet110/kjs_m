@@ -6,6 +6,7 @@ import { useToast } from '@/components/portal/Toast';
 import { api, ApiFailure, type LeaveRequest, type Regularization, type Shift } from '@/lib/api';
 import { approvalsChanged } from '@/lib/portal-session';
 import Loading from '@/components/ui/Loading';
+import LoadError from '@/components/ui/LoadError';
 
 type Row = { user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number };
 
@@ -17,6 +18,7 @@ export default function TeamAttendance() {
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [err, setErr] = useState('');
+  const [loadErr, setLoadErr] = useState<unknown>(null);
 
   // Export Modal state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -27,10 +29,12 @@ export default function TeamAttendance() {
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(() => {
-    api<Row[]>(`/attendance/team?day=${day}`).then(setRows).catch(() => setRows([]));
-    api<Regularization[]>('/attendance/approvals').then(setPendingRegs).catch(() => {});
-    api<LeaveRequest[]>('/attendance/leaves/approvals').then(setPendingLeaves).catch(() => {});
-    api<Shift[]>('/attendance/shifts').then(setShifts).catch(() => {});
+    // A failure shows the error with "Try again", never an empty list that looks like "nothing waiting"
+    setLoadErr(null);
+    api<Row[]>(`/attendance/team?day=${day}`).then(setRows).catch((e) => { setRows([]); setLoadErr(e); });
+    api<Regularization[]>('/attendance/approvals').then(setPendingRegs).catch(setLoadErr);
+    api<LeaveRequest[]>('/attendance/leaves/approvals').then(setPendingLeaves).catch(setLoadErr);
+    api<Shift[]>('/attendance/shifts').then(setShifts).catch(setLoadErr);
   }, [day]);
 
   useEffect(() => {
@@ -123,6 +127,7 @@ export default function TeamAttendance() {
         </div>
       </PageTitle>
 
+      {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       {err && <p className="rounded p-2 text-sm bg-red-50 text-red-700">{err}</p>}
 
       {/* Pending Leave Requests */}

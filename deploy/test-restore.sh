@@ -7,7 +7,7 @@ set -uo pipefail
 cd "$(dirname "$0")"
 export MSYS_NO_PATHCONV=1  # Git Bash on Windows: don't rewrite /srv/... paths
 
-[ ! -e .env ] || { echo "refusing to run: deploy/.env exists (is this the server?)"; exit 1; }
+[ ! -e .env ] && [ ! -e .env.backup ] || { echo "refusing to run: deploy/.env or .env.backup exists (is this the server?)"; exit 1; }
 
 export TAG=restore-test
 export COMPOSE="docker compose -p kjs-restore-test -f docker-compose.prod.yml"
@@ -18,7 +18,7 @@ FAILED=0
 
 cleanup() {
   $COMPOSE down -v --remove-orphans >/dev/null 2>&1
-  rm -f .env
+  rm -f .env .env.backup
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -81,7 +81,7 @@ $COMPOSE build backend >/dev/null || exit 1
 $COMPOSE up -d db >/dev/null 2>&1
 for _ in $(seq 1 60); do sql 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
 sleep 2
-$COMPOSE run --rm --no-deps backend alembic upgrade head || exit 1
+MIGRATION_DATABASE_URL=postgresql+asyncpg://kjs:test-only-owner-password@db:5432/kjs   $COMPOSE run --rm --no-deps -e MIGRATION_DATABASE_URL backend alembic upgrade head || exit 1
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql || exit 1
 $COMPOSE up -d backend >/dev/null 2>&1
 for _ in $(seq 1 30); do sh_backend 'true' >/dev/null 2>&1 && break; sleep 1; done
@@ -429,7 +429,7 @@ hangup_during 7
 says_not "during alembic: does not say nothing changed" 'nothing was changed'
 says_not "during alembic: does not say restore done" 'restore done'
 says_ok "during alembic: prints the undo command" '^  \./restore\.sh '
-check "during alembic: app is back up" backend_running
+check "during alembic: app left stopped (tables may not match)" test -z "$($COMPOSE ps --status running -q backend)"
 
 echo "== 19. a second hangup during the clean-up"
 fake_compose "'stop frontend backend') sleep 5;;
@@ -558,6 +558,50 @@ fake_compose "*single-transaction*) exit 1;;"
 COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
 [ -n "$prev" ] && grep -qxF -- "$prev" "$BACKUP_DIR/restore-undo.txt" && ok "a failed restore keeps the earlier undo command" \
   || bad "a failed restore keeps the earlier undo command"
+
+echo "== 24. off-site copy (R2 backup bucket; R2 itself is stood in for)"
+reset_to_live
+rm -f .env.backup
+./backup.sh > "$WORK/out.txt" 2>&1
+says_ok "no .env.backup: warns there is no off-site copy" 'no off-site copy'
+printf 'R2_BACKUP_BUCKET=test-bkp
+' > .env.backup
+if ./backup.sh > "$WORK/out.txt" 2>&1; then bad "incomplete .env.backup: must fail"; else ok "incomplete .env.backup: fails"; fi
+says_ok "incomplete .env.backup: says what is missing" 'set in .env.backup'
+# A broken .env.backup must never stop the safety backup inside a restore
+reset_to_live
+fake_compose "*app.backup_r2*) exit 1;;"
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+says_ok "broken .env.backup: a restore still works" 'restore done'
+# A passphrase with $, spaces and quotes is used exactly as written (the file is not run as code)
+cat > .env.backup <<'BKP'
+R2_BACKUP_BUCKET=test-bkp
+R2_BACKUP_ACCESS_KEY_ID=test-backup-id
+R2_BACKUP_SECRET_ACCESS_KEY=test-backup-secret
+BACKUP_PASSPHRASE=test $only 'pass` phrase
+BKP
+# The real docker compose passes the backup key to the backup command only
+[ "$(R2_BACKUP_ACCESS_KEY_ID=only-here $COMPOSE run --rm -T --no-deps -e R2_BACKUP_ACCESS_KEY_ID --entrypoint printenv backend R2_BACKUP_ACCESS_KEY_ID 2>/dev/null)" = "only-here" ]   && ok "the backup key reaches the backup command" || bad "the backup key reaches the backup command"
+check "the running app has no backup key" sh_backend 'test -z "${R2_BACKUP_ACCESS_KEY_ID:-}"'
+rm -f "$WORK"/sent-*
+fake_compose "*'app.backup_r2 put '*db-*) cat > \"$WORK/sent-db.enc\"; exit 0;;
+*'app.backup_r2 put '*files-*) cat > \"$WORK/sent-files.enc\"; exit 0;;
+*app.backup_r2*) exit 1;;"
+if COMPOSE="$WORK/fake" ./backup.sh > "$WORK/out.txt" 2>&1; then ok "with .env.backup: backup works"; else bad "with .env.backup: backup works"; tail -5 "$WORK/out.txt"; fi
+says_ok "with .env.backup: says the off-site copy is done" 'off-site copy ok'
+BACKUP_PASSPHRASE='test $only '"'"'pass` phrase' openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE < "$WORK/sent-db.enc" > "$WORK/sent-db.dump" 2>/dev/null   && cmp -s "$WORK/sent-db.dump" "$(newest_dump)" && ok "the copy sent off-site decrypts to the database backup"   || bad "the copy sent off-site decrypts to the database backup"
+check "local storage: the files archive is sent too" test -s "$WORK/sent-files.enc"
+test -s "$WORK/sent-db.enc" && ! cmp -s "$WORK/sent-db.enc" "$(newest_dump)" && ok "the copy sent off-site is not readable as is" || bad "the copy sent off-site is not readable as is"
+fake_compose "*app.backup_r2*) exit 1;;"
+if COMPOSE="$WORK/fake" ./backup.sh > "$WORK/out.txt" 2>&1; then bad "R2 down: backup.sh must fail (cron mails it)"; else ok "R2 down: backup.sh fails (cron mails it)"; fi
+check "R2 down: the local backup is still kept" test -s "$(newest_dump)"
+if KJS_SKIP_OFFSITE=1 COMPOSE="$WORK/fake" ./backup.sh > "$WORK/out.txt" 2>&1; then ok "R2 down: the backup before a deploy still works"; else bad "R2 down: the backup before a deploy still works"; fi
+reset_to_live
+fake_compose "*app.backup_r2*) touch \"$WORK/offsite-during-restore\"; exit 1;;"
+COMPOSE="$WORK/fake" ./restore.sh "$WORK/good.dump" --yes > "$WORK/out.txt" 2>&1
+says_ok "restore with .env.backup: works" 'restore done'
+check "restore: its safety backup never waits on the off-site copy" test ! -e "$WORK/offsite-during-restore"
+rm -f .env.backup
 
 echo
 echo "passed: $PASSED  failed: $FAILED"

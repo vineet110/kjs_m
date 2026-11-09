@@ -9,6 +9,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -59,8 +60,32 @@ def hours(a: Attendance | None, now: datetime | None = None) -> float:
 
 
 # ---------- Punching ----------
-async def _row(db: AsyncSession, user_id: int, day: date) -> Attendance | None:
-    return await db.scalar(select(Attendance).where(Attendance.user_id == user_id, Attendance.day == day))
+async def _row(db: AsyncSession, user_id: int, day: date, lock: bool = False) -> Attendance | None:
+    q = select(Attendance).where(Attendance.user_id == user_id, Attendance.day == day)
+    if lock:  # held until commit: a double tap waits for the first one and then sees its punch
+        q = q.with_for_update().execution_options(populate_existing=True)
+    return await db.scalar(q)
+
+
+async def _row_for_punch(db: AsyncSession, user_id: int, day: date) -> Attendance:
+    """The day's row, created if missing, locked until commit. Two taps at once on a new day used to
+    both insert a row (the second failed with an error); now the second waits and sees the first."""
+    await db.execute(pg_insert(Attendance).values(user_id=user_id, day=day, source="punch", total_seconds=0,
+                                                   status="present")
+                     .on_conflict_do_nothing(index_elements=["user_id", "day"]))
+    return await _row(db, user_id, day, lock=True)
+
+
+def _worked_seconds(punches: list[AttendancePunch]) -> int:
+    """Time between each check-in and the check-out after it (breaks between them don't count)."""
+    total, started = 0, None
+    for p in sorted(punches, key=lambda x: (x.punched_at, x.id or 0)):
+        if p.punch_type == "in":
+            started = started or p.punched_at
+        elif started is not None:
+            total += max(0, int((p.punched_at - started).total_seconds()))
+            started = None
+    return total
 
 
 async def _last_punch(db: AsyncSession, attendance_id: int) -> AttendancePunch | None:
@@ -75,19 +100,14 @@ async def _last_punch(db: AsyncSession, attendance_id: int) -> AttendancePunch |
 async def check_in(db: AsyncSession, user: User, now: datetime | None = None) -> Attendance:
     now = now or datetime.now(timezone.utc)
     day = local_day(now)
-    row = await _row(db, user.id, day)
-    if row:
-        if row.status == "leave":
-            raise AppError(409, "on_leave", "You have an approved leave for today.")
-        last = await _last_punch(db, row.id)
-        if (last and last.punch_type == "in") or (not last and row.check_in_at and not row.check_out_at):
-            punch_time = hm(last.punched_at if last else row.check_in_at)
-            raise AppError(409, "already_checked_in", f"You are already checked in (at {punch_time}). Please check out first.")
-    if row is None:
-        row = Attendance(user_id=user.id, day=day, source="punch", total_seconds=0)
-        db.add(row)
-        await db.flush()
-
+    # Locked, so these checks see a punch saved a moment ago (a double tap). A new row passes them.
+    row = await _row_for_punch(db, user.id, day)
+    if row.status == "leave":
+        raise AppError(409, "on_leave", "You have an approved leave for today.")
+    last = await _last_punch(db, row.id)
+    if (last and last.punch_type == "in") or (not last and row.check_in_at and not row.check_out_at):
+        punch_time = hm(last.punched_at if last else row.check_in_at)
+        raise AppError(409, "already_checked_in", f"You are already checked in (at {punch_time}). Please check out first.")
     if row.check_in_at is None:
         row.check_in_at = now
     row.check_out_at = None
@@ -118,10 +138,10 @@ async def check_in(db: AsyncSession, user: User, now: datetime | None = None) ->
 async def check_out(db: AsyncSession, user: User, now: datetime | None = None, notes: str | None = None) -> Attendance:
     now = now or datetime.now(timezone.utc)
     day = local_day(now)
-    row = await _row(db, user.id, day)
+    row = await _row(db, user.id, day, lock=True)  # locked: a double tap can't store two check-outs
     if row is None or row.check_in_at is None:
         # Working past midnight: the open day is yesterday's (a night shift counts on its start date)
-        prev = await _row(db, user.id, day - timedelta(days=1))
+        prev = await _row(db, user.id, day - timedelta(days=1), lock=True)
         # Only a real night shift (started under 16 h ago). A check-in forgotten yesterday must not
         # turn into a 33-hour day: that one is fixed with a regularization request.
         if prev is not None and prev.check_in_at is not None:
@@ -361,23 +381,52 @@ async def decide(db: AsyncSession, approver: User, reg_id: int, approve: bool) -
     reg.status = "approved" if approve else "rejected"
     reg.decided_by, reg.decided_at = approver.id, datetime.now(timezone.utc)
     if approve:
-        row = await _row(db, reg.user_id, reg.day)
-        before = {"in": hm(row.check_in_at), "out": hm(row.check_out_at)} if row else None
-        if row is None:
-            row = Attendance(user_id=reg.user_id, day=reg.day)
-            db.add(row)
-        # A request usually fixes one missed punch ("forgot to check in"); an empty check-out
-        # means "keep my real check-out", never "erase it".
-        row.check_in_at = reg.check_in_at
-        row.check_out_at = reg.check_out_at or row.check_out_at
-        if row.check_out_at and row.check_out_at <= row.check_in_at:
-            raise AppError(422, "bad_times", "The new check-in is after this person's check-out. "
-                                             "Ask them to send both times.")
+        row = await _row_for_punch(db, reg.user_id, reg.day)
+        punches = list((await db.scalars(select(AttendancePunch).where(AttendancePunch.attendance_id == row.id)
+                                          .order_by(AttendancePunch.punched_at, AttendancePunch.id))).all())
+        before = ({"in": hm(row.check_in_at), "out": hm(row.check_out_at),
+                   "hours": round((row.total_seconds or 0) / 3600, 2), "punches": [f"{p.punch_type} {hm(p.punched_at)}" for p in punches]}
+                  if row.check_in_at or punches else None)
+        # A request fixes the day's first check-in and (if given) its last check-out. The punches in
+        # between (breaks) stay, so the hours are still worked out from the real sessions. An empty
+        # check-out means "keep my real check-out", never "erase it".
+        bad = AppError(422, "bad_times", "These times don't fit this person's other punches that day. "
+                                         "Ask them to send both times again.")
+        if not punches and row.check_in_at:  # an older row without punches: start from its own times
+            for kind, at in (("in", row.check_in_at), ("out", row.check_out_at)):
+                if at:
+                    punches.append(AttendancePunch(attendance_id=row.id, user_id=reg.user_id, day=reg.day,
+                                                   punch_type=kind, punched_at=at))
+                    db.add(punches[-1])
+        first_in = next((p for p in punches if p.punch_type == "in"), None)
+        if first_in is None:
+            first_in = AttendancePunch(attendance_id=row.id, user_id=reg.user_id, day=reg.day, punch_type="in",
+                                       punched_at=reg.check_in_at, notes="regularized")
+            db.add(first_in)
+            punches.insert(0, first_in)
+        else:
+            first_in.punched_at = reg.check_in_at
+        if reg.check_out_at:
+            last = punches[-1]
+            if last.punch_type == "out" and last is not first_in:
+                last.punched_at = reg.check_out_at
+            else:  # still checked in (or no check-out at all): the request closes the day
+                last = AttendancePunch(attendance_id=row.id, user_id=reg.user_id, day=reg.day, punch_type="out",
+                                       punched_at=reg.check_out_at, notes="regularized")
+                db.add(last)
+                punches.append(last)
+        times = [p.punched_at for p in punches]
+        if times != sorted(times) or len(set(times)) != len(times):
+            raise bad
+        row.check_in_at = punches[0].punched_at
+        row.check_out_at = punches[-1].punched_at if punches[-1].punch_type == "out" else None
         row.status, row.source = punch_status(row.check_in_at), "regularized"
-        row.total_seconds = max(0, int((row.check_out_at - row.check_in_at).total_seconds())) if row.check_out_at else 0
+        row.total_seconds = _worked_seconds(punches)
+        await db.flush()
         audit_service.record(db, actor=approver, action="attendance.regularized", entity_type="attendance",
                              entity_id=f"{reg.user_id}:{reg.day.isoformat()}", before=before,
-                             after={"in": hm(row.check_in_at), "out": hm(row.check_out_at)})
+                             after={"in": hm(row.check_in_at), "out": hm(row.check_out_at),
+                                    "hours": round(row.total_seconds / 3600, 2)})
     audit_service.record(db, actor=approver, action=f"regularization.{reg.status}", entity_type="regularization",
                          entity_id=reg.id)
     await db.commit()

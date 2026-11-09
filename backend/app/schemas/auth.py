@@ -60,6 +60,17 @@ class UserCreateIn(StaffDetailsIn):
     phone: RequiredPhone = Field(max_length=20)
 
 
+class UserPatchIn(BaseModel):
+    """Edit an account: only the fields sent change (two admins editing different fields don't undo
+    each other). The result is checked as a whole (UserUpdateIn)."""
+    name: OneLine | None = Field(default=None, min_length=2, max_length=100)
+    phone: RequiredPhone | None = Field(default=None, max_length=20)
+    employee_code: OneLine | None = Field(default=None, min_length=1, max_length=40)
+    branch: OneLine | None = Field(default=None, min_length=1, max_length=80)
+    role: Literal["admin", "employee"] | None = None
+    reporting_to: int | None = None
+
+
 class UserUpdateIn(StaffDetailsIn):
     name: OneLine = Field(min_length=2, max_length=100)
     phone: RequiredPhone = Field(max_length=20)

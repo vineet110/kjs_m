@@ -148,12 +148,29 @@ async def test_mail_server_down_costs_one_try_not_fifty(client, monkeypatch):
 
     monkeypatch.setattr(notification_service.settings, "SMTP_HOST", "smtp.example.com")
     monkeypatch.setattr(notification_service, "_smtp_connect", down)
-    result = await runner.run_job("send_emails")
-    assert len(tries) == 1 and result["failed"] == 1
+    from app.models.notification import Notification
+    for _ in range(5):  # CR10: an outage of 5 runs used to use up the oldest emails' attempts, then lose them
+        result = await runner.run_job("send_emails")
+        assert result["failed"] == 0
+    assert len(tries) == 5  # one try per run, not one per email
     async with AsyncSessionLocal() as db:
-        from app.models.notification import Notification
-        states = (await db.scalars(select(Notification.email_status))).all()
-    assert set(states) == {"pending"}  # all wait for the next run, none lost
+        rows = (await db.execute(select(Notification.email_status, Notification.email_attempts))).all()
+    assert {s for s, _ in rows} == {"pending"} and {a for _, a in rows} == {0}  # all wait, none lost
+
+    sent = []
+
+    class Server:
+        def send_message(self, msg):
+            sent.append(msg["To"])
+
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(notification_service, "_smtp_connect", lambda: Server())
+    await runner.run_job("send_emails")  # the server is back: every email goes out
+    async with AsyncSessionLocal() as db:
+        assert set((await db.scalars(select(Notification.email_status))).all()) == {"sent"}
+    assert sent
 
 
 # ---------- Batches and imports ----------
@@ -331,3 +348,46 @@ async def test_one_pending_regularization_per_day_even_on_a_double_click():
         db.add(Regularization(user_id=uid, day=date(2026, 10, 20), check_in_at=at + timedelta(minutes=5), reason="b"))
         with pytest.raises(IntegrityError):
             await db.commit()
+
+
+def test_rate_key_counts_an_ipv6_block_as_one_visitor():
+    """CR6: a bot rotating through its own IPv6 /64 must not get a fresh limit per address."""
+    from app.core.security import rate_key
+    assert rate_key("2001:db8:1:2:aaaa::1") == rate_key("2001:db8:1:2:ffff:1:2:3") == "2001:db8:1:2::/64"
+    assert rate_key("2001:db8:1:3::1") != rate_key("2001:db8:1:2::1")
+    assert rate_key("::ffff:1.2.3.4") == "1.2.3.4" and rate_key("1.2.3.4") != rate_key("1.2.3.5")
+    assert rate_key("testclient") == "testclient" and rate_key(None) is None and rate_key("") is None
+
+
+async def test_the_office_is_not_blocked_by_its_own_logins_and_signups():
+    """CR7: everyone in the office shares one address. Successful logins don't count, sign-ups allow 30."""
+    from app.schemas.auth import SignupIn
+    await make_user("staff@kjsindia.com")
+    async with AsyncSessionLocal() as db:
+        for _ in range(40):
+            await auth_service.login(db, "staff@kjsindia.com", "password1234", ip_hash="office")
+        for i in range(30):
+            await auth_service.signup(db, SignupIn(name=f"New {i}", email=f"new{i}@kjsindia.com", phone="+919876543210", password="password1234"),
+                                      ip_hash="office")
+        with pytest.raises(Exception) as e:
+            await auth_service.signup(db, SignupIn(name="One more", email="new99@kjsindia.com", phone="+919876543210", password="password1234"),
+                                      ip_hash="office")
+        assert e.value.status_code == 429
+
+
+async def test_strangers_on_many_networks_cannot_lock_out_the_office():
+    """CR5: 10 wrong passwords from each of 10 networks used to lock the admin out everywhere."""
+    from app.core import rate_limit
+    await make_user("boss@kjsindia.com")
+    async with AsyncSessionLocal() as db:
+        await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="office")  # usual network
+        for n in range(10):
+            for _ in range(10):
+                with pytest.raises(Exception):
+                    await auth_service.login(db, "boss@kjsindia.com", "wrong-guess", ip_hash=f"attacker-{n}")
+        rate_limit.login_failures.reset()  # only the any-network counter is left, as after 15 min per network
+        user, _ = await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="office")
+        assert user.email == "boss@kjsindia.com"  # the office still gets in (also after an API restart:
+        with pytest.raises(Exception) as e:      # the known network comes from the audit log)
+            await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="never-seen")
+        assert e.value.status_code == 429  # a network never used before stays behind the backstop

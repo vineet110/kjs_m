@@ -6,6 +6,7 @@ import { useMe } from '@/components/portal/PortalShell';
 import { fmtIST, Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Colleague, type Task } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import LoadError, { errorText } from '@/components/ui/LoadError';
 
 const SOURCES = ['own', 'manager', 'lead', 'board', 'batch'];
 
@@ -16,18 +17,25 @@ export default function TasksPage() {
   const [filter, setFilter] = useState({ status: '', source: '', due: '', who: '' });
   const [staff, setStaff] = useState<Colleague[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<unknown>(null);
+  const [staffErr, setStaffErr] = useState<unknown>(null);
 
   const load = useCallback(() => {
+    setLoadErr(null);
     const qs = new URLSearchParams(Object.entries(filter).filter(([k, v]) => v && k !== 'who'));
     if (filter.who) qs.set('assignee_id', filter.who);
-    api<Task[]>(`/tasks?${qs}`).then(setTasks).catch(() => setTasks([]));
+    api<Task[]>(`/tasks?${qs}`).then(setTasks).catch(setLoadErr);
   }, [filter]);
   useEffect(() => {
     load();
   }, [load]);
-  useEffect(() => {
-    if (canAssign) api<Colleague[]>('/employee/colleagues').then(setStaff);
+  const loadStaff = useCallback(() => {
+    setStaffErr(null);
+    if (canAssign) api<Colleague[]>('/employee/colleagues').then(setStaff).catch(setStaffErr);
   }, [canAssign]);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -67,6 +75,7 @@ export default function TasksPage() {
         <div className="md:col-span-3"><label className="label">Notes</label><input name="notes" maxLength={4000} className="input" /></div>
         <div className="flex items-end"><button className="btn-dark w-full">Add task</button></div>
         <div className="md:col-span-4"><Msg msg={msg} /></div>
+        {staffErr != null && <div className="md:col-span-4"><LoadError error={staffErr} onRetry={loadStaff} /></div>}
       </form>
 
       <div className="flex flex-wrap gap-2 text-sm">
@@ -82,7 +91,7 @@ export default function TasksPage() {
       </div>
 
       <div className="space-y-2">
-        {tasks === null && <Loading />}
+        {loadErr ? <LoadError error={loadErr} onRetry={load} /> : tasks === null && <Loading />}
         {tasks?.length === 0 && <p className="card p-6 text-sm text-slate-500">No tasks here.</p>}
         {tasks?.map((t) => <TaskRow key={t.id} task={t} showOwner={filter.who !== ''} onChange={load} />)}
       </div>
@@ -94,16 +103,37 @@ function TaskRow({ task, showOwner, onChange }: { task: Task; showOwner: boolean
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(task.notes);
   const [outcome, setOutcome] = useState(task.outcome);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
 
+  // On failure the error shows and the boxes keep what was typed (they are only filled from the task once).
   async function patch(body: Partial<Task>) {
-    await api(`/tasks/${task.id}`, { method: 'PATCH', body });
-    onChange();
+    setErr('');
+    setBusy(true);
+    try {
+      await api(`/tasks/${task.id}`, { method: 'PATCH', body });
+      onChange();
+    } catch (e) {
+      setErr(errorText(e, 'Could not save. Check your connection and try again.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Send only the box that changed (the server changes only the fields it gets), so saving my outcome
+  // can't undo notes someone else saved in the meantime, and the other way round.
+  function saveText() {
+    const body: Partial<Task> = {};
+    if (notes !== task.notes) body.notes = notes;
+    if (outcome !== task.outcome) body.outcome = outcome;
+    if (Object.keys(body).length === 0) return setErr('Nothing changed.');
+    patch(body);
   }
 
   return (
     <div className={`card p-3 ${task.overdue ? 'border-red-300' : ''}`}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <input type="checkbox" aria-label="Done" checked={task.status === 'done'} onChange={(e) => patch({ status: e.target.checked ? 'done' : 'todo' })} />
+        <input type="checkbox" aria-label="Done" disabled={busy} checked={task.status === 'done'} onChange={(e) => patch({ status: e.target.checked ? 'done' : 'todo' })} />
         <span className={`font-medium ${task.status === 'done' ? 'text-slate-400 line-through' : ''}`}>{task.title}</span>
         <Pill value={task.status} label={task.status === 'todo' ? 'to do' : task.status} />
         {task.overdue && <Pill value="overdue" />}
@@ -111,13 +141,14 @@ function TaskRow({ task, showOwner, onChange }: { task: Task; showOwner: boolean
         <span className="ml-auto text-xs text-slate-500">{task.due_at ? `Due ${fmtIST(task.due_at)}` : 'No due date'}</span>
         <button onClick={() => setOpen(!open)} className="text-xs underline">{open ? 'Close' : 'Details'}</button>
       </div>
+      {err && <p role="alert" className="mt-2 text-sm text-red-700">{err}</p>}
       {open && (
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <div><label className="label">Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="input" /></div>
           <div><label className="label">Outcome</label><textarea value={outcome} onChange={(e) => setOutcome(e.target.value)} rows={3} className="input" placeholder="What came of it?" /></div>
           <div className="flex gap-2 md:col-span-2">
-            <button onClick={() => patch({ notes, outcome })} className="btn-dark py-1">Save</button>
-            {task.status === 'todo' && <button onClick={() => patch({ status: 'doing' })} className="btn-ghost py-1">Start</button>}
+            <button disabled={busy} onClick={saveText} className="btn-dark py-1">Save</button>
+            {task.status === 'todo' && <button disabled={busy} onClick={() => patch({ status: 'doing' })} className="btn-ghost py-1">Start</button>}
           </div>
         </div>
       )}

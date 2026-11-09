@@ -74,5 +74,7 @@ koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_se
 # lock the real person out. The per-email limit is a high backstop against guessing from many networks.
 login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # per email + IP, 15 min
 login_email_failures = RateLimiter(limit=lambda: 100, window_seconds=900)  # per email, any IP, 15 min
-login_ip_limiter = RateLimiter(limit=lambda: 30, window_seconds=900)  # login tries per IP per 15 min
-signup_limiter = RateLimiter(limit=lambda: 5, window_seconds=3600)  # sign-ups per IP per hour
+# Wrong passwords per network over all emails (stops guessing across many emails). Only wrong ones
+# count, so a whole office logging in from one address is never blocked (CR7).
+login_ip_limiter = RateLimiter(limit=lambda: cfg().app.login_failures_per_ip, window_seconds=900)
+signup_limiter = RateLimiter(limit=lambda: cfg().app.signups_per_ip_per_hour, window_seconds=3600)
