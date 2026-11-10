@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute
@@ -214,3 +215,17 @@ def test_every_route_is_in_an_area_or_always_on():
 def test_area_routes_are_not_in_always_on():
     both = [r.path for r in app.routes if isinstance(r, APIRoute) and _area_of_route(r) and r.path.startswith(ALWAYS_ON)]
     assert not both, both
+
+
+# ---------- The repo's own config files ----------
+REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
+
+
+def test_repo_config_files_are_valid(monkeypatch):
+    """A typo in config/*.ini must fail CI, never reach the live site: at start-up a broken file means the
+    defaults, and for modules.ini that is every area switched on."""
+    for key in [k for k in os.environ if k.startswith(ini.ENV_PREFIX)]:
+        monkeypatch.delenv(key)  # only the files themselves
+    monkeypatch.setattr(ini, "CONFIG_DIR", REPO_CONFIG)
+    assert (REPO_CONFIG / "modules.ini").exists()
+    ini._validate(ini._read_raw())  # raises with the file and key on a typo or a bad value
