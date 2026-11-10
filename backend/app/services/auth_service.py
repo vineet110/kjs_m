@@ -17,7 +17,7 @@ from app.core.security import hash_password, hash_token, new_session_token, veri
 from app.models.audit import AuditLog
 from app.models.user import User, UserSession
 from app.schemas.auth import SignupIn, UserUpdateIn
-from app.services import assign_service, audit_service, file_service
+from app.services import assign_service, audit_service, chat_hub, file_service
 
 log = logging.getLogger(__name__)
 
@@ -179,6 +179,8 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
         before=before, after={"status": status} | ({"buyers_returned": returned} if returned else {}),
     )
     await db.commit()
+    if status != "active":
+        await chat_hub.hub.kick(user.id)  # close their open chat tabs now, not at the next ping
     return user
 
 

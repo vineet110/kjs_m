@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.core.errors import AppError
 from app.core.logs import user_id_var
 from app.core.permissions import effective_permissions
@@ -21,23 +21,53 @@ CSRF_HEADER = "x-requested-with"
 log = logging.getLogger(__name__)
 
 
-async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
-    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if not token:
-        raise AppError(401, "not_logged_in", "Please log in.")
-    row = await db.execute(
+async def session_user(db: AsyncSession, token: str) -> User | None:
+    """Who this session cookie belongs to: an active user with a session that hasn't expired, or None.
+    The one place for this rule: current_user (normal requests) and ws_user (chat) both use it, so a
+    change to how sessions work reaches both (PR #55 review)."""
+    user = (await db.execute(
         select(User)
         .join(UserSession, UserSession.user_id == User.id)
         .where(UserSession.token_hash == hash_token(token))
         .where(UserSession.expires_at > datetime.now(timezone.utc))
-    )
-    user = row.scalar_one_or_none()
-    if user is None or user.status != "active":
+    )).scalar_one_or_none()
+    return user if user is not None and user.status == "active" else None
+
+
+async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if not token:
+        raise AppError(401, "not_logged_in", "Please log in.")
+    user = await session_user(db, token)
+    if user is None:
         raise AppError(401, "not_logged_in", "Your session has ended. Please log in again.")
     user_id_var.set(user.id)  # every log line from here on carries user_id
     if request.method not in ("GET", "HEAD", "OPTIONS") and not request.headers.get(CSRF_HEADER):
         raise AppError(403, "csrf", "Missing request header.")
     return user
+
+
+async def ws_user(token: str | None) -> int | None:
+    """The WebSocket version of current_user (KJS Chat): the same session rule (session_user), but
+    1. it takes the token, not a Request (a WebSocket isn't one), and returns only the user id;
+    2. it opens its own short DB session and closes it at once, so open chat connections never hold
+       database connections (also used for the re-check on every ping);
+    3. no x-requested-with check (a browser can't add headers to a WebSocket). The chat route checks
+       the Origin header instead (origin_allowed below).
+    None = not logged in, session ended, or not active."""
+    if not token:
+        return None
+    async with AsyncSessionLocal() as db:
+        user = await session_user(db, token)
+        return user.id if user else None
+
+
+def origin_allowed(origin: str | None) -> bool:
+    """Is this page one of our own sites (ALLOWED_ORIGINS)? Browsers always send Origin on a WebSocket
+    and a page can't fake it, so this stops another website opening a chat connection with the
+    visitor's cookie (cross-site WebSocket hijacking)."""
+    allowed = {o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()}
+    return bool(origin) and origin in allowed
 
 
 def require_permission(permission: str):

@@ -5,14 +5,15 @@
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Me } from '@/lib/api';
+import { useChatUnread } from '@/lib/chat';
 import { moveGroup, sortByOrder } from '@/lib/nav-order';
 import { onApprovalsChanged } from '@/lib/portal-session';
 import { Icon, type IconName } from './icons';
 
 // One sidebar config for everyone; each link names the permission it needs (null = every staff
 // member, a list = any one of them). `soon` = page not built yet (see docs/checklist.md).
-// `badge` = the link shows a count of things waiting (see `useApprovalCount`).
-type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; soon?: boolean; badge?: 'approvals' };
+// `badge` = the link shows a count: things waiting (`useApprovalCount`) or unread chat messages (`useChatUnread`).
+type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; soon?: boolean; badge?: 'approvals' | 'chat' };
 type NavGroup = { group: string; items: NavItem[] };
 const allowed = (perm: NavItem['perm'], mine: string[]) =>
   perm === null || (Array.isArray(perm) ? perm.some((p) => mine.includes(p)) : mine.includes(perm));
@@ -22,6 +23,7 @@ const NAV: NavGroup[] = [
     group: 'My work',
     items: [
       { href: '/employee/dashboard', label: 'My day', icon: 'sun', perm: null },
+      { href: '/employee/chat', label: 'Chat', icon: 'chat', perm: null, badge: 'chat' },
       { href: '/employee/attendance', label: 'Attendance', icon: 'clock', perm: null },
       { href: '/employee/batches', label: 'My batches', icon: 'layers', perm: null },
       { href: '/employee/order-boards', label: 'Order boards', icon: 'board', perm: null },
@@ -129,6 +131,8 @@ const isActive = (pathname: string, href: string) => pathname.startsWith(href);
 
 export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathname: string; onNavigate: () => void }) {
   const approvals = useApprovalCount(allowed(APPROVE_PERMS, me.permissions), pathname);
+  const chatUnread = useChatUnread(pathname);
+  const countOf = (n: NavItem) => (n.badge === 'approvals' ? approvals : n.badge === 'chat' ? chatUnread : 0);
   const visible = NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions)) })).filter((g) => g.items.length > 0);
   const many = visible.length > 1; // one group (most staff): a plain list, no headers to open or drag
 
@@ -246,7 +250,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
       {groups.map((g) => {
         const shown = isOpen(g.group);
         const listId = `nav-${g.group.replace(/\W+/g, '-').toLowerCase()}`;
-        const waiting = g.items.some((n) => n.badge === 'approvals') ? approvals : 0;
+        const waiting = g.items.reduce((sum, n) => sum + countOf(n), 0);
         return (
           <div
             key={g.group}
@@ -291,7 +295,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
               <div id={listId} className={`space-y-0.5 pb-2 ${many ? 'animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none' : ''}`}>
                 {g.items.map((n) => {
                   const active = isActive(pathname, n.href);
-                  const count = n.badge === 'approvals' ? approvals : 0;
+                  const count = countOf(n);
                   return (
                     <Link
                       key={n.href}
@@ -306,7 +310,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                       {count > 0 && (
                         <span className="min-w-[20px] rounded-full bg-gold px-1.5 text-center text-[11px] font-bold leading-5 text-ink">
                           {count > 99 ? '99+' : count}
-                          <span className="sr-only"> waiting</span>
+                          <span className="sr-only">{n.badge === 'chat' ? ' unread' : ' waiting'}</span>
                         </span>
                       )}
                       {n.soon && <span className="text-[10px] text-stone-500">soon</span>}
