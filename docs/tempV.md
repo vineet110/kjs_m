@@ -312,3 +312,53 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    (`spices`, `private_label`); a number in the phone field crashes a run; duplicates inside one fetch;
    `+91 98765 43210` numbers lost; one failing source breaks the rest of the run; phone duplicates in other
    formats; the job lock released early (matters only with several API processes).
+
+## Session wrap-up (10 Nov)
+
+### 1. Merged today
+
+1. #53 Lead Harvester (devillover27, away 2 weeks), merged before its fixes on purpose; #62 fixed its
+   security problems right after. `main` was not deployed in between.
+2. #55 KJS Chat phase 1 (after 3 review rounds; round 3 left only rare or cosmetic items, not listed).
+3. #58 and #60 (Nishita: phase switches per portal area), #62 (harvester security), #63 (Nishita:
+   clearer sidebar names).
+4. Migration order on `main`: 0018 -> 0019 (harvester) -> 0020 (chat).
+
+### 2. Database
+
+1. Neon migrated by hand to 0020 (Vineet ran `alembic upgrade head` from `backend/`; checked: 0020,
+   three `chat_*` tables). Neon had 0 harvest sources, so the new `HARVEST_` naming broke nothing.
+2. `alembic` only runs from `backend/` with the project Python: `.venv\Scripts\python -m alembic ...`.
+   Our `.env` points at Neon, so that command changes Neon (see memory note on alembic and Neon).
+
+### 3. Branches cleaned
+
+1. Deleted 27 merged local branches and 47 merged GitHub branches (none had an open PR; a merged
+   branch can be restored from its PR page). Kept `main`, `kjs_v`, `kjs_n`.
+2. Kept because not merged: `docs/code-review`, `feat/connect-popup`, and `feat/module-switches-api`
+   (its PR #58 merged, but the branch has commits that are not in `main`: ask Nishita).
+
+### 4. Chat: channel vs group chat (for kb.md)
+
+1. Channel: a team or topic (`#sales`), needs a name, public or private, only the owner manages it.
+2. Group chat: a quick talk between 3 or more people, name optional, always private, any member adds
+   people; only the owner removes people or archives.
+3. DM: exactly 2 people, can't be changed.
+
+### 5. Web scraping (asked by Vineet)
+
+1. Built in #53 ("Web Scraping (Strict robots.txt)" in Admin > Client Schedulers), protected by #62.
+   KJS adds links from the screen; API keys and http-only hosts are server settings on purpose.
+2. Too basic for real use: one record per page (first email, first phone, page title).
+3. Government sites: use their open data (data.gov.in, "Open Data" type) or RSS first; scrape only
+   what is left and check each site's terms. Names and phone numbers are personal data (DPDP).
+4. Backlog D18 says nightly scraping is Stage 2 (2027), but KJS's demo video shows it: decide with KJS.
+
+### 6. Next
+
+1. Ask KJS for its list of government sites and the Stage 1 / Stage 2 answer for scraping (D18).
+2. Harvester follow-up PR: the 7 open bugs above, and read many records per page (Python's built-in
+   HTML parser, no new library).
+3. Before going live: 10 minutes of chat by hand in two browsers; get the "can admins read DMs?" answer
+   from KJS in writing.
+4. Fold these notes into the shared docs (`docs/fold-` branch, prompt.md section 7).
