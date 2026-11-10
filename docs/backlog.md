@@ -1636,6 +1636,13 @@ R50. Before and after go-live  🔴 i–iii before go-live
          extra INSERT per check-in, R2 server-side copy (speed only).
 
 
+R53. `config/storage.ini` allowed_types can only remove file types  🟢 after go-live (Nishita)
+
+   i.    A type must also be in `TYPES` in `backend/app/services/file_service.py`, so adding `mp4` to the ini
+         does nothing. Fix: say so in the ini comment, or keep one list.
+   ii.   Files are stored as uploaded (no conversion). Found in the config walkthrough (PR #56).
+
+
 R52. Koko on Groq's free tier fits only a few messages a minute  🔴 before real traffic (Vineet / KJS decide)
 
    i.    Free tier: 8,000 tokens a minute for the whole site. One Koko message is about 3,000 tokens (prompt about
