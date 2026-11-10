@@ -71,7 +71,7 @@ def link_for(user: User, link: str) -> str:
 def require_visible(user: User, area: str | None) -> None:
     """404 `module_off` when the area is hidden from this person (same answer as a missing page)."""
     if not visible(user, area):
-        log.info("module.hidden", extra={"module": area})
+        log.info("module.hidden", extra={"area": area})  # not "module": Python's log records use that name
         raise AppError(404, "module_off", "This part of the portal isn't available yet.", {"module": area})
 
 
