@@ -203,7 +203,7 @@ def in_assign_hours(now: datetime) -> bool:
     return local.weekday() != 6 and c.work_start <= local.strftime("%H:%M") < c.work_end
 
 
-@job("auto_assign")
+@job("auto_assign", module="batches")
 async def auto_assign(db: AsyncSession) -> dict:
     now = datetime.now(timezone.utc)
     if not in_assign_hours(now):

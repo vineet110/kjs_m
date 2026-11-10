@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
 from app.core.errors import AppError
+from app.core.modules import AREA_OF_FILE_OWNER, require_visible, visible
 from app.core.permissions import effective_permissions
 from app.core.storage import StorageError, storage
 from app.jobs.runner import job
@@ -74,6 +75,7 @@ async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) ->
 
 
 async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, action: str) -> None:
+    require_visible(user, AREA_OF_FILE_OWNER.get(owner_type))  # e.g. order boards switched off: 404
     check = OWNERS.get(owner_type)
     if check is None or not await check(db, user, owner_id, action):
         raise AppError(403, "forbidden", "You can't access these files.")
@@ -220,11 +222,13 @@ async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str
     return out(f)
 
 
-async def delete_requests(db: AsyncSession) -> list[dict]:
+async def delete_requests(db: AsyncSession, user: User) -> list[dict]:
+    """Open delete requests, without files of areas hidden from this person (config/modules.ini)."""
     rows = (await db.execute(select(StoredFile, User.name).join(User, User.id == StoredFile.delete_requested_by)
                              .where(StoredFile.delete_status == "requested", StoredFile.deleted_at.is_(None))
                              .order_by(StoredFile.updated_at))).all()
-    return [out(f) | {"requested_by_name": n} for f, n in rows]
+    return [out(f) | {"requested_by_name": n} for f, n in rows
+            if visible(user, AREA_OF_FILE_OWNER.get(f.owner_type))]
 
 
 async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve: bool) -> dict:
@@ -235,6 +239,7 @@ async def decide_delete(db: AsyncSession, approver: User, file_id: int, approve:
     if not allowed and "files.approve" not in effective_permissions(approver.role, approver.permissions):
         raise AppError(403, "forbidden", "Only the owner or an approver can decide this.")
     f = await _get(db, file_id, lock=True)
+    require_visible(approver, AREA_OF_FILE_OWNER.get(f.owner_type))
     if f.delete_status != "requested":
         raise AppError(409, "not_requested", "No delete request for this file.")
     if f.delete_requested_by == approver.id and approver.role != "admin":

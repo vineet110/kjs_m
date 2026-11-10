@@ -24,6 +24,7 @@ class MeOut(BaseModel):
     email: str
     role: str
     permissions: list[str]
+    modules: dict[str, bool] = {}  # portal area -> can this person use it (config/modules.ini)
 
 
 class UserOut(BaseModel):

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.config.ini import cfg
+from app.core.modules import link_for
 from app.core.permissions import effective_permissions
 from app.jobs.runner import job
 from app.models.notification import Notification
@@ -44,7 +45,7 @@ async def list_mine(db: AsyncSession, user: User, limit: int = 30) -> dict:
     unread = await db.scalar(select(func.count()).select_from(Notification)
                              .where(Notification.user_id == user.id, Notification.read_at.is_(None)))
     return {"unread": unread, "items": [
-        {"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "link": n.link,
+        {"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "link": link_for(user, n.link),
          "read": n.read_at is not None, "created_at": n.created_at} for n in rows]}
 
 
@@ -126,7 +127,8 @@ async def send_emails(db: AsyncSession) -> dict:
                 n.email_status = "pending"  # not tried: back in the queue for the next run
                 await db.commit()
                 continue
-            link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if n.link else ""
+            # no link to a portal area hidden from this person (config/modules.ini)
+            link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if link_for(u, n.link) else ""
             note = VISITOR_TEXT_NOTE if n.kind.startswith(("lead.", "partner.")) else ""
             if conn is None:
                 try:
