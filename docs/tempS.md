@@ -24,6 +24,11 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 5. Tests: `backend/tests/test_modules.py`. Part 2 (screens: sidebar, "Not available yet" page, My day
    cards) is the next PR.
 
+6. After Vineet's PRs #53 and #55 (merged main, 10 Nov): two more areas, `chat` and `lead_harvester`. The
+   chat WebSocket is on its own `ws_router`: a route switch needs a Request and broke the live connection
+   (checked), so `chat_socket` checks the area itself and closes with 4404. `test_repo_config_files_are_valid`
+   makes CI fail on a typo in `config/*.ini` (at start-up a broken file = defaults = every area on).
+
 ---------------------------------------------------------------------------------------------------
 
 ## Phase switches for the portal, part 2: screens (branch feat/module-switches-ui, 10 Nov)
@@ -42,3 +47,7 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 
 5. Tests: 3 new unit tests (`frontend/tests/lib.test.mjs`); 47 pass, `tsc` clean. Not done: an e2e browser
    check (needs the app running locally; Docker was off). Follow-up for the backlog.
+
+6. After merging part 1 again (chat, lead_harvester): the sidebar asks for unread chat messages only while
+   Chat is on for the person (`useChatUnread(pathname, enabled)`), so a switched-off Chat doesn't trigger a
+   "who am I" refresh every minute.

@@ -12,7 +12,7 @@ import ts from 'typescript';
 
 const SRC = process.env.SRC_DIR || fileURLToPath(new URL('../src/lib/', import.meta.url));
 const OUT = mkdtempSync(join(tmpdir(), 'kjs-lib-test-'));
-after(() => rmSync(OUT, { recursive: true, force: true }));
+process.on('exit', () => rmSync(OUT, { recursive: true, force: true }));
 const ORIGIN = 'http://localhost:3002';
 
 /** Compiles src/lib/<name>.ts (with its imports replaced by `stubs`) and imports it. */
@@ -431,6 +431,8 @@ test('areaOfPath finds the area of a portal page, with or without a language pre
   assert.equal(areaOfPath('/employee/order-boardsX'), null); // whole page names only
   assert.equal(areaOfPath('/employee/dashboard'), null); // My day: always on
   assert.equal(areaOfPath('/admin/leads'), null); // leads: always on
+  assert.equal(areaOfPath('/employee/chat?c=4'), 'chat');
+  assert.equal(areaOfPath('/admin/client-schedulers'), 'lead_harvester');
 });
 
 test('canSee: only an area the server says false is hidden', () => {
@@ -440,4 +442,35 @@ test('canSee: only an area the server says false is hidden', () => {
   assert.equal(canSee(me, 'batches'), true); // not in the answer (older server): shown
   assert.equal(canSee(me, null), true); // no area: always on
   assert.equal(canSee({}, 'order_boards'), true);
+});
+
+// ---------- chat: @mentions shown in bold ----------
+const { mentionParts, mentionIds } = await load('chat', 'const useEffect = () => {}; const useRef = () => ({}); const useState = (v) => [v, () => {}]; const api = async () => ({});');
+
+test('mentionParts marks each @Name, longest names first ("Ram" inside "Ram Kumar")', () => {
+  assert.deepEqual(mentionParts('hi @Ram Kumar and @Ram', ['Ram', 'Ram Kumar']), [
+    { text: 'hi ', mention: false }, { text: '@Ram Kumar', mention: true },
+    { text: ' and ', mention: false }, { text: '@Ram', mention: true },
+  ]);
+});
+
+test('mentionParts leaves text without mentions alone, and names with regex characters are safe', () => {
+  assert.deepEqual(mentionParts('no one here', []), [{ text: 'no one here', mention: false }]);
+  assert.deepEqual(mentionParts('ask @A.B (x)', ['A.B (x)']), [{ text: 'ask ', mention: false }, { text: '@A.B (x)', mention: true }]);
+  assert.deepEqual(mentionParts('mail AxB', ['A.B']), [{ text: 'mail AxB', mention: false }]);
+});
+
+test('mentionParts: a name must end where the match ends ("@Ramesh" is not "@Ram"; Hindi vowel signs)', () => {
+  assert.deepEqual(mentionParts('hi @Ramesh', ['Ram']), [{ text: 'hi @Ramesh', mention: false }]);
+  assert.deepEqual(mentionParts('@Ram, ok?', ['Ram']), [{ text: '@Ram', mention: true }, { text: ', ok?', mention: false }]);
+  assert.deepEqual(mentionParts('@राम ji', ['राम']), [{ text: '@राम', mention: true }, { text: ' ji', mention: false }]);
+  assert.deepEqual(mentionParts('@रामा ji', ['राम']), [{ text: '@रामा ji', mention: false }]); // "ा" continues the word
+});
+
+test('mentionIds: only the people really mentioned (the ids sent to the server)', () => {
+  const people = [{ id: 1, name: 'Ram' }, { id: 2, name: 'Ram Kumar' }, { id: 3, name: 'Meena' }];
+  assert.deepEqual(mentionIds('hi @Ram Kumar', people), [2]);
+  assert.deepEqual(mentionIds('@Ram and @Ram Kumar', people), [1, 2]);
+  assert.deepEqual(mentionIds('@Ramesh @Meena!', people), [3]);
+  assert.deepEqual(mentionIds('no mentions', people), []);
 });

@@ -5,6 +5,7 @@
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Me } from '@/lib/api';
+import { useChatUnread } from '@/lib/chat';
 import { areaOfPath, canSee } from '@/lib/modules';
 import { moveGroup, sortByOrder } from '@/lib/nav-order';
 import { onApprovalsChanged } from '@/lib/portal-session';
@@ -13,8 +14,8 @@ import { Icon, type IconName } from './icons';
 // One sidebar config for everyone; each link names the permission it needs (null = every staff
 // member, a list = any one of them). A link of a portal area switched off for this person
 // (config/modules.ini, lib/modules.ts: found from the link itself) is hidden too.
-// `badge` = the link shows a count of things waiting (see `useApprovalCount`).
-type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; badge?: 'approvals' };
+// `badge` = the link shows a count: things waiting (`useApprovalCount`) or unread chat messages (`useChatUnread`).
+type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; badge?: 'approvals' | 'chat' };
 type NavGroup = { group: string; items: NavItem[] };
 const allowed = (perm: NavItem['perm'], mine: string[]) =>
   perm === null || (Array.isArray(perm) ? perm.some((p) => mine.includes(p)) : mine.includes(perm));
@@ -24,6 +25,7 @@ const NAV: NavGroup[] = [
     group: 'My work',
     items: [
       { href: '/employee/dashboard', label: 'My day', icon: 'sun', perm: null },
+      { href: '/employee/chat', label: 'Chat', icon: 'chat', perm: null, badge: 'chat' },
       { href: '/employee/attendance', label: 'Attendance', icon: 'clock', perm: null },
       { href: '/employee/batches', label: 'My batches', icon: 'layers', perm: null },
       { href: '/employee/order-boards', label: 'Order boards', icon: 'board', perm: null },
@@ -59,6 +61,7 @@ const NAV: NavGroup[] = [
       { href: '/admin/leads', label: 'All leads', icon: 'inbox', perm: 'leads.view_all' },
       { href: '/admin/order-boards', label: 'All order boards', icon: 'board', perm: 'boards.manage' },
       { href: '/admin/auto-assign', label: 'Auto-assign', icon: 'shuffle', perm: 'assign.manage' },
+      { href: '/admin/client-schedulers', label: 'Client Schedulers', icon: 'layers', perm: 'assign.manage' },
     ],
   },
   {
@@ -137,6 +140,9 @@ const isActive = (pathname: string, href: string) => pathname.startsWith(href);
 
 export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathname: string; onNavigate: () => void }) {
   const approvals = useApprovalCount(allowed(APPROVE_PERMS, me.permissions), pathname);
+  // No asking for unread messages while Chat is switched off: each answer would be "module_off"
+  const chatUnread = useChatUnread(pathname, canSee(me, 'chat'));
+  const countOf = (n: NavItem) => (n.badge === 'approvals' ? approvals : n.badge === 'chat' ? chatUnread : 0);
   const visible = navFor(me);
   const many = visible.length > 1; // one group (most staff): a plain list, no headers to open or drag
 
@@ -254,7 +260,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
       {groups.map((g) => {
         const shown = isOpen(g.group);
         const listId = `nav-${g.group.replace(/\W+/g, '-').toLowerCase()}`;
-        const waiting = g.items.some((n) => n.badge === 'approvals') ? approvals : 0;
+        const waiting = g.items.reduce((sum, n) => sum + countOf(n), 0);
         return (
           <div
             key={g.group}
@@ -299,7 +305,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
               <div id={listId} className={`space-y-0.5 pb-2 ${many ? 'animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none' : ''}`}>
                 {g.items.map((n) => {
                   const active = isActive(pathname, n.href);
-                  const count = n.badge === 'approvals' ? approvals : 0;
+                  const count = countOf(n);
                   return (
                     <Link
                       key={n.href}
@@ -314,7 +320,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                       {count > 0 && (
                         <span className="min-w-[20px] rounded-full bg-gold px-1.5 text-center text-[11px] font-bold leading-5 text-ink">
                           {count > 99 ? '99+' : count}
-                          <span className="sr-only"> waiting</span>
+                          <span className="sr-only">{n.badge === 'chat' ? ' unread' : ' waiting'}</span>
                         </span>
                       )}
                     </Link>

@@ -22,5 +22,12 @@ These click through the whole platform the way people do. They use a **separate 
    It holds some requests back on purpose to fake a slow or silent server. Restart the backend first if you
    ran it more than a few times (it uses 3 wrong passwords per run; 10 lock the account for 15 minutes).
 8. Staff sidebar (hidden by default, slides in and out, computer and phone; about 1 min): `node scripts/e2e/sidebar_e2e.mjs`
+9. KJS Chat, two people at once in two Chromes (about 1 min): `node scripts/e2e/chat_e2e.mjs`.
+   It needs the live connection set up, so start the servers with two extra settings:
+   1. Backend (step 3): add `ALLOWED_ORIGINS="http://localhost:3002,http://127.0.0.1:3002"` (the chat
+      connection is refused from any site not in this list).
+   2. Frontend (step 4): add `NEXT_PUBLIC_CHAT_WS_URL=ws://localhost:8001/api/v1/chat/ws` to BOTH the build
+      and start commands (`next start` can't pass WebSockets on to the API; it's read at build time).
+   It makes two staff accounts, so run it on a fresh e2e database (step 2).
 
 Restart the backend before re-running (it resets the 5-enquiries-per-hour limit). Koko uses the real Groq key from `.env`.
