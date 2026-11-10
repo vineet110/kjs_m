@@ -52,7 +52,7 @@ const NAV: NavGroup[] = [
     group: 'Employees',
     items: [
       { href: '/admin/approvals', label: 'All approvals', icon: 'check', perm: APPROVE_PERMS, badge: 'approvals' },
-      { href: '/admin/users', label: 'Manage', icon: 'users', perm: 'staff.approve' },
+      { href: '/admin/users', label: 'Manage employees', icon: 'users', perm: 'staff.approve' },
       { href: '/admin/team-attendance', label: 'Attendance', icon: 'clock', perm: 'attendance.manage' },
       { href: '/admin/holidays', label: 'Holidays', icon: 'calendar', perm: 'calendar.edit' },
     ],
@@ -266,7 +266,8 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
           <div
             key={g.group}
             data-nav-group={g.group}
-            className={`rounded-lg transition-colors ${dragging === g.group ? 'bg-white/10 ring-1 ring-gold/60' : ''}`}
+            // A thin line between groups (not above the first one)
+            className={`rounded-lg transition-colors ${many ? 'border-t border-white/10 pt-1 first:border-t-0 first:pt-0' : ''} ${dragging === g.group ? 'bg-white/10 ring-1 ring-gold/60' : ''}`}
           >
             {many && (
               <div className="group/head flex items-center">
@@ -288,8 +289,10 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                   onClick={() => toggle(g.group)}
                   aria-expanded={shown}
                   aria-controls={listId}
-                  className="flex flex-1 items-center gap-2 rounded-md py-2 pl-1 pr-2 text-left text-[11px] font-bold uppercase tracking-widest text-stone-400 hover:bg-white/5 hover:text-stone-200"
+                  className="flex flex-1 items-center gap-2 rounded-md py-2 pl-1 pr-2 text-left text-[11px] font-bold uppercase tracking-widest text-[#d93030] hover:bg-white/5 hover:brightness-125"
                 >
+                  {/* Small bar before the group name, same colour as the name */}
+                  <span aria-hidden className="h-3 w-[3px] shrink-0 rounded-full bg-[#d93030]" />
                   <span className="flex-1">{g.group}</span>
                   {/* Closed: the count still shows on the group, so nothing waiting gets hidden */}
                   {!shown && waiting > 0 && (
@@ -313,10 +316,10 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                       href={n.href}
                       aria-current={active ? 'page' : undefined}
                       onClick={onNavigate}
-                      // Active link: a light gold background and a gold bar on its left edge
-                      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${active ? 'bg-gold/10 font-semibold text-white before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gold' : 'text-stone-300 hover:bg-white/5 hover:text-white'}`}
+                      // Active link: a light lavender background and a lavender bar on its left edge
+                      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${active ? 'bg-[#d8c1e1]/10 font-semibold text-white before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-[#d8c1e1]' : 'text-[#D6D3D1] hover:bg-white/5 hover:text-white'}`}
                     >
-                      <Icon name={n.icon} className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-gold' : 'text-stone-500'}`} />
+                      <Icon name={n.icon} className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-[#d8c1e1]' : 'text-stone-500'}`} />
                       <span className="flex-1 truncate">{n.label}</span>
                       {count > 0 && (
                         <span className="min-w-[20px] rounded-full bg-gold px-1.5 text-center text-[11px] font-bold leading-5 text-ink">
