@@ -57,6 +57,7 @@ const NAV: NavGroup[] = [
       { href: '/admin/leads', label: 'All leads', icon: 'inbox', perm: 'leads.view_all' },
       { href: '/admin/order-boards', label: 'All order boards', icon: 'board', perm: 'boards.manage' },
       { href: '/admin/auto-assign', label: 'Auto-assign', icon: 'shuffle', perm: 'assign.manage' },
+      { href: '/admin/client-schedulers', label: 'Client Schedulers', icon: 'layers', perm: 'assign.manage' },
     ],
   },
   {
