@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, content, employee, files, koko, public, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, content, employee, files, koko, public, tasks
 
 api_router = APIRouter()
 
@@ -15,3 +15,4 @@ api_router.include_router(files.router, prefix="/files", tags=["Files"])
 api_router.include_router(boards.router, prefix="/boards", tags=["Order boards"])
 api_router.include_router(assign.router, prefix="/assign", tags=["Auto-assign"])
 api_router.include_router(content.router, prefix="/content", tags=["Website content"])
+api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
