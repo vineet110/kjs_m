@@ -278,3 +278,37 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
     10. No third review round (our 2-round rule). Before merging: 10 minutes by hand in two browsers.
 13. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.
+
+## Lead Harvester security fix (10 Nov, branch `fix/harvest-security`)
+
+From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this follows it.
+
+1. Secret leak fixed: a source's API key must be a setting named `HARVEST_...`. Checked when creating,
+   when editing (edits weren't checked at all before) and again at every fetch. The key is only sent to
+   the source's own host, over https.
+2. SSRF fixed: one `safe_get()` (`backend/app/services/harvest_net.py`) for all four fetchers and
+   robots.txt:
+   1. https only; public addresses only (no localhost, private, link-local or metadata addresses);
+   2. the host is looked up and the connection goes to a checked public address (this also stops DNS
+      rebinding); the https certificate is still checked for the real host name;
+   3. redirects followed by hand, at most 5, each checked; https to http refused.
+3. Plain http for a specific public feed: `HARVEST_ALLOW_HTTP_HOSTS` (empty by default; in `.env.example`).
+4. Permissions: only `assign.manage` (admins have it). Before, `leads.view_all` and `staff.approve` could
+   also add and run harvesters. Tell the team.
+5. Tests: new `backend/tests/test_harvest_security.py` (13). Switching off the name check, the address
+   check or the permission check each makes tests fail.
+6. Review of #62 (quick), 6 fixes:
+   1. A failed connection tries the next checked address, IPv4 first (max 3; 10 s connect each). A site's
+      answer is never retried elsewhere.
+   2. robots.txt 5xx = don't scrape (Python's own rule; my first version allowed it).
+   3. `HARVEST_` settings are also read from the `.env` files (`harvest_setting`), so they work locally;
+      only `HARVEST_` names can ever be read this way.
+   4. System proxy settings are ignored (`trust_env=False`).
+   5. A robots.txt that leads to an internal address = don't scrape.
+   6. IPv4 hidden inside IPv6 (NAT64, 6to4, Teredo) is judged by the IPv4 inside.
+   Not done (backlog): public IPv6 typed as an address is refused; validators written twice (create/edit);
+   no size limit on downloads (only `assign.manage` can add sources).
+7. Still open (separate PR): robots.txt allows scraping when it can't be read; unknown categories
+   (`spices`, `private_label`); a number in the phone field crashes a run; duplicates inside one fetch;
+   `+91 98765 43210` numbers lost; one failing source breaks the rest of the run; phone duplicates in other
+   formats; the job lock released early (matters only with several API processes).

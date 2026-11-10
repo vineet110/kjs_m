@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import OneLine
+from app.services.harvest_net import check_env_name, check_url
 
 SourceType = Literal["api", "open_data", "rss", "scrape"]
 
@@ -23,13 +24,18 @@ class HarvestSourceIn(BaseModel):
         # Scraping sources stay off until the admin ticks "terms checked"
         if self.source_type == "scrape" and self.is_active and not self.terms_checked:
             raise ValueError("Scrape source stays off until terms are checked.")
-        # Variable name validation: only alphanumeric and underscores
-        if self.auth_env_var:
-            cleaned = self.auth_env_var.strip()
-            if not cleaned.replace("_", "").isalnum():
-                raise ValueError("auth_env_var must be a valid environment variable name.")
-            self.auth_env_var = cleaned
         return self
+
+    # Security rules (harvest_net): HARVEST_ setting names only; https, public addresses only
+    @field_validator("auth_env_var")
+    @classmethod
+    def env_name_rules(cls, v: str) -> str:
+        return check_env_name(v)
+
+    @field_validator("url")
+    @classmethod
+    def url_rules(cls, v: str) -> str:
+        return check_url(v)
 
 
 class HarvestSourceUpdate(BaseModel):
@@ -40,6 +46,17 @@ class HarvestSourceUpdate(BaseModel):
     is_active: bool | None = None
     terms_checked: bool | None = None
     schedule_interval_minutes: int | None = Field(default=None, ge=1, le=43200)
+
+    # Editing gets the same checks as creating (before the fix, edits weren't checked at all)
+    @field_validator("auth_env_var")
+    @classmethod
+    def env_name_rules(cls, v: str | None) -> str | None:
+        return None if v is None else check_env_name(v)
+
+    @field_validator("url")
+    @classmethod
+    def url_rules(cls, v: str | None) -> str | None:
+        return None if v is None else check_url(v)
 
 
 class HarvestSourceOut(BaseModel):

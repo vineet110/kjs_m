@@ -8,7 +8,6 @@ import csv
 import io
 import json
 import logging
-import os
 import re
 import urllib.parse
 import urllib.robotparser
@@ -16,13 +15,13 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.jobs.runner import job
 from app.models.harvest import HarvestRun, HarvestSource
+from app.services.harvest_net import harvest_setting, safe_get
 from app.services.harvest_filter import (
     EMAIL_REGEX,
     PHONE_DIGITS_REGEX,
@@ -33,7 +32,8 @@ from app.services.harvest_filter import (
 log = logging.getLogger("app.harvest")
 
 BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
-HTTP_TIMEOUT_SECONDS = 30.0
+# Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
+# API keys only from HARVEST_ settings (security fix after the PR #53 review).
 
 
 # ---------------- Connectors ----------------
@@ -45,16 +45,18 @@ async def fetch_api_source(source: HarvestSource) -> list[dict]:
         "Accept": "application/json",
     }
 
-    # API key from environment variable (DB stores ONLY the variable name)
+    # API key from a server setting (the database stores ONLY its name). Checked again here, not only when
+    # the source was saved: a bad name already in the database must never be read.
+    token = ""
     if source.auth_env_var:
-        token = os.getenv(source.auth_env_var)
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        try:
+            token = harvest_setting(source.auth_env_var)  # refuses names without HARVEST_
+        except ValueError as e:
+            raise AppError(400, "bad_env_var", str(e)) from None
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        resp = await client.get(source.url, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    resp = await safe_get(source.url, headers, api_key=token)
+    resp.raise_for_status()
+    data = resp.json()
 
     # Extract records list from common API response shapes
     raw_list: list[dict] = []
@@ -87,12 +89,10 @@ async def fetch_api_source(source: HarvestSource) -> list[dict]:
 
 async def fetch_open_data_source(source: HarvestSource) -> list[dict]:
     """Download CSV or JSON file from an open data portal (e.g. data.gov.in)."""
-    headers = {"User-Agent": BOT_USER_AGENT}
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        resp = await client.get(source.url, headers=headers)
-        resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "").lower()
-        body = resp.text
+    resp = await safe_get(source.url, {"User-Agent": BOT_USER_AGENT})
+    resp.raise_for_status()
+    content_type = resp.headers.get("content-type", "").lower()
+    body = resp.text
 
     records: list[dict] = []
     if "json" in content_type or source.url.lower().endswith(".json"):
@@ -144,11 +144,9 @@ async def fetch_open_data_source(source: HarvestSource) -> list[dict]:
 
 async def fetch_rss_source(source: HarvestSource) -> list[dict]:
     """Fetch trade enquiry or tender RSS feed using standard library xml.etree."""
-    headers = {"User-Agent": BOT_USER_AGENT}
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        resp = await client.get(source.url, headers=headers)
-        resp.raise_for_status()
-        xml_text = resp.text
+    resp = await safe_get(source.url, {"User-Agent": BOT_USER_AGENT})
+    resp.raise_for_status()
+    xml_text = resp.text
 
     root = ET.fromstring(xml_text)
     # Search for items (RSS) or entries (Atom)
@@ -212,15 +210,29 @@ async def fetch_rss_source(source: HarvestSource) -> list[dict]:
     return records
 
 
-def is_scraping_allowed(url: str, user_agent: str = BOT_USER_AGENT) -> bool:
-    """Check robots.txt using Python's standard library urllib.robotparser."""
+async def is_scraping_allowed(url: str, user_agent: str = BOT_USER_AGENT) -> bool:
+    """Check robots.txt. Fetched through safe_get (same address rules and time limit as every fetch), then
+    read with Python's standard robots.txt parser. Python's own fetcher (rp.read) is not used: it had no
+    time limit and none of the address checks."""
     try:
         parsed = urllib.parse.urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        resp = await safe_get(robots_url, {"User-Agent": user_agent})
         rp = urllib.robotparser.RobotFileParser()
-        rp.set_url(robots_url)
-        rp.read()
+        # Python's own rule (RobotFileParser.read): 401/403 = nothing allowed; other 4xx = no robots.txt, all
+        # allowed; 5xx = unknown, so nothing allowed (PR #62 review: an earlier version allowed it).
+        if resp.status_code in (401, 403) or resp.status_code >= 500:
+            return False
+        if resp.status_code >= 400:
+            return True
+        rp.parse(resp.text.splitlines())
         return rp.can_fetch(user_agent, url)
+    except AppError as e:
+        if e.code == "blocked_address":  # robots.txt led to an internal address: refuse, don't guess
+            log.warning("harvest.robots_txt_blocked", extra={"url": url, "error": e.message})
+            return False
+        log.warning("harvest.robots_txt_error", extra={"url": url, "error": e.message})
+        return True  # known separate bug: can't read robots.txt = allowed (see docs/tempV.md)
     except Exception as e:
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": str(e)})
         # If robots.txt cannot be fetched/parsed, err on the side of caution or permit if network unreachable
@@ -234,8 +246,7 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
         raise AppError(400, "terms_not_checked", "Scraping source requires 'terms checked' confirmation.")
 
     # 2. Check robots.txt
-    loop = asyncio.get_running_loop()
-    allowed = await loop.run_in_executor(None, is_scraping_allowed, source.url, BOT_USER_AGENT)
+    allowed = await is_scraping_allowed(source.url, BOT_USER_AGENT)
     if not allowed:
         raise AppError(403, "blocked_by_robots", f"Scraping is disallowed by {source.url} robots.txt")
 
@@ -243,11 +254,9 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
     await asyncio.sleep(2.0)
 
     # 4. Fetch page HTML
-    headers = {"User-Agent": BOT_USER_AGENT}
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        resp = await client.get(source.url, headers=headers)
-        resp.raise_for_status()
-        html = resp.text
+    resp = await safe_get(source.url, {"User-Agent": BOT_USER_AGENT})
+    resp.raise_for_status()
+    html = resp.text
 
     # Extract text content and contact tags using stdlib / regex
     records: list[dict] = []

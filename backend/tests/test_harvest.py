@@ -36,6 +36,14 @@ from app.services.harvest_service import (
 from tests.conftest import HDR, login, make_user
 
 
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    """No real internet in tests: every host "resolves" to one public address (harvest_net.resolve)."""
+    async def fake_resolve(host, port):
+        return ["93.184.216.34"]
+    monkeypatch.setattr("app.services.harvest_net.resolve", fake_resolve)
+
+
 @pytest.fixture
 async def db():
     async with AsyncSessionLocal() as session:
@@ -200,12 +208,12 @@ async def test_filter_and_save_accepted_records(db):
 # ---------------- 2. Connector Tests ----------------
 
 async def test_api_connector_auth_and_extraction(monkeypatch):
-    monkeypatch.setenv("TEST_INDIAMART_KEY", "secret_token_123")
+    monkeypatch.setenv("HARVEST_TEST_INDIAMART_KEY", "secret_token_123")
     source = HarvestSource(
         name="IndiaMART Test",
         source_type="api",
         url="https://api.example.com/leads",
-        auth_env_var="TEST_INDIAMART_KEY",
+        auth_env_var="HARVEST_TEST_INDIAMART_KEY",
     )
 
     mock_resp = Response(
@@ -317,7 +325,7 @@ async def test_scrape_connector_terms_and_robots():
         url="https://directory.example.com/secret",
         terms_checked=True,
     )
-    with patch("app.services.harvest_service.is_scraping_allowed", return_value=False):
+    with patch("app.services.harvest_service.is_scraping_allowed", new_callable=AsyncMock, return_value=False):
         with pytest.raises(Exception) as exc:
             await fetch_scrape_source(confirmed)
         assert "robots.txt" in str(exc.value)
@@ -414,7 +422,7 @@ async def test_harvest_due_sources_job(db):
 # ---------------- 4. Admin API Endpoint Tests ----------------
 
 async def test_harvest_api_crud_and_run(client):
-    # 1. Forbidden for employee without assign.manage or leads.view_all
+    # 1. Forbidden for employee without assign.manage
     await make_user("employee@kjsindia.com", permissions=["leads.view"])
     await login(client, "employee@kjsindia.com")
     r = await client.get("/api/v1/admin/harvest/sources", headers=HDR)
@@ -434,7 +442,7 @@ async def test_harvest_api_crud_and_run(client):
         "name": "IndiaMART Coffee API",
         "source_type": "api",
         "url": "https://api.indiamart.com/coffee",
-        "auth_env_var": "INDIAMART_API_KEY",
+        "auth_env_var": "HARVEST_INDIAMART_API_KEY",
         "category": "coffee",
         "is_active": True,
         "terms_checked": True,
