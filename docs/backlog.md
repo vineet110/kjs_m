@@ -1636,6 +1636,22 @@ R50. Before and after go-live  🔴 i–iii before go-live
          extra INSERT per check-in, R2 server-side copy (speed only).
 
 
+R55. `admin` level for batches: auto-assign still gives batches to employees  🟠 before using `admin` (Nishita)
+
+   i.    With `batches = admin` the job (and "Run now") hands batches to every checked-in employee, who can't open
+         them; their open batch then blocks new ones. Fix: with `admin`, only admins are eligible (`_eligible`
+         in `assign_service.py`). Until then, use only `on` and `off` for batches.
+   ii.   Smaller: with `order_boards = admin`, an employee added to a test board still gets the notification
+         text (no link). Accepted for now.
+
+
+R54. e2e browser check for the phase switches  🟢 after go-live (Nishita)
+
+   i.    Switch one area off, then check the sidebar, a typed-in address ("Not available yet") and the API
+         (404 `module_off`). Needs the app running locally. The script must set everything `on` first.
+   ii.   Also: a typo made directly on the server is not caught by CI; check the admin Settings page after.
+
+
 R53. `config/storage.ini` allowed_types can only remove file types  🟢 after go-live (Nishita)
 
    i.    A type must also be in `TYPES` in `backend/app/services/file_service.py`, so adding `mp4` to the ini
