@@ -175,5 +175,21 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
    4. Public channels can't be browsed or joined yet; you see only chats you're in. `is_private` is
       stored for a later "browse channels" page.
    5. No admin override yet (admins manage only their own chats).
-5. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+5. Day 2 done (10 Nov): messages.
+   1. Routes: `GET /chat/channels/{id}/messages` (`before=`, `after=`, `limit=` up to 100),
+      `POST /chat/channels/{id}/messages` (`body`, `mention_ids`), `PATCH` and `DELETE /chat/messages/{id}`,
+      `POST /chat/channels/{id}/read` (optional `message_id`), `GET /chat/unread` (sidebar total).
+   2. `GET /chat/channels` now has `unread` and `last_message_id`. Order: channels A to Z, then groups
+      and DMs with the newest message first, archived last.
+   3. Added a `mentions` column (user ids) to migration 0020 itself, since 0020 isn't merged anywhere.
+      If you ran 0020 on a local database, run `alembic downgrade 0018` then `upgrade head` there.
+   4. `after=` is for catching up after a dropped connection (day 3).
+   5. 7 more tests (18 chat tests in all).
+6. More guesses (fold into backlog section 3 after the PR):
+   1. Deleting a message wipes its text (the row stays so the order makes sense).
+   2. A mention notifies even in a muted chat (bell + email, like Teams). Editing a message notifies
+      only the people newly mentioned.
+   3. Muted chats don't count in the sidebar total.
+   4. Sending limit: 30 messages a minute per person.
+7. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.

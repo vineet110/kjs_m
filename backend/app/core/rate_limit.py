@@ -78,3 +78,5 @@ login_email_failures = RateLimiter(limit=lambda: 100, window_seconds=900)  # per
 # count, so a whole office logging in from one address is never blocked (CR7).
 login_ip_limiter = RateLimiter(limit=lambda: cfg().app.login_failures_per_ip, window_seconds=900)
 signup_limiter = RateLimiter(limit=lambda: cfg().app.signups_per_ip_per_hour, window_seconds=3600)
+# Chat messages per person (not per IP): stops a stuck key or a script flooding a channel.
+chat_send_limiter = RateLimiter(limit=lambda: 30, window_seconds=60)

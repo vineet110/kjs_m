@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text,
                         UniqueConstraint, false, func)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -48,6 +49,7 @@ class ChatMessage(Base):
     channel_id: Mapped[int] = mapped_column(ForeignKey("chat_channels.id", ondelete="CASCADE"))
     sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     body: Mapped[str] = mapped_column(Text)
+    mentions: Mapped[list[int]] = mapped_column(JSONB, default=list, server_default="[]")  # user ids
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("chat_messages.id"))  # replies (phase 2)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

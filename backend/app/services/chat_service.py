@@ -1,4 +1,4 @@
-"""KJS Chat, phase 1 day 1: channels, group chats, DMs and their members.
+"""KJS Chat, phase 1: channels, group chats, DMs, their members (day 1) and messages (day 2).
 
 Rules (docs/tempV.md, KJS Chat plan):
 1. Every logged-in staff member can chat with anyone. No permission needed.
@@ -12,17 +12,27 @@ Rules (docs/tempV.md, KJS Chat plan):
 7. When the last owner leaves, the longest-standing member becomes owner. When the last person
    leaves, the channel is archived.
 8. Member removals, renames and archiving go in the audit log.
+9. Messages: any member sends (not in archived chats). Only the sender edits or deletes their own;
+   anyone else gets 404. Deleting empties the body and shows "message deleted".
+10. Unread = messages from others, not deleted, after my last_read_message_id. Sending marks the
+    chat read for me (my own message is never unread).
+11. @mentions: the client sends the ids; we keep only members of the chat (not me) and give each one
+    a normal notification (bell + email), also when they muted the chat.
+12. Sending is rate-limited per person: 30 messages a minute.
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.models.chat import ChatChannel, ChatMember
+from app.core.rate_limit import chat_send_limiter
+from app.models.chat import ChatChannel, ChatMember, ChatMessage
 from app.models.user import User
-from app.services import audit_service
+from app.services import audit_service, notification_service
+
+PAGE_MAX = 100  # most messages one request may ask for
 
 
 def dm_key(a: int, b: int) -> str:
@@ -112,17 +122,42 @@ def _out(ch: ChatChannel, me: ChatMember, members: list[dict], my_id: int) -> di
 
 # ---------- Reading ----------
 
+async def _unread(db: AsyncSession, user_id: int) -> dict[int, tuple[int, int]]:
+    """channel id -> (my unread count, newest message id), for every chat I'm in. One query."""
+    unread = func.count().filter(and_(ChatMessage.id > ChatMember.last_read_message_id,
+                                      ChatMessage.deleted_at.is_(None),
+                                      ChatMessage.sender_id != user_id))
+    rows = await db.execute(
+        select(ChatMessage.channel_id, unread, func.max(ChatMessage.id))
+        .join(ChatMember, and_(ChatMember.channel_id == ChatMessage.channel_id, ChatMember.user_id == user_id))
+        .group_by(ChatMessage.channel_id)
+    )
+    return {cid: (n, last) for cid, n, last in rows.all()}
+
+
 async def my_channels(db: AsyncSession, user: User) -> list[dict]:
-    """My channels, then group chats and DMs. Unread counts come on day 2."""
+    """Channels first (A to Z), then group chats and DMs (latest message first). Archived at the end."""
     rows = (await db.execute(
         select(ChatChannel, ChatMember)
         .join(ChatMember, ChatMember.channel_id == ChatChannel.id)
         .where(ChatMember.user_id == user.id)
     )).all()
     members = await _members_of(db, [ch.id for ch, _ in rows])
-    out = [_out(ch, me, members[ch.id], user.id) for ch, me in rows]
-    out.sort(key=lambda c: (c["kind"] != "channel", c["archived"], c["title"].lower()))
+    counts = await _unread(db, user.id)
+    out = []
+    for ch, me in rows:
+        n, last = counts.get(ch.id, (0, 0))
+        out.append(_out(ch, me, members[ch.id], user.id) | {"unread": n, "last_message_id": last})
+    out.sort(key=lambda c: (c["archived"], c["kind"] != "channel",
+                            c["title"].lower() if c["kind"] == "channel" else -c["last_message_id"]))
     return out
+
+
+async def unread_total(db: AsyncSession, user: User) -> int:
+    """For the sidebar badge. Muted chats don't count."""
+    muted = set((await db.scalars(
+        select(ChatMember.channel_id).where(ChatMember.user_id == user.id, ChatMember.muted.is_(True)))).all())
+    return sum(n for cid, (n, _) in (await _unread(db, user.id)).items() if cid not in muted)
 
 
 async def get_channel(db: AsyncSession, user: User, channel_id: int) -> dict:
@@ -258,4 +293,142 @@ async def remove_member(db: AsyncSession, user: User, channel_id: int, user_id: 
                          entity_type="chat_channel", entity_id=ch.id,
                          before={"user_id": target.user_id, "role": target.role},
                          after={"members_left": len(left)})
+    await db.commit()
+
+
+# ---------- Messages (day 2) ----------
+
+def _msg_out(m: ChatMessage, sender_name: str) -> dict:
+    deleted = m.deleted_at is not None
+    return {"id": m.id, "channel_id": m.channel_id, "sender_id": m.sender_id, "sender_name": sender_name,
+            "body": "" if deleted else m.body, "mentions": [] if deleted else m.mentions,
+            "deleted": deleted, "edited_at": m.edited_at, "created_at": m.created_at}
+
+
+def _clean_body(body: str) -> str:
+    body = body.strip()
+    if not body:
+        raise AppError(422, "empty", "Type a message first.")
+    return body
+
+
+async def _valid_mentions(db: AsyncSession, channel_id: int, ids: list[int], me: int) -> list[int]:
+    """Keep only people in this chat (not me). Anyone else is silently dropped."""
+    wanted = {i for i in ids if i != me}
+    if not wanted:
+        return []
+    found = await db.scalars(select(ChatMember.user_id).where(
+        ChatMember.channel_id == channel_id, ChatMember.user_id.in_(wanted)))
+    return sorted(found.all())
+
+
+def _where(ch: ChatChannel, members: list[dict], user_id: int) -> str:
+    """'#sales', 'a direct message' or the group's title: for notification texts."""
+    if ch.kind == "channel":
+        return f"#{ch.name}"
+    if ch.kind == "dm":
+        return "a direct message"
+    return _title(ch, members, user_id)
+
+
+async def _notify_mentions(db: AsyncSession, user: User, ch: ChatChannel, ids: list[int], body: str) -> None:
+    if not ids:
+        return
+    members = (await _members_of(db, [ch.id]))[ch.id]
+    notification_service.notify(db, ids, "chat.mention", f"{user.name} mentioned you in {_where(ch, members, ids[0])}",
+                                body=body[:200], link=f"/employee/chat?c={ch.id}")
+
+
+async def list_messages(db: AsyncSession, user: User, channel_id: int, *, before: int | None = None,
+                        after: int | None = None, limit: int = 50) -> dict:
+    """Oldest first, `limit` at a time (cursor pagination: ids, not page numbers, so new messages
+    arriving meanwhile never shift what you get).
+    1. Neither: the newest messages (opening a chat).
+    2. before=X: the ones just before X (scrolling up).
+    3. after=X: the ones just after X (catching up after a dropped connection).
+    has_more: there are more in that direction."""
+    await _membership(db, channel_id, user.id)
+    limit = max(1, min(limit, PAGE_MAX))
+    q = (select(ChatMessage, User.name).join(User, User.id == ChatMessage.sender_id)
+         .where(ChatMessage.channel_id == channel_id))
+    if after is not None:
+        q = q.where(ChatMessage.id > after).order_by(ChatMessage.id)
+    else:
+        if before is not None:
+            q = q.where(ChatMessage.id < before)
+        q = q.order_by(ChatMessage.id.desc())
+    rows = (await db.execute(q.limit(limit + 1))).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    if after is None:
+        rows.reverse()
+    return {"messages": [_msg_out(m, name) for m, name in rows], "has_more": has_more}
+
+
+async def send_message(db: AsyncSession, user: User, channel_id: int, body: str, mention_ids: list[int]) -> dict:
+    ch, me = await _membership(db, channel_id, user.id)
+    _not_archived(ch)
+    body = _clean_body(body)
+    key = f"user:{user.id}"
+    if chat_send_limiter.blocked(key):
+        raise AppError(429, "too_many", "You're sending messages too fast. Wait a moment and try again.")
+    chat_send_limiter.hit(key)
+
+    m = ChatMessage(channel_id=ch.id, sender_id=user.id, body=body, created_at=datetime.now(timezone.utc),
+                    mentions=await _valid_mentions(db, ch.id, mention_ids, user.id))
+    db.add(m)
+    await db.flush()  # gives m.id
+    me.last_read_message_id = m.id  # my own message is never unread for me
+    await _notify_mentions(db, user, ch, m.mentions, body)
+    await db.commit()
+    return _msg_out(m, user.name)
+
+
+async def _my_message(db: AsyncSession, user: User, message_id: int) -> tuple[ChatMessage, ChatChannel]:
+    """My own message in a chat I'm still in, or 404 (someone else's looks the same as a missing one)."""
+    row = (await db.execute(
+        select(ChatMessage, ChatChannel)
+        .join(ChatChannel, ChatChannel.id == ChatMessage.channel_id)
+        .join(ChatMember, and_(ChatMember.channel_id == ChatChannel.id, ChatMember.user_id == user.id))
+        .where(ChatMessage.id == message_id, ChatMessage.sender_id == user.id)
+    )).first()
+    if row is None:
+        raise AppError(404, "not_found", "Message not found.")
+    return row[0], row[1]
+
+
+async def edit_message(db: AsyncSession, user: User, message_id: int, body: str, mention_ids: list[int]) -> dict:
+    """Only people newly @mentioned by the edit get a notification."""
+    m, ch = await _my_message(db, user, message_id)
+    _not_archived(ch)
+    if m.deleted_at is not None:
+        raise AppError(409, "deleted", "This message was deleted.")
+    old = set(m.mentions)
+    m.body = _clean_body(body)
+    m.mentions = await _valid_mentions(db, ch.id, mention_ids, user.id)
+    m.edited_at = datetime.now(timezone.utc)
+    await _notify_mentions(db, user, ch, [i for i in m.mentions if i not in old], m.body)
+    await db.commit()
+    return _msg_out(m, user.name)
+
+
+async def delete_message(db: AsyncSession, user: User, message_id: int) -> None:
+    """Soft delete: the row stays (so replies and the order still make sense), the text is wiped."""
+    m, ch = await _my_message(db, user, message_id)
+    _not_archived(ch)
+    if m.deleted_at is None:
+        m.deleted_at, m.body, m.mentions = datetime.now(timezone.utc), "", []
+        await db.commit()
+
+
+async def mark_read(db: AsyncSession, user: User, channel_id: int, message_id: int | None = None) -> None:
+    """Read up to message_id (default: the newest). Never moves backwards, never past the newest."""
+    ch, me = await _membership(db, channel_id, user.id)
+    newest = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.channel_id == ch.id)) or 0
+    target = min(message_id if message_id is not None else newest, newest)
+    await db.execute(
+        update(ChatMember)
+        .where(ChatMember.id == me.id, ChatMember.last_read_message_id < target)
+        .values(last_read_message_id=target)
+    )
     await db.commit()

@@ -4,7 +4,8 @@ chat_channels: one row per channel, group chat or DM (kind tells them apart). dm
 it is the two user ids, smaller first ("12:45"), so the database itself stops a second DM for the same
 pair. Empty (NULL) for channels and groups.
 chat_members: who is in which channel. last_read_message_id drives the unread counts.
-chat_messages: the messages. The (channel_id, id) index makes "the 50 before message X" fast.
+chat_messages: the messages; mentions = the user ids @mentioned in it. The (channel_id, id) index makes
+"the 50 before message X" fast.
 
 Number 0020, not 0019: feat/client-schedulers already uses 0019 (not merged on 10 Nov). Whichever
 merges second must point its down_revision at the other.
@@ -18,6 +19,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = '0020'
 down_revision: Union[str, None] = '0018'
@@ -58,6 +60,7 @@ def upgrade() -> None:
         sa.Column('channel_id', sa.Integer(), sa.ForeignKey('chat_channels.id', ondelete='CASCADE'), nullable=False),
         sa.Column('sender_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False),
         sa.Column('body', sa.Text(), nullable=False),
+        sa.Column('mentions', JSONB(), server_default='[]', nullable=False),  # user ids @mentioned
         sa.Column('parent_id', sa.Integer(), sa.ForeignKey('chat_messages.id'), nullable=True),  # replies (phase 2)
         sa.Column('edited_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),

@@ -205,3 +205,157 @@ async def test_last_owner_leaving_hands_over_and_last_person_archives(client):
     await client.delete(f"{C}/channels/{cid}/members/{ids['meena']}", headers=HDR)
     async with AsyncSessionLocal() as db:
         assert (await db.get(ChatChannel, cid)).archived_at is not None
+
+
+# ---------- Day 2: messages ----------
+
+async def _send(client, cid: int, body: str, **extra):
+    return await client.post(f"{C}/channels/{cid}/messages", json={"body": body} | extra, headers=HDR)
+
+
+async def _unread(client, cid: int) -> int:
+    return next(c["unread"] for c in (await client.get(f"{C}/channels")).json() if c["id"] == cid)
+
+
+async def _bell(client) -> dict:
+    return (await client.get("/api/v1/employee/notifications")).json()
+
+
+async def test_send_and_page_through_messages(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    for i in range(1, 8):
+        r = await _send(client, cid, f"  msg {i}  ")
+        assert r.status_code == 201
+    assert r.json()["body"] == "msg 7" and r.json()["sender_name"] == "asha" and r.json()["created_at"]
+
+    newest = (await client.get(f"{C}/channels/{cid}/messages?limit=3")).json()
+    assert [m["body"] for m in newest["messages"]] == ["msg 5", "msg 6", "msg 7"] and newest["has_more"]
+    first_id = newest["messages"][0]["id"]
+    older = (await client.get(f"{C}/channels/{cid}/messages?limit=3&before={first_id}")).json()
+    assert [m["body"] for m in older["messages"]] == ["msg 2", "msg 3", "msg 4"] and older["has_more"]
+    oldest = (await client.get(f"{C}/channels/{cid}/messages?limit=3&before={older['messages'][0]['id']}")).json()
+    assert [m["body"] for m in oldest["messages"]] == ["msg 1"] and not oldest["has_more"]
+    # catching up after a dropped connection
+    since = (await client.get(f"{C}/channels/{cid}/messages?after={first_id}")).json()
+    assert [m["body"] for m in since["messages"]] == ["msg 6", "msg 7"] and not since["has_more"]
+    assert (await client.get(f"{C}/channels/{cid}/messages?limit=500")).status_code == 422
+
+
+async def test_message_checks(client):
+    ids = await _team("asha", "ravi", "meena")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    assert (await _send(client, cid, "   ")).json()["code"] == "empty"
+    assert (await _send(client, cid, "x" * 4001)).status_code == 422
+    html = (await _send(client, cid, "<script>alert(1)</script>")).json()
+    assert html["body"] == "<script>alert(1)</script>"  # stored as typed; the page shows it as plain text
+
+    await login(client, "meena@kjsindia.com")  # not a member
+    assert (await _send(client, cid, "hi")).status_code == 404
+    assert (await client.get(f"{C}/channels/{cid}/messages")).status_code == 404
+    assert (await client.post(f"{C}/channels/{cid}/read", headers=HDR)).status_code == 404
+
+    await login(client, "asha@kjsindia.com")
+    await client.patch(f"{C}/channels/{cid}", json={"archived": True}, headers=HDR)
+    r = await _send(client, cid, "hi")
+    assert r.status_code == 409 and r.json()["code"] == "archived"
+    assert len((await client.get(f"{C}/channels/{cid}/messages")).json()["messages"]) == 1  # still readable
+
+
+async def test_only_the_sender_edits_and_deletes(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    mid = (await _send(client, cid, "helo")).json()["id"]
+
+    await login(client, "ravi@kjsindia.com")
+    assert (await client.patch(f"{C}/messages/{mid}", json={"body": "hacked"}, headers=HDR)).status_code == 404
+    assert (await client.delete(f"{C}/messages/{mid}", headers=HDR)).status_code == 404
+
+    await login(client, "asha@kjsindia.com")
+    r = await client.patch(f"{C}/messages/{mid}", json={"body": "hello"}, headers=HDR)
+    assert r.json()["body"] == "hello" and r.json()["edited_at"]
+    assert (await client.delete(f"{C}/messages/{mid}", headers=HDR)).status_code == 204
+    assert (await client.delete(f"{C}/messages/{mid}", headers=HDR)).status_code == 204  # twice is fine
+    msg = (await client.get(f"{C}/channels/{cid}/messages")).json()["messages"][0]
+    assert msg["deleted"] is True and msg["body"] == ""
+    r = await client.patch(f"{C}/messages/{mid}", json={"body": "back"}, headers=HDR)
+    assert r.status_code == 409 and r.json()["code"] == "deleted"
+
+
+async def test_unread_counts_go_up_and_down(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await client.post(f"{C}/dm/{ids['ravi']}", headers=HDR)).json()["id"]
+    sent = [(await _send(client, cid, f"m{i}")).json()["id"] for i in range(3)]
+    assert await _unread(client, cid) == 0  # my own messages are never unread
+
+    await login(client, "ravi@kjsindia.com")
+    assert await _unread(client, cid) == 3
+    assert (await client.get(f"{C}/unread")).json() == {"total": 3}
+    await client.post(f"{C}/channels/{cid}/read", json={"message_id": sent[0]}, headers=HDR)
+    assert await _unread(client, cid) == 2
+    await client.post(f"{C}/channels/{cid}/read", json={"message_id": 0}, headers=HDR)  # never backwards
+    assert await _unread(client, cid) == 2
+    await client.post(f"{C}/channels/{cid}/read", json={"message_id": 999999}, headers=HDR)  # capped at newest
+    assert await _unread(client, cid) == 0
+
+    await login(client, "asha@kjsindia.com")
+    m = (await _send(client, cid, "one more")).json()["id"]
+    await client.delete(f"{C}/messages/{m}", headers=HDR)
+    await _send(client, cid, "last one")
+    await login(client, "ravi@kjsindia.com")
+    assert await _unread(client, cid) == 1  # the deleted one doesn't count
+    await client.post(f"{C}/channels/{cid}/read", headers=HDR)
+    assert (await client.get(f"{C}/unread")).json() == {"total": 0}
+
+
+async def test_chat_list_order(client):
+    ids = await _team("asha", "ravi", "meena")
+    await login(client, "asha@kjsindia.com")
+    await _channel(client, name="zeta")
+    await _channel(client, name="alpha")
+    dm_ravi = (await client.post(f"{C}/dm/{ids['ravi']}", headers=HDR)).json()["id"]
+    dm_meena = (await client.post(f"{C}/dm/{ids['meena']}", headers=HDR)).json()["id"]
+    await _send(client, dm_meena, "first")
+    await _send(client, dm_ravi, "newer")
+    assert [c["title"] for c in (await client.get(f"{C}/channels")).json()] == ["alpha", "zeta", "ravi", "meena"]
+
+
+async def test_mentions_notify_members_only(client):
+    ids = await _team("asha", "ravi", "meena", "outsider")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, name="sales", member_ids=[ids["ravi"], ids["meena"]]))["id"]
+    r = await _send(client, cid, "@ravi please check", mention_ids=[ids["ravi"], ids["outsider"], ids["asha"]])
+    assert r.json()["mentions"] == [ids["ravi"]]  # outsider (not in the chat) and I are dropped
+    mid = r.json()["id"]
+
+    await login(client, "ravi@kjsindia.com")
+    bell = await _bell(client)
+    assert bell["unread"] == 1 and bell["items"][0]["title"] == "asha mentioned you in #sales"
+    assert bell["items"][0]["link"] == f"/employee/chat?c={cid}"
+    await login(client, "outsider@kjsindia.com")
+    assert (await _bell(client))["unread"] == 0
+
+    # an edit notifies only the newly mentioned
+    await login(client, "asha@kjsindia.com")
+    body = {"body": "@ravi @meena please check", "mention_ids": [ids["ravi"], ids["meena"]]}
+    await client.patch(f"{C}/messages/{mid}", json=body, headers=HDR)
+    await login(client, "ravi@kjsindia.com")
+    assert (await _bell(client))["unread"] == 1
+    await login(client, "meena@kjsindia.com")
+    assert (await _bell(client))["unread"] == 1
+
+
+async def test_sending_is_rate_limited_per_person(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await client.post(f"{C}/dm/{ids['ravi']}", headers=HDR)).json()["id"]
+    for i in range(30):
+        assert (await _send(client, cid, f"m{i}")).status_code == 201
+    r = await _send(client, cid, "one too many")
+    assert r.status_code == 429 and r.json()["code"] == "too_many"
+    await login(client, "ravi@kjsindia.com")  # someone else isn't affected
+    assert (await _send(client, cid, "hi")).status_code == 201
