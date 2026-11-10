@@ -40,7 +40,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title="Settings" sub="To change a value, edit the file shown (on the server) and save. It applies within a few seconds, no restart.">
+      <PageTitle title="Manage settings" sub="To change a value, edit the file shown (on the server) and save. It applies within a few seconds, no restart.">
         <div className="flex gap-2">
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search, e.g. sla" className="input w-48" />
           <button onClick={reload} className="btn-ghost">Re-read files now</button>

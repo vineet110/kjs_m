@@ -26,7 +26,7 @@ export default function AdminBoards() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title="Order boards" sub="Steps are planned on working days (Mon–Sat minus holidays). Alerts at 50, 85 and 100% of a step's time. You own the boards you create.">
+      <PageTitle title="All order boards" sub="Steps are planned on working days (Mon–Sat minus holidays). Alerts at 50, 85 and 100% of a step's time. You own the boards you create.">
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Show finished</label>
           <button onClick={() => setCreating(!creating)} className="btn-dark">{creating ? 'Close form' : 'New board'}</button>

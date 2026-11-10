@@ -55,7 +55,7 @@ export default function Analytics() {
 
   return (
     <div className="space-y-8">
-      <PageTitle title="Analytics" sub="Live numbers from the database. Hover a bar for its value." />
+      <PageTitle title="Reports" sub="Live numbers from the database. Hover a bar for its value." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.label} className="card p-4">

@@ -7,7 +7,7 @@ export default function KokoLeadsPage() {
   const { rows, reload, error } = useSourceLeads('koko');
   return (
     <div className="space-y-5">
-      <PageTitle title="Koko Lead" sub="Visitors who left their details while chatting with Koko. Open one to read the chat summary." />
+      <PageTitle title="Koko chat leads" sub="Visitors who left their details while chatting with Koko. Open one to read the chat summary." />
       <LeadSourceList rows={rows} error={error} onRetry={reload} empty={{ title: 'No Koko leads yet', text: 'They appear here when a visitor shares their details in the Koko chat.' }} />
     </div>
   );

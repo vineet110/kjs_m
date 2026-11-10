@@ -50,7 +50,7 @@ export default function Approvals() {
 
   return (
     <div className="space-y-8">
-      <PageTitle title="Approvals" sub={count ? `${count} waiting for you.` : 'Nothing is waiting. All clear.'} />
+      <PageTitle title="All approvals" sub={count ? `${count} waiting for you.` : 'Nothing is waiting. All clear.'} />
       {err && <p className="text-sm text-red-700">{err}</p>}
 
       {inbox.signups !== null && (

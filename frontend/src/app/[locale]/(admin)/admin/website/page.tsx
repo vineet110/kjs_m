@@ -23,7 +23,7 @@ export default function WebsiteAdmin() {
   const tabs = [...(canEdit ? (['texts', 'offers'] as const) : []), ...(me.permissions.includes('leads.view_all') ? (['partners'] as const) : [])];
   return (
     <div className="space-y-6">
-      <PageTitle title="Website" sub="Changes show on the website within a minute." />
+      <PageTitle title="SEO & Partners" sub="Changes show on the website within a minute." />
       <div className="flex gap-2 text-sm">
         {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? 'bg-ink text-white' : 'bg-white ring-1 ring-slate-200'}`}>

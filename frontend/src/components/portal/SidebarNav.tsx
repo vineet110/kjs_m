@@ -24,27 +24,29 @@ const NAV: NavGroup[] = [
   {
     group: 'My work',
     items: [
-      { href: '/employee/dashboard', label: 'My day', icon: 'sun', perm: null },
+      { href: '/employee/dashboard', label: 'Today', icon: 'sun', perm: null },
       { href: '/employee/chat', label: 'Chat', icon: 'chat', perm: null, badge: 'chat' },
-      { href: '/employee/attendance', label: 'Attendance', icon: 'clock', perm: null },
+      { href: '/employee/attendance', label: 'My attendance', icon: 'clock', perm: null },
       { href: '/employee/batches', label: 'My batches', icon: 'layers', perm: null },
-      { href: '/employee/order-boards', label: 'Order boards', icon: 'board', perm: null },
+      { href: '/employee/order-boards', label: 'My order boards', icon: 'board', perm: null },
       { href: '/employee/me', label: 'Profile', icon: 'user', perm: null },
     ],
   },
   {
-    // Same pages for admin and staff: leads.view_all sees everyone's leads, others their own + unassigned
+    // Same pages for admin and staff: leads.view_all sees everyone's leads, others their own + unassigned.
+    // Leads = one row per person who enquired; All Enquiries (admin only) = one row per enquiry, with owner + SLA.
     group: 'Lead Management',
     items: [
-      { href: '/employee/contacts', label: 'Contacts', icon: 'contact', perm: 'leads.view' },
-      { href: '/employee/tasks', label: 'Tasks', icon: 'tasks', perm: null },
-      { href: '/employee/koko-leads', label: 'Koko Lead', icon: 'chat', perm: 'leads.view' },
-      { href: '/employee/internal-leads', label: 'Internal lead', icon: 'userPlus', perm: 'leads.view' },
+      { href: '/employee/contacts', label: 'Leads', icon: 'contact', perm: 'leads.view' },
+      { href: '/admin/leads', label: 'All Enquiries', icon: 'inbox', perm: 'leads.view_all' },
+      { href: '/employee/tasks', label: 'My tasks', icon: 'tasks', perm: null },
+      { href: '/employee/koko-leads', label: 'Koko chat leads', icon: 'chat', perm: 'leads.view' },
+      { href: '/employee/internal-leads', label: 'Internal leads', icon: 'userPlus', perm: 'leads.view' },
     ],
   },
   {
-    group: 'Admin',
-    items: [{ href: '/admin/dashboard', label: 'Overview', icon: 'home', perm: 'staff.approve' }],
+    group: 'Dashboard',
+    items: [{ href: '/admin/dashboard', label: 'Admin overview', icon: 'home', perm: 'staff.approve' }],
   },
   {
     group: 'Employees',
@@ -56,11 +58,10 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    group: 'Sales',
+    group: 'Order Boards & Assigning',
     items: [
-      { href: '/admin/leads', label: 'All leads', icon: 'inbox', perm: 'leads.view_all' },
       { href: '/admin/order-boards', label: 'All order boards', icon: 'board', perm: 'boards.manage' },
-      { href: '/admin/auto-assign', label: 'Auto-assign', icon: 'shuffle', perm: 'assign.manage' },
+      { href: '/admin/auto-assign', label: 'Lead auto-assign', icon: 'shuffle', perm: 'assign.manage' },
       { href: '/admin/client-schedulers', label: 'Client Schedulers', icon: 'layers', perm: 'assign.manage' },
     ],
   },
@@ -73,12 +74,12 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    group: 'System',
+    group: 'Reports & settings',
     items: [
-      { href: '/admin/analytics', label: 'Analytics', icon: 'chart', perm: 'staff.approve' },
+      { href: '/admin/analytics', label: 'Reports', icon: 'chart', perm: 'staff.approve' },
       { href: '/admin/alerts', label: 'Alerts', icon: 'bell', perm: 'staff.approve' },
-      { href: '/admin/audit', label: 'Audit log', icon: 'file', perm: 'audit.view' },
-      { href: '/admin/settings', label: 'Settings', icon: 'settings', perm: 'staff.approve' },
+      { href: '/admin/audit', label: 'Activity log', icon: 'file', perm: 'audit.view' },
+      { href: '/admin/settings', label: 'Manage settings', icon: 'settings', perm: 'staff.approve' },
     ],
   },
 ];

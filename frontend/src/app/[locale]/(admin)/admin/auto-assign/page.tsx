@@ -87,7 +87,7 @@ export default function AutoAssign() {
   return (
     <div className="space-y-6">
       <PageTitle
-        title="Auto-assign"
+        title="Lead auto-assign"
         sub={`Batches of ${s.batch_size} records, max ${s.max_batches_per_day} per person per day, ${s.work_start}–${s.work_end} IST. Only to people who are checked in, receiving tasks, and have categories. (Edit config/assign.ini to change.)`}
       >
         <div className="flex gap-2">

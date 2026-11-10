@@ -14,7 +14,7 @@ export default function InternalLeadsPage() {
   const [adding, setAdding] = useState(false);
   return (
     <div className="space-y-5">
-      <PageTitle title="Internal lead" sub="Leads you met outside the website: a call, a fair, a walk-in.">
+      <PageTitle title="Internal leads" sub="Leads you met outside the website: a call, a fair, a walk-in.">
         <button type="button" onClick={() => setAdding(!adding)} className="btn-dark">{adding ? 'Close' : '+ Add lead'}</button>
       </PageTitle>
       {adding && <AddLead />}

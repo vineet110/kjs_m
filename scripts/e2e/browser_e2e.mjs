@@ -251,10 +251,10 @@ const PORTAL = {
   '/employee/dashboard': 'My leads', '/employee/attendance': 'Total Hours', '/employee/tasks': 'Add task',
   '/employee/batches': 'My batches', '/employee/order-boards': 'My order boards', '/employee/order-boards/E2E117-1': 'Files',
   '/employee/contacts': 'Kiran Rao', '/employee/internal-leads': 'Kiran Rao', '/employee/koko-leads': 'Koko',
-  '/employee/me': 'Change password', '/admin/dashboard': 'Live numbers', '/admin/users': 'Gita', '/admin/leads': 'All leads', '/admin/approvals': 'Approvals',
-  '/admin/team-attendance': 'Team attendance', '/admin/order-boards': 'New board', '/admin/order-boards/E2E117-1': 'Packing',
+  '/employee/me': 'Change password', '/admin/dashboard': 'Live numbers', '/admin/users': 'Gita', '/admin/leads': 'All Enquiries', '/admin/approvals': 'All approvals',
+  '/admin/team-attendance': 'Roster', '/admin/order-boards': 'New board', '/admin/order-boards/E2E117-1': 'Packing',
   '/admin/auto-assign': 'Import buyer records', '/admin/products': 'Add a product', '/admin/website': 'Text & SEO', '/admin/koko': 'Recent chats',
-  '/admin/holidays': 'Diwali', '/admin/analytics': 'New leads per week', '/admin/alerts': 'Alerts sent', '/admin/audit': 'Audit',
+  '/admin/holidays': 'Diwali', '/admin/analytics': 'New leads per week', '/admin/alerts': 'Alerts sent', '/admin/audit': 'Activity log',
   '/admin/settings': 'respond_minutes',
 };
 for (const [path, needle] of Object.entries(PORTAL)) {

@@ -114,7 +114,7 @@ export default function TeamAttendance() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title="Team Attendance" sub="Monitor daily roster, approve leaves & missed punches, export reports.">
+      <PageTitle title="Attendance" sub="Monitor daily roster, approve leaves & missed punches, export reports.">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowExportModal(true)}

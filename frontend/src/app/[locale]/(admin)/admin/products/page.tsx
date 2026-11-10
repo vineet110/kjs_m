@@ -89,7 +89,7 @@ export default function AdminProducts() {
   const e = editing;
   return (
     <div className="space-y-6">
-      <PageTitle title="Products" sub="Changes show on the website within a minute." />
+      <PageTitle title="All Products" sub="Changes show on the website within a minute." />
       <form key={e?.id ?? 'new'} onSubmit={save} className="card grid gap-3 p-5 md:grid-cols-2">
         <h2 className="font-semibold md:col-span-2">{e ? `Edit: ${e.name}` : 'Add a product'}</h2>
         <div><label className="label">Category</label>
