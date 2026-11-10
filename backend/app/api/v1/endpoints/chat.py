@@ -12,11 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import current_user, origin_allowed, ws_user
+from app.core.modules import visible_by_id
 from app.models.user import User
 from app.services import chat_hub, chat_service
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+# The live connection, on its own router: the "chat" area switch (config/modules.ini) is a route
+# dependency that needs a Request, which a WebSocket isn't, so chat_socket checks the area itself.
+ws_router = APIRouter()
 
 
 class ChannelIn(BaseModel):
@@ -126,7 +130,7 @@ async def mark_read(channel_id: int, data: ReadIn | None = None, user: User = De
 
 
 # ---------- Live push (day 3) ----------
-@router.websocket("/ws")
+@ws_router.websocket("/ws")
 async def chat_socket(websocket: WebSocket):
     """One per open tab. Only pushes events (see chat_hub.py); sending uses the normal POST routes.
     1. Wrong Origin (another website): refused before it opens (the browser sees 403).
@@ -146,6 +150,9 @@ async def chat_socket(websocket: WebSocket):
     if user_id is None:
         await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
         return
+    if not await visible_by_id(user_id, "chat"):  # Chat switched off for this person (config/modules.ini)
+        await websocket.close(code=chat_hub.CLOSE_MODULE_OFF)
+        return
 
     chat_hub.hub.add(user_id, websocket)
     try:
@@ -157,6 +164,9 @@ async def chat_socket(websocket: WebSocket):
             if left <= 0:
                 if await ws_user(token) != user_id:
                     await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
+                    return
+                if not await visible_by_id(user_id, "chat"):  # switched off while open
+                    await websocket.close(code=chat_hub.CLOSE_MODULE_OFF)
                     return
                 await websocket.send_json({"type": "ping"})
                 next_check = time.monotonic() + chat_hub.PING_SECONDS

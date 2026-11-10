@@ -87,8 +87,8 @@ async def request_delete(file_id: int, data: DeleteRequestIn, user: User = Depen
 
 
 @router.get("/delete-requests")
-async def delete_requests(_: User = Depends(require_permission("files.approve")), db: AsyncSession = Depends(get_db)):
-    return await file_service.delete_requests(db)
+async def delete_requests(user: User = Depends(require_permission("files.approve")), db: AsyncSession = Depends(get_db)):
+    return await file_service.delete_requests(db, user)
 
 
 class DecideIn(BaseModel):

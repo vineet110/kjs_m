@@ -759,7 +759,7 @@ async def history(db: AsyncSession, user: User, code: str, before_id: int | None
 
 
 # ---------- Alerts job ----------
-@job("board_alerts")
+@job("board_alerts", module="order_boards")
 async def board_alerts(db: AsyncSession, today: date | None = None) -> dict:
     today = today or local_day(datetime.now(timezone.utc))
     holidays = await holiday_set(db, today.year - 1, today.year + 1)

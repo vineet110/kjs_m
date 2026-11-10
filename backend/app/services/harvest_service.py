@@ -380,7 +380,7 @@ async def run_harvest_source(db: AsyncSession, source_id: int) -> HarvestRun:
     return run
 
 
-@job("lead_harvester", any_time=False)
+@job("lead_harvester", any_time=False, module="lead_harvester")
 async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
     """Background job: checks active harvest sources whose schedule is due and runs them."""
     now = datetime.now(timezone.utc)

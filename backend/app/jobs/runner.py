@@ -25,11 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.ini import cfg
 from app.core.database import AsyncSessionLocal
 from app.core.logs import request_id_var
+from app.core.modules import running
 
 log = logging.getLogger("app.jobs")
 JobFn = Callable[[AsyncSession], Awaitable[dict | None]]
 JOBS: dict[str, JobFn] = {}
 ANY_TIME: set[str] = set()  # jobs that also run outside jobs_hours (e.g. emails)
+JOB_MODULE: dict[str, str] = {}  # job -> portal area (config/modules.ini)
 JOB_TIMEOUT_SECONDS = 300  # a stuck job is cancelled, so it can't block every other job forever
 last_tick: float | None = None  # time.monotonic() of the last finished loop round (health check)
 
@@ -42,13 +44,22 @@ def loop_is_alive() -> bool:
     return time.monotonic() - last_tick < allowed
 
 
-def job(name: str, any_time: bool = False):
+def job(name: str, any_time: bool = False, module: str | None = None):
+    """module: the portal area the job belongs to (config/modules.ini); skipped while it is `off`."""
     def register(fn: JobFn) -> JobFn:
         JOBS[name] = fn
         if any_time:
             ANY_TIME.add(name)
+        if module:
+            JOB_MODULE[name] = module
         return fn
     return register
+
+
+def should_run(name: str, working: bool) -> bool:
+    """Run on this tick? Inside job hours (or an any-time job), and its portal area not switched off."""
+    area = JOB_MODULE.get(name)
+    return (working or name in ANY_TIME) and (area is None or running(area))
 
 
 def in_job_hours(now: datetime | None = None) -> bool:
@@ -92,7 +103,7 @@ async def loop() -> None:
             if cfg().app.jobs_enabled:
                 working = in_job_hours()
                 for name in list(JOBS):
-                    if working or name in ANY_TIME:
+                    if should_run(name, working):
                         await run_job(name)
             interval = cfg().app.jobs_interval_seconds
         except Exception:  # CancelledError is not an Exception, so shutdown still stops the loop

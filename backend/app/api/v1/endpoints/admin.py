@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.ini import cfg, effective_with_sources, reload_now
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
+from app.core.modules import area, visible
 from app.core.permissions import PERMISSIONS, effective_permissions
 from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
@@ -24,8 +25,9 @@ router = APIRouter()
 
 
 @router.get("/stats")
-async def stats(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+async def stats(user: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
     users = dict((await db.execute(select(User.status, func.count()).group_by(User.status))).all())
+    shop = visible(user, "website_admin")  # null = that area is hidden (config/modules.ini)
     leads = await lead_service.counts(db)
     this_week, last_week = await lead_service.weekly_counts(db)
     return {
@@ -35,8 +37,10 @@ async def stats(_: User = Depends(require_permission("staff.approve")), db: Asyn
         "leads_last_week": last_week,
         "staff_pending": users.get("pending", 0),
         "staff_active": users.get("active", 0),
-        "products": await db.scalar(select(func.count()).select_from(Product).where(Product.is_active)),
-        "categories": await db.scalar(select(func.count()).select_from(Category).where(Category.is_active)),
+        "products": await db.scalar(select(func.count()).select_from(Product).where(Product.is_active))
+        if shop else None,
+        "categories": await db.scalar(select(func.count()).select_from(Category).where(Category.is_active))
+        if shop else None,
     }
 
 
@@ -90,7 +94,7 @@ async def set_user_status(
     return await auth_service.set_status(db, admin, user_id, data.status)
 
 
-@router.post("/products", response_model=ProductOut, status_code=201)
+@router.post("/products", response_model=ProductOut, status_code=201, dependencies=area("website_admin"))
 async def create_product(
     data: ProductIn,
     user: User = Depends(require_permission("catalog.edit")),
@@ -99,12 +103,12 @@ async def create_product(
     return await catalog_service.create_product(db, user, data)
 
 
-@router.get("/products", response_model=list[ProductOut])
+@router.get("/products", response_model=list[ProductOut], dependencies=area("website_admin"))
 async def all_products(_: User = Depends(require_permission("catalog.edit")), db: AsyncSession = Depends(get_db)):
     return await catalog_service.list_products(db, include_hidden=True)
 
 
-@router.patch("/products/{product_id}", response_model=ProductOut)
+@router.patch("/products/{product_id}", response_model=ProductOut, dependencies=area("website_admin"))
 async def update_product(
     product_id: int, data: ProductPatchIn,
     user: User = Depends(require_permission("catalog.edit")),
@@ -150,22 +154,29 @@ async def approvals(user: User = Depends(current_user), db: AsyncSession = Depen
     return {
         "signups": [UserOut.model_validate(u).model_dump() for u in signups] if signups is not None else None,
         "regularizations": await attendance_service.list_regularizations(db, status="pending")
-        if "attendance.manage" in perms else None,
-        "file_deletes": await file_service.delete_requests(db) if "files.approve" in perms else None,
+        if "attendance.manage" in perms and visible(user, "attendance") else None,
+        "file_deletes": await file_service.delete_requests(db, user) if "files.approve" in perms else None,
     }
 
 
-@router.get("/analytics")
-async def analytics(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
-    return await analytics_service.summary(db)
+@router.get("/analytics", dependencies=area("analytics"))
+async def analytics(user: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+    out = await analytics_service.summary(db)
+    # Sections of hidden areas are null (config/modules.ini)
+    if not visible(user, "attendance"):
+        out["attendance"] = None
+    if not visible(user, "order_boards"):
+        out["boards"] = None
+    return out
 
 
-@router.get("/alerts")
-async def alerts(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+@router.get("/alerts", dependencies=area("alerts"))
+async def alerts(user: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
     c = cfg()
     return {"rules": {"board_thresholds": c.alerts.thresholds, "channels": c.alerts.channels,
                       "sla": c.sla.model_dump()},
-            "log": await analytics_service.alert_log(db)}
+            "log": [a for a in await analytics_service.alert_log(db)
+                    if a["kind"] != "board.alert" or visible(user, "order_boards")]}
 
 
 @router.get("/config")
@@ -195,7 +206,7 @@ class AuditOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-@router.get("/audit", response_model=list[AuditOut])
+@router.get("/audit", response_model=list[AuditOut], dependencies=area("audit"))
 async def audit(
     limit: int = Query(100, ge=1, le=500),
     _: User = Depends(require_permission("audit.view")),
@@ -216,16 +227,16 @@ class HolidayOut(HolidayIn):
     model_config = {"from_attributes": True}
 
 
-@router.get("/holidays", response_model=list[HolidayOut])
+@router.get("/holidays", response_model=list[HolidayOut], dependencies=area("attendance"))
 async def holidays(year: int, _: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.list_holidays(db, year)
 
 
-@router.post("/holidays", response_model=HolidayOut, status_code=201)
+@router.post("/holidays", response_model=HolidayOut, status_code=201, dependencies=area("attendance"))
 async def add_holiday(data: HolidayIn, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.add_holiday(db, user, data.day, data.name)
 
 
-@router.delete("/holidays/{holiday_id}", status_code=204)
+@router.delete("/holidays/{holiday_id}", status_code=204, dependencies=area("attendance"))
 async def remove_holiday(holiday_id: int, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     await calendar_service.remove_holiday(db, user, holiday_id)

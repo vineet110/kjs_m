@@ -30,6 +30,7 @@ SEND_TIMEOUT = 5.0  # a stuck browser must not hold up the person who sent the m
 CLOSE_TIMEOUT = 2.0  # closing a dead connection must not hang either
 CLOSE_LOGGED_OUT = 4401  # our own close code: "log in again", the browser must not just reconnect
 CLOSE_TRY_AGAIN = 1013  # standard "try again later": the browser reconnects and catches up
+CLOSE_MODULE_OFF = 4404  # Chat is switched off for this person (config/modules.ini)
 
 
 class Hub:

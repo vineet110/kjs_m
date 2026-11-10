@@ -23,7 +23,7 @@ from typing import Callable, Literal
 
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 log = logging.getLogger("app.config")
 
@@ -120,6 +120,43 @@ class StorageIni(BaseModel):
         "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip"])
 
 
+MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
+ModuleLevel = Literal["on", "admin", "off"]
+# area -> areas it needs, switched on at least as far (batches go only to staff who checked in)
+MODULE_NEEDS = {"batches": ("attendance",)}
+
+
+class ModulesIni(BaseModel):
+    """Portal areas released in phases. Leads, tasks, My day, profile, approvals, users and settings
+    have no switch: they are always on."""
+    model_config = ConfigDict(extra="forbid")  # a misspelt area is refused, never silently ignored
+
+    batches: ModuleLevel = "on"  # My batches, Auto-assign
+    order_boards: ModuleLevel = "on"  # order boards (employee + admin), their files and alerts
+    attendance: ModuleLevel = "on"  # attendance, team attendance, holidays, leave, shifts, availability
+    website_admin: ModuleLevel = "on"  # All Products, SEO & Partners, Manage KOKO
+    analytics: ModuleLevel = "on"
+    alerts: ModuleLevel = "on"
+    audit: ModuleLevel = "on"
+    chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
+    lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def lower(cls, v):
+        return v.strip().lower() if isinstance(v, str) else v  # "On" and " on" are fine
+
+    @model_validator(mode="after")
+    def needs(self):
+        for area, needed in MODULE_NEEDS.items():
+            for other in needed:
+                mine, theirs = getattr(self, area), getattr(self, other)
+                if MODULE_LEVELS[mine] > MODULE_LEVELS[theirs]:
+                    raise ValueError(f"{area} = {mine} needs {other} switched on at least as far, "
+                                     f"but {other} = {theirs}")
+        return self
+
+
 class Config(BaseModel):
     app: AppIni = AppIni()
     features: FeaturesIni = FeaturesIni()
@@ -129,6 +166,7 @@ class Config(BaseModel):
     koko: KokoIni = KokoIni()
     logging: LoggingIni = LoggingIni()
     storage: StorageIni = StorageIni()
+    modules: ModulesIni = ModulesIni()
 
 
 # file name -> section it fills
@@ -175,8 +213,10 @@ def _validate(raw: dict) -> Config:
         return Config.model_validate(raw)
     except ValidationError as e:
         first = e.errors()[0]
-        section, key = (list(first["loc"]) + ["?", "?"])[:2]
-        raise ValueError(f"config/{FILES.get(section, section)}: '{key}' {first['msg']}") from e
+        loc = list(first["loc"])
+        section = loc[0] if loc else "?"
+        where = f" '{loc[1]}'" if len(loc) > 1 else ""  # a rule between two keys has no single key
+        raise ValueError(f"config/{FILES.get(section, section)}:{where} {first['msg']}") from e
 
 
 def _flatten(c: Config) -> dict[str, object]:

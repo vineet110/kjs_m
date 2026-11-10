@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import current_user, visitor_keys
+from app.core.modules import visible_to
 from app.core.permissions import effective_permissions
 from app.core.security import hash_token
 from app.models.user import User
@@ -17,7 +18,8 @@ router = APIRouter()
 
 def _me(user: User) -> MeOut:
     return MeOut(id=user.id, name=user.name, email=user.email, role=user.role,
-                 permissions=sorted(effective_permissions(user.role, user.permissions)))
+                 permissions=sorted(effective_permissions(user.role, user.permissions)),
+                 modules=visible_to(user))
 
 
 @router.post("/signup", status_code=201)
