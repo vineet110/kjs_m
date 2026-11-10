@@ -8,6 +8,9 @@ import { approvalsChanged } from '@/lib/portal-session';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
+// Clearer words for some roster states (the colour still comes from the state). Others show as they are.
+const ROSTER_LABEL: Record<string, string> = { upcoming: 'Yet to check in', leave: 'On leave' };
+
 type Row = { user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number };
 
 export default function TeamAttendance() {
@@ -194,7 +197,7 @@ export default function TeamAttendance() {
         <div className="flex flex-wrap gap-2 text-sm">
           {Object.entries(counts).map(([k, v]) => (
             <span key={k} className="flex items-center gap-1.5 rounded-md bg-white px-2 py-1 border border-slate-200">
-              <Pill value={k} /> <span className="font-bold text-xs">{v}</span>
+              <Pill value={k} label={ROSTER_LABEL[k]} /> <span className="font-bold text-xs">{v}</span>
             </span>
           ))}
         </div>
@@ -215,7 +218,7 @@ export default function TeamAttendance() {
               {rows?.map((r) => (
                 <tr key={r.user_id} className="border-t hover:bg-slate-50/50">
                   <td className="p-3 font-medium text-slate-800">{r.name}</td>
-                  <td className="p-3"><Pill value={r.state} /></td>
+                  <td className="p-3"><Pill value={r.state} label={ROSTER_LABEL[r.state]} /></td>
                   <td className="p-3 font-mono">{r.check_in ?? '—'}</td>
                   <td className="p-3 font-mono">{r.check_out ?? '—'}</td>
                   <td className="p-3 font-semibold">{r.hours > 0 ? `${r.hours} h` : '—'}</td>
