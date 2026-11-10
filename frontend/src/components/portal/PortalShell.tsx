@@ -3,9 +3,11 @@
 // filtered by permissions (hidden until the ☰ button slides it in), and sends people to login when
 // their session has ended.
 import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, type Me } from '@/lib/api';
+import { areaOfPath, canSee, onModuleOff } from '@/lib/modules';
 import { accountEpoch, forgetAccount, rememberAccount, rememberedAccount } from '@/lib/portal-session';
 import AccountMenu, { Avatar, LogoutDialog, LogoutIcon, RoleBadge } from './AccountMenu';
 import Bell from './Bell';
@@ -97,6 +99,9 @@ export default function PortalShell({ children, requirePerm }: { children: React
   useEffect(() => {
     loadMe();
   }, [loadMe]);
+  // The server said an area is switched off (it changed while this tab was open): ask "who am I" again, so the
+  // sidebar drops it and its pages show "Not available yet"
+  useEffect(() => onModuleOff(loadMe), [loadMe]);
   // Frame gone (left the portal): answers still on their way are ignored
   useEffect(() => () => void latest.current++, []);
 
@@ -178,7 +183,9 @@ export default function PortalShell({ children, requirePerm }: { children: React
       </div>
     );
   const me = status.me;
-  const isAttendance = pathname.includes('/employee/attendance');
+  // A page of a portal area switched off for this person (config/modules.ini): "Not available yet" instead
+  const hidden = !canSee(me, areaOfPath(pathname));
+  const isAttendance = !hidden && pathname.includes('/employee/attendance');
 
   // Sidebar: always on the page, slid out of view when closed (a smooth slide both ways; none for "reduce
   // motion"). Closed, it is `inert`: its links can't be reached with Tab or a screen reader. On a computer the
@@ -256,7 +263,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
             </div>
           ) : (
             <div key={pathname} className="mx-auto max-w-6xl p-4 animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none md:p-8">
-              {children}
+              {hidden ? <NotAvailable /> : children}
             </div>
           )}
         </div>
@@ -265,6 +272,19 @@ export default function PortalShell({ children, requirePerm }: { children: React
       </div>
       </ToastProvider>
     </MeContext.Provider>
+  );
+}
+
+/** A page of a portal area that isn't released for this person yet (config/modules.ini). */
+function NotAvailable() {
+  return (
+    <div className="space-y-3">
+      <h1 className="text-2xl font-bold">Not available yet</h1>
+      <div className="card p-6 text-sm text-slate-600">
+        <p>This part of the portal isn&apos;t switched on yet. It will appear in the menu when it is.</p>
+        <Link href="/employee/dashboard" className="btn-dark mt-4 inline-flex">Go to My day</Link>
+      </div>
+    </div>
   );
 }
 

@@ -29,12 +29,14 @@ export type LeadNote = { id: number; kind: string; text: string; user_name: stri
 export type Colleague = { id: number; name: string };
 export type Notice = { id: number; kind: string; title: string; body: string; link: string; read: boolean; created_at: string };
 
-export type Me = { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[] };
+/** `modules`: portal area -> can this person use it (config/modules.ini, see lib/modules.ts). */
+export type Me = { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[]; modules?: Record<string, boolean> };
 
 export type ApiError = { code: string; message: string; details: Record<string, unknown>; request_id: string | null };
 
 import { cache } from 'react';
 import { log, newRequestId } from './logger';
+import { moduleOff } from './modules';
 
 // ---------- Server side (server components): talk to FastAPI directly ----------
 const INTERNAL = process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000';
@@ -101,6 +103,7 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
     data = {};
   }
   if (!res.ok) {
+    if (res.status === 404 && data.code === 'module_off') moduleOff(); // the portal frame shows "Not available yet"
     throw new ApiFailure(res.status, {
       code: data.code || 'error',
       message: data.message || fallback,

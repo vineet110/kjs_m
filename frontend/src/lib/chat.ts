@@ -125,9 +125,14 @@ export const chatUnreadChanged = () => window.dispatchEvent(new Event(CHANGED));
 
 /** Total unread chat messages (muted chats don't count). Asked on each page change, every minute, and
  *  right after chatUnreadChanged(). Only the newest answer counts. */
-export function useChatUnread(pathname: string): number {
+export function useChatUnread(pathname: string, enabled = true): number {
   const [n, setN] = useState(0);
   useEffect(() => {
+    // Chat switched off for this person (config/modules.ini): don't ask, show no count
+    if (!enabled) {
+      setN(0);
+      return;
+    }
     let latest = 0;
     const ask = () => {
       const mine = ++latest;
@@ -143,6 +148,6 @@ export function useChatUnread(pathname: string): number {
       clearInterval(t);
       window.removeEventListener(CHANGED, ask);
     };
-  }, [pathname]);
+  }, [pathname, enabled]);
   return n;
 }

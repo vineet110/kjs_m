@@ -9,12 +9,14 @@ import { useToast } from '@/components/portal/Toast';
 import { EmptyState } from '@/components/portal/ui';
 import { Icon, type IconName } from '@/components/portal/icons';
 import { api, ApiFailure } from '@/lib/api';
+import { canSee } from '@/lib/modules';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
 type Stats = {
   leads_total: number; leads_new: number; leads_this_week: number; leads_last_week: number;
-  staff_pending: number; staff_active: number; products: number; categories: number;
+  // null: All Products is switched off (config/modules.ini)
+  staff_pending: number; staff_active: number; products: number | null; categories: number | null;
 };
 
 /** "Good morning" / "Good afternoon" / "Good evening" by the time in India (where the team works). */
@@ -71,7 +73,7 @@ export default function AdminDashboard() {
   const actions: { label: string; href: string; icon: IconName; show: boolean }[] = [
     { label: 'Approve staff', href: '#approvals', icon: 'check', show: stats.staff_pending > 0 },
     { label: 'View new leads', href: leadsHref, icon: 'inbox', show: true },
-    { label: 'Add product', href: '/admin/products', icon: 'plus', show: can('catalog.edit') },
+    { label: 'Add product', href: '/admin/products', icon: 'plus', show: can('catalog.edit') && canSee(me, 'website_admin') },
   ];
 
   return (
@@ -112,8 +114,10 @@ export default function AdminDashboard() {
         <StatTile label="Waiting for approval" value={stats.staff_pending} icon="clock" tone="gold" href="#approvals"
           alert={stats.staff_pending > 0} hint={stats.staff_pending ? 'New staff sign-ups' : 'No one waiting'} />
         <StatTile label="Active staff" value={stats.staff_active} icon="users" tone="green" href="#staff" hint="Approved accounts" />
-        <StatTile label="Products" value={stats.products} icon="box" tone="gold" href="/admin/products"
-          hint={plural(stats.categories, 'category', 'categories')} />
+        {stats.products !== null && (
+          <StatTile label="Products" value={stats.products} icon="box" tone="gold" href="/admin/products"
+            hint={plural(stats.categories ?? 0, 'category', 'categories')} />
+        )}
       </div>
 
       <section id="approvals" className="scroll-mt-6 space-y-3">
