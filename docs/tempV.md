@@ -213,5 +213,23 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
       Checked: the server stopped in 0.2 s with a chat open.
    2. A disabled person is NOT removed from their chats (that would break their DMs and lose them if
       they're turned back on). Their live tabs are closed and they can't log in; that's enough.
-9. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+9. Day 4 done (10 Nov): the chat page.
+   1. Page `frontend/src/app/[locale]/(employee)/employee/chat/page.tsx`; parts in
+      `frontend/src/components/portal/chat/` (`ChatList`, `MessagePane`, `NewChat`); types, the live
+      connection hook `useChatSocket` and the sidebar count `useChatUnread` in `frontend/src/lib/chat.ts`.
+   2. Sidebar: "Chat" under My work, with the unread total (asked on each page change, every minute, and
+      at once after reading).
+   3. What it does: "+" for a DM, group chat or channel; live messages; unread badges; date dividers;
+      scroll up for older; Enter sends, Shift+Enter new line; @ picker; edit and delete your own;
+      People panel (add, remove, leave, archive); archived chats read-only; phone layout with a back
+      button; "Reconnecting…" bar; catches up after a dropped connection.
+   4. The message box empties at once on Enter (you can type the next one); if sending fails the text
+      comes back. Found by the browser test: before, the box was locked while sending.
+   5. Live address: `NEXT_PUBLIC_CHAT_WS_URL` if set; `next dev` uses port 8000; a production build uses its
+      own site. Documented in `.env.example`.
+   6. Text is written in the components, like every other portal page (next-intl is installed but unused,
+      memory.md). Changed from the plan, which said `messages/en.json`.
+   7. Day 5's browser test is done early: `scripts/e2e/chat_e2e.mjs`, two Chromes as Asha and Ravi, 35
+      checks, all pass. How to run it: `scripts/e2e/README.md` step 9.
+10. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.
