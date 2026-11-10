@@ -18,6 +18,9 @@ The rules, checked when a source is saved AND again at every fetch:
    public address for our check and a private one for the real connection).
 5. Redirects are followed by hand, at most MAX_REDIRECTS, each one checked again; https -> http is refused;
    the API key is only sent to the source's own host, over https.
+6. System proxy settings (HTTPS_PROXY…) are ignored, or a proxy would decide where we really connect.
+7. HARVEST_ settings are read from the real environment, then from the same .env files as app settings
+   (harvest_setting), and never any other setting.
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ import ipaddress
 import os
 import re
 import urllib.parse
+from pathlib import Path
 
 import httpx
 
@@ -35,6 +39,10 @@ ENV_PREFIX = "HARVEST_"
 ENV_NAME_RE = re.compile(r"^HARVEST_[A-Z0-9_]{1,60}$")
 MAX_REDIRECTS = 5
 HTTP_TIMEOUT_SECONDS = 30.0
+CONNECT_TIMEOUT_SECONDS = 10.0  # per address tried
+MAX_ADDRESS_TRIES = 3  # a host's checked addresses, IPv4 first (servers often have no IPv6 route)
+ENV_FILES = ("../.env", ".env")  # the same files app settings read (app/core/config), same order
+NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _INTERNAL_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home", ".corp")
 
 
@@ -49,20 +57,64 @@ def check_env_name(name: str) -> str:
     return name
 
 
+def _from_env_files(name: str) -> str | None:
+    """`name` from the .env files (later files win, like app settings). Handles `export X=…`, quotes and
+    comment lines; a # inside a value is kept (keys may contain one). Read fresh on every call."""
+    found = None
+    for f in ENV_FILES:
+        try:
+            lines = Path(f).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.removeprefix("export ").split("=", 1)
+            if key.strip() != name:
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            found = value
+    return found
+
+
+def harvest_setting(name: str) -> str:
+    """A HARVEST_ setting: the real environment first (production: Docker passes .env in), then the .env
+    files (local runs, where only the app settings loader reads .env). Only HARVEST_ names: this can never
+    be used to read DATABASE_URL or any other secret."""
+    name = check_env_name(name)
+    if not name:
+        return ""
+    if name in os.environ:
+        return os.environ[name]
+    return _from_env_files(name) or ""
+
+
 def allowed_http_hosts() -> set[str]:
     """Public hosts an admin explicitly allowed over plain http (HARVEST_ALLOW_HTTP_HOSTS)."""
-    return {h.strip().lower() for h in os.getenv("HARVEST_ALLOW_HTTP_HOSTS", "").split(",") if h.strip()}
+    return {h.strip().lower() for h in harvest_setting("HARVEST_ALLOW_HTTP_HOSTS").split(",") if h.strip()}
 
 
 def is_public_ip(ip: str) -> bool:
     """Only addresses on the public internet. Private, loopback, link-local (incl. 169.254.169.254),
-    multicast and reserved ones are not; an IPv6 address wrapping an IPv4 one is judged by that one."""
+    multicast and reserved ones are not. An IPv6 address that carries an IPv4 one is judged by that IPv4
+    address: ::ffff:a.b.c.d, NAT64 (64:ff9b::a.b.c.d), 6to4 (2002:…) and Teredo. Otherwise e.g.
+    64:ff9b::a9fe:a9fe (= 169.254.169.254) counts as public in Python (PR #62 review)."""
     try:
         addr = ipaddress.ip_address(ip.split("%", 1)[0])
     except ValueError:
         return False
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-        addr = addr.ipv4_mapped
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped:
+            addr = addr.ipv4_mapped
+        elif addr in NAT64:
+            addr = ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF)
+        elif addr.sixtofour:
+            addr = addr.sixtofour
+        elif addr.teredo:
+            addr = addr.teredo[1]  # the client's address
     return addr.is_global and not addr.is_multicast
 
 
@@ -102,13 +154,32 @@ def _blocked(message: str) -> AppError:
     return AppError(400, "blocked_address", message)
 
 
+async def _get_first_reachable(client: httpx.AsyncClient, parts: urllib.parse.SplitResult, addresses: list[str],
+                               headers: dict[str, str], host: str) -> httpx.Response:
+    """Connect to the checked addresses in order (at most MAX_ADDRESS_TRIES) and GET from the first one that
+    answers. The next address is tried ONLY when connecting failed (nothing was sent yet), never after an
+    answer, so a request is never sent twice. The Host header and the https check use the real name."""
+    for ip in addresses[:MAX_ADDRESS_TRIES]:
+        netloc = f"[{ip}]" if ":" in ip else ip
+        if parts.port:
+            netloc += f":{parts.port}"
+        pinned = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path or "/", parts.query, ""))
+        try:
+            return await client.get(pinned, headers=headers, extensions={"sni_hostname": host})
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            continue
+    raise AppError(400, "connect_failed", f"Could not connect to {host}.")
+
+
 async def safe_get(url: str, headers: dict[str, str] | None = None, *, api_key: str = "") -> httpx.Response:
     """GET a harvester address safely (rules 3 to 5 above). `api_key`: sent as a Bearer token, only to the
     source's own host and only over https. Returns the final response (raise_for_status is up to the caller)."""
     first_host = (urllib.parse.urlsplit(url).hostname or "").lower()
     headers = dict(headers or {})
     current, previous_scheme = url, None
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=False) as client:
+    timeout = httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)
+    # trust_env=False: no system proxy (HTTPS_PROXY…): we must connect to the address we checked ourselves
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
         for _ in range(MAX_REDIRECTS + 1):
             try:
                 check_url(current)
@@ -126,17 +197,12 @@ async def safe_get(url: str, headers: dict[str, str] | None = None, *, api_key: 
             public = [ip for ip in found if is_public_ip(ip)]
             if not public:
                 raise _blocked(f"{host} points to an internal address.")
-            ip = public[0]
-            # Connect to the address we checked; the Host header and the https check use the real name.
-            netloc = f"[{ip}]" if ":" in ip else ip
-            if parts.port:
-                netloc += f":{parts.port}"
-            pinned = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path or "/", parts.query, ""))
+            public.sort(key=lambda ip: ":" in ip)  # IPv4 first: servers often have no IPv6 route
             send = {k: v for k, v in headers.items() if k.lower() != "authorization"}
             send["Host"] = parts.netloc.split("@")[-1]
             if api_key and parts.scheme == "https" and host == first_host:
                 send["Authorization"] = f"Bearer {api_key}"
-            resp = await client.get(pinned, headers=send, extensions={"sni_hostname": host})
+            resp = await _get_first_reachable(client, parts, public, send, host)
             location = resp.headers.get("location")
             if resp.status_code in (301, 302, 303, 307, 308) and location:
                 previous_scheme = parts.scheme

@@ -183,3 +183,84 @@ async def test_create_and_edit_refuse_secrets_and_internal_addresses(client):
         assert r.status_code == 422, bad
     r = await client.put(f"/api/v1/admin/harvest/sources/{sid}", json={"url": "https://api.indiamart.com/v2"}, headers=HDR)
     assert r.status_code == 200 and r.json()["url"] == "https://api.indiamart.com/v2"
+
+
+# ---------- PR #62 review fixes ----------
+
+async def test_a_failed_connection_moves_on_to_the_next_checked_address_ipv4_first(monkeypatch):
+    import httpx
+    fake_dns(monkeypatch, {"dual.example.com": ["2606:4700::1111", "10.0.0.5", PUBLIC, "8.8.8.8"]})
+    get = AsyncMock(side_effect=[httpx.ConnectError("no route"), ok("second")])
+    with patch("httpx.AsyncClient.get", get):
+        assert (await safe_get("https://dual.example.com/x")).text == "second"
+    tried = [c.args[0] for c in get.call_args_list]
+    assert tried == [f"https://{PUBLIC}/x", "https://8.8.8.8/x"]  # IPv4 first; the private one never
+
+    get = AsyncMock(side_effect=[httpx.ConnectTimeout("slow")] * 3)
+    with patch("httpx.AsyncClient.get", get):
+        with pytest.raises(AppError) as e:
+            await safe_get("https://dual.example.com/x")
+    assert e.value.code == "connect_failed" and get.call_count == harvest_net.MAX_ADDRESS_TRIES
+
+
+async def test_an_answer_from_the_site_is_never_retried_elsewhere(monkeypatch):
+    fake_dns(monkeypatch, {"two.example.com": [PUBLIC, "8.8.8.8"]})
+    get = answers(Response(500, request=Request("GET", "https://x")))
+    with patch("httpx.AsyncClient.get", get):
+        assert (await safe_get("https://two.example.com/x")).status_code == 500
+    assert get.call_count == 1  # sent once only
+
+
+async def test_robots_txt_rules(monkeypatch):
+    from app.services.harvest_service import is_scraping_allowed
+    fake_dns(monkeypatch, {})
+    cases = [(Response(503, request=Request("GET", "https://x")), False),  # server error: unknown, so no
+             (Response(403, request=Request("GET", "https://x")), False),
+             (Response(404, request=Request("GET", "https://x")), True),  # no robots.txt: allowed
+             (ok("User-agent: *\nDisallow: /private"), True)]
+    for resp, allowed in cases:
+        with patch("httpx.AsyncClient.get", answers(resp)):
+            assert await is_scraping_allowed("https://dir.example.com/list") is allowed, resp.status_code
+    with patch("httpx.AsyncClient.get", answers(ok("User-agent: *\nDisallow: /private"))):
+        assert await is_scraping_allowed("https://dir.example.com/private/x") is False
+    # robots.txt that leads inside: refused, not guessed
+    with patch("httpx.AsyncClient.get", answers(redirect("https://169.254.169.254/robots.txt"))):
+        assert await is_scraping_allowed("https://dir.example.com/list") is False
+
+
+async def test_system_proxy_settings_are_ignored(monkeypatch):
+    import httpx
+    fake_dns(monkeypatch, {})
+    made = []
+    real_init = httpx.AsyncClient.__init__
+
+    def spy(self, *a, **kw):
+        made.append(kw)
+        real_init(self, *a, **kw)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", spy)
+    with patch("httpx.AsyncClient.get", answers(ok())):
+        await safe_get("https://api.example.com/x")
+    assert made and made[0]["trust_env"] is False and made[0]["follow_redirects"] is False
+
+
+def test_harvest_settings_come_from_the_environment_then_env_files(monkeypatch, tmp_path):
+    from app.services.harvest_net import harvest_setting
+    env = tmp_path / ".env"
+    env.write_text('# comment\nexport HARVEST_A="from file"\nHARVEST_B=x#y\nDATABASE_URL=secret\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("HARVEST_A", raising=False)
+    monkeypatch.delenv("HARVEST_B", raising=False)
+    assert harvest_setting("HARVEST_A") == "from file" and harvest_setting("HARVEST_B") == "x#y"
+    monkeypatch.setenv("HARVEST_A", "from environment")
+    assert harvest_setting("HARVEST_A") == "from environment"  # the real environment wins
+    assert harvest_setting("HARVEST_MISSING") == ""
+    with pytest.raises(ValueError):
+        harvest_setting("DATABASE_URL")  # never any other setting
+
+
+def test_ipv4_hidden_inside_ipv6_is_judged_by_the_ipv4(monkeypatch):
+    for bad in ("64:ff9b::a9fe:a9fe", "64:ff9b::a00:1", "2002:a9fe:a9fe::1", "2002:a00:1::1"):
+        assert not is_public_ip(bad), bad
+    for good in ("64:ff9b::808:808", "2002:808:808::1", "2606:4700::1111"):
+        assert is_public_ip(good), good

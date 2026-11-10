@@ -8,7 +8,6 @@ import csv
 import io
 import json
 import logging
-import os
 import re
 import urllib.parse
 import urllib.robotparser
@@ -22,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.jobs.runner import job
 from app.models.harvest import HarvestRun, HarvestSource
-from app.services.harvest_net import check_env_name, safe_get
+from app.services.harvest_net import harvest_setting, safe_get
 from app.services.harvest_filter import (
     EMAIL_REGEX,
     PHONE_DIGITS_REGEX,
@@ -51,7 +50,7 @@ async def fetch_api_source(source: HarvestSource) -> list[dict]:
     token = ""
     if source.auth_env_var:
         try:
-            token = os.getenv(check_env_name(source.auth_env_var), "")
+            token = harvest_setting(source.auth_env_var)  # refuses names without HARVEST_
         except ValueError as e:
             raise AppError(400, "bad_env_var", str(e)) from None
 
@@ -220,13 +219,20 @@ async def is_scraping_allowed(url: str, user_agent: str = BOT_USER_AGENT) -> boo
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
         resp = await safe_get(robots_url, {"User-Agent": user_agent})
         rp = urllib.robotparser.RobotFileParser()
-        if resp.status_code in (401, 403):
-            rp.disallow_all = True  # same rule as RobotFileParser.read()
-        elif resp.status_code >= 400:
-            rp.allow_all = True
-        else:
-            rp.parse(resp.text.splitlines())
+        # Python's own rule (RobotFileParser.read): 401/403 = nothing allowed; other 4xx = no robots.txt, all
+        # allowed; 5xx = unknown, so nothing allowed (PR #62 review: an earlier version allowed it).
+        if resp.status_code in (401, 403) or resp.status_code >= 500:
+            return False
+        if resp.status_code >= 400:
+            return True
+        rp.parse(resp.text.splitlines())
         return rp.can_fetch(user_agent, url)
+    except AppError as e:
+        if e.code == "blocked_address":  # robots.txt led to an internal address: refuse, don't guess
+            log.warning("harvest.robots_txt_blocked", extra={"url": url, "error": e.message})
+            return False
+        log.warning("harvest.robots_txt_error", extra={"url": url, "error": e.message})
+        return True  # known separate bug: can't read robots.txt = allowed (see docs/tempV.md)
     except Exception as e:
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": str(e)})
         # If robots.txt cannot be fetched/parsed, err on the side of caution or permit if network unreachable
