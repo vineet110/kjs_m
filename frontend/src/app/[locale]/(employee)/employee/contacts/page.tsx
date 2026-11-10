@@ -22,7 +22,7 @@ export default function ContactsPage() {
 
   return (
     <div className="space-y-5">
-      <PageTitle title="Contacts" sub="Everyone who sent us an enquiry. Open a name to work on it." />
+      <PageTitle title="Leads" sub="Everyone who sent us an enquiry. Open a name to work on it." />
       {loadErr ? <LoadError error={loadErr} onRetry={load} /> : <DataTable
         rows={rows}
         rowKey={(c) => c.lead_id}

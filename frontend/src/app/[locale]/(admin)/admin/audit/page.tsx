@@ -15,7 +15,7 @@ export default function AuditPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Audit log</h1>
+        <h1 className="text-2xl font-bold">Activity log</h1>
         <p className="text-sm text-slate-500">Who changed what, and when. Entries can't be edited or deleted (enforced by the database).</p>
       </div>
       {error && <p className="card p-4 text-sm text-red-700">{error}</p>}

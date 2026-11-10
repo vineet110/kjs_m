@@ -24,7 +24,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-5">
-      <PageTitle title="Users" sub="Staff accounts. New sign-ups still wait in Approvals.">
+      <PageTitle title="Manage employees" sub="Staff accounts. New sign-ups still wait in Approvals.">
         <Link href="/admin/users/new" className="btn-dark">+ Create user</Link>
       </PageTitle>
       {loadErr != null && <LoadError error={loadErr} onRetry={load} />}

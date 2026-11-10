@@ -43,7 +43,7 @@ export default function KokoAdmin() {
 
   return (
     <div className="space-y-8">
-      <PageTitle title="Koko" sub="Koko answers only from these facts and the product catalogue. It never gives prices, lead times or capacities." />
+      <PageTitle title="Manage KOKO" sub="Koko answers only from these facts and the product catalogue. It never gives prices, lead times or capacities." />
       {loadErr != null && <LoadError error={loadErr} onRetry={load} />}
       <section className="space-y-2">
         <div className="flex items-center gap-2">

@@ -15,7 +15,7 @@ export default function AdminLeads() {
   return (
     <div className="space-y-6">
       <PageTitle
-        title="All leads"
+        title="All Enquiries"
         sub={sla ? `SLA: respond in ${sla.respond_minutes} min, close in ${sla.resolve_minutes} min (working hours ${sla.work_hours} IST). Admins are told ${sla.escalate_after_minutes} min after a miss.` : undefined}
       />
       <LeadsTable admin />
