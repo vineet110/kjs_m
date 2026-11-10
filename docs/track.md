@@ -132,6 +132,12 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          switched off, one batch a day, 30-minute SLA grace: `memory.md` 46. Follow-up: `backlog.md` R53.
 
 
+4o. Phase switches for the portal (Nishita): merged in PRs #58 and #60 (10 Nov)
+
+   i.    `config/modules.ini`: each portal area on / admin / off, hidden in the menu, the API and the jobs.
+         Decision: `memory.md` 47. Follow-ups: `backlog.md` R54 (e2e check), R55 (`admin` and auto-assign).
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say

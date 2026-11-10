@@ -10,6 +10,20 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 10 Nov 2026 (phase switches, PRs #58 and #60, Nishita)
+
+1. (T) Plan, then look for the risks before building: "hide leads" sounded fine until we saw website
+   enquiries would pile up unseen. The review changed the plan, not the code.
+
+2. (T) A test that lists every API route (area or always on) turns "someone forgot" into a red CI.
+
+3. (T) Stacked PRs: after merging the first, wait until GitHub moves the second onto main, or it merges into
+   the old branch.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 10 Nov 2026 (config folder, PR #56, Nishita)
 
 1. (T) A config file changes behaviour without a deploy, so its comments must match what the code really
