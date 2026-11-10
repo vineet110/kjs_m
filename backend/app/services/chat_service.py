@@ -138,17 +138,21 @@ def _out(ch: ChatChannel, me: ChatMember, members: list[dict], my_id: int) -> di
 
 # ---------- Reading ----------
 
-async def _unread(db: AsyncSession, user_id: int) -> dict[int, tuple[int, int]]:
-    """channel id -> (my unread count, newest message id), for every chat I'm in. One query."""
-    unread = func.count().filter(and_(ChatMessage.id > ChatMember.last_read_message_id,
-                                      ChatMessage.deleted_at.is_(None),
-                                      ChatMessage.sender_id != user_id))
+async def _unread(db: AsyncSession, user_id: int) -> dict[int, tuple[int, int, bool]]:
+    """channel id -> (my unread count, newest message id, muted), for every chat I'm in. One query.
+    Per chat it reads only what it needs through the (channel_id, id) index: the messages after my
+    read position, and the newest id. It never scans a chat's whole history (PR #55 review)."""
+    unread = (select(func.count()).where(ChatMessage.channel_id == ChatMember.channel_id,
+                                         ChatMessage.id > ChatMember.last_read_message_id,
+                                         ChatMessage.deleted_at.is_(None),
+                                         ChatMessage.sender_id != user_id)
+              .correlate(ChatMember).scalar_subquery())
+    newest = (select(func.max(ChatMessage.id)).where(ChatMessage.channel_id == ChatMember.channel_id)
+              .correlate(ChatMember).scalar_subquery())
     rows = await db.execute(
-        select(ChatMessage.channel_id, unread, func.max(ChatMessage.id))
-        .join(ChatMember, and_(ChatMember.channel_id == ChatMessage.channel_id, ChatMember.user_id == user_id))
-        .group_by(ChatMessage.channel_id)
+        select(ChatMember.channel_id, unread, newest, ChatMember.muted).where(ChatMember.user_id == user_id)
     )
-    return {cid: (n, last) for cid, n, last in rows.all()}
+    return {cid: (n, last or 0, muted) for cid, n, last, muted in rows.all()}
 
 
 async def my_channels(db: AsyncSession, user: User) -> list[dict]:
@@ -162,7 +166,7 @@ async def my_channels(db: AsyncSession, user: User) -> list[dict]:
     counts = await _unread(db, user.id)
     out = []
     for ch, me in rows:
-        n, last = counts.get(ch.id, (0, 0))
+        n, last, _ = counts.get(ch.id, (0, 0, False))
         out.append(_out(ch, me, members[ch.id], user.id) | {"unread": n, "last_message_id": last})
     out.sort(key=lambda c: (c["archived"], c["kind"] != "channel",
                             c["title"].lower() if c["kind"] == "channel" else -c["last_message_id"]))
@@ -171,9 +175,7 @@ async def my_channels(db: AsyncSession, user: User) -> list[dict]:
 
 async def unread_total(db: AsyncSession, user: User) -> int:
     """For the sidebar badge. Muted chats don't count."""
-    muted = set((await db.scalars(
-        select(ChatMember.channel_id).where(ChatMember.user_id == user.id, ChatMember.muted.is_(True)))).all())
-    return sum(n for cid, (n, _) in (await _unread(db, user.id)).items() if cid not in muted)
+    return sum(n for n, _, muted in (await _unread(db, user.id)).values() if not muted)
 
 
 async def get_channel(db: AsyncSession, user: User, channel_id: int) -> dict:
@@ -234,7 +236,10 @@ async def open_dm(db: AsyncSession, user: User, other_id: int) -> dict:
 # ---------- Changing ----------
 
 async def update_channel(db: AsyncSession, user: User, channel_id: int, changes: dict) -> dict:
-    """Rename, change the description, archive or un-archive. Archiving and un-archiving: owner only."""
+    """Rename, change the description, archive or un-archive. Archiving and un-archiving: owner only.
+    Renaming is refused only for a chat that is archived and stays archived: "archive + rename" and
+    "un-archive + rename" in one request both work. A request that changes nothing saves nothing and
+    pushes nothing (PR #55 review)."""
     ch, me = await _membership(db, channel_id, user.id)
     _not_dm(ch)
     before = {"name": ch.name, "description": ch.description, "archived": ch.archived_at is not None}
@@ -246,7 +251,8 @@ async def update_channel(db: AsyncSession, user: User, channel_id: int, changes:
         elif not changes["archived"]:
             ch.archived_at = None
     if "name" in changes or "description" in changes:
-        _not_archived(ch)
+        if before["archived"] and ch.archived_at is not None:
+            _not_archived(ch)  # archived before and after this request: read-only
         if ch.kind == "channel":
             _must_own(me)  # in a group chat any member may rename
         if "name" in changes:
@@ -258,12 +264,13 @@ async def update_channel(db: AsyncSession, user: User, channel_id: int, changes:
             ch.description = changes["description"].strip()
 
     after = {"name": ch.name, "description": ch.description, "archived": ch.archived_at is not None}
-    if after != before:
-        action = ("chat.channel_archived" if after["archived"] and not before["archived"]
-                  else "chat.channel_unarchived" if before["archived"] and not after["archived"]
-                  else "chat.channel_updated")
-        audit_service.record(db, actor=user, action=action, entity_type="chat_channel", entity_id=ch.id,
-                             before=before, after=after)
+    if after == before:
+        return await get_channel(db, user, ch.id)  # nothing changed: no save, no audit, no push
+    action = ("chat.channel_archived" if after["archived"] and not before["archived"]
+              else "chat.channel_unarchived" if before["archived"] and not after["archived"]
+              else "chat.channel_updated")
+    audit_service.record(db, actor=user, action=action, entity_type="chat_channel", entity_id=ch.id,
+                         before=before, after=after)
     await db.commit()
     await _push(db, ch.id, {"type": "channel.changed"})
     return await get_channel(db, user, ch.id)

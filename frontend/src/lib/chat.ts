@@ -30,16 +30,26 @@ export const BODY_MAX = 4000;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** A message split into plain text and "@Name" parts, for showing mentions in bold (still plain text:
- *  the page turns the parts into React elements, never HTML). Longest names are tried first, so "@Ram"
- *  never matches inside "@Ram Kumar" (PR #55 review). */
+/** THE mention rule, used for showing, sending and editing (one rule, so they can't drift apart: PR #55
+ *  review). A message split into plain text and "@Name" parts (still plain text: the page turns the parts
+ *  into React elements, never HTML).
+ *  1. Longest names first: "@Ram" never matches inside "@Ram Kumar".
+ *  2. The name must end there: the next character can't be a letter, digit or mark, so "@Ramesh" is not
+ *     "@Ram", and a Hindi vowel sign after a name ("@राम" + "ा") counts as part of the word.
+ *  Two people with exactly the same name are both matched (accepted, docs/tempV.md). */
 export function mentionParts(body: string, names: string[]): { text: string; mention: boolean }[] {
   const sorted = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
   if (!sorted.length) return [{ text: body, mention: false }];
   return body
-    .split(new RegExp(`(@(?:${sorted.map(escapeRe).join('|')}))`, 'g'))
+    .split(new RegExp(`(@(?:${sorted.map(escapeRe).join('|')}))(?![\\p{L}\\p{N}\\p{M}])`, 'gu'))
     .map((text, i) => ({ text, mention: i % 2 === 1 }))
     .filter((p) => p.text !== '');
+}
+
+/** Who a message mentions: the people whose "@Name" mentionParts finds in it. */
+export function mentionIds(body: string, people: { id: number; name: string }[]): number[] {
+  const found = new Set(mentionParts(body, people.map((p) => p.name)).filter((p) => p.mention).map((p) => p.text.slice(1)));
+  return people.filter((p) => found.has(p.name)).map((p) => p.id);
 }
 
 /** Where the live connection goes.
@@ -60,18 +70,18 @@ const LOGGED_OUT = 4401; // the API's "log in again" close code: don't reconnect
 export type SocketState = 'connecting' | 'live' | 'offline' | 'logged_out';
 
 /** One live connection while the chat page is open.
- *  onEvent: every event from the server. onReconnect: called after a dropped connection comes back (not the
- *  first time), so the page can fetch what it missed. Drops reconnect after 1, 2, 4… up to 30 s. */
-export function useChatSocket(onEvent: (e: ChatEvent) => void, onReconnect: () => void): SocketState {
+ *  onEvent: every event from the server. onConnect: called EVERY time the connection opens, the first time
+ *  too, so the page can fetch what it missed: a message saved while the page was loading, or while the
+ *  first attempt was failing, is never pushed (PR #55 review). Drops reconnect after 1, 2, 4… up to 30 s. */
+export function useChatSocket(onEvent: (e: ChatEvent) => void, onConnect: () => void): SocketState {
   const [state, setState] = useState<SocketState>('connecting');
-  const handlers = useRef({ onEvent, onReconnect });
-  handlers.current = { onEvent, onReconnect }; // always the newest versions, without reconnecting
+  const handlers = useRef({ onEvent, onConnect });
+  handlers.current = { onEvent, onConnect }; // always the newest versions, without reconnecting
 
   useEffect(() => {
     let ws: WebSocket | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let wait = 1000;
-    let opened = false; // has it been open before? then the next open is a reconnect
     let stopped = false;
 
     const open = () => {
@@ -80,8 +90,7 @@ export function useChatSocket(onEvent: (e: ChatEvent) => void, onReconnect: () =
       ws.onopen = () => {
         setState('live');
         wait = 1000;
-        if (opened) handlers.current.onReconnect();
-        opened = true;
+        handlers.current.onConnect();
       };
       ws.onmessage = (m) => {
         try {

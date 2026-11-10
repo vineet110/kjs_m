@@ -2,6 +2,7 @@
 Rules live in app/services/chat_service.py."""
 import asyncio
 import logging
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
@@ -130,7 +131,12 @@ async def chat_socket(websocket: WebSocket):
     """One per open tab. Only pushes events (see chat_hub.py); sending uses the normal POST routes.
     1. Wrong Origin (another website): refused before it opens (the browser sees 403).
     2. Not logged in: opened, then closed with 4401 so the page knows to log in, not reconnect.
-    3. Every PING_SECONDS: check the session again (logout, expiry, disabled), then send a ping."""
+    3. Every PING_SECONDS, by the clock: check the session again (logout, expiry, disabled), then send
+       a ping. By the clock, not "after PING_SECONDS of silence": otherwise a client that keeps sending
+       something would never be re-checked and would keep getting messages after logout (PR #55 review).
+    4. The browser has nothing to send (sending uses POST). More than MAX_FRAMES frames between two
+       checks = something is wrong: closed. NOTE for phase 3 ("typing…"): the page will then send
+       frames, so raise MAX_FRAMES (or count only unknown frames) when building it."""
     if not origin_allowed(websocket.headers.get("origin")):
         await websocket.close(code=1008)
         return
@@ -144,18 +150,31 @@ async def chat_socket(websocket: WebSocket):
     chat_hub.hub.add(user_id, websocket)
     try:
         await websocket.send_json({"type": "hello", "user_id": user_id})
+        next_check = time.monotonic() + chat_hub.PING_SECONDS
+        frames = 0  # sent by the browser since the last check
         while True:
-            try:
-                # The browser doesn't need to send anything; this just notices when it goes away.
-                # receive(), not receive_text(): anything the browser sends (text or binary) is ignored.
-                msg = await asyncio.wait_for(websocket.receive(), timeout=chat_hub.PING_SECONDS)
-                if msg["type"] == "websocket.disconnect":
-                    return
-            except asyncio.TimeoutError:
+            left = next_check - time.monotonic()
+            if left <= 0:
                 if await ws_user(token) != user_id:
                     await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
                     return
                 await websocket.send_json({"type": "ping"})
+                next_check = time.monotonic() + chat_hub.PING_SECONDS
+                frames = 0
+                continue
+            try:
+                # This only notices when the browser goes away. receive(), not receive_text(): anything
+                # the browser sends (text or binary) is ignored.
+                msg = await asyncio.wait_for(websocket.receive(), timeout=left)
+            except asyncio.TimeoutError:
+                continue  # time for the check (top of the loop)
+            if msg["type"] == "websocket.disconnect":
+                return
+            frames += 1
+            if frames > chat_hub.MAX_FRAMES:
+                log.warning("chat.socket_flood", extra={"user": user_id})
+                await websocket.close(code=1008)  # policy violation
+                return
     except WebSocketDisconnect:
         pass
     except RuntimeError as e:

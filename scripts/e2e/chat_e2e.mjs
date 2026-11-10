@@ -1,8 +1,11 @@
 // KJS Chat with two people at once, in two real (headless) Chromes (two browsers = two separate logins).
 // Asha and Ravi chat: a DM, live messages both ways without reloading, unread badges (list and sidebar),
 // edit and delete seen live, a channel with an @mention picked from the list, a dropped connection that
-// catches up (incl. a delete made while it was down), the phone layout, and no JS errors. Needs the e2e servers from README.md, with the chat settings in step 9 there. Adds two staff
-// accounts (chat.asha@e2e.test, chat.ravi@e2e.test): run it on a fresh e2e database.
+// catches up (incl. a delete made while it was down), the "New chat" dialog keeps its focus while
+// messages arrive, an edit to an old (not loaded) message doesn't jump to the top, "@Ram Kumar" doesn't
+// notify "Ram", the phone layout, and no JS errors. A third Chrome plays Ram and Ram Kumar.
+// Needs the e2e servers from README.md, with the chat settings in step 9 there. Adds four staff accounts
+// (chat.asha, chat.ravi, chat.ram, chat.ramk @e2e.test): run it on a fresh e2e database.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -69,6 +72,7 @@ async function browser(port) {
 
 const A = await browser(9411); // Asha
 const B = await browser(9412); // Ravi
+const R = await browser(9413); // Ram and Ram Kumar (logs in as whichever is needed)
 // Ravi's pages keep a handle on their chat connections, so the test can cut them on purpose and hold the
 // reconnect (window.__hold = true: new connections go to a closed port and fail, so the page keeps retrying).
 await B.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
@@ -88,7 +92,8 @@ await A.open('/employee/login');
 let r = await A.api('/auth/login', 'POST', ADMIN);
 check('setup: admin logged in', r.status === 200, `status ${r.status}`);
 const made = {};
-for (const [key, name, phone] of [['asha', 'Asha', '+919800000101'], ['ravi', 'Ravi', '+919800000102']]) {
+for (const [key, name, phone] of [['asha', 'Asha', '+919800000101'], ['ravi', 'Ravi', '+919800000102'],
+  ['ram', 'Ram', '+919800000103'], ['ramk', 'Ram Kumar', '+919800000104']]) {
   r = await A.api('/admin/users', 'POST', { name, email: `chat.${key}@e2e.test`, phone, employee_code: `CH-${key}`, branch: 'Delhi', role: 'employee' });
   check(`setup: account for ${name}`, r.status === 201, `status ${r.status} ${JSON.stringify(r.body)?.slice(0, 120)} (run on a fresh e2e database)`);
   made[key] = { email: `chat.${key}@e2e.test`, password: r.body?.temp_password, id: r.body?.user?.id };
@@ -189,6 +194,72 @@ check('Ravi: after reconnecting, the message sent meanwhile shows', await B.wait
 check('Ravi: after reconnecting, the delete made meanwhile shows', await B.waitText('this one gets deleted while Ravi is offline', 5000, true));
 check('Ravi: the "Reconnecting…" bar is gone', await B.waitText('Reconnecting', 5000, true));
 
+// ---------- PR #55 second review ----------
+await R.open('/employee/login');
+const as = async (who) => {
+  await R.api('/auth/logout', 'POST');
+  const res = await R.api('/auth/login', 'POST', { email: made[who].email, password: made[who].password });
+  return res.status === 200;
+};
+r = await A.api('/chat/channels', 'POST', { name: 'rams', member_ids: [made.ravi.id, made.ram.id, made.ramk.id] });
+const ramsId = r.body?.id;
+check('setup: channel with Ram and Ram Kumar', r.status === 201);
+
+// "@Ram Kumar" picked from the list must not notify Ram
+await A.open(`/employee/chat?c=${ramsId}`);
+await A.type('@Ram');
+await A.waitFor(`document.querySelector('[role="listbox"]')?.textContent.includes('@Ram Kumar')`);
+const steps = await A.eval(`[...document.querySelectorAll('[role="option"]')].findIndex((o) => o.textContent.trim() === '@Ram Kumar')`);
+for (let i = 0; i < steps; i++) await A.key('ArrowDown', 'ArrowDown', 40);
+await A.enter();
+await A.type('can you check the rates');
+check('Asha: picked "@Ram Kumar " into the box', (await A.eval(`document.querySelector('textarea[aria-label="Message"]').value`)) === '@Ram Kumar can you check the rates');
+await A.enter();
+check('Asha: message sent', await A.waitText('can you check the rates'));
+const mentions = (await A.api(`/chat/channels/${ramsId}/messages`)).body?.messages?.at(-1)?.mentions;
+check('the message mentions only Ram Kumar', JSON.stringify(mentions) === JSON.stringify([made.ramk.id]), JSON.stringify(mentions));
+await as('ram');
+let bellRam = await R.api('/employee/notifications');
+check('Ram: no mention notification', !bellRam.body?.items?.some((n) => n.kind === 'chat.mention'), JSON.stringify(bellRam.body?.items?.map((n) => n.title)));
+await as('ramk');
+let bellRamK = await R.api('/employee/notifications');
+check('Ram Kumar: got the mention notification', bellRamK.body?.items?.[0]?.title === 'Asha mentioned you in #rams', JSON.stringify(bellRamK.body?.items?.[0]?.title));
+
+// The "New chat" dialog keeps the focus and what you typed while a message arrives
+await A.click(`document.querySelector('button[aria-label="New chat or channel"]')`);
+await A.waitFor(`!!document.querySelector('[role="dialog"]')`);
+await A.button('Channel');
+await A.waitFor(`!!document.querySelector('[role="dialog"] input[placeholder^="Channel name"]')`);
+await A.eval(`document.querySelector('[role="dialog"] input[placeholder^="Channel name"]').focus()`);
+await A.send('Input.insertText', { text: 'dispa' });
+await R.api(`/chat/channels/${ramsId}/messages`, 'POST', { body: 'a message while Asha types' }); // as Ram Kumar
+await sleep(2500); // the live event and the list reload it causes
+check('Asha: focus stays in the channel name box while a message arrives',
+  await A.eval(`document.activeElement?.placeholder?.startsWith('Channel name') && document.activeElement.value === 'dispa'`),
+  await A.eval(`document.activeElement?.getAttribute('aria-label') || document.activeElement?.placeholder || document.activeElement?.tagName`));
+await A.key('Escape', 'Escape', 27);
+
+// An edit to an old message that isn't loaded must not jump to the top
+r = await A.api('/chat/channels', 'POST', { name: 'history', member_ids: [made.ravi.id, made.ram.id, made.ramk.id] });
+const histId = r.body?.id;
+let firstOld = null;
+for (const who of ['ram', 'ramk']) { // 26 each = 52 > the 50 a chat opens with (and under the 30-a-minute limit)
+  await as(who);
+  for (let i = 0; i < 26; i++) {
+    const m = await R.api(`/chat/channels/${histId}/messages`, 'POST', { body: `history ${who} ${i}` });
+    if (who === 'ram' && i === 0) firstOld = m.body?.id;
+  }
+}
+await B.open(`/employee/chat?c=${histId}`);
+check('Ravi: the history chat opens with the newest messages', await B.waitText('history ramk 25'));
+check('setup: the oldest message is not loaded', !(await B.eval(`document.body.innerText.includes('history ram 0\n')`)) && !(await B.eval(`[...document.querySelectorAll('p')].some((p) => p.textContent.trim() === 'history ram 0')`)));
+await as('ram');
+await R.api(`/chat/messages/${firstOld}`, 'PATCH', { body: 'EDITED long ago' });
+await sleep(2000);
+check('Ravi: the old edit did not appear at the top', !(await B.waitText('EDITED long ago', 1500)));
+check('Ravi: the top message is still from the loaded window', (await B.eval(`[...document.querySelectorAll('p.whitespace-pre-wrap')][0]?.textContent`))?.startsWith('history ram 2'),
+  await B.eval(`[...document.querySelectorAll('p.whitespace-pre-wrap')][0]?.textContent`));
+
 // ---------- phone layout ----------
 await B.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 800, deviceScaleFactor: 3, mobile: true });
 await B.open('/employee/chat');
@@ -202,6 +273,7 @@ check('phone: no sideways scrolling', !(await B.eval('document.documentElement.s
 // ---------- no JS errors ----------
 check('Asha: no JS errors', A.errors.length === 0, A.errors.join(' | '));
 check('Ravi: no JS errors', B.errors.length === 0, B.errors.join(' | '));
+check('Ram / Ram Kumar: no JS errors', R.errors.length === 0, R.errors.join(' | '));
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

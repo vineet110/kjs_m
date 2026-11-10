@@ -4,12 +4,12 @@ owner rules; the last owner / last person leaving; removals audited."""
 import asyncio
 
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.database import AsyncSessionLocal
 from app.main import app
 from app.models.audit import AuditLog
-from app.models.chat import ChatChannel
+from app.models.chat import ChatChannel, ChatMember
 from app.models.user import User
 from tests.conftest import HDR, login, make_user
 
@@ -388,3 +388,43 @@ async def test_mention_title_in_an_unnamed_group_is_right_for_each_person(client
     assert (await _bell(client))["items"][0]["title"] == "asha mentioned you in asha, meena, dev"
     await login(client, "meena@kjsindia.com")
     assert (await _bell(client))["items"][0]["title"] == "asha mentioned you in asha, ravi, dev"
+
+
+# ---------- PR #55 second review ----------
+
+async def test_unread_for_an_empty_chat_and_muted_chats_left_out_of_the_total(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    empty = (await _channel(client, name="quiet", member_ids=[ids["ravi"]]))["id"]
+    busy = (await client.post(f"{C}/dm/{ids['ravi']}", headers=HDR)).json()["id"]
+    for i in range(3):
+        await _send(client, busy, f"m{i}")
+    await _send(client, empty, "one")
+    await login(client, "ravi@kjsindia.com")
+    chats = {c["id"]: c for c in (await client.get(f"{C}/channels")).json()}
+    assert (chats[busy]["unread"], chats[empty]["unread"]) == (3, 1)
+    assert (await client.get(f"{C}/unread")).json() == {"total": 4}
+    async with AsyncSessionLocal() as db:  # mute the DM (no route for it yet)
+        await db.execute(update(ChatMember).where(ChatMember.channel_id == busy, ChatMember.user_id == ids["ravi"])
+                         .values(muted=True))
+        await db.commit()
+    assert (await client.get(f"{C}/unread")).json() == {"total": 1}
+    chats = {c["id"]: c for c in (await client.get(f"{C}/channels")).json()}
+    assert (chats[busy]["unread"], chats[busy]["muted"], chats[empty]["unread"]) == (3, True, 1)  # list still shows both
+
+    await login(client, "asha@kjsindia.com")
+    new = (await _channel(client, name="brand-new", member_ids=[ids["ravi"]]))["id"]
+    c = next(c for c in (await client.get(f"{C}/channels")).json() if c["id"] == new)
+    assert (c["unread"], c["last_message_id"]) == (0, 0)  # a chat with no messages at all
+
+
+async def test_archive_and_rename_in_one_request(client):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    r = await client.patch(f"{C}/channels/{cid}", json={"archived": True, "name": "sales-old"}, headers=HDR)
+    assert r.status_code == 200 and r.json()["archived"] is True and r.json()["name"] == "sales-old"
+    r = await client.patch(f"{C}/channels/{cid}", json={"name": "again"}, headers=HDR)
+    assert r.status_code == 409 and r.json()["code"] == "archived"  # archived and staying archived
+    r = await client.patch(f"{C}/channels/{cid}", json={"archived": False, "name": "sales"}, headers=HDR)
+    assert r.json()["archived"] is False and r.json()["name"] == "sales"

@@ -25,6 +25,7 @@ from fastapi.encoders import jsonable_encoder
 log = logging.getLogger(__name__)
 
 PING_SECONDS = 30.0  # keeps the connection open (Cloudflare drops idle ones after ~100 s)
+MAX_FRAMES = 20  # most frames a browser may send between two checks (ours sends none; see chat.py)
 SEND_TIMEOUT = 5.0  # a stuck browser must not hold up the person who sent the message
 CLOSE_TIMEOUT = 2.0  # closing a dead connection must not hang either
 CLOSE_LOGGED_OUT = 4401  # our own close code: "log in again", the browser must not just reconnect

@@ -3,10 +3,11 @@
 // Messages are shown as plain text only (React escapes them), never as HTML: that blocks XSS.
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Colleague, type Me } from '@/lib/api';
-import { BODY_MAX, mentionParts, type ChatChannel, type ChatMessage, type ChatPerson } from '@/lib/chat';
+import { BODY_MAX, mentionIds, mentionParts, type ChatChannel, type ChatMessage, type ChatPerson } from '@/lib/chat';
 import { errorText } from '@/components/ui/LoadError';
 import { fmtDay, todayIST, addDays } from '../ui';
 
+const OLDER_RETRY_MS = 3000;
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 function dayLabel(day: string) {
@@ -33,6 +34,8 @@ export default function MessagePane({ me, chat, people, messages, hasMore, loadO
   const loadingOlder = useRef(false);
   const keepFromBottom = useRef<number | null>(null); // after loading older ones: stay where you were
   const nearBottom = useRef(true);
+  const olderFailedAt = useRef(0);
+  const [olderErr, setOlderErr] = useState(false);
   const [details, setDetails] = useState(false);
 
   // Scroll: to the bottom when the chat opens; keep the place when older ones load at the top; follow new
@@ -52,17 +55,25 @@ export default function MessagePane({ me, chat, people, messages, hasMore, loadO
   useEffect(() => {
     nearBottom.current = true;
     setDetails(false);
+    setOlderErr(false);
   }, [chat.id]);
 
   async function onScroll() {
     const el = box.current;
     if (!el) return;
     nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (el.scrollTop < 60 && hasMore && !loadingOlder.current) {
+    // After a failure (e.g. offline), wait OLDER_RETRY_MS before trying again
+    if (el.scrollTop < 60 && hasMore && !loadingOlder.current && Date.now() - olderFailedAt.current > OLDER_RETRY_MS) {
       loadingOlder.current = true;
       keepFromBottom.current = el.scrollHeight - el.scrollTop;
       try {
         await loadOlder();
+        setOlderErr(false);
+      } catch {
+        // Nothing was added: forget the saved place, or the next new message would jump there (PR #55 review)
+        keepFromBottom.current = null;
+        olderFailedAt.current = Date.now();
+        setOlderErr(true);
       } finally {
         loadingOlder.current = false;
       }
@@ -87,7 +98,8 @@ export default function MessagePane({ me, chat, people, messages, hasMore, loadO
       {details && <Details me={me} chat={chat} people={people} onChanged={onChatChanged} />}
 
       <div ref={box} onScroll={onScroll} className="flex-1 overflow-y-auto px-3 py-2" aria-live="polite">
-        {hasMore && <p className="py-2 text-center text-xs text-slate-400">Scroll up for older messages</p>}
+        {hasMore && !olderErr && <p className="py-2 text-center text-xs text-slate-400">Scroll up for older messages</p>}
+        {hasMore && olderErr && <p role="alert" className="py-2 text-center text-xs text-red-600">Couldn&apos;t load older messages. Scroll up again to retry.</p>}
         {!hasMore && messages.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No messages yet. Say hello!</p>}
         {messages.map((m, i) => {
           const prev = messages[i - 1];
@@ -130,8 +142,7 @@ function MessageRow({ m, me, people, showName, readOnly, onChanged }: {
   async function save() {
     setErr('');
     try {
-      // Keep the mentions whose "@Name" is still in the text
-      const ids = people.filter((p) => text.includes(`@${p.name}`)).map((p) => p.id);
+      const ids = mentionIds(text, people); // the mentions still in the text
       onChanged(await api<ChatMessage>(`/chat/messages/${m.id}`, { method: 'PATCH', body: { body: text, mention_ids: ids } }));
       setEditing(false);
     } catch (e) {
@@ -235,7 +246,7 @@ function Composer({ me, people, onSend }: { me: Me; people: ChatPerson[]; onSend
     setText('');
     setQuery(null);
     try {
-      await onSend(body, others.filter((p) => body.includes(`@${p.name}`)).map((p) => p.id));
+      await onSend(body, mentionIds(body, others));
     } catch (e) {
       setErr(errorText(e, 'Could not send.'));
       setText((now) => (now ? now : body));

@@ -410,7 +410,7 @@ test('CSV preview: UTF-8 text (₹, Hindi) and a row limit that stops reading ea
 });
 
 // ---------- chat: @mentions shown in bold ----------
-const { mentionParts } = await load('chat', 'const useEffect = () => {}; const useRef = () => ({}); const useState = (v) => [v, () => {}]; const api = async () => ({});');
+const { mentionParts, mentionIds } = await load('chat', 'const useEffect = () => {}; const useRef = () => ({}); const useState = (v) => [v, () => {}]; const api = async () => ({});');
 
 test('mentionParts marks each @Name, longest names first ("Ram" inside "Ram Kumar")', () => {
   assert.deepEqual(mentionParts('hi @Ram Kumar and @Ram', ['Ram', 'Ram Kumar']), [
@@ -423,4 +423,19 @@ test('mentionParts leaves text without mentions alone, and names with regex char
   assert.deepEqual(mentionParts('no one here', []), [{ text: 'no one here', mention: false }]);
   assert.deepEqual(mentionParts('ask @A.B (x)', ['A.B (x)']), [{ text: 'ask ', mention: false }, { text: '@A.B (x)', mention: true }]);
   assert.deepEqual(mentionParts('mail AxB', ['A.B']), [{ text: 'mail AxB', mention: false }]);
+});
+
+test('mentionParts: a name must end where the match ends ("@Ramesh" is not "@Ram"; Hindi vowel signs)', () => {
+  assert.deepEqual(mentionParts('hi @Ramesh', ['Ram']), [{ text: 'hi @Ramesh', mention: false }]);
+  assert.deepEqual(mentionParts('@Ram, ok?', ['Ram']), [{ text: '@Ram', mention: true }, { text: ', ok?', mention: false }]);
+  assert.deepEqual(mentionParts('@राम ji', ['राम']), [{ text: '@राम', mention: true }, { text: ' ji', mention: false }]);
+  assert.deepEqual(mentionParts('@रामा ji', ['राम']), [{ text: '@रामा ji', mention: false }]); // "ा" continues the word
+});
+
+test('mentionIds: only the people really mentioned (the ids sent to the server)', () => {
+  const people = [{ id: 1, name: 'Ram' }, { id: 2, name: 'Ram Kumar' }, { id: 3, name: 'Meena' }];
+  assert.deepEqual(mentionIds('hi @Ram Kumar', people), [2]);
+  assert.deepEqual(mentionIds('@Ram and @Ram Kumar', people), [1, 2]);
+  assert.deepEqual(mentionIds('@Ramesh @Meena!', people), [3]);
+  assert.deepEqual(mentionIds('no mentions', people), []);
 });

@@ -6,6 +6,7 @@ Starlette's TestClient runs the app on its own event loop in a thread. Everythin
 (HTTP calls and WebSockets) goes through ONE TestClient, so the hub and the sockets share that loop.
 Tests use NullPool, so the database works from that thread too."""
 import asyncio
+import threading
 import time
 
 import pytest
@@ -222,5 +223,80 @@ async def test_read_event_only_when_the_read_position_moved():
                 _login(tc, "asha")
                 tc.post(f"{C}/channels/{dm}/messages", json={"body": "again"}, headers=HDR)
                 assert ravi.receive_json()["type"] == "message.new"  # the next event, no second "read"
+
+    await asyncio.to_thread(scenario)
+
+
+# ---------- PR #55 second review ----------
+
+async def test_a_chatty_client_is_still_rechecked_and_closed_after_logout(monkeypatch):
+    await _team("asha")
+    monkeypatch.setattr(chat_hub, "PING_SECONDS", 0.5)
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            with tc.websocket_connect(WS, headers=OURS) as ws:
+                _hello(ws)
+                tc.post("/api/v1/auth/logout", headers=HDR)
+                # Another thread keeps sending every 0.1 s for up to 4 s, the whole time we wait for the
+                # close. Before the fix each frame pushed the check back, so the close only came once the
+                # sending stopped (after 4 s). With the fix it comes at the next check (about 0.5 s).
+                stop = threading.Event()
+
+                def chatter():
+                    for _ in range(40):
+                        if stop.is_set():
+                            return
+                        try:
+                            ws.send_text("still here")
+                        except Exception:
+                            return
+                        time.sleep(0.1)
+
+                sender = threading.Thread(target=chatter)
+                started = time.monotonic()
+                sender.start()
+                try:
+                    assert _closed_with(ws) == chat_hub.CLOSE_LOGGED_OUT
+                    assert time.monotonic() - started < 2, "closed only after the client stopped sending"
+                finally:
+                    stop.set()
+                    sender.join()
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_a_flooding_client_is_closed():
+    await _team("asha")
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            with tc.websocket_connect(WS, headers=OURS) as ws:
+                _hello(ws)
+                for _ in range(chat_hub.MAX_FRAMES + 1):
+                    ws.send_text("x")
+                with pytest.raises(WebSocketDisconnect) as e:
+                    ws.receive_json()
+                assert e.value.code == 1008
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_a_change_that_changes_nothing_sends_no_event():
+    ids = await _team("asha", "ravi")
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            cid = tc.post(f"{C}/channels", json={"name": "sales", "member_ids": [ids["ravi"]]}, headers=HDR).json()["id"]
+            _login(tc, "ravi")
+            with tc.websocket_connect(WS, headers=OURS) as ravi:
+                _hello(ravi)
+                _login(tc, "asha")
+                assert tc.patch(f"{C}/channels/{cid}", json={"name": "sales"}, headers=HDR).status_code == 200
+                tc.post(f"{C}/channels/{cid}/messages", json={"body": "hi"}, headers=HDR)
+                assert ravi.receive_json()["type"] == "message.new"  # no channel.changed before it
 
     await asyncio.to_thread(scenario)

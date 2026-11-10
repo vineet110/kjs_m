@@ -26,16 +26,20 @@ export default function NewChat({ meId, onDone, onClose }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const first = useRef<HTMLInputElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
 
   useEffect(() => {
     api<Colleague[]>('/employee/colleagues')
       .then((all) => setPeople(all.filter((p) => p.id !== meId)))
       .catch((e) => setErr(errorText(e, 'Could not load colleagues.')));
     first.current?.focus();
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && close.current();
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [meId, onClose]);
+    // Only when the dialog opens (or the account changes): live events redraw the page many times, and
+    // this used to reload the colleagues and pull the focus back to the search box each time (PR #55 review)
+  }, [meId]);
 
   const shown = (people ?? []).filter((p) => p.name.toLowerCase().includes(find.trim().toLowerCase()));
   const toggle = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));

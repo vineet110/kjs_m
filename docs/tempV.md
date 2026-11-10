@@ -255,5 +255,25 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
         `RateLimiter.check()` takes an optional message.
     11. Tests: 5 new backend tests (fixes 1 and 2 shown to fail without the fix), 2 frontend unit tests,
         6 new browser checks for a dropped connection (41 in all, all pass).
-12. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+12. PR #55 second review fixes (10 Nov). Why they slipped through the first time: I fixed where the
+    bug showed instead of the one shared rule; one helper did two jobs (add vs replace); catch-up was a
+    "reconnect only" special case; the logout check depended on silence; tests copied the reported case.
+    1. The session is re-checked every 30 s by the clock, whatever the browser sends. More than 20 frames
+       between two checks closes the tab (our page sends none). NOTE for phase 3 ("typing…"): raise
+       that limit, or the page's own typing events will close it.
+    2. One mention rule (`mentionParts` / `mentionIds` in `lib/chat.ts`) for showing, sending and editing:
+       longest names first, and the name must end there ("@Ramesh" is not "@Ram"; Hindi vowel signs count
+       as part of the word). Accepted: two people with exactly the same name are both mentioned.
+    3. Edits only replace messages already on screen (an old one no longer jumps to the top).
+    4. Catch-up runs on every connection, the first one too ("after" skipped while the chat loads).
+    5. The "New chat" dialog sets itself up once (focus no longer jumps while messages arrive).
+    6. A failed "load older" shows a message and waits 3 s before trying again.
+    7. Unread counts read only messages after the read position, through the index; the sidebar total
+       skips muted chats in the same query.
+    8. "Archive + rename" in one request works; a change that changes nothing saves and pushes nothing.
+    9. Tests: 6 new backend tests, 2 new unit tests, 14 new browser checks (55 in all). Shown to fail with
+       the fix undone: the mention rule (3 unit tests fail), edits (2 browser checks fail), the clock
+       check (backend test fails).
+    10. No third review round (our 2-round rule). Before merging: 10 minutes by hand in two browsers.
+13. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.

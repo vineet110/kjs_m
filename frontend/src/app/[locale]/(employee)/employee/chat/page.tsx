@@ -19,7 +19,14 @@ import {
   type ChatChannel, type ChatEvent, type ChatMessage, type ChatPage, type ChatPerson,
 } from '@/lib/chat';
 
-/** Add or replace by id, oldest first (the same message can come from our POST and the live event). */
+/** Replace by id, only if it's on screen. For edits and deletes: an edit of an older message that isn't
+ *  loaded must not be added (it would jump to the top and break "load older": PR #55 review). */
+function replace(list: ChatMessage[], m: ChatMessage): ChatMessage[] {
+  return list.some((x) => x.id === m.id) ? list.map((x) => (x.id === m.id ? m : x)) : list;
+}
+
+/** Add or replace by id, oldest first (the same message can come from our POST and the live event).
+ *  For NEW messages only; edits use replace(). */
 function upsert(list: ChatMessage[], m: ChatMessage): ChatMessage[] {
   const i = list.findIndex((x) => x.id === m.id);
   if (i >= 0) return list.map((x) => (x.id === m.id ? m : x));
@@ -142,7 +149,7 @@ function ChatPageInner() {
         break;
       }
       case 'message.edited':
-        if (e.channel_id === activeRef.current) setMessages((list) => upsert(list, e.message));
+        if (e.channel_id === activeRef.current) setMessages((list) => replace(list, e.message));
         break;
       case 'message.deleted':
         if (e.channel_id === activeRef.current) {
@@ -170,19 +177,25 @@ function ChatPageInner() {
     }
   }, [me.id, soon, loadDetails, select]);
 
-  // Back after a dropped connection: fetch what was missed
-  const onReconnect = useCallback(() => {
-    loadChats();
+  // Every time the connection opens (the first time too): fetch what may have been missed
+  const onConnect = useCallback(() => {
+    soon('chats');
     const id = activeRef.current;
     if (!id) return;
-    // 1. New messages since the last one we have. 2. The newest 50 again: edits and deletes made while
-    // the connection was down only show this way (their live events were lost).
+    const last = lastIdRef.current;
+    // 1. New messages since the last one we have. Skipped while the chat is still loading (last = 0):
+    //    "after 0" would fetch the OLDEST 100. 2. The newest 50 again: edits and deletes made while the
+    //    connection was down only show this way (their live events were lost).
     Promise.all([
-      api<ChatPage>(`/chat/channels/${id}/messages?after=${lastIdRef.current}&limit=100`),
+      last ? api<ChatPage>(`/chat/channels/${id}/messages?after=${last}&limit=100`) : Promise.resolve(null),
       api<ChatPage>(`/chat/channels/${id}/messages`),
     ])
       .then(([missed, newest]) => {
         if (activeRef.current !== id) return;
+        if (!missed) {
+          setMessages((list) => newest.messages.reduce(upsert, list.filter((x) => x.channel_id === id)));
+          return;
+        }
         if (missed.has_more) {
           // Missed more than 100: start again from the newest page (scrolling up loads the rest)
           setMessages(newest.messages);
@@ -192,9 +205,9 @@ function ChatPageInner() {
         setMessages((list) => [...missed.messages, ...newest.messages].reduce(upsert, list));
       })
       .catch(() => undefined);
-  }, [loadChats]);
+  }, [soon]);
 
-  const socket = useChatSocket(onEvent, onReconnect);
+  const socket = useChatSocket(onEvent, onConnect);
 
   const loadOlder = useCallback(async () => {
     const id = activeRef.current;
@@ -217,8 +230,12 @@ function ChatPageInner() {
   // My own edit or delete, once the server confirmed it: shown at once, without waiting for the live
   // event (which may not come if the connection is down).
   const changed = useCallback((m: ChatMessage) => {
-    if (m.channel_id === activeRef.current) setMessages((list) => upsert(list, m));
+    if (m.channel_id === activeRef.current) setMessages((list) => replace(list, m));
   }, []);
+
+  // The same functions on every redraw, so the dialog doesn't set itself up again on each live event
+  const closeNewChat = useCallback(() => setNewChat(false), []);
+  const newChatDone = useCallback((c: ChatChannel) => { setNewChat(false); loadChats(); select(c.id); }, [loadChats, select]);
 
   if (chatsErr) return <LoadError error={chatsErr} onRetry={loadChats} />;
   if (chats === null) return <Loading />;
@@ -249,11 +266,7 @@ function ChatPageInner() {
         )}
       </section>
       {newChat && (
-        <NewChat
-          meId={me.id}
-          onClose={() => setNewChat(false)}
-          onDone={(c) => { setNewChat(false); loadChats(); select(c.id); }}
-        />
+        <NewChat meId={me.id} onClose={closeNewChat} onDone={newChatDone} />
       )}
     </div>
   );
