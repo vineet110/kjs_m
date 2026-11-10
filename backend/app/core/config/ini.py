@@ -138,6 +138,8 @@ class ModulesIni(BaseModel):
     analytics: ModuleLevel = "on"
     alerts: ModuleLevel = "on"
     audit: ModuleLevel = "on"
+    chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
+    lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
 
     @field_validator("*", mode="before")
     @classmethod

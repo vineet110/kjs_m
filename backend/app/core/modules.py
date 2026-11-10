@@ -12,8 +12,10 @@ have no switch.
 import logging
 
 from fastapi import Depends
+from sqlalchemy import select
 
 from app.core.config.ini import ModulesIni, cfg
+from app.core.database import AsyncSessionLocal
 from app.core.deps import current_user
 from app.core.errors import AppError
 from app.models.user import User
@@ -30,6 +32,8 @@ AREA_PAGES = {
     "analytics": ("/admin/analytics",),
     "alerts": ("/admin/alerts",),
     "audit": ("/admin/audit",),
+    "chat": ("/employee/chat",),
+    "lead_harvester": ("/admin/client-schedulers",),
 }
 # Who owns a stored file -> its area (user photos have no area: always on)
 AREA_OF_FILE_OWNER = {"board": "order_boards", "product": "website_admin"}
@@ -45,6 +49,16 @@ def visible(user: User, area: str | None) -> bool:
         return True
     lv = level(area)
     return lv == "on" or (lv == "admin" and user.role == "admin")
+
+
+async def visible_by_id(user_id: int, area: str) -> bool:
+    """visible() for code that has only the user id (the chat WebSocket). Reads the role only for `admin`,
+    with its own short DB session (an open chat connection must not hold one)."""
+    lv = level(area)
+    if lv != "admin":
+        return lv == "on"
+    async with AsyncSessionLocal() as db:
+        return await db.scalar(select(User.role).where(User.id == user_id)) == "admin"
 
 
 def visible_to(user: User) -> dict[str, bool]:

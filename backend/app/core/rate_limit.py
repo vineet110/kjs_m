@@ -57,10 +57,11 @@ class RateLimiter:
             self._recent(key)
             self._hits[key].append(time.monotonic())
 
-    def check(self, key: str | None) -> None:
-        """Refuse if over the limit, otherwise count this hit."""
+    def check(self, key: str | None, message: str = "Too many requests. Please try again later or WhatsApp us.") -> None:
+        """Refuse if over the limit, otherwise count this hit. `message`: what the person is told (the
+        default is for website visitors; staff features pass their own)."""
         if self.blocked(key):
-            raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
+            raise AppError(429, "too_many", message)
         self.hit(key)
 
     def reset(self) -> None:  # used by tests
@@ -78,3 +79,5 @@ login_email_failures = RateLimiter(limit=lambda: 100, window_seconds=900)  # per
 # count, so a whole office logging in from one address is never blocked (CR7).
 login_ip_limiter = RateLimiter(limit=lambda: cfg().app.login_failures_per_ip, window_seconds=900)
 signup_limiter = RateLimiter(limit=lambda: cfg().app.signups_per_ip_per_hour, window_seconds=3600)
+# Chat messages per person (not per IP): stops a stuck key or a script flooding a channel.
+chat_send_limiter = RateLimiter(limit=lambda: 30, window_seconds=60)

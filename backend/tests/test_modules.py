@@ -1,4 +1,5 @@
 """Portal areas switched on / admin / off for phased releases (config/modules.ini, app/core/modules.py)."""
+import asyncio
 import logging
 import os
 import time
@@ -6,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from sqlalchemy import select
 
 from app.core.config import ini
@@ -15,8 +18,8 @@ from app.core.modules import AREAS, area_of_link, link_for
 from app.jobs.runner import should_run
 from app.main import app
 from app.models.user import User
-from app.services import file_service, notification_service
-from tests.conftest import login, make_user
+from app.services import chat_hub, file_service, notification_service
+from tests.conftest import HDR, login, make_user
 
 
 @pytest.fixture
@@ -229,3 +232,32 @@ def test_repo_config_files_are_valid(monkeypatch):
     monkeypatch.setattr(ini, "CONFIG_DIR", REPO_CONFIG)
     assert (REPO_CONFIG / "modules.ini").exists()
     ini._validate(ini._read_raw())  # raises with the file and key on a typo or a bad value
+
+
+# ---------- Chat and Lead Harvester (added after Vineet's PRs #53 and #55) ----------
+async def test_chat_and_harvester_routes_follow_their_areas(client, modules):
+    await make_user("admin@kjsindia.com", role="admin")
+    await login(client, "admin@kjsindia.com")
+    assert (await client.get("/api/v1/chat/unread")).status_code == 200
+    modules(chat="off", lead_harvester="off")
+    assert (await client.get("/api/v1/chat/unread")).json()["code"] == "module_off"
+    assert (await client.get("/api/v1/admin/harvest/sources")).json()["code"] == "module_off"
+    assert not should_run("lead_harvester", working=True)
+
+
+async def test_chat_live_connection_closes_when_chat_is_hidden(modules):
+    """The WebSocket can't use the route switch (no Request): chat_socket checks the area itself."""
+    await make_user("e@kjsindia.com")
+    modules(chat="admin")  # an employee: hidden
+
+    def scenario():
+        with TestClient(app) as tc:
+            r = tc.post("/api/v1/auth/login", json={"email": "e@kjsindia.com", "password": "password1234"},
+                        headers=HDR)
+            assert r.status_code == 200, r.text
+            with tc.websocket_connect("/api/v1/chat/ws", headers={"origin": "http://localhost:3000"}) as ws:
+                with pytest.raises(WebSocketDisconnect) as e:
+                    ws.receive_json()
+                assert e.value.code == chat_hub.CLOSE_MODULE_OFF
+
+    await asyncio.to_thread(scenario)

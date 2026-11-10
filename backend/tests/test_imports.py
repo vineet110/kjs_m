@@ -12,6 +12,7 @@ MODULES = [
     "app.seed", "app.main", "app.jobs.runner",
     "app.services.auth_service", "app.services.file_service", "app.services.board_service",
     "app.services.lead_service", "app.services.assign_service", "app.services.notification_service",
+    "app.services.harvest_service", "app.services.harvest_filter",
 ]
 
 
