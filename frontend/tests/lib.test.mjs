@@ -55,7 +55,7 @@ test('safeNext never leads back to the login page (repeated slashes, encoded let
 
 // ---------- api(): every answer is either the data or an ApiFailure ----------
 // cache() (React) is used at the top of api.ts, so its stub goes first; here it just returns the function
-const { api, upload, ApiFailure, READ_TIMEOUT_MS, SAVE_TIMEOUT_MS } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {};", 'const cache = (fn) => fn;');
+const { api, upload, ApiFailure, READ_TIMEOUT_MS, SAVE_TIMEOUT_MS, moduleOffCalls } = await load('api', "const newRequestId = () => 'test-request-id'; const log = () => {}; let offs = 0; const moduleOff = () => { offs++; }; export const moduleOffCalls = () => offs;", 'const cache = (fn) => fn;');
 const answer = (body, status = 200, type = 'application/json') => async () => new Response(body, { status, headers: { 'content-type': type } });
 
 test('api returns readable JSON data', async () => {
@@ -407,4 +407,37 @@ test('CSV preview: UTF-8 text (₹, Hindi) and a row limit that stops reading ea
   const big = Array.from({ length: 5000 }, (_, i) => `r${i},1`).join('\n');
   const wb2 = XLSX.read(big, { type: 'string', raw: true, sheetRows: 1001 });
   assert.equal(XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1 }).length, 1001);
+});
+
+// ---------- Portal areas switched on / off (lib/modules.ts, config/modules.ini) ----------
+test('api: a 404 "module_off" tells the portal frame; other errors do not', async () => {
+  const before = moduleOffCalls();
+  globalThis.fetch = answer('{"code":"not_found","message":"Not found"}', 404);
+  await assert.rejects(api('/boards/X'), (err) => err.status === 404);
+  assert.equal(moduleOffCalls(), before);
+  globalThis.fetch = answer('{"code":"module_off","message":"Not yet","details":{"module":"order_boards"}}', 404);
+  await assert.rejects(api('/boards'), (err) => err.status === 404 && err.body.code === 'module_off');
+  assert.equal(moduleOffCalls(), before + 1);
+});
+
+const { areaOfPath, canSee } = await load('modules');
+
+test('areaOfPath finds the area of a portal page, with or without a language prefix', () => {
+  assert.equal(areaOfPath('/employee/order-boards'), 'order_boards');
+  assert.equal(areaOfPath('/en/employee/order-boards/ABC1'), 'order_boards');
+  assert.equal(areaOfPath('/admin/holidays?year=2026'), 'attendance');
+  assert.equal(areaOfPath('/admin/auto-assign'), 'batches');
+  assert.equal(areaOfPath('/admin/koko'), 'website_admin');
+  assert.equal(areaOfPath('/employee/order-boardsX'), null); // whole page names only
+  assert.equal(areaOfPath('/employee/dashboard'), null); // My day: always on
+  assert.equal(areaOfPath('/admin/leads'), null); // leads: always on
+});
+
+test('canSee: only an area the server says false is hidden', () => {
+  const me = { modules: { order_boards: false, audit: true } };
+  assert.equal(canSee(me, 'order_boards'), false);
+  assert.equal(canSee(me, 'audit'), true);
+  assert.equal(canSee(me, 'batches'), true); // not in the answer (older server): shown
+  assert.equal(canSee(me, null), true); // no area: always on
+  assert.equal(canSee({}, 'order_boards'), true);
 });

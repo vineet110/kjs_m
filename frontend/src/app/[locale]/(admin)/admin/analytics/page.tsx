@@ -14,9 +14,10 @@ type Data = {
   leads_per_week: { week: string; count: number }[];
   leads_by_source: Record<string, number>; leads_by_status: Record<string, number>; leads_by_outcome: Record<string, number>;
   sla: { answered: number; on_time: number; breaches: number };
-  attendance: { day: string; present: number; late: number }[];
+  // attendance, boards: null when that portal area is switched off (config/modules.ini)
+  attendance: { day: string; present: number; late: number }[] | null;
   tasks_done: { name: string; done: number }[];
-  boards: { active: Record<string, number>; finished: Record<string, number> };
+  boards: { active: Record<string, number>; finished: Record<string, number> } | null;
   koko: { chats: number; buyer_chats: number; leads: number };
 };
 
@@ -40,12 +41,16 @@ export default function Analytics() {
   if (!d) return <Loading />;
 
   const onTime = d.sla.answered ? Math.round((d.sla.on_time / d.sla.answered) * 100) : null;
-  const activeBoards = Object.values(d.boards.active).reduce((a, b) => a + b, 0);
+  const boards = d.boards;
   const tiles = [
     { label: 'Leads answered on time', value: onTime === null ? '—' : `${onTime}%`, sub: `${d.sla.on_time} of ${d.sla.answered}, last 8 weeks` },
     { label: 'SLA alerts sent', value: d.sla.breaches, sub: 'last 8 weeks' },
     { label: 'Koko chats', value: d.koko.chats, sub: `${d.koko.buyer_chats} looked like buyers · ${d.koko.leads} leads` },
-    { label: 'Active order boards', value: activeBoards, sub: Object.entries(d.boards.active).map(([k, v]) => `${v} ${nice(k).toLowerCase()}`).join(' · ') || 'none' },
+    ...(boards ? [{
+      label: 'Active order boards',
+      value: Object.values(boards.active).reduce((a, b) => a + b, 0),
+      sub: Object.entries(boards.active).map(([k, v]) => `${v} ${nice(k).toLowerCase()}`).join(' · ') || 'none',
+    }] : []),
   ];
 
   return (
@@ -65,10 +70,12 @@ export default function Analytics() {
         <Panel title="New leads per week">
           <Columns data={d.leads_per_week.map((w) => ({ label: fmtDay(w.week), value: w.count }))} />
         </Panel>
-        <Panel title="Attendance, last 14 days">
-          <Legend items={[['Present', C1], ['Late', C2]]} />
-          <StackedColumns data={d.attendance.map((a) => ({ label: fmtDay(a.day), a: a.present, b: a.late }))} />
-        </Panel>
+        {d.attendance && (
+          <Panel title="Attendance, last 14 days">
+            <Legend items={[['Present', C1], ['Late', C2]]} />
+            <StackedColumns data={d.attendance.map((a) => ({ label: fmtDay(a.day), a: a.present, b: a.late }))} />
+          </Panel>
+        )}
         <Panel title="Leads by source"><Bars data={toRows(d.leads_by_source)} /></Panel>
         <Panel title="Leads by status"><Bars data={toRows(d.leads_by_status)} /></Panel>
         <Panel title="Lead outcomes"><Bars data={toRows(d.leads_by_outcome)} /></Panel>

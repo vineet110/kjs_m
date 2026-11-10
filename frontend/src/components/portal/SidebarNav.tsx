@@ -5,14 +5,16 @@
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Me } from '@/lib/api';
+import { areaOfPath, canSee } from '@/lib/modules';
 import { moveGroup, sortByOrder } from '@/lib/nav-order';
 import { onApprovalsChanged } from '@/lib/portal-session';
 import { Icon, type IconName } from './icons';
 
 // One sidebar config for everyone; each link names the permission it needs (null = every staff
-// member, a list = any one of them). `soon` = page not built yet (see docs/checklist.md).
+// member, a list = any one of them). A link of a portal area switched off for this person
+// (config/modules.ini, lib/modules.ts: found from the link itself) is hidden too.
 // `badge` = the link shows a count of things waiting (see `useApprovalCount`).
-type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; soon?: boolean; badge?: 'approvals' };
+type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; badge?: 'approvals' };
 type NavGroup = { group: string; items: NavItem[] };
 const allowed = (perm: NavItem['perm'], mine: string[]) =>
   perm === null || (Array.isArray(perm) ? perm.some((p) => mine.includes(p)) : mine.includes(perm));
@@ -79,6 +81,13 @@ const NAV: NavGroup[] = [
 ];
 const DEFAULT_ORDER = NAV.map((g) => g.group);
 
+/** The groups and links this person sees: allowed by permission and in an area that is on for them.
+ * A group with no links left is left out. */
+export function navFor(me: Pick<Me, 'permissions' | 'modules'>): NavGroup[] {
+  return NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions) && canSee(me, areaOfPath(n.href))) }))
+    .filter((g) => g.items.length > 0);
+}
+
 type Inbox = { signups: unknown[] | null; regularizations: unknown[] | null; file_deletes: unknown[] | null };
 
 /** How many things wait in the Approvals inbox (sign-ups + attendance fixes + file deletions you may
@@ -128,7 +137,7 @@ const isActive = (pathname: string, href: string) => pathname.startsWith(href);
 
 export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathname: string; onNavigate: () => void }) {
   const approvals = useApprovalCount(allowed(APPROVE_PERMS, me.permissions), pathname);
-  const visible = NAV.map((g) => ({ ...g, items: g.items.filter((n) => allowed(n.perm, me.permissions)) })).filter((g) => g.items.length > 0);
+  const visible = navFor(me);
   const many = visible.length > 1; // one group (most staff): a plain list, no headers to open or drag
 
   const [order, setOrder] = useState<string[]>(() => {
@@ -308,7 +317,6 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                           <span className="sr-only"> waiting</span>
                         </span>
                       )}
-                      {n.soon && <span className="text-[10px] text-stone-500">soon</span>}
                     </Link>
                   );
                 })}
