@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.core.errors import AppError
 from app.core.logs import user_id_var
 from app.core.permissions import effective_permissions
@@ -38,6 +38,34 @@ async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> 
     if request.method not in ("GET", "HEAD", "OPTIONS") and not request.headers.get(CSRF_HEADER):
         raise AppError(403, "csrf", "Missing request header.")
     return user
+
+
+async def ws_user(token: str | None) -> int | None:
+    """The WebSocket version of current_user (KJS Chat): the same session cookie and checks, but
+    1. it takes the token, not a Request (a WebSocket isn't one), and returns only the user id;
+    2. it opens its own short DB session and closes it at once, so open chat connections never hold
+       database connections (also used for the re-check on every ping);
+    3. no x-requested-with check (a browser can't add headers to a WebSocket). The chat route checks
+       the Origin header instead (origin_allowed below).
+    None = not logged in, session ended, or not active."""
+    if not token:
+        return None
+    async with AsyncSessionLocal() as db:
+        return await db.scalar(
+            select(User.id)
+            .join(UserSession, UserSession.user_id == User.id)
+            .where(UserSession.token_hash == hash_token(token))
+            .where(UserSession.expires_at > datetime.now(timezone.utc))
+            .where(User.status == "active")
+        )
+
+
+def origin_allowed(origin: str | None) -> bool:
+    """Is this page one of our own sites (ALLOWED_ORIGINS)? Browsers always send Origin on a WebSocket
+    and a page can't fake it, so this stops another website opening a chat connection with the
+    visitor's cookie (cross-site WebSocket hijacking)."""
+    allowed = {o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()}
+    return bool(origin) and origin in allowed
 
 
 def require_permission(permission: str):

@@ -19,6 +19,7 @@ Rules (docs/tempV.md, KJS Chat plan):
 11. @mentions: the client sends the ids; we keep only members of the chat (not me) and give each one
     a normal notification (bell + email), also when they muted the chat.
 12. Sending is rate-limited per person: 30 messages a minute.
+13. After each save, the live hub pushes an event to the members who are online (day 3, chat_hub.py).
 """
 from datetime import datetime, timezone
 
@@ -31,6 +32,7 @@ from app.core.rate_limit import chat_send_limiter
 from app.models.chat import ChatChannel, ChatMember, ChatMessage
 from app.models.user import User
 from app.services import audit_service, notification_service
+from app.services.chat_hub import hub
 
 PAGE_MAX = 100  # most messages one request may ask for
 
@@ -97,6 +99,15 @@ async def _members_of(db: AsyncSession, channel_ids: list[int]) -> dict[int, lis
     for cid, uid, name, role in rows.all():
         out[cid].append({"id": uid, "name": name, "role": role})
     return out
+
+
+async def _member_ids(db: AsyncSession, channel_id: int) -> list[int]:
+    return list((await db.scalars(select(ChatMember.user_id).where(ChatMember.channel_id == channel_id))).all())
+
+
+async def _push(db: AsyncSession, channel_id: int, event: dict, *, also: tuple[int, ...] = ()) -> None:
+    """Live event to everyone in the chat (and `also`, e.g. someone just removed). Call after commit."""
+    await hub.push([*await _member_ids(db, channel_id), *also], {"channel_id": channel_id} | event)
 
 
 def _title(ch: ChatChannel, members: list[dict], my_id: int) -> str:
@@ -186,6 +197,7 @@ async def create_channel(db: AsyncSession, user: User, *, kind: str, name: str, 
     for uid in others:
         db.add(ChatMember(channel_id=ch.id, user_id=uid, role="member"))
     await db.commit()
+    await _push(db, ch.id, {"type": "channel.changed"})
     return await get_channel(db, user, ch.id)
 
 
@@ -209,6 +221,8 @@ async def open_dm(db: AsyncSession, user: User, other_id: int) -> dict:
         .on_conflict_do_nothing(constraint="uq_chat_members_channel_user")
     )
     await db.commit()
+    if new_id:
+        await _push(db, channel_id, {"type": "channel.changed"})
     return await get_channel(db, user, channel_id)
 
 
@@ -246,6 +260,7 @@ async def update_channel(db: AsyncSession, user: User, channel_id: int, changes:
         audit_service.record(db, actor=user, action=action, entity_type="chat_channel", entity_id=ch.id,
                              before=before, after=after)
     await db.commit()
+    await _push(db, ch.id, {"type": "channel.changed"})
     return await get_channel(db, user, ch.id)
 
 
@@ -264,6 +279,7 @@ async def add_members(db: AsyncSession, user: User, channel_id: int, user_ids: l
             .on_conflict_do_nothing(constraint="uq_chat_members_channel_user")
         )
     await db.commit()
+    await _push(db, ch.id, {"type": "channel.changed"})
     return await get_channel(db, user, ch.id)
 
 
@@ -294,6 +310,7 @@ async def remove_member(db: AsyncSession, user: User, channel_id: int, user_id: 
                          before={"user_id": target.user_id, "role": target.role},
                          after={"members_left": len(left)})
     await db.commit()
+    await _push(db, ch.id, {"type": "channel.changed"}, also=(target.user_id,))
 
 
 # ---------- Messages (day 2) ----------
@@ -381,7 +398,9 @@ async def send_message(db: AsyncSession, user: User, channel_id: int, body: str,
     me.last_read_message_id = m.id  # my own message is never unread for me
     await _notify_mentions(db, user, ch, m.mentions, body)
     await db.commit()
-    return _msg_out(m, user.name)
+    out = _msg_out(m, user.name)
+    await _push(db, ch.id, {"type": "message.new", "message": out})
+    return out
 
 
 async def _my_message(db: AsyncSession, user: User, message_id: int) -> tuple[ChatMessage, ChatChannel]:
@@ -409,7 +428,9 @@ async def edit_message(db: AsyncSession, user: User, message_id: int, body: str,
     m.edited_at = datetime.now(timezone.utc)
     await _notify_mentions(db, user, ch, [i for i in m.mentions if i not in old], m.body)
     await db.commit()
-    return _msg_out(m, user.name)
+    out = _msg_out(m, user.name)
+    await _push(db, ch.id, {"type": "message.edited", "message": out})
+    return out
 
 
 async def delete_message(db: AsyncSession, user: User, message_id: int) -> None:
@@ -419,6 +440,7 @@ async def delete_message(db: AsyncSession, user: User, message_id: int) -> None:
     if m.deleted_at is None:
         m.deleted_at, m.body, m.mentions = datetime.now(timezone.utc), "", []
         await db.commit()
+        await _push(db, ch.id, {"type": "message.deleted", "message_id": m.id})
 
 
 async def mark_read(db: AsyncSession, user: User, channel_id: int, message_id: int | None = None) -> None:
@@ -432,3 +454,4 @@ async def mark_read(db: AsyncSession, user: User, channel_id: int, message_id: i
         .values(last_read_message_id=target)
     )
     await db.commit()
+    await hub.push([user.id], {"type": "read", "channel_id": ch.id, "message_id": target})  # my other tabs

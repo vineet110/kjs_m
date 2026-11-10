@@ -1,0 +1,144 @@
+"""KJS Chat, day 3: the live push (WebSocket /api/v1/chat/ws).
+A sends, B sees it live; a non-member gets nothing; another website (wrong Origin) is refused; no
+login = closed with 4401; logging out or being disabled closes the live connection.
+
+Starlette's TestClient runs the app on its own event loop in a thread. Everything in one scenario
+(HTTP calls and WebSockets) goes through ONE TestClient, so the hub and the sockets share that loop.
+Tests use NullPool, so the database works from that thread too."""
+import asyncio
+import time
+
+import pytest
+from sqlalchemy import select
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
+from app.core.database import AsyncSessionLocal
+from app.main import app
+from app.models.user import User
+from app.services import chat_hub
+from tests.conftest import HDR, make_user
+
+C = "/api/v1/chat"
+WS = f"{C}/ws"
+OURS = {"origin": "http://localhost:3000"}  # in ALLOWED_ORIGINS for tests
+
+
+async def _team(*names: str) -> dict[str, int]:
+    for n in names:
+        await make_user(f"{n}@kjsindia.com")
+    async with AsyncSessionLocal() as db:
+        return {n: i for n, i in (await db.execute(select(User.name, User.id))).all() if n in names}
+
+
+def _login(tc: TestClient, name: str) -> None:
+    r = tc.post("/api/v1/auth/login", json={"email": f"{name}@kjsindia.com", "password": "password1234"}, headers=HDR)
+    assert r.status_code == 200, r.text
+
+
+def _hello(ws) -> None:
+    assert ws.receive_json()["type"] == "hello"
+
+
+def _closed_with(ws) -> int:
+    """Read until the server closes; pings in between are fine. Returns the close code."""
+    with pytest.raises(WebSocketDisconnect) as e:
+        while True:
+            assert ws.receive_json()["type"] == "ping"
+    return e.value.code
+
+
+async def test_a_sends_b_sees_it_live_and_outsiders_see_nothing():
+    ids = await _team("asha", "ravi", "meena")
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "ravi")  # each socket keeps the cookie it opened with
+            with tc.websocket_connect(WS, headers=OURS) as ravi:
+                _hello(ravi)
+                _login(tc, "meena")
+                with tc.websocket_connect(WS, headers=OURS) as meena:
+                    _hello(meena)
+                    _login(tc, "asha")
+
+                    cid = tc.post(f"{C}/channels", json={"name": "sales", "member_ids": [ids["ravi"]]},
+                                  headers=HDR).json()["id"]
+                    assert ravi.receive_json() == {"channel_id": cid, "type": "channel.changed"}
+
+                    sent = tc.post(f"{C}/channels/{cid}/messages", json={"body": "hi ravi"}, headers=HDR).json()
+                    ev = ravi.receive_json()
+                    assert ev["type"] == "message.new" and ev["message"] == sent and ev["channel_id"] == cid
+
+                    tc.patch(f"{C}/messages/{sent['id']}", json={"body": "hi Ravi"}, headers=HDR)
+                    ev = ravi.receive_json()
+                    assert ev["type"] == "message.edited" and ev["message"]["body"] == "hi Ravi"
+
+                    tc.delete(f"{C}/messages/{sent['id']}", headers=HDR)
+                    assert ravi.receive_json() == {"channel_id": cid, "type": "message.deleted",
+                                                   "message_id": sent["id"]}
+
+                    # meena got none of that: the first thing she receives is her own new DM
+                    dm = tc.post(f"{C}/dm/{ids['meena']}", headers=HDR).json()["id"]
+                    assert meena.receive_json() == {"channel_id": dm, "type": "channel.changed"}
+
+                    # reading in one tab tells my other tabs (and nobody else)
+                    _login(tc, "ravi")
+                    tc.post(f"{C}/channels/{cid}/read", headers=HDR)
+                    assert ravi.receive_json() == {"type": "read", "channel_id": cid, "message_id": sent["id"]}
+        assert chat_hub.hub.count() == 0  # closed sockets are forgotten
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_wrong_origin_and_no_login_are_refused():
+    await _team("asha")
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            for headers in ({"origin": "https://evil.example"}, {}):
+                with pytest.raises(WebSocketDisconnect) as e:
+                    with tc.websocket_connect(WS, headers=headers) as ws:
+                        ws.receive_json()
+                assert e.value.code == 1008
+            tc.cookies.clear()
+            with tc.websocket_connect(WS, headers=OURS) as ws:
+                assert _closed_with(ws) == chat_hub.CLOSE_LOGGED_OUT
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_logout_closes_the_live_connection_at_the_next_ping(monkeypatch):
+    await _team("asha")
+    monkeypatch.setattr(chat_hub, "PING_SECONDS", 0.2)
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            with tc.websocket_connect(WS, headers=OURS) as ws:
+                _hello(ws)
+                assert ws.receive_json() == {"type": "ping"}  # still logged in: pings keep coming
+                tc.post("/api/v1/auth/logout", headers=HDR)
+                assert _closed_with(ws) == chat_hub.CLOSE_LOGGED_OUT
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_disabling_someone_closes_their_chat_at_once(monkeypatch):
+    ids = await _team("asha")
+    await make_user("boss@kjsindia.com", role="admin")
+    monkeypatch.setattr(chat_hub, "PING_SECONDS", 60)  # so only the kick can close it in time
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            with tc.websocket_connect(WS, headers=OURS) as ws:
+                _hello(ws)
+                _login(tc, "boss")
+                started = time.monotonic()
+                r = tc.post(f"/api/v1/admin/users/{ids['asha']}/status", json={"status": "disabled"}, headers=HDR)
+                assert r.status_code == 200, r.text
+                assert _closed_with(ws) == chat_hub.CLOSE_LOGGED_OUT
+                assert time.monotonic() - started < 5
+
+    await asyncio.to_thread(scenario)

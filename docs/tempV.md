@@ -191,5 +191,27 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
       only the people newly mentioned.
    3. Muted chats don't count in the sidebar total.
    4. Sending limit: 30 messages a minute per person.
-7. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+7. Day 3 done (10 Nov): live push.
+   1. `services/chat_hub.py` (who is connected, `push`, `kick`), `ws_user` and `origin_allowed` in
+      `core/deps.py` (`current_user` untouched), `WS /api/v1/chat/ws` in `endpoints/chat.py`, and every
+      save in `chat_service.py` now pushes an event after commit.
+   2. Events: `hello`, `ping`, `message.new`, `message.edited`, `message.deleted`, `read` (only to the
+      reader's other tabs), `channel.changed` (re-fetch the chat list).
+   3. Close codes for the page: 4401 = logged out (go to login, don't reconnect); 1012 = server
+      restarting (reconnect); anything else = reconnect with a growing wait.
+   4. Disabling someone closes their chat tabs at once (`auth_service.set_status` calls `kick`).
+      Logout and expiry are caught at the next ping (30 s).
+   5. Tests: `tests/test_chat_live.py` (4 tests). I broke the kick on purpose and the disable test
+      failed, so the test really checks it.
+   6. Real-server check (instead of two browsers, the page comes on day 4): real uvicorn, then real
+      nginx 1.28 in front. B got A's message live; a wrong Origin got 403; nginx logged 101 (upgrade
+      worked); `nginx -t` passed.
+   7. nginx block added in `deploy/nginx/default.conf`. It repeats Host and X-Forwarded-* because any
+      `proxy_set_header` inside a location drops the server-level ones.
+8. Changes from the plan (day 3):
+   1. No hub shutdown step: uvicorn 0.30.1 already closes every WebSocket with code 1012 when it stops.
+      Checked: the server stopped in 0.2 s with a chat open.
+   2. A disabled person is NOT removed from their chats (that would break their DMs and lose them if
+      they're turned back on). Their live tabs are closed and they can't log in; that's enough.
+9. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.

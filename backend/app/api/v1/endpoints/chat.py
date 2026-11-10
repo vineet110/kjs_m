@@ -1,15 +1,17 @@
 """KJS Chat. Any logged-in staff member; every route checks that you are in the chat (else 404).
 Rules live in app/services/chat_service.py."""
+import asyncio
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import current_user
+from app.core.deps import current_user, origin_allowed, ws_user
 from app.models.user import User
-from app.services import chat_service
+from app.services import chat_hub, chat_service
 
 router = APIRouter()
 
@@ -118,3 +120,38 @@ async def delete_message(message_id: int, user: User = Depends(current_user), db
 async def mark_read(channel_id: int, data: ReadIn | None = None, user: User = Depends(current_user),
                     db: AsyncSession = Depends(get_db)):
     await chat_service.mark_read(db, user, channel_id, data.message_id if data else None)
+
+
+# ---------- Live push (day 3) ----------
+@router.websocket("/ws")
+async def chat_socket(websocket: WebSocket):
+    """One per open tab. Only pushes events (see chat_hub.py); sending uses the normal POST routes.
+    1. Wrong Origin (another website): refused before it opens (the browser sees 403).
+    2. Not logged in: opened, then closed with 4401 so the page knows to log in, not reconnect.
+    3. Every PING_SECONDS: check the session again (logout, expiry, disabled), then send a ping."""
+    if not origin_allowed(websocket.headers.get("origin")):
+        await websocket.close(code=1008)
+        return
+    token = websocket.cookies.get(settings.SESSION_COOKIE_NAME)
+    user_id = await ws_user(token)
+    await websocket.accept()
+    if user_id is None:
+        await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
+        return
+
+    chat_hub.hub.add(user_id, websocket)
+    try:
+        await websocket.send_json({"type": "hello", "user_id": user_id})
+        while True:
+            try:
+                # The browser doesn't need to send anything; this just notices when it goes away.
+                await asyncio.wait_for(websocket.receive_text(), timeout=chat_hub.PING_SECONDS)
+            except asyncio.TimeoutError:
+                if await ws_user(token) != user_id:
+                    await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
+                    return
+                await websocket.send_json({"type": "ping"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        chat_hub.hub.remove(user_id, websocket)
