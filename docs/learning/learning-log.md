@@ -10,6 +10,17 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 10 Nov 2026 (config folder, PR #56, Nishita)
+
+1. (T) A config file changes behaviour without a deploy, so its comments must match what the code really
+   does. My first SLA note named `jobs_hours`; the code uses the shift hours.
+
+2. (T) A test that reads the live config breaks when someone tunes a value. Pin the values in the test.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 9 Nov 2026 (Koko catalogue, PR #50, Nishita)
 
 1. (T) An AI request has a size, counted in tokens, and providers limit tokens per minute. Sending

@@ -1,8 +1,10 @@
 """Lead SLA timers (working hours only), escalation job, notes, hand-over, notifications."""
 from datetime import date, datetime
 
+import pytest
 from sqlalchemy import select
 
+from app.core.config import ini
 from app.core.database import AsyncSessionLocal
 from app.jobs.runner import run_job
 from app.models.lead import Lead
@@ -57,7 +59,19 @@ async def _user_id(email: str) -> int:
         return await db.scalar(select(User.id).where(User.email == email))
 
 
-async def test_escalation_once_per_breach(client):
+@pytest.fixture
+def sla_20_60_10(monkeypatch):
+    """Pin the SLA numbers so the test does not depend on what config/sla.ini says today."""
+    monkeypatch.setenv("KJS__SLA__RESPOND_MINUTES", "20")
+    monkeypatch.setenv("KJS__SLA__RESOLVE_MINUTES", "60")
+    monkeypatch.setenv("KJS__SLA__ESCALATE_AFTER_MINUTES", "10")
+    ini.reload_now()
+    yield
+    monkeypatch.undo()
+    ini.reload_now()
+
+
+async def test_escalation_once_per_breach(client, sla_20_60_10):
     await make_user("admin@kjsindia.com", role="admin")
     await _new_lead(client, ist("2026-10-26", "10:00"))
     async with AsyncSessionLocal() as db:

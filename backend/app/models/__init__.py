@@ -13,4 +13,5 @@ from app.models.task import Task  # noqa: F401
 from app.models.file import StoredFile  # noqa: F401
 from app.models.batch import Batch, BuyerRecord, RecordList  # noqa: F401
 from app.models.content import KokoChat, Offer, PartnerApplication, SiteText  # noqa: F401
+from app.models.harvest import HarvestRun, HarvestSource  # noqa: F401
 from app.models.chat import ChatChannel, ChatMember, ChatMessage  # noqa: F401

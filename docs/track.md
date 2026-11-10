@@ -126,6 +126,12 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          R52 (paid Groq tier before real traffic), A92 (card rules).
 
 
+4n. Config comments and values (Nishita): merged in PR #56 (10 Nov)
+
+   i.    Plain comments in `config/sla.ini`, `features.ini`, `logging.ini`, `koko.ini`. Background jobs
+         switched off, one batch a day, 30-minute SLA grace: `memory.md` 46. Follow-up: `backlog.md` R53.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say

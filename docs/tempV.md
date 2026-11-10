@@ -234,8 +234,9 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
 10. Day 5 (10 Nov): phase 1 finished. Final checks: backend 313 passed, frontend typecheck and 44 tests
     passed, chat browser test 35 passed. PR raised from `feat/team-chat` to `main`.
     1. On deploy: run migration 0020, and reload nginx (new chat block).
-    2. If `feat/client-schedulers` (0019) merges first, change our `down_revision` to `'0019'` (or theirs to
-       `'0020'` if ours goes first).
+    2. Done 10 Nov: #53 (0019) merged first, so 0020 now comes after 0019. `main` merged into this branch;
+       `router.py` and `models/__init__.py` keep both sides. Any local database that already ran the old
+       0020 (after 0018) must go back to 0018 and upgrade again, or 0019 is never applied.
     3. To fold after merging: the guesses in items 4, 6 and 8 into backlog section 3; the new words
        (section 9) into kb.md; the leave_requests note below into the backlog.
 11. PR #55 review fixes (10 Nov), all 10 from the code review:

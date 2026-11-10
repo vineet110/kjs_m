@@ -45,27 +45,29 @@ const NAV: NavGroup[] = [
     items: [{ href: '/admin/dashboard', label: 'Overview', icon: 'home', perm: 'staff.approve' }],
   },
   {
-    group: 'People',
+    group: 'Employees',
     items: [
-      { href: '/admin/approvals', label: 'Approvals', icon: 'check', perm: APPROVE_PERMS, badge: 'approvals' },
-      { href: '/admin/users', label: 'Users', icon: 'users', perm: 'staff.approve' },
-      { href: '/admin/team-attendance', label: 'Team attendance', icon: 'clock', perm: 'attendance.manage' },
+      { href: '/admin/approvals', label: 'All approvals', icon: 'check', perm: APPROVE_PERMS, badge: 'approvals' },
+      { href: '/admin/users', label: 'Manage', icon: 'users', perm: 'staff.approve' },
+      { href: '/admin/team-attendance', label: 'Attendance', icon: 'clock', perm: 'attendance.manage' },
+      { href: '/admin/holidays', label: 'Holidays', icon: 'calendar', perm: 'calendar.edit' },
     ],
   },
   {
     group: 'Sales',
     items: [
       { href: '/admin/leads', label: 'All leads', icon: 'inbox', perm: 'leads.view_all' },
-      { href: '/admin/order-boards', label: 'Order boards', icon: 'board', perm: 'boards.manage' },
+      { href: '/admin/order-boards', label: 'All order boards', icon: 'board', perm: 'boards.manage' },
       { href: '/admin/auto-assign', label: 'Auto-assign', icon: 'shuffle', perm: 'assign.manage' },
+      { href: '/admin/client-schedulers', label: 'Client Schedulers', icon: 'layers', perm: 'assign.manage' },
     ],
   },
   {
-    group: 'Website',
+    group: 'Global Site',
     items: [
-      { href: '/admin/products', label: 'Products', icon: 'box', perm: 'catalog.edit' },
-      { href: '/admin/website', label: 'Website & partners', icon: 'globe', perm: ['content.edit', 'leads.view_all'] },
-      { href: '/admin/koko', label: 'Koko', icon: 'chat', perm: 'content.edit' },
+      { href: '/admin/products', label: 'All Products', icon: 'box', perm: 'catalog.edit' },
+      { href: '/admin/website', label: 'SEO & Partners', icon: 'globe', perm: ['content.edit', 'leads.view_all'] },
+      { href: '/admin/koko', label: 'Manage KOKO', icon: 'chat', perm: 'content.edit' },
     ],
   },
   {
@@ -73,7 +75,6 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/admin/analytics', label: 'Analytics', icon: 'chart', perm: 'staff.approve' },
       { href: '/admin/alerts', label: 'Alerts', icon: 'bell', perm: 'staff.approve' },
-      { href: '/admin/holidays', label: 'Holidays', icon: 'calendar', perm: 'calendar.edit' },
       { href: '/admin/audit', label: 'Audit log', icon: 'file', perm: 'audit.view' },
       { href: '/admin/settings', label: 'Settings', icon: 'settings', perm: 'staff.approve' },
     ],

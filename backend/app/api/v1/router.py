@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, content, employee, files, koko, public, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, content, employee, files, harvest, koko, public, tasks
 
 api_router = APIRouter()
 
@@ -9,6 +9,7 @@ api_router.include_router(public.router, prefix="/public", tags=["Public"])
 api_router.include_router(koko.router, prefix="/koko", tags=["Koko AI"])
 api_router.include_router(employee.router, prefix="/employee", tags=["Employee"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
+api_router.include_router(harvest.router, prefix="/admin/harvest", tags=["Lead Harvester"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
 api_router.include_router(files.router, prefix="/files", tags=["Files"])

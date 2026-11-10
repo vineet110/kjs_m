@@ -7,13 +7,12 @@ chat_members: who is in which channel. last_read_message_id drives the unread co
 chat_messages: the messages; mentions = the user ids @mentioned in it. The (channel_id, id) index makes
 "the 50 before message X" fast.
 
-Number 0020, not 0019: feat/client-schedulers already uses 0019 (not merged on 10 Nov). Whichever
-merges second must point its down_revision at the other.
+Number 0020: 0019 is the Lead Harvester (#53), merged first on 10 Nov, so this one comes after it.
 
 Only creates new tables: no existing data is touched.
 
 Revision ID: 0020
-Revises: 0018
+Revises: 0019
 """
 from typing import Sequence, Union
 
@@ -22,7 +21,7 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = '0020'
-down_revision: Union[str, None] = '0018'
+down_revision: Union[str, None] = '0019'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
