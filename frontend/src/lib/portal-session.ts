@@ -1,4 +1,5 @@
 // Small shared state for the staff portal, in this browser tab only.
+import type { Me } from './api';
 
 // ----- The remembered account -----
 // Admin and employee pages each have their own frame (PortalShell), so moving between them starts a new
@@ -6,7 +7,7 @@
 // Filled and read only in the browser (the server never fills it, so it can't leak between visitors).
 // Forgotten on log out, on "not logged in" (401), on a full reload, and whenever the login page opens or
 // someone logs in: so a new person on the same tab never sees the previous person's name (PR #17 review).
-let known: { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[] } | null = null;
+let known: Me | null = null;
 // Goes up on every forget. A "who am I" answer may only be remembered if nothing was forgotten since it
 // was asked: a slow answer that arrives after a log out can't bring the old account back (PR #17 review).
 let epoch = 0;

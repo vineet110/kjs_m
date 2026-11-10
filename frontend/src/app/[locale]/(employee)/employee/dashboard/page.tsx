@@ -6,6 +6,7 @@ import LeadsTable from '@/components/portal/LeadsTable';
 import { useMe } from '@/components/portal/PortalShell';
 import TodayCard from '@/components/portal/TodayCard';
 import { api, type TaskStats } from '@/lib/api';
+import { canSee } from '@/lib/modules';
 
 export default function EmployeeDashboard() {
   const me = useMe();
@@ -28,7 +29,7 @@ export default function EmployeeDashboard() {
         <h1 className="text-2xl font-bold">{greet}, {me.name.split(' ')[0]}</h1>
         <p className="text-sm text-slate-500">Your attendance, tasks and leads for today.</p>
       </div>
-      <TodayCard />
+      {canSee(me, 'attendance') && <TodayCard />}
       {stats && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {tiles.map((t) => (

@@ -28,3 +28,26 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    chat WebSocket is on its own `ws_router`: a route switch needs a Request and broke the live connection
    (checked), so `chat_socket` checks the area itself and closes with 4404. `test_repo_config_files_are_valid`
    makes CI fail on a typo in `config/*.ini` (at start-up a broken file = defaults = every area on).
+
+---------------------------------------------------------------------------------------------------
+
+## Phase switches for the portal, part 2: screens (branch feat/module-switches-ui, 10 Nov)
+
+1. `frontend/src/lib/modules.ts`: `canSee(me, area)` reads `me.modules` from "who am I"; `areaOfPath(path)`
+   finds a page's area (same page list as `AREA_PAGES` in `backend/app/core/modules.py`: keep both in step).
+
+2. Sidebar: a link is hidden when its area is off for the person (found from the link, no extra field). The old
+   unused `soon` flag is gone. Empty groups disappear.
+
+3. A typed-in address of a hidden page shows "Not available yet" (PortalShell). If the API answers
+   `module_off` (switched off while the tab was open), `api()` tells the frame, which asks "who am I" again.
+
+4. Shared pages: My day hides the attendance card; Overview hides the product tile and "Add product";
+   Analytics hides the attendance chart and the order boards tile. Approvals already hid null sections.
+
+5. Tests: 3 new unit tests (`frontend/tests/lib.test.mjs`); 47 pass, `tsc` clean. Not done: an e2e browser
+   check (needs the app running locally; Docker was off). Follow-up for the backlog.
+
+6. After merging part 1 again (chat, lead_harvester): the sidebar asks for unread chat messages only while
+   Chat is on for the person (`useChatUnread(pathname, enabled)`), so a switched-off Chat doesn't trigger a
+   "who am I" refresh every minute.
