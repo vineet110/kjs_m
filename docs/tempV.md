@@ -231,5 +231,12 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
       memory.md). Changed from the plan, which said `messages/en.json`.
    7. Day 5's browser test is done early: `scripts/e2e/chat_e2e.mjs`, two Chromes as Asha and Ravi, 35
       checks, all pass. How to run it: `scripts/e2e/README.md` step 9.
-10. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+10. Day 5 (10 Nov): phase 1 finished. Final checks: backend 313 passed, frontend typecheck and 44 tests
+    passed, chat browser test 35 passed. PR raised from `feat/team-chat` to `main`.
+    1. On deploy: run migration 0020, and reload nginx (new chat block).
+    2. If `feat/client-schedulers` (0019) merges first, change our `down_revision` to `'0019'` (or theirs to
+       `'0020'` if ours goes first).
+    3. To fold after merging: the guesses in items 4, 6 and 8 into backlog section 3; the new words
+       (section 9) into kb.md; the leave_requests note below into the backlog.
+11. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.
