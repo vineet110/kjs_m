@@ -39,7 +39,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/employee/contacts', label: 'Leads', icon: 'contact', perm: 'leads.view' },
       { href: '/admin/leads', label: 'All Enquiries', icon: 'inbox', perm: 'leads.view_all' },
-      { href: '/employee/tasks', label: 'My tasks', icon: 'tasks', perm: null },
+      { href: '/employee/tasks', label: 'Tasks & Track', icon: 'tasks', perm: null },
       { href: '/employee/koko-leads', label: 'Koko chat leads', icon: 'chat', perm: 'leads.view' },
       { href: '/employee/internal-leads', label: 'Internal leads', icon: 'userPlus', perm: 'leads.view' },
     ],

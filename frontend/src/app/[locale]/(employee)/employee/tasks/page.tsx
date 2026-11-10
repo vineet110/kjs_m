@@ -63,7 +63,7 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title="My tasks" sub="Due times in IST." />
+      <PageTitle title="Tasks & Track" sub="Due times in IST." />
       <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-4">
         <div className="md:col-span-2"><label className="label">Task</label><input name="title" required minLength={2} maxLength={200} className="input" placeholder="Send spec sheet to Al Noor" /></div>
         <div><label className="label">Due (IST)</label><input type="datetime-local" name="due" className="input" /></div>
