@@ -1,7 +1,7 @@
 // KJS Chat with two people at once, in two real (headless) Chromes (two browsers = two separate logins).
 // Asha and Ravi chat: a DM, live messages both ways without reloading, unread badges (list and sidebar),
-// edit and delete seen live, a channel with an @mention picked from the list, the phone layout, and no
-// JS errors. Needs the e2e servers from README.md, with the chat settings in step 9 there. Adds two staff
+// edit and delete seen live, a channel with an @mention picked from the list, a dropped connection that
+// catches up (incl. a delete made while it was down), the phone layout, and no JS errors. Needs the e2e servers from README.md, with the chat settings in step 9 there. Adds two staff
 // accounts (chat.asha@e2e.test, chat.ravi@e2e.test): run it on a fresh e2e database.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -69,6 +69,19 @@ async function browser(port) {
 
 const A = await browser(9411); // Asha
 const B = await browser(9412); // Ravi
+// Ravi's pages keep a handle on their chat connections, so the test can cut them on purpose and hold the
+// reconnect (window.__hold = true: new connections go to a closed port and fail, so the page keeps retrying).
+await B.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+  const Real = window.WebSocket; window.__socks = []; window.__hold = false;
+  function Wrapped(url, protocols) {
+    const ws = new Real(window.__hold ? 'ws://127.0.0.1:9/held' : url, protocols);
+    window.__socks.push(ws);
+    return ws;
+  }
+  Wrapped.prototype = Real.prototype;
+  Object.assign(Wrapped, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  window.WebSocket = Wrapped;
+})()` });
 
 // ---------- setup: the admin makes two staff accounts ----------
 await A.open('/employee/login');
@@ -160,6 +173,21 @@ check('Ravi: a message he is mentioned in is highlighted', await B.waitFor(`!!do
 await A.type('<img src=x onerror="window.__xss=1">');
 await A.enter();
 check('Ravi: HTML in a message is shown as text, not run', (await B.waitText('<img src=x onerror')) && !(await B.eval('window.__xss === 1')));
+
+// ---------- a dropped connection catches up (PR #55 review) ----------
+r = await A.api(`/chat/channels/${salesId}/messages`, 'POST', { body: 'this one gets deleted while Ravi is offline' });
+const doomed = r.body?.id;
+check('Ravi: sees the message before the drop', await B.waitText('this one gets deleted while Ravi is offline'));
+await B.eval(`window.__hold = true; window.__socks.forEach((w) => w.close())`);
+check('Ravi: the page shows "Reconnecting…"', await B.waitText('Reconnecting'));
+await A.api(`/chat/messages/${doomed}`, 'DELETE');
+await A.api(`/chat/channels/${salesId}/messages`, 'POST', { body: 'sent while Ravi was offline' });
+await sleep(1500);
+check('Ravi: while offline, the delete has not reached him (its live event is lost)', await B.waitText('this one gets deleted while Ravi is offline', 500));
+await B.eval(`window.__hold = false`);
+check('Ravi: after reconnecting, the message sent meanwhile shows', await B.waitText('sent while Ravi was offline', 20000));
+check('Ravi: after reconnecting, the delete made meanwhile shows', await B.waitText('this one gets deleted while Ravi is offline', 5000, true));
+check('Ravi: the "Reconnecting…" bar is gone', await B.waitText('Reconnecting', 5000, true));
 
 // ---------- phone layout ----------
 await B.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 800, deviceScaleFactor: 3, mobile: true });

@@ -28,6 +28,20 @@ export type ChatEvent =
 
 export const BODY_MAX = 4000;
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** A message split into plain text and "@Name" parts, for showing mentions in bold (still plain text:
+ *  the page turns the parts into React elements, never HTML). Longest names are tried first, so "@Ram"
+ *  never matches inside "@Ram Kumar" (PR #55 review). */
+export function mentionParts(body: string, names: string[]): { text: string; mention: boolean }[] {
+  const sorted = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!sorted.length) return [{ text: body, mention: false }];
+  return body
+    .split(new RegExp(`(@(?:${sorted.map(escapeRe).join('|')}))`, 'g'))
+    .map((text, i) => ({ text, mention: i % 2 === 1 }))
+    .filter((p) => p.text !== '');
+}
+
 /** Where the live connection goes.
  *  1. NEXT_PUBLIC_CHAT_WS_URL, when set.
  *  2. Local dev (`next dev`): straight to the API on port 8000. Next's /api forwarding doesn't carry

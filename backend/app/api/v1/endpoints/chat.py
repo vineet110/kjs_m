@@ -1,6 +1,7 @@
 """KJS Chat. Any logged-in staff member; every route checks that you are in the chat (else 404).
 Rules live in app/services/chat_service.py."""
 import asyncio
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
@@ -13,6 +14,7 @@ from app.core.deps import current_user, origin_allowed, ws_user
 from app.models.user import User
 from app.services import chat_hub, chat_service
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -145,7 +147,10 @@ async def chat_socket(websocket: WebSocket):
         while True:
             try:
                 # The browser doesn't need to send anything; this just notices when it goes away.
-                await asyncio.wait_for(websocket.receive_text(), timeout=chat_hub.PING_SECONDS)
+                # receive(), not receive_text(): anything the browser sends (text or binary) is ignored.
+                msg = await asyncio.wait_for(websocket.receive(), timeout=chat_hub.PING_SECONDS)
+                if msg["type"] == "websocket.disconnect":
+                    return
             except asyncio.TimeoutError:
                 if await ws_user(token) != user_id:
                     await websocket.close(code=chat_hub.CLOSE_LOGGED_OUT)
@@ -153,5 +158,8 @@ async def chat_socket(websocket: WebSocket):
                 await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         pass
+    except RuntimeError as e:
+        # The hub already closed it (kick, or a failed push) while this loop was waiting: nothing to do.
+        log.info("chat.socket_already_closed", extra={"user": user_id, "error": str(e)[:120]})
     finally:
         chat_hub.hub.remove(user_id, websocket)

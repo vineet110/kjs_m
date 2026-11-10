@@ -3,7 +3,7 @@
 // Messages are shown as plain text only (React escapes them), never as HTML: that blocks XSS.
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type Colleague, type Me } from '@/lib/api';
-import { BODY_MAX, type ChatChannel, type ChatMessage, type ChatPerson } from '@/lib/chat';
+import { BODY_MAX, mentionParts, type ChatChannel, type ChatMessage, type ChatPerson } from '@/lib/chat';
 import { errorText } from '@/components/ui/LoadError';
 import { fmtDay, todayIST, addDays } from '../ui';
 
@@ -15,23 +15,20 @@ function dayLabel(day: string) {
   if (day === addDays(today, -1)) return 'Yesterday';
   return fmtDay(day, day.slice(0, 4) !== today.slice(0, 4));
 }
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** The text with "@Name" of the people it mentions in bold. Still plain text: only React elements. */
 function Body({ m, people }: { m: ChatMessage; people: ChatPerson[] }) {
   const names = people.filter((p) => m.mentions.includes(p.id)).map((p) => p.name);
-  if (!names.length) return <>{m.body}</>;
-  const parts = m.body.split(new RegExp(`(@(?:${names.map(escapeRe).join('|')}))`, 'g'));
-  return <>{parts.map((part, i) => (i % 2 ? <strong key={i} className="text-amber-700">{part}</strong> : part))}</>;
+  return <>{mentionParts(m.body, names).map((p, i) => (p.mention ? <strong key={i} className="text-amber-700">{p.text}</strong> : p.text))}</>;
 }
 
 type Props = {
   me: Me; chat: ChatChannel; people: ChatPerson[]; messages: ChatMessage[]; hasMore: boolean;
   loadOlder: () => Promise<void>; onSend: (body: string, mentionIds: number[]) => Promise<void>;
-  onBack: () => void; onChatChanged: () => void;
+  onChanged: (m: ChatMessage) => void; onBack: () => void; onChatChanged: () => void;
 };
 
-export default function MessagePane({ me, chat, people, messages, hasMore, loadOlder, onSend, onBack, onChatChanged }: Props) {
+export default function MessagePane({ me, chat, people, messages, hasMore, loadOlder, onSend, onChanged, onBack, onChatChanged }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const loadingOlder = useRef(false);
   const keepFromBottom = useRef<number | null>(null); // after loading older ones: stay where you were
@@ -105,7 +102,7 @@ export default function MessagePane({ me, chat, people, messages, hasMore, loadO
                   <span className="h-px flex-1 bg-stone-200" />{dayLabel(dayOf(m.created_at))}<span className="h-px flex-1 bg-stone-200" />
                 </div>
               )}
-              <MessageRow m={m} me={me} people={people} showName={!sameRun} readOnly={chat.archived} />
+              <MessageRow m={m} me={me} people={people} showName={!sameRun} readOnly={chat.archived} onChanged={onChanged} />
             </Fragment>
           );
         })}
@@ -120,8 +117,8 @@ export default function MessagePane({ me, chat, people, messages, hasMore, loadO
   );
 }
 
-function MessageRow({ m, me, people, showName, readOnly }: {
-  m: ChatMessage; me: Me; people: ChatPerson[]; showName: boolean; readOnly: boolean;
+function MessageRow({ m, me, people, showName, readOnly, onChanged }: {
+  m: ChatMessage; me: Me; people: ChatPerson[]; showName: boolean; readOnly: boolean; onChanged: (m: ChatMessage) => void;
 }) {
   const mine = m.sender_id === me.id;
   const [editing, setEditing] = useState(false);
@@ -135,8 +132,8 @@ function MessageRow({ m, me, people, showName, readOnly }: {
     try {
       // Keep the mentions whose "@Name" is still in the text
       const ids = people.filter((p) => text.includes(`@${p.name}`)).map((p) => p.id);
-      await api(`/chat/messages/${m.id}`, { method: 'PATCH', body: { body: text, mention_ids: ids } });
-      setEditing(false); // the live event (or the next load) shows the new text
+      onChanged(await api<ChatMessage>(`/chat/messages/${m.id}`, { method: 'PATCH', body: { body: text, mention_ids: ids } }));
+      setEditing(false);
     } catch (e) {
       setErr(errorText(e, 'Could not save.'));
     }
@@ -145,6 +142,7 @@ function MessageRow({ m, me, people, showName, readOnly }: {
     setErr('');
     try {
       await api(`/chat/messages/${m.id}`, { method: 'DELETE' });
+      onChanged({ ...m, deleted: true, body: '', mentions: [] });
     } catch (e) {
       setErr(errorText(e, 'Could not delete.'));
     }

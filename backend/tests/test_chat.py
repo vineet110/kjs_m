@@ -359,3 +359,32 @@ async def test_sending_is_rate_limited_per_person(client):
     assert r.status_code == 429 and r.json()["code"] == "too_many"
     await login(client, "ravi@kjsindia.com")  # someone else isn't affected
     assert (await _send(client, cid, "hi")).status_code == 201
+
+
+# ---------- PR #55 review fixes ----------
+
+async def test_someone_added_later_does_not_get_the_history_as_unread(client):
+    ids = await _team("asha", "ravi", "meena")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    for i in range(5):
+        await _send(client, cid, f"old {i}")
+    await client.post(f"{C}/channels/{cid}/members", json={"user_ids": [ids["meena"]]}, headers=HDR)
+    await login(client, "meena@kjsindia.com")
+    assert await _unread(client, cid) == 0
+    assert len((await client.get(f"{C}/channels/{cid}/messages")).json()["messages"]) == 5  # can still read them
+    await login(client, "asha@kjsindia.com")
+    await _send(client, cid, "welcome meena")
+    await login(client, "meena@kjsindia.com")
+    assert await _unread(client, cid) == 1
+
+
+async def test_mention_title_in_an_unnamed_group_is_right_for_each_person(client):
+    ids = await _team("asha", "ravi", "meena", "dev")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, kind="group", name="", member_ids=[ids["ravi"], ids["meena"], ids["dev"]]))["id"]
+    await _send(client, cid, "@ravi @meena look", mention_ids=[ids["ravi"], ids["meena"]])
+    await login(client, "ravi@kjsindia.com")
+    assert (await _bell(client))["items"][0]["title"] == "asha mentioned you in asha, meena, dev"
+    await login(client, "meena@kjsindia.com")
+    assert (await _bell(client))["items"][0]["title"] == "asha mentioned you in asha, ravi, dev"

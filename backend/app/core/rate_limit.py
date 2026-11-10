@@ -57,10 +57,11 @@ class RateLimiter:
             self._recent(key)
             self._hits[key].append(time.monotonic())
 
-    def check(self, key: str | None) -> None:
-        """Refuse if over the limit, otherwise count this hit."""
+    def check(self, key: str | None, message: str = "Too many requests. Please try again later or WhatsApp us.") -> None:
+        """Refuse if over the limit, otherwise count this hit. `message`: what the person is told (the
+        default is for website visitors; staff features pass their own)."""
         if self.blocked(key):
-            raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
+            raise AppError(429, "too_many", message)
         self.hit(key)
 
     def reset(self) -> None:  # used by tests

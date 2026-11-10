@@ -26,7 +26,9 @@ log = logging.getLogger(__name__)
 
 PING_SECONDS = 30.0  # keeps the connection open (Cloudflare drops idle ones after ~100 s)
 SEND_TIMEOUT = 5.0  # a stuck browser must not hold up the person who sent the message
+CLOSE_TIMEOUT = 2.0  # closing a dead connection must not hang either
 CLOSE_LOGGED_OUT = 4401  # our own close code: "log in again", the browser must not just reconnect
+CLOSE_TRY_AGAIN = 1013  # standard "try again later": the browser reconnects and catches up
 
 
 class Hub:
@@ -50,8 +52,9 @@ class Hub:
         return sum(len(c) for c in self._conns.values())
 
     async def push(self, user_ids, event: dict) -> None:
-        """Send to every open tab of these people. A tab that fails or is too slow is dropped; it
-        reconnects and catches up by itself."""
+        """Send to every open tab of these people. A tab that fails or is too slow is dropped AND its
+        connection closed: the browser then sees the close, reconnects and catches up. (Only removing it
+        would leave the tab open, showing "live", but never getting another event: review of PR #55.)"""
         targets = [(uid, ws) for uid in set(user_ids) for ws in list(self._conns.get(uid, ()))]
         if not targets:
             return
@@ -63,16 +66,23 @@ class Hub:
             except Exception:  # closed, broken or too slow
                 self.remove(uid, ws)
                 log.info("chat.push_dropped", extra={"to_user": uid, "event": event.get("type")})
+                await _close(ws, CLOSE_TRY_AGAIN)
 
         await asyncio.gather(*(send(uid, ws) for uid, ws in targets))
 
     async def kick(self, user_id: int) -> None:
         """Close all of this person's live connections (disabled, or logged out everywhere)."""
         for ws in list(self._conns.pop(user_id, ())):
-            try:
-                await ws.close(code=CLOSE_LOGGED_OUT)
-            except Exception:
-                pass  # already closed
+            await _close(ws, CLOSE_LOGGED_OUT)
+
+
+async def _close(ws: WebSocket, code: int) -> None:
+    """Close, but never wait long: closing a dead connection can hang too, and the person who sent
+    the message is waiting for this push."""
+    try:
+        await asyncio.wait_for(ws.close(code=code), CLOSE_TIMEOUT)
+    except Exception:
+        pass  # already closed, or the connection is dead: either way it's gone from the hub
 
 
 hub = Hub()

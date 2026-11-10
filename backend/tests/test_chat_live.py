@@ -142,3 +142,85 @@ async def test_disabling_someone_closes_their_chat_at_once(monkeypatch):
                 assert time.monotonic() - started < 5
 
     await asyncio.to_thread(scenario)
+
+
+# ---------- PR #55 review fixes ----------
+
+class FakeSocket:
+    """Stands in for a browser tab: `hang_send` / `hang_close` make it never answer."""
+
+    def __init__(self, hang_send=False, hang_close=False):
+        self.hang_send, self.hang_close = hang_send, hang_close
+        self.sent, self.closed_with = [], None
+
+    async def send_json(self, data):
+        if self.hang_send:
+            await asyncio.sleep(3600)
+        self.sent.append(data)
+
+    async def close(self, code=1000):
+        if self.hang_close:
+            await asyncio.sleep(3600)
+        self.closed_with = code
+
+
+async def test_a_stuck_tab_is_dropped_and_closed_so_it_reconnects(monkeypatch):
+    monkeypatch.setattr(chat_hub, "SEND_TIMEOUT", 0.1)
+    monkeypatch.setattr(chat_hub, "CLOSE_TIMEOUT", 0.1)
+    hub = chat_hub.Hub()
+    ok, stuck, dead = FakeSocket(), FakeSocket(hang_send=True), FakeSocket(hang_send=True, hang_close=True)
+    for ws in (ok, stuck, dead):
+        hub.add(1, ws)
+    started = time.monotonic()
+    await hub.push([1], {"type": "ping"})
+    assert time.monotonic() - started < 1  # a dead tab can't hold up the sender
+    assert ok.sent == [{"type": "ping"}] and ok.closed_with is None
+    assert stuck.closed_with == chat_hub.CLOSE_TRY_AGAIN  # closed, so the browser reconnects
+    assert hub.count() == 1  # only the healthy tab is left
+
+
+async def test_binary_frames_are_ignored_and_a_kicked_socket_ends_quietly(monkeypatch):
+    ids = await _team("asha", "ravi")
+    monkeypatch.setattr(chat_hub, "PING_SECONDS", 0.2)
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "ravi")
+            with tc.websocket_connect(WS, headers=OURS) as ravi:
+                _hello(ravi)
+                ravi.send_bytes(b"\x00\x01")  # used to crash the handler (receive_text)
+                ravi.send_text("hello?")  # also ignored
+                _login(tc, "asha")
+                dm = tc.post(f"{C}/dm/{ids['ravi']}", headers=HDR).json()["id"]
+                ev = ravi.receive_json()
+                while ev["type"] == "ping":
+                    ev = ravi.receive_json()
+                assert ev == {"channel_id": dm, "type": "channel.changed"}  # still alive and getting events
+                # closed by the hub while the handler waits; its next ping must not raise
+                tc.portal.call(chat_hub.hub.kick, ids["ravi"])
+                assert _closed_with(ravi) == chat_hub.CLOSE_LOGGED_OUT
+                time.sleep(0.5)  # past the next ping
+        assert chat_hub.hub.count() == 0
+
+    await asyncio.to_thread(scenario)
+
+
+async def test_read_event_only_when_the_read_position_moved():
+    ids = await _team("asha", "ravi")
+
+    def scenario():
+        with TestClient(app) as tc:
+            _login(tc, "asha")
+            dm = tc.post(f"{C}/dm/{ids['ravi']}", headers=HDR).json()["id"]
+            tc.post(f"{C}/channels/{dm}/messages", json={"body": "hi"}, headers=HDR)
+            _login(tc, "ravi")
+            with tc.websocket_connect(WS, headers=OURS) as ravi:
+                _hello(ravi)
+                tc.post(f"{C}/channels/{dm}/read", headers=HDR)
+                assert ravi.receive_json()["type"] == "read"
+                tc.post(f"{C}/channels/{dm}/read", headers=HDR)  # nothing new: no event
+                _login(tc, "asha")
+                tc.post(f"{C}/channels/{dm}/messages", json={"body": "again"}, headers=HDR)
+                assert ravi.receive_json()["type"] == "message.new"  # the next event, no second "read"
+
+    await asyncio.to_thread(scenario)

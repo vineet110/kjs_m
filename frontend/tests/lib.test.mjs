@@ -408,3 +408,19 @@ test('CSV preview: UTF-8 text (₹, Hindi) and a row limit that stops reading ea
   const wb2 = XLSX.read(big, { type: 'string', raw: true, sheetRows: 1001 });
   assert.equal(XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1 }).length, 1001);
 });
+
+// ---------- chat: @mentions shown in bold ----------
+const { mentionParts } = await load('chat', 'const useEffect = () => {}; const useRef = () => ({}); const useState = (v) => [v, () => {}]; const api = async () => ({});');
+
+test('mentionParts marks each @Name, longest names first ("Ram" inside "Ram Kumar")', () => {
+  assert.deepEqual(mentionParts('hi @Ram Kumar and @Ram', ['Ram', 'Ram Kumar']), [
+    { text: 'hi ', mention: false }, { text: '@Ram Kumar', mention: true },
+    { text: ' and ', mention: false }, { text: '@Ram', mention: true },
+  ]);
+});
+
+test('mentionParts leaves text without mentions alone, and names with regex characters are safe', () => {
+  assert.deepEqual(mentionParts('no one here', []), [{ text: 'no one here', mention: false }]);
+  assert.deepEqual(mentionParts('ask @A.B (x)', ['A.B (x)']), [{ text: 'ask ', mention: false }, { text: '@A.B (x)', mention: true }]);
+  assert.deepEqual(mentionParts('mail AxB', ['A.B']), [{ text: 'mail AxB', mention: false }]);
+});

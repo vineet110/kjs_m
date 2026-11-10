@@ -1,7 +1,8 @@
 'use client';
 // KJS Chat (our own Teams): channels, group chats and direct messages, live.
 // 1. Everything is saved in the database; the live connection only pushes changes (lib/chat.ts).
-// 2. After a dropped connection it fetches what it missed (after=<last id>), so nothing is lost.
+// 2. After a dropped connection it fetches what it missed (after=<last id>), plus the newest 50 again so
+//    edits and deletes made meanwhile show. (Older ones than that update on the next reload: accepted.)
 // 3. ?c=<id> opens a chat (links in @mention notifications use it).
 // Plan and rules: docs/tempV.md, "KJS Chat".
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ function upsert(list: ChatMessage[], m: ChatMessage): ChatMessage[] {
   return [...list, m].sort((a, b) => a.id - b.id);
 }
 const visible = () => document.visibilityState === 'visible';
+const REFRESH_MS = 500;
 
 function ChatPageInner() {
   const me = useMe();
@@ -58,6 +60,22 @@ function ChatPageInner() {
   }, []);
   useEffect(() => loadChats(), [loadChats]);
 
+  // Each re-count scans all my chats on the server, and events can come in bursts: at most one list reload
+  // and one sidebar re-count every REFRESH_MS (PR #55 review).
+  const timers = useRef<{ chats?: ReturnType<typeof setTimeout>; unread?: ReturnType<typeof setTimeout> }>({});
+  const soon = useCallback((which: 'chats' | 'unread') => {
+    if (timers.current[which]) return; // one is already on its way
+    timers.current[which] = setTimeout(() => {
+      timers.current[which] = undefined;
+      if (which === 'chats') loadChats();
+      else chatUnreadChanged();
+    }, REFRESH_MS);
+  }, [loadChats]);
+  useEffect(() => {
+    const t = timers.current;
+    return () => { clearTimeout(t.chats); clearTimeout(t.unread); };
+  }, []);
+
   const loadDetails = useCallback(async (id: number) => {
     const c = await api<ChatChannel>(`/chat/channels/${id}`);
     if (activeRef.current !== id) return;
@@ -78,7 +96,8 @@ function ChatPageInner() {
         if (n !== opening.current) return;
         setActive(c);
         setPeople(c.members ?? []);
-        setMessages(page.messages);
+        // Merge, don't replace: a live message may have arrived while this page was loading (PR #55 review)
+        setMessages((list) => page.messages.reduce(upsert, list.filter((x) => x.channel_id === activeId)));
         setHasMore(page.has_more);
       })
       .catch((e) => n === opening.current && setOpenErr(e));
@@ -96,9 +115,9 @@ function ChatPageInner() {
     readUpTo.current[id] = last;
     setChats((cs) => cs?.map((c) => (c.id === id ? { ...c, unread: 0 } : c)) ?? cs);
     api(`/chat/channels/${id}/read`, { method: 'POST', body: { message_id: last } })
-      .then(chatUnreadChanged)
+      .then(() => soon('unread'))
       .catch(() => { readUpTo.current[id] = 0; }); // try again next time
-  }, []);
+  }, [soon]);
   useEffect(markRead, [markRead, activeId, messages.length, active]);
   useEffect(() => {
     document.addEventListener('visibilitychange', markRead);
@@ -113,13 +132,13 @@ function ChatPageInner() {
         const here = e.channel_id === activeRef.current;
         if (here) setMessages((list) => upsert(list, m));
         if (!chatsRef.current?.some((c) => c.id === e.channel_id)) {
-          loadChats(); // a chat I was just added to
+          soon('chats'); // a chat I was just added to
         } else {
           const unseen = m.sender_id !== me.id && !(here && visible());
           setChats((cs) => cs?.map((c) => (c.id === e.channel_id
             ? { ...c, last_message_id: m.id, unread: (c.unread ?? 0) + (unseen ? 1 : 0) } : c)) ?? cs);
         }
-        if (m.sender_id !== me.id) chatUnreadChanged();
+        if (m.sender_id !== me.id) soon('unread');
         break;
       }
       case 'message.edited':
@@ -129,16 +148,19 @@ function ChatPageInner() {
         if (e.channel_id === activeRef.current) {
           setMessages((list) => list.map((x) => (x.id === e.message_id ? { ...x, deleted: true, body: '', mentions: [] } : x)));
         }
-        loadChats(); // a deleted unread message no longer counts
-        chatUnreadChanged();
+        soon('chats'); // a deleted unread message no longer counts
+        soon('unread');
         break;
-      case 'read': // read in another tab of mine
-        readUpTo.current[e.channel_id] = Math.max(readUpTo.current[e.channel_id] ?? 0, e.message_id);
-        loadChats();
-        chatUnreadChanged();
+      case 'read': // read in one of my tabs
+        // This tab already knows (it did the reading itself, or heard it already): nothing to do.
+        // Another tab of mine read further: update the counts here too.
+        if ((readUpTo.current[e.channel_id] ?? 0) >= e.message_id) break;
+        readUpTo.current[e.channel_id] = e.message_id;
+        soon('chats');
+        soon('unread');
         break;
       case 'channel.changed':
-        loadChats();
+        soon('chats');
         if (e.channel_id === activeRef.current) {
           loadDetails(e.channel_id).catch((err) => {
             if (err instanceof ApiFailure && err.status === 404) select(null); // I left or was removed
@@ -146,25 +168,28 @@ function ChatPageInner() {
         }
         break;
     }
-  }, [me.id, loadChats, loadDetails, select]);
+  }, [me.id, soon, loadDetails, select]);
 
   // Back after a dropped connection: fetch what was missed
   const onReconnect = useCallback(() => {
     loadChats();
     const id = activeRef.current;
     if (!id) return;
-    api<ChatPage>(`/chat/channels/${id}/messages?after=${lastIdRef.current}&limit=100`)
-      .then(async (page) => {
+    // 1. New messages since the last one we have. 2. The newest 50 again: edits and deletes made while
+    // the connection was down only show this way (their live events were lost).
+    Promise.all([
+      api<ChatPage>(`/chat/channels/${id}/messages?after=${lastIdRef.current}&limit=100`),
+      api<ChatPage>(`/chat/channels/${id}/messages`),
+    ])
+      .then(([missed, newest]) => {
         if (activeRef.current !== id) return;
-        if (!page.has_more) {
-          setMessages((list) => page.messages.reduce(upsert, list));
+        if (missed.has_more) {
+          // Missed more than 100: start again from the newest page (scrolling up loads the rest)
+          setMessages(newest.messages);
+          setHasMore(newest.has_more);
           return;
         }
-        // Missed more than 100: start again from the newest page (scrolling up loads the rest)
-        const fresh = await api<ChatPage>(`/chat/channels/${id}/messages`);
-        if (activeRef.current !== id) return;
-        setMessages(fresh.messages);
-        setHasMore(fresh.has_more);
+        setMessages((list) => [...missed.messages, ...newest.messages].reduce(upsert, list));
       })
       .catch(() => undefined);
   }, [loadChats]);
@@ -187,6 +212,12 @@ function ChatPageInner() {
     const m = await api<ChatMessage>(`/chat/channels/${id}/messages`, { method: 'POST', body: { body, mention_ids: mentionIds } });
     if (activeRef.current === id) setMessages((list) => upsert(list, m));
     setChats((cs) => cs?.map((c) => (c.id === id ? { ...c, last_message_id: m.id } : c)) ?? cs);
+  }, []);
+
+  // My own edit or delete, once the server confirmed it: shown at once, without waiting for the live
+  // event (which may not come if the connection is down).
+  const changed = useCallback((m: ChatMessage) => {
+    if (m.channel_id === activeRef.current) setMessages((list) => upsert(list, m));
   }, []);
 
   if (chatsErr) return <LoadError error={chatsErr} onRetry={loadChats} />;
@@ -212,7 +243,7 @@ function ChatPageInner() {
         {active && (
           <MessagePane
             me={me} chat={active} people={people} messages={messages} hasMore={hasMore}
-            loadOlder={loadOlder} onSend={send} onBack={() => select(null)}
+            loadOlder={loadOlder} onSend={send} onChanged={changed} onBack={() => select(null)}
             onChatChanged={() => { loadChats(); loadDetails(active.id).catch(() => select(null)); }}
           />
         )}

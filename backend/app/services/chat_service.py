@@ -101,6 +101,11 @@ async def _members_of(db: AsyncSession, channel_ids: list[int]) -> dict[int, lis
     return out
 
 
+async def _newest_id(db: AsyncSession, channel_id: int) -> int:
+    """The newest message id in a chat (0 = no messages yet)."""
+    return await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.channel_id == channel_id)) or 0
+
+
 async def _member_ids(db: AsyncSession, channel_id: int) -> list[int]:
     return list((await db.scalars(select(ChatMember.user_id).where(ChatMember.channel_id == channel_id))).all())
 
@@ -273,9 +278,12 @@ async def add_members(db: AsyncSession, user: User, channel_id: int, user_ids: l
         _must_own(me)
     new = await _active_users(db, user_ids, exclude=user.id)
     if new:
+        # New people start "read up to now": the chat's history isn't unread for them (PR #55 review).
+        newest = await _newest_id(db, ch.id)
         await db.execute(
             pg_insert(ChatMember)
-            .values([{"channel_id": ch.id, "user_id": uid, "role": "member"} for uid in new])
+            .values([{"channel_id": ch.id, "user_id": uid, "role": "member", "last_read_message_id": newest}
+                     for uid in new])
             .on_conflict_do_nothing(constraint="uq_chat_members_channel_user")
         )
     await db.commit()
@@ -349,11 +357,14 @@ def _where(ch: ChatChannel, members: list[dict], user_id: int) -> str:
 
 
 async def _notify_mentions(db: AsyncSession, user: User, ch: ChatChannel, ids: list[int], body: str) -> None:
+    """One notification per person, each with the chat named as THEY see it (an unnamed group's title
+    leaves out the reader's own name: PR #55 review)."""
     if not ids:
         return
     members = (await _members_of(db, [ch.id]))[ch.id]
-    notification_service.notify(db, ids, "chat.mention", f"{user.name} mentioned you in {_where(ch, members, ids[0])}",
-                                body=body[:200], link=f"/employee/chat?c={ch.id}")
+    for uid in ids:
+        notification_service.notify(db, [uid], "chat.mention", f"{user.name} mentioned you in {_where(ch, members, uid)}",
+                                    body=body[:200], link=f"/employee/chat?c={ch.id}")
 
 
 async def list_messages(db: AsyncSession, user: User, channel_id: int, *, before: int | None = None,
@@ -386,10 +397,7 @@ async def send_message(db: AsyncSession, user: User, channel_id: int, body: str,
     ch, me = await _membership(db, channel_id, user.id)
     _not_archived(ch)
     body = _clean_body(body)
-    key = f"user:{user.id}"
-    if chat_send_limiter.blocked(key):
-        raise AppError(429, "too_many", "You're sending messages too fast. Wait a moment and try again.")
-    chat_send_limiter.hit(key)
+    chat_send_limiter.check(f"user:{user.id}", "You're sending messages too fast. Wait a moment and try again.")
 
     m = ChatMessage(channel_id=ch.id, sender_id=user.id, body=body, created_at=datetime.now(timezone.utc),
                     mentions=await _valid_mentions(db, ch.id, mention_ids, user.id))
@@ -446,12 +454,13 @@ async def delete_message(db: AsyncSession, user: User, message_id: int) -> None:
 async def mark_read(db: AsyncSession, user: User, channel_id: int, message_id: int | None = None) -> None:
     """Read up to message_id (default: the newest). Never moves backwards, never past the newest."""
     ch, me = await _membership(db, channel_id, user.id)
-    newest = await db.scalar(select(func.max(ChatMessage.id)).where(ChatMessage.channel_id == ch.id)) or 0
+    newest = await _newest_id(db, ch.id)
     target = min(message_id if message_id is not None else newest, newest)
-    await db.execute(
+    moved = (await db.execute(
         update(ChatMember)
         .where(ChatMember.id == me.id, ChatMember.last_read_message_id < target)
         .values(last_read_message_id=target)
-    )
+    )).rowcount
     await db.commit()
-    await hub.push([user.id], {"type": "read", "channel_id": ch.id, "message_id": target})  # my other tabs
+    if moved:  # tell my other tabs only when something changed (each event makes them re-count: PR #55 review)
+        await hub.push([user.id], {"type": "read", "channel_id": ch.id, "message_id": target})

@@ -238,5 +238,22 @@ Branch: `feat/team-chat` (phase 1). Each later phase gets its own branch and PR.
        `'0020'` if ours goes first).
     3. To fold after merging: the guesses in items 4, 6 and 8 into backlog section 3; the new words
        (section 9) into kb.md; the leave_requests note below into the backlog.
-11. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
+11. PR #55 review fixes (10 Nov), all 10 from the code review:
+    1. A stuck tab is now closed, not only dropped, so it reconnects (2 s limit on the close too).
+    2. The socket ignores anything the browser sends (binary too) and ends quietly if the hub already
+       closed it.
+    3. Someone added to a chat starts "read up to now": no unread flood from old history.
+    4. The "read" event is sent only when the read position moved; the page skips one it already knows,
+       and reloads the list and the sidebar count at most every 0.5 s.
+    5. Mention titles in unnamed groups are built per person.
+    6. Opening a chat merges with live messages instead of replacing them.
+    7. After a reconnect the page also reloads the newest 50, so edits and deletes made meanwhile show.
+       Accepted limit: edits to older messages show after a reload.
+    8. Own edit and delete update the screen as soon as the server confirms.
+    9. Mention bold: longest names first (`mentionParts` in `lib/chat.ts`, unit tested).
+    10. Cleanups: one shared `session_user` for `current_user` and `ws_user` (only the query moved);
+        `RateLimiter.check()` takes an optional message.
+    11. Tests: 5 new backend tests (fixes 1 and 2 shown to fail without the fix), 2 frontend unit tests,
+        6 new browser checks for a dropped connection (41 in all, all pass).
+12. Found, not ours: `alembic check` reports the `leave_requests` foreign keys (`user_id`, `decided_by`)
    differ between model and migration (`ondelete`). Separate small fix later.
