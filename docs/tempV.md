@@ -362,3 +362,44 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
 3. Before going live: 10 minutes of chat by hand in two browsers; get the "can admins read DMs?" answer
    from KJS in writing.
 4. Fold these notes into the shared docs (`docs/fold-` branch, prompt.md section 7).
+
+## Oracle free VM hosting plan (for 11 Nov)
+
+### 1. Why
+
+1. Free server now (Oracle Always Free: ARM, up to 4 CPU / 24 GB RAM), instead of waiting for the
+   KJS server. Our `deploy/` setup (Docker Compose) runs on it unchanged.
+2. Decided with Nishita and KJS (10 Nov). Staging or production: (fill in). Fold into `backlog.md` later.
+
+### 2. Steps
+
+1. Account: oracle.com/cloud/free, home region Mumbai (can't change later), upgrade to Pay As You Go
+   (still free; stops idle reclaim and "Out of capacity").
+2. VM: Ubuntu 24.04, `VM.Standard.A1.Flex` 2 CPU / 12 GB, 100 GB disk, public IP. Download the SSH key.
+3. Log in: `ssh -i key.key ubuntu@<ip>`, update, timezone Asia/Kolkata. Open no web ports (the
+   Cloudflare Tunnel connects out).
+4. Tools: Docker + compose plugin, git; add `ubuntu` to the docker group.
+5. App: `deploy/README.md` section 2: clone (read-only deploy key), videos, `.env`, `./deploy.sh`, seed.
+   The first build is also the ARM check.
+6. Live: Cloudflare Tunnel, subdomain to `nginx:80`, SSL "Full".
+7. Backups: nightly cron + off-site R2.
+8. Check: laptop + phone, `test-restore.sh` (about 35 min), write results here.
+
+### 3. Time and blockers
+
+1. About 3 to 4 hours in total.
+2. Blockers: card rejected, "Out of capacity", access to the Cloudflare account for `kjsindia.com`,
+   the R2 backup token. Get the last two ready before starting.
+
+## Sidebar renames check (#54, #63), 10 Nov
+
+1. Checked after merge, before the docs fold: api_e2e 196/196, browser_e2e 74/74, every sidebar link
+   (admin and staff, computer and phone) opens, lights up and keeps staff out of admin pages. All good.
+2. Known: `sidebar_e2e.mjs` shows 1 failure, "phone: choosing a page closes it". The test's fault, not the
+   product: its `clickLink` helper opens all closed groups in one go and only the last stays open, so
+   "All Enquiries" (moved into Lead Management by #63) is never shown. A real tap works (checked). Fix
+   later: open only the needed group in the test, or make the group toggle in `SidebarNav.tsx` use the
+   latest state. Don't chase it as a bug.
+3. Accepted as they are (Vineet): greeting headings on Today and Admin overview, no heading on My
+   attendance, "Manage employees", "Client Schedulers (Lead Harvester)", and "Order Boards & Assigning"
+   wrapping to 2 lines.
