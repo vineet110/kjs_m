@@ -490,7 +490,7 @@ export default function ClientSchedulersPage() {
                     type="text"
                     value={formData.auth_env_var}
                     onChange={(e) => setFormData({ ...formData, auth_env_var: e.target.value })}
-                    placeholder="e.g. INDIAMART_API_KEY (leave empty if public)"
+                    placeholder="e.g. HARVEST_INDIAMART_API_KEY (must start with HARVEST_; empty if public)"
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 font-mono text-xs text-slate-900 focus:border-emerald-500 focus:outline-hidden"
                   />
                   <p className="mt-1 text-2xs text-slate-500">

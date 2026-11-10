@@ -32,10 +32,9 @@ router = APIRouter()
 
 
 def require_harvest_access(user: User = Depends(current_user)) -> User:
-    """Requires assign.manage, leads.view_all, or staff.approve."""
-    perms = effective_permissions(user.role, user.permissions)
-    allowed = {"assign.manage", "leads.view_all", "staff.approve"}
-    if not allowed.intersection(perms):
+    """Requires assign.manage (admins have it). The same rule as the sidebar link. Before the security fix
+    leads.view_all (a read-only leads permission) and staff.approve could also add and run harvesters."""
+    if "assign.manage" not in effective_permissions(user.role, user.permissions):
         raise AppError(403, "forbidden", "You don't have permission to manage harvest schedulers.")
     return user
 
@@ -109,10 +108,7 @@ async def update_source(
     if data.url is not None:
         source.url = data.url
     if data.auth_env_var is not None:
-        cleaned = data.auth_env_var.strip()
-        if cleaned and not cleaned.replace("_", "").isalnum():
-            raise AppError(400, "invalid_env_var", "auth_env_var must be alphanumeric/underscores.")
-        source.auth_env_var = cleaned
+        source.auth_env_var = data.auth_env_var  # checked by HarvestSourceUpdate (HARVEST_ names only)
     if data.category is not None:
         source.category = data.category
     if data.terms_checked is not None:
