@@ -31,6 +31,15 @@ export default function Bell() {
     load();
   }
 
+  // Opening one notification marks it read, so the red count goes down without "Mark all read".
+  // The count drops at once; the server is told in the background (if that fails, the next check brings it back).
+  function readOne(n: Notice) {
+    setOpen(false);
+    if (n.read) return;
+    setData((d) => ({ unread: Math.max(0, d.unread - 1), items: d.items.map((x) => (x.id === n.id ? { ...x, read: true } : x)) }));
+    api('/employee/notifications/read', { method: 'POST', body: { ids: [n.id] } }).then(load, load);
+  }
+
   return (
     <div ref={box} className="relative">
       <button onClick={() => setOpen(!open)} aria-label={`Notifications, ${data.unread} unread`} className="relative rounded-full p-2 hover:bg-slate-100">
@@ -52,7 +61,7 @@ export default function Bell() {
           <div className="max-h-96 overflow-y-auto">
             {data.items.length === 0 && <p className="p-4 text-sm text-slate-500">Nothing yet.</p>}
             {data.items.map((n) => (
-              <Link key={n.id} href={n.link || '#'} onClick={() => setOpen(false)} className={`block border-b px-3 py-2 text-sm hover:bg-slate-50 ${n.read ? 'text-slate-500' : ''}`}>
+              <Link key={n.id} href={n.link || '#'} onClick={() => readOne(n)} className={`block border-b px-3 py-2 text-sm hover:bg-slate-50 ${n.read ? 'text-slate-500' : ''}`}>
                 <p className={n.read ? '' : 'font-semibold'}>{n.title}</p>
                 {n.body && <p className="line-clamp-2 text-xs text-slate-500">{n.body}</p>}
                 <p className="text-[11px] text-slate-400">{fmtIST(n.created_at)}</p>

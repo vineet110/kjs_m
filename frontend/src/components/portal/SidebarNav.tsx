@@ -159,14 +159,17 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
   const activeGroup = visible.find((g) => g.items.some((n) => isActive(pathname, n.href)))?.group;
   const isOpen = (g: string) => !many || (open[g] ?? g === activeGroup);
 
-  // Opening a page whose group is closed (a quick action, a link on a page): open that group, so the
-  // current page is always visible in the sidebar
+  // Only one group is open at a time: opening one closes the others.
+  const onlyOpen = (g: string): Record<string, boolean> => Object.fromEntries(DEFAULT_ORDER.map((x) => [x, x === g]));
+
+  // Opening a page whose group is closed (a quick action, a link on a page): open that group and close
+  // the others, so the current page is always visible in the sidebar
   useEffect(() => {
-    if (activeGroup && open[activeGroup] === false) setOpen((o) => ({ ...o, [activeGroup]: true }));
+    if (activeGroup && !isOpen(activeGroup)) setOpen(onlyOpen(activeGroup));
   }, [activeGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(g: string) {
-    const next = { ...open, [g]: !isOpen(g) };
+    const next = isOpen(g) ? { ...open, [g]: false } : onlyOpen(g);
     setOpen(next);
     save(OPEN_KEY, next);
   }
