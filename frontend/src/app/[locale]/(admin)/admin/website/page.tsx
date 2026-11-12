@@ -14,13 +14,22 @@ type OfferRow = { id: number; text: string; link: string; starts_at: string | nu
 type Partner = { id: number; name: string; company: string; partner_type: string; country: string; email: string; phone: string; message: string; status: string; created_at: string };
 
 const toLocal = (iso: string | null) => (iso ? new Date(iso).toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).slice(0, 16).replace(' ', 'T') : '');
+const countNew = (rows: Partner[]) => rows.filter((p) => p.status === 'new').length;
 const fromLocal = (v: string) => (v ? new Date(`${v}:00+05:30`).toISOString() : null);
 
 export default function WebsiteAdmin() {
   const me = useMe();
   const canEdit = me.permissions.includes('content.edit');
   const [tab, setTab] = useState<'texts' | 'offers' | 'partners'>(canEdit ? 'texts' : 'partners');
-  const tabs = [...(canEdit ? (['texts', 'offers'] as const) : []), ...(me.permissions.includes('leads.view_all') ? (['partners'] as const) : [])];
+  const seesPartners = me.permissions.includes('leads.view_all');
+  const tabs = [...(canEdit ? (['texts', 'offers'] as const) : []), ...(seesPartners ? (['partners'] as const) : [])];
+  // How many partner applications wait for approve / reject: shown on the Partners tab.
+  // Asked once here; the Partners list updates it each time it loads.
+  const [newPartners, setNewPartners] = useState(0);
+  useEffect(() => {
+    if (!seesPartners) return;
+    api<Partner[]>('/content/partners').then((r) => setNewPartners(countNew(r))).catch(() => undefined); // no number is fine
+  }, [seesPartners]);
   return (
     <div className="space-y-6">
       <PageTitle title="SEO & Partners" sub="Changes show on the website within a minute." />
@@ -28,12 +37,18 @@ export default function WebsiteAdmin() {
         {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? 'bg-ink text-white' : 'bg-white ring-1 ring-slate-200'}`}>
             {t === 'texts' ? 'Text & SEO' : t === 'offers' ? 'Product offers' : t}
+            {t === 'partners' && newPartners > 0 && (
+              <span className="ml-1.5 inline-block min-w-[20px] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white">
+                {newPartners > 99 ? '99+' : newPartners}
+                <span className="sr-only"> new</span>
+              </span>
+            )}
           </button>
         ))}
       </div>
       {tab === 'texts' && <Texts />}
       {tab === 'offers' && <Offers />}
-      {tab === 'partners' && <Partners />}
+      {tab === 'partners' && <Partners onCount={setNewPartners} />}
     </div>
   );
 }
@@ -172,14 +187,19 @@ function Offers() {
   );
 }
 
-function Partners() {
+function Partners({ onCount }: { onCount: (n: number) => void }) {
   const [rows, setRows] = useState<Partner[] | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
   const load = useCallback(() => {
     setLoadErr(null);
-    api<Partner[]>('/content/partners').then(setRows).catch(setLoadErr);
-  }, []);
+    api<Partner[]>('/content/partners')
+      .then((r) => {
+        setRows(r);
+        onCount(countNew(r));
+      })
+      .catch(setLoadErr);
+  }, [onCount]);
   useEffect(() => {
     load();
   }, [load]);
