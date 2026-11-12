@@ -11,3 +11,9 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 
 **For backlog (small, cosmetic):** Next.js warning "Image with src Kjs.png has either width or height modified". Our `width`/`height` props don't match the logo's real size (536×136), so CSS `w-auto` changes the width. Fix = real proportions:
 `PortalShell.tsx` 120×28 → 110×28 · `SiteHeader.tsx` + `SiteFooter.tsx` 140×32 → 126×32 · `employee/login/page.tsx` 160×36 → 142×36.
+
+## Live site test, round 1 (branch test_S)
+
+- Test cases and results: `docs/testing/frontend-test-cases.md`. 21 cases over HTTP: 18 pass, 3 fail. The 12 logged-in browser cases weren't run because the Chrome extension wasn't connected.
+- **For backlog:** B1, set `SITE_URL` on Vercel (the sitemap and robots.txt point to localhost). B2, security headers missing on Vercel (they live only in `deploy/nginx`).
+- Learned: anything set in `deploy/` (nginx headers, the mounted `config/*.ini`) doesn't exist on Vercel or Render. Check each one when moving hosts.
