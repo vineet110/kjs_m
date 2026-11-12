@@ -446,3 +446,32 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    heading was counted; settings were read before they loaded.
 8. Guess to fold into backlog section 3: the admin test account is Vineet's own login. Better: a separate
    admin test account, so test runs don't mix with real admin actions in the activity log.
+
+## Employee module end-to-end + stress test (12 Nov, branch `test/employee-e2e`)
+
+1. Decided by Vineet: tester V; create and KEEP test data (cleared before production); check-in yes;
+   75 test employees; stress test run now (not after hours).
+2. Workbook `docs/testing/employee-e2e.xlsx`: 48 employee cases + 4 stress cases, Summary, Test cases and a
+   Stress test sheet. Built by `scripts/e2e/employee_workbook.py` (shares the layout code in
+   `admin_workbook.py`).
+3. Final result: 47 of 52 pass. Failures: EMP-075 (chat live connection, the known Vercel 404) and all 4
+   stress steps (too slow, no errors).
+4. Stress test (`scripts/e2e/stress.mjs`, 75 test employees, read-only), 5,495 calls, 0 errors:
+   1. 10 users: p50 0.2 s, p95 2.3 s. 25 users: p95 3.4 s. 50 users: p95 5.2 s, slowest 15 s.
+   2. Throughput tops out at about 22 calls a second: Render's free plan (one small server) is the limit,
+      not one slow query (every page slows the same way). Logins: p95 0.8 s at 10 users, 8.4 s at 50.
+   3. Fine for 10 or fewer staff at once. For more: a paid Render plan or more API workers (the chat hub
+      and background jobs assume one process, backlog A41), and a check of the Neon database plan.
+5. Found in the app (small): the attendance punch button ignores clicks until today's attendance has
+   loaded, with no message. On a slow connection a click does nothing. Fix: disable the button until loaded.
+6. The app correctly refuses a second leave over the same dates and a second missed-punch request for the
+   same day (the tests now pick free dates).
+7. Test data left on the live site (all named E2E, clear before production):
+   1. 75 employees `e2e.emp001` to `e2e.emp075@kjs-e2e.test`, branch "E2E Branch", active, no lead
+      categories (so auto-assign never gives them real buyer records).
+   2. From V: check-ins/outs, leave and missed-punch requests (waiting in Approvals), "E2E Lead …" internal
+      leads with notes and tasks, "E2E Task …" tasks, "E2E Group" chat, WhatsApp setting switched on.
+   3. From `scripts/e2e/seed_test_data.mjs`: 20 check-ins (12 checked out), 12 internal leads, 24 tasks,
+      6 leave requests, 4 missed-punch requests, "E2E Sales Team" group chat with 8 messages.
+8. Lesson: Playwright empties `frontend/test-results/` on every run, which deleted the first stress
+   result. Recovered from the workbook; stress output now goes to `frontend/stress-results/` (git-ignored).

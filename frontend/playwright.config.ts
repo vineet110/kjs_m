@@ -45,5 +45,14 @@ export default defineConfig({
       metadata: { tester: 'A' },
       use: { storageState: '.auth/A.json' },
     },
+    // E = the employee module end to end, as tester V (docs/testing/employee-e2e.xlsx). Needs the admin
+    // login too (EMP-028 checks V's requests reach the admin). Run: npx playwright test --project=E
+    {
+      name: 'E',
+      testMatch: /employee\.spec\.ts/,
+      dependencies: ['setup-V', 'setup-A'],
+      metadata: { tester: 'V' },
+      use: { storageState: '.auth/V.json' },
+    },
   ],
 });

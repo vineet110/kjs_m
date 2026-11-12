@@ -9,6 +9,7 @@ The Summary sheet counts with Excel formulas, so editing a Status by hand update
 """
 import argparse
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -143,7 +144,7 @@ WRAP = Alignment(wrap_text=True, vertical="top")
 STATUS_COLOURS = {"Pass": "D1FAE5", "Fail": "FEE2E2", "Blocked": "FEF3C7", "Skipped": "E5E7EB"}
 
 
-def load_results(path: Path) -> dict[str, dict]:
+def load_results(path: Path, prefix: str = "ADM-") -> dict[str, dict]:
     """Case ID -> {status, actual, evidence} from a Playwright JSON report."""
     data = json.loads(path.read_text(encoding="utf-8"))
     out: dict[str, dict] = {}
@@ -151,7 +152,7 @@ def load_results(path: Path) -> dict[str, dict]:
     def walk(suite):
         for spec in suite.get("specs", []):
             cid = spec["title"].split(" ")[0]
-            if not cid.startswith("ADM-"):
+            if not cid.startswith(prefix):
                 continue
             for test in spec.get("tests", []):
                 res = test["results"][-1] if test.get("results") else {}
@@ -166,7 +167,7 @@ def load_results(path: Path) -> dict[str, dict]:
                     errs = [e.get("message", "") for e in res.get("errors", [])]
                     first = next((e for e in errs if e), "Failed")
                     status = "Fail"
-                    actual = " ".join(first.replace("\x1b", "").split())[:400]
+                    actual = " ".join(re.sub(r"\x1b\[[0-9;]*m", "", first).split())[:400]  # without terminal colour codes
                 shots = [a.get("path", "") for a in res.get("attachments", []) if a.get("name") == "screenshot" and a.get("path")]
                 evidence = str(Path(shots[0]).relative_to(ROOT)) if shots and Path(shots[0]).is_relative_to(ROOT) else ""
                 out[cid] = {"status": status, "actual": actual, "evidence": evidence}
@@ -178,7 +179,13 @@ def load_results(path: Path) -> dict[str, dict]:
     return out
 
 
-def build(results: dict[str, dict] | None, run_date: str):
+SCOPE = "Option (b): view everything; create and delete only E2E test data; shared settings are never saved."
+
+
+def build(results: dict[str, dict] | None, run_date: str, *, cases_list=None, out: Path = OUT,
+          title: str = "Admin module: end-to-end test summary", account: str = ACCOUNT, scope: str = SCOPE, extra=None):
+    """Writes the workbook. `extra(wb)` may add more sheets (e.g. the stress test) before it is saved."""
+    CASES = cases_list or globals()["CASES"]  # noqa: N806
     wb = Workbook()
     summary = wb.active
     summary.title = "Summary"
@@ -216,13 +223,13 @@ def build(results: dict[str, dict] | None, run_date: str):
     for col in "BCDEFG":
         summary.column_dimensions[col].width = 12
     summary.column_dimensions["H"].width = 60
-    summary["A1"] = "Admin module: end-to-end test summary"
+    summary["A1"] = title
     summary["A1"].font = TITLE
     info = [
         ("Site", SITE),
-        ("Account", ACCOUNT),
+        ("Account", account),
         ("Run date", run_date if results is not None else "Not run yet"),
-        ("Scope", "Option (b): view everything; create and delete only E2E test data; shared settings are never saved."),
+        ("Scope", scope),
         ("How to edit", "Change a Status in 'Test cases' (column G, drop-down). This page updates itself."),
     ]
     for i, (k, v) in enumerate(info, start=3):
@@ -286,10 +293,12 @@ def build(results: dict[str, dict] | None, run_date: str):
         summary.conditional_formatting.add(f"C{l0 + 1}:C{end}", FormulaRule(formula=[f'$C{l0 + 1}="{status}"'], fill=PatternFill("solid", fgColor=colour)))
     summary.freeze_panes = "A3"
 
+    if extra:
+        extra(wb)
     wb.calculation.fullCalcOnLoad = True  # Excel works the formulas out when the file opens
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(OUT)
-    return OUT
+    out.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(out)
+    return out
 
 
 if __name__ == "__main__":

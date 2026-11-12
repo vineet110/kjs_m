@@ -8,3 +8,4 @@ Dockerfile
 .auth
 test-results
 playwright-report
+stress-results
