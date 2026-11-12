@@ -60,3 +60,8 @@ backend/storage-e2e/
 .claude/skills/neon/
 .claude/skills/neon-postgres/
 skills-lock.json
+
+# Playwright (frontend/e2e): saved logins and run output, never committed
+frontend/.auth/
+frontend/test-results/
+frontend/playwright-report/
