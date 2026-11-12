@@ -403,3 +403,46 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
 3. Accepted as they are (Vineet): greeting headings on Today and Admin overview, no heading on My
    attendance, "Manage employees", "Client Schedulers (Lead Harvester)", and "Order Boards & Assigning"
    wrapping to 2 lines.
+
+## Playwright tests on the live site (12 Nov, branch `test/playwright-live`)
+
+1. New dev-only package `@playwright/test` 1.65 in `frontend/` (approved by Vineet). Chromium only.
+2. Files: `frontend/playwright.config.ts`, `frontend/e2e/` (`auth.setup.ts`, `portal.spec.ts`,
+   `helpers.ts`, `README.md`). Script: `npm run e2e`. How to run: `frontend/e2e/README.md`.
+3. One project per tester: V (Vineet), S (Nishita), K (Kunal). Logins in `frontend/.env.e2e.local`
+   (git-ignored). Saved sessions in `frontend/.auth/` (git-ignored and docker-ignored).
+4. Read-only checks: login, dashboard, sidebar = `navFor(permissions, modules)`, every sidebar page opens
+   with no error / console error / 403 / 5xx, the admin API refuses, logout. Soft checks: the run carries on.
+5. The three test accounts are all role `employee` with extra permissions (none is admin):
+   1. V: assign.manage, attendance.manage, audit.view, catalog.edit, leads.view, tasks.assign.
+   2. S: most permissions, including staff.approve.
+   3. K: boards.manage, calendar.edit, content.edit, files.approve, leads.view, leads.view_all,
+      staff.approve.
+6. First live run (12 Nov), all three at once: 15 passed, 3 failed, all the same real bug:
+   1. Chat live connection fails on the live site: `wss://kjs-m.vercel.app/api/v1/chat/ws` gives 404.
+   2. Why: `lib/chat.ts` connects to the same site, which works behind nginx. Vercel's `/api` rewrite
+      (`next.config.mjs`) can't carry WebSockets, so live chat messages don't arrive on Vercel + Render.
+   3. Fix is not simple: pointing `NEXT_PUBLIC_CHAT_WS_URL` at Render alone fails, because the login cookie
+      belongs to the Vercel site and isn't sent to Render. Needs its own plan (e.g. API and site on one
+      domain, or a short-lived ticket for the socket).
+7. Not covered yet: an admin account (none of the three is admin), the phone layout, CI.
+
+## Admin module end-to-end test (12 Nov, same branch)
+
+1. Workbook `docs/testing/admin-e2e.xlsx` (Summary + Test cases), built and filled by
+   `scripts/e2e/admin_workbook.py`. 60 cases: 30 view, 21 change, 9 security.
+2. Tests: `frontend/e2e/admin.spec.ts`, project `A` (admin test account, login in `.env.e2e.local`).
+   Each test title starts with its case ID; the script copies results into the workbook.
+3. Scope (b), decided by Vineet: view everything; create and delete only E2E data; shared settings never
+   saved; approvals, lead assigning, auto-assign Run and KOKO facts only viewed.
+4. Final run 12 Nov 16:33 on the live site: 60 of 60 passed.
+5. Changed from the first case list after reading the screens: the user form has no permission boxes
+   (ADM-045 edits Branch instead); Disable is on Admin overview; All Enquiries has filters, not search
+   (ADM-022 uses the SLA filter); a new product and a new offer are live at once, so the test hides /
+   switches them off straight away.
+6. Left on the live site on purpose (the app has no delete): disabled user `e2e.user@kjs-e2e.test`,
+   hidden "E2E Product", cancelled "E2E Board (test)" boards (3 so far, one per full run).
+7. 3 first-run failures were test mistakes, fixed: leads show as cards, not a table; a hidden popup
+   heading was counted; settings were read before they loaded.
+8. Guess to fold into backlog section 3: the admin test account is Vineet's own login. Better: a separate
+   admin test account, so test runs don't mix with real admin actions in the activity log.

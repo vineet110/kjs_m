@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "kjs-digital-frontend",
   "version": "1.0.0",
   "private": true,
@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/lib.test.mjs"
+    "test": "node --test tests/lib.test.mjs",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "mammoth": "^1.13.0",
@@ -18,6 +19,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@types/node": "^20.14.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
