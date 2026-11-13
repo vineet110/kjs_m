@@ -24,6 +24,7 @@ from app.services import file_check
 
 MAX_BYTES = 10 * 1024 * 1024
 MAX_ROWS = 50  # leads shown to pick from (one file fills one lead)
+MAX_IMPORT_ROWS = 500  # bulk import: each row becomes a lead
 MAX_COLS = 50
 MAX_CELL = 500  # characters kept from a cell we have no field for
 
@@ -73,7 +74,7 @@ def _text(value) -> str:
     return str(value).strip()
 
 
-def _table(filename: str, data: bytes) -> list[list[str]]:
+def _table(filename: str, data: bytes, max_rows: int) -> list[list[str]]:
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     if ext == "xls":
         raise AppError(422, "file_type", "Old Excel files (.xls) can't be read. In Excel, use Save As > .xlsx.")
@@ -87,7 +88,7 @@ def _table(filename: str, data: bytes) -> list[list[str]]:
         try:
             ws = load_workbook(io.BytesIO(data), read_only=True, data_only=True).active  # values, never formulas
             rows = [[_text(c) for c in row]
-                    for row in ws.iter_rows(max_row=MAX_ROWS * 2 + 1, max_col=MAX_COLS, values_only=True)]
+                    for row in ws.iter_rows(max_row=max_rows * 2 + 1, max_col=MAX_COLS, values_only=True)]
         except Exception as e:  # noqa: BLE001 - openpyxl raises many kinds of error for a bad file
             raise AppError(422, "bad_file", "Could not read this Excel file.") from e
     else:
@@ -101,7 +102,7 @@ def _table(filename: str, data: bytes) -> list[list[str]]:
             dialect = csv.excel
         try:
             reader = csv.reader(io.StringIO(text), dialect)
-            rows = [[c.strip() for c in row[:MAX_COLS]] for _, row in zip(range(MAX_ROWS * 2 + 1), reader)]
+            rows = [[c.strip() for c in row[:MAX_COLS]] for _, row in zip(range(max_rows * 2 + 1), reader)]
         except csv.Error as e:
             raise AppError(422, "bad_file", "Could not read this CSV file.") from e
     return [r for r in rows if any(r)]  # Excel files often carry empty formatted rows
@@ -136,9 +137,10 @@ def _lead(pairs: list[tuple[str, str]], categories: dict[str, str]) -> dict:
     return {"fields": fields, "extra": extra}
 
 
-def read(filename: str, data: bytes, categories: dict[str, str]) -> dict:
-    """The file's leads, ready for the form. `categories`: name or slug (lower case) -> slug."""
-    table = _table(filename, data)
+def read(filename: str, data: bytes, categories: dict[str, str], max_rows: int = MAX_ROWS) -> dict:
+    """The file's leads, ready for the form. `categories`: name or slug (lower case) -> slug.
+    `max_rows`: rows returned at most (MAX_ROWS to pick one, MAX_IMPORT_ROWS for a bulk import)."""
+    table = _table(filename, data, max_rows)
     if not table:
         raise AppError(422, "empty", "This file has no data.")
     # Columns really used (Excel pads every row with empty cells up to MAX_COLS)
@@ -153,6 +155,6 @@ def read(filename: str, data: bytes, categories: dict[str, str]) -> dict:
         body = table[1:]
         if not body:
             raise AppError(422, "empty", "This file has column names but no rows under them.")
-        more = len(body) > MAX_ROWS
-        leads = [_lead(list(zip(headers, r)), categories) for r in body[:MAX_ROWS]]
+        more = len(body) > max_rows
+        leads = [_lead(list(zip(headers, r)), categories) for r in body[:max_rows]]
     return {"leads": leads, "more_rows": more}

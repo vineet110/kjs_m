@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { uploadFiles } from '@/components/portal/FileList';
 import { Icon } from '@/components/portal/icons';
+import ImportLeads from '@/components/portal/ImportLeads';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import LeadSourceList, { useSourceLeads } from '@/components/portal/LeadSourceList';
 import { Msg, PageTitle } from '@/components/portal/ui';
@@ -22,13 +23,18 @@ type SamePerson = { count: number; lead_id: number | null };
 
 export default function InternalLeadsPage() {
   const { rows, reload, error } = useSourceLeads('internal');
-  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState<'add' | 'import' | null>(null); // one panel at a time
+  const toggle = (p: 'add' | 'import') => setOpen((now) => (now === p ? null : p));
   return (
     <div className="space-y-5">
       <PageTitle title="Internal leads" sub="Leads you met outside the website: a call, a fair, a walk-in.">
-        <button type="button" onClick={() => setAdding(!adding)} className="btn-dark">{adding ? 'Close' : '+ Add lead'}</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => toggle('import')} className="btn-ghost">{open === 'import' ? 'Close' : 'Import from Excel / CSV'}</button>
+          <button type="button" onClick={() => toggle('add')} className="btn-dark">{open === 'add' ? 'Close' : '+ Add lead'}</button>
+        </div>
       </PageTitle>
-      {adding && <AddLead onSaved={reload} />}
+      {open === 'add' && <AddLead onSaved={reload} />}
+      {open === 'import' && <ImportLeads onDone={reload} />}
       <LeadSourceList rows={rows} error={error} onRetry={reload} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
     </div>
   );
