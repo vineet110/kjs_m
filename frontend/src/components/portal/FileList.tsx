@@ -1,5 +1,5 @@
 'use client';
-// Files of one owner (an order board, a product): upload, preview, download, ask to delete.
+// Files of one owner (an order board, a product, a lead): upload, preview, download, ask to delete.
 // Deleting needs an approver (files.approve, or e.g. the board's owner), so staff can't lose documents by accident.
 // Preview: click a file to see it beside the list (half the width on a computer, below it on a phone),
 // or full screen (Esc closes). Download is always there too.
@@ -14,21 +14,34 @@ function size(n: number) {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-/** Uploads files to one owner, one by one. Returns a message for each file that failed (empty = all saved). */
+/** Uploads one file to one owner (a board, a product, a lead, a user's photo). Throws if it fails. */
+export async function uploadOne(ownerType: string, ownerId: string, file: File, isPublic = false) {
+  const form = new FormData();
+  form.set('owner_type', ownerType);
+  form.set('owner_id', ownerId);
+  form.set('is_public', String(isPublic));
+  form.set('file', file);
+  await upload('/files', form);
+}
+
+const AT_ONCE = 3; // a few uploads side by side: faster than one by one, without choking a slow connection
+
+/** Uploads several files to one owner. One bad file (too big, wrong type) doesn't stop the others.
+ *  Returns a message for each file that failed (empty = all saved). */
 export async function uploadFiles(ownerType: string, ownerId: string, files: File[], isPublic = false): Promise<string[]> {
   const failed: string[] = [];
-  for (const file of files) {
-    const form = new FormData();
-    form.set('owner_type', ownerType);
-    form.set('owner_id', ownerId);
-    form.set('is_public', String(isPublic));
-    form.set('file', file);
-    try {
-      await upload('/files', form);
-    } catch (x) {
-      failed.push(`${file.name}: ${x instanceof ApiFailure ? x.message : 'Upload failed.'}`);
+  let next = 0;
+  async function worker() {
+    while (next < files.length) {
+      const file = files[next++];
+      try {
+        await uploadOne(ownerType, ownerId, file, isPublic);
+      } catch (x) {
+        failed.push(`${file.name}: ${x instanceof ApiFailure ? x.message : 'Upload failed.'}`);
+      }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(AT_ONCE, files.length) }, worker));
   return failed;
 }
 
@@ -85,12 +98,16 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
     if (!picked.length) return;
     setBusy(true);
     setErr('');
-    // One at a time, so one bad file (too big, wrong type) doesn't stop the others
-    const failed = await uploadFiles(ownerType, ownerId, picked, isPublic);
-    setErr(failed.join(' '));
-    setBusy(false);
-    if (input.current) input.current.value = '';
-    load();
+    try {
+      const failed = await uploadFiles(ownerType, ownerId, picked, isPublic);
+      setErr(failed.join(' '));
+      load();
+    } catch {
+      setErr('Upload failed.'); // something unexpected: say so instead of staying stuck on "Uploading…"
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = '';
+    }
   }
 
   async function askDelete(f: StoredFile) {

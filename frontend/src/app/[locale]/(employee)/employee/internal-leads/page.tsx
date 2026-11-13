@@ -20,13 +20,13 @@ export default function InternalLeadsPage() {
       <PageTitle title="Internal leads" sub="Leads you met outside the website: a call, a fair, a walk-in.">
         <button type="button" onClick={() => setAdding(!adding)} className="btn-dark">{adding ? 'Close' : '+ Add lead'}</button>
       </PageTitle>
-      {adding && <AddLead />}
+      {adding && <AddLead onSaved={reload} />}
       <LeadSourceList rows={rows} error={error} onRetry={reload} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
     </div>
   );
 }
 
-function AddLead() {
+function AddLead({ onSaved }: { onSaved: () => void }) {
   const router = useRouter();
   const [cats, setCats] = useState<Category[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -57,6 +57,7 @@ function AddLead() {
       const failed = await uploadFiles('lead', String(lead.id), files);
       if (failed.length) {
         setSavedId(lead.id);
+        onSaved(); // the lead is in the list now, so nobody adds it a second time
         setMsg({ ok: false, text: `Lead saved, but some files did not upload. ${failed.join(' ')}` });
         setBusy(false);
         return;
@@ -98,17 +99,19 @@ function AddLead() {
       <div>
         <span className="label">Files</span>
         {/* The browser's own file button looks out of place, so it is hidden and this box opens it.
-            No `name`: the files are sent one by one after the lead is saved, not with the form. */}
-        <label htmlFor="il-files"
-          className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500 hover:border-slate-400 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-orange-300">
+            No `name`: the files are sent after the lead is saved, not with the form. */}
+        {/* Once the lead is saved, this form can't send files any more: more go in the lead's Files tab. */}
+        <label htmlFor="il-files" aria-disabled={savedId != null}
+          className="flex cursor-pointer aria-disabled:cursor-not-allowed aria-disabled:opacity-60 items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500 hover:border-slate-400 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-orange-300">
           <Icon name="file" className="h-5 w-5 shrink-0 text-slate-400" />
           <span className="min-w-0 flex-1 truncate">
-            {files.length ? files.map((f) => f.name).join(', ') : 'Add visiting cards, price lists, photos…'}
+            {savedId != null ? "Add the missing files from the lead's Files tab."
+              : files.length ? files.map((f) => f.name).join(', ') : 'Add visiting cards, price lists, photos…'}
           </span>
-          <span className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1 font-medium text-slate-700">
+          {savedId == null && <span className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1 font-medium text-slate-700">
             {files.length ? `${files.length} chosen · Change` : 'Choose files'}
-          </span>
-          <input id="il-files" type="file" multiple className="sr-only"
+          </span>}
+          <input id="il-files" type="file" multiple className="sr-only" disabled={savedId != null}
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
         </label>
       </div>

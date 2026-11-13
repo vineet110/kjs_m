@@ -104,12 +104,12 @@ check("create product (with a 15 % offer)", r.status_code == 201 and j(r).get("o
 prod = j(r)
 r = admin.post("/api/v1/admin/products", json={"category_slug": "tea", "name": "Masala Tea Premix"}, headers=H)
 check("create 2nd product", r.status_code == 201, j(r))
-png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64 + b"IEND\xaeB`\x82"  # a whole PNG ends with IEND
 r = admin.post("/api/v1/files", data={"owner_type": "product", "owner_id": prod["slug"], "is_public": "true"},
                files={"file": ("stick.png", png, "image/png")}, headers=H)
 check("upload public product photo", r.status_code == 201, j(r))
 r = admin.post("/api/v1/files", data={"owner_type": "product", "owner_id": prod["slug"], "is_public": "true"},
-               files={"file": ("spec-sheet.pdf", b"%PDF-1.4 spec", "application/pdf")}, headers=H)
+               files={"file": ("spec-sheet.pdf", b"%PDF-1.4 spec %%EOF", "application/pdf")}, headers=H)
 check("upload public spec PDF", r.status_code == 201, j(r))
 r = admin.post("/api/v1/content/offers", json={"text": "Free samples for new distributors"}, headers=H)
 check("add offer", r.status_code == 201, j(r))
@@ -305,10 +305,10 @@ check("create order board", r.status_code == 201, j(r))
 b = j(e1.get("/api/v1/boards/E2E117-1"))
 check("Esha sees board, step 1 running", b["steps"][0]["status"] == "active" and b["my_step_ids"] == [b["steps"][0]["id"]], b)
 check("Esha got the step task", any(t["source"] == "board" for t in j(e1.get("/api/v1/tasks"))))
-r = e1.post("/api/v1/files", data={"owner_type": "board", "owner_id": "E2E117-1"}, files={"file": ("po.pdf", b"%PDF po", "application/pdf")}, headers=H)
+r = e1.post("/api/v1/files", data={"owner_type": "board", "owner_id": "E2E117-1"}, files={"file": ("po.pdf", b"%PDF-1.4 po %%EOF", "application/pdf")}, headers=H)
 check("Esha uploads a board document", r.status_code == 201, j(r))
 fid = j(r)["id"]
-check("download works through the proxy", e1.get(f"/api/v1/files/{fid}/download").content == b"%PDF po")
+check("download works through the proxy", e1.get(f"/api/v1/files/{fid}/download").content == b"%PDF-1.4 po %%EOF")
 check("Esha asks to delete it", e1.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "Wrong PO"}, headers=H).status_code == 200)
 check("approvals inbox shows the delete", any(f["id"] == fid for f in j(admin.get("/api/v1/admin/approvals"))["file_deletes"]))
 check("admin approves delete", j(admin.post(f"/api/v1/files/{fid}/delete-decision", json={"approve": True}, headers=H))["delete_status"] == "approved")
@@ -346,8 +346,8 @@ check("the last person on a running step can't be removed", admin.delete(f"{BRD}
 admin.put(f"{BRD}/steps/{packing}/people", json={"member_ids": [farhan, gita], "head_ids": [farhan]}, headers=H)
 
 # Files of each type: the preview route (/view) sends them to be shown in the page, never cached, only to the board's
-# people. A real PDF may be framed by our own pages (Chrome's PDF viewer won't open a sandboxed one); every other file,
-# and a ".pdf" that isn't really a PDF, is sandboxed (no scripts can run in it).
+# people. A real PDF may be framed by our own pages (Chrome's PDF viewer won't open a sandboxed one); every other file
+# is sandboxed (no scripts can run in it). A ".pdf" that isn't really a PDF is refused at upload.
 SAMPLES = {
     "rates-hindi.csv": ("text/csv", "उत्पाद,मात्रा,दर (₹)\nकॉफ़ी स्टिक,1000,₹ 2.50\nचाय प्रीमिक्स,500,\"₹ 1,250\"\n".encode()),
     "plan.xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -356,13 +356,15 @@ SAMPLES = {
                     docx_bytes(["Purchase order PO-117", "Deliver 1000 coffee sticks. दर ₹ 2.50"])),
     "board-test.pdf": ("application/pdf", pdf_bytes("Board E2E117-1 test PDF")),
     "label.png": ("image/png", png),
-    "fake.pdf": ("application/pdf", b"<html><script>alert(1)</script></html>"),
 }
 fids = {}
 for name, (ctype, data) in SAMPLES.items():
     r = e2.post("/api/v1/files", data={"owner_type": "board", "owner_id": "E2E117-1"}, files={"file": (name, data, ctype)}, headers=H)
     fids[name] = j(r).get("id") if r.status_code == 201 else 0
-check("a member uploads a CSV, Excel, Word, PDF, PNG and a fake PDF", all(fids.values()), fids)
+check("a member uploads a CSV, Excel, Word, PDF and PNG", all(fids.values()), fids)
+r = e2.post("/api/v1/files", data={"owner_type": "board", "owner_id": "E2E117-1"},
+            files={"file": ("fake.pdf", b"<html><script>alert(1)</script></html>", "application/pdf")}, headers=H)
+check("a web page named .pdf is refused at upload", r.status_code == 422 and j(r).get("code") == "file_broken", j(r))
 for name, (ctype, data) in SAMPLES.items():
     r = e1.get(f"/api/v1/files/{fids[name]}/view")
     csp = "frame-ancestors 'self'" if name == "board-test.pdf" else "sandbox"

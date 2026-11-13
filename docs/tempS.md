@@ -20,3 +20,12 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - New allowed types: pptx, ppt, gif, heic, mp4, mov (`config/storage.ini` + `ini.py`). exe, html and svg are still blocked on purpose (can carry viruses or scripts). Max size is still 25 MB (nginx allows 26m).
 - Tests: 3 new in `test_lead_management.py`. Full suite: 381 passed. Frontend `tsc` clean.
 - Still to do: click through it in the browser.
+
+### PR #72 review fixes + damaged-file check (13 Nov)
+
+- All 10 review points fixed. HEIC is allowed on leads only (`ONLY_FOR` in `file_service.py`). Lead ids are cleaned (`"007"` -> `"7"`, `"²"` / huge numbers -> 403 instead of 500) through a new `clean=` option on `register_owner` (boards use it too: `str.upper`). On an unassigned lead you can see files but not upload or ask to delete.
+- Frontend: files upload 3 at a time (`uploadFiles` in `FileList.tsx`), shared `uploadOne` also used for profile photos, uploader can't get stuck, leads list refreshes after a partial failure, picker turns off once the lead is saved.
+- New `backend/app/services/file_check.py`: a file must really be what its name says and be whole (PDF needs `%PDF-` ... `%%EOF`, PNG needs its end marker, xlsx/docx/pptx/zip are opened and every part tested, zip bombs over 300 MB unzipped refused). Error code `file_broken`. Python's own tools only, no new package.
+- Test fixtures updated to be real whole files. A fake `.pdf` (a web page) is now refused at upload instead of only sandboxed at preview.
+- Tests: full suite 387 passed. Frontend `tsc` clean. `scripts/e2e/api_e2e.py` updated, not run yet.
+- Next (new branch): read lead data from Excel/CSV, address field, new-column pop-up with audit log, then Tesseract for images (needs Vineet's OK for `pytesseract` + Dockerfile change).

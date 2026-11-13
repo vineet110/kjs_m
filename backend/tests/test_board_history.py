@@ -22,7 +22,7 @@ async def test_history_tells_the_story_newest_first_including_deleted_files(clie
     await login(client, "blend@kjsindia.com")
     await client.post(f"{B}/steps/{step1}/checklist", json={"index": 0, "done": True}, headers=HDR)
     fid = (await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                             files={"file": ("old-label.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()["id"]
+                             files={"file": ("old-label.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
     await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "wrong version"}, headers=HDR)
 
     await login(client, "owner@kjsindia.com")

@@ -26,7 +26,7 @@ from app.core.storage import StorageError, storage
 from app.jobs.runner import job
 from app.models.file import StoredFile
 from app.models.user import User
-from app.services import audit_service, notification_service
+from app.services import audit_service, file_check, notification_service
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +41,10 @@ PUBLIC_OWNERS: dict[str, PublicCheck] = {}
 # for files of that owner, on top of everyone with files.approve (e.g. an order board's owner).
 Approvers = Callable[[AsyncSession, str], Awaitable[tuple[set[int], str]]]
 APPROVERS: dict[str, Approvers] = {}
+# owner_type -> clean(owner_id): the one spelling files are saved and looked up under, so "abc117-3" finds
+# board ABC117-3 and "007" finds lead 7. Owners without one keep the id as it came.
+Cleaner = Callable[[str], str]
+CLEANERS: dict[str, Cleaner] = {}
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -49,11 +53,16 @@ TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpe
          "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
          "ppt": "application/vnd.ms-powerpoint", "gif": "image/gif", "heic": "image/heic",
          "mp4": "video/mp4", "mov": "video/quicktime"}
+# Types only some owners may use. Chrome and Firefox can't show HEIC (iPhone photos): fine as a lead
+# attachment people download, but a profile photo or product image would show up broken.
+ONLY_FOR = {"heic": {"lead"}}
 
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
-                   approvers: Approvers | None = None) -> None:
+                   approvers: Approvers | None = None, clean: Cleaner | None = None) -> None:
     OWNERS[owner_type] = check
+    if clean:
+        CLEANERS[owner_type] = clean
     if public:
         PUBLIC_OWNERS[owner_type] = public
     if approvers:
@@ -77,6 +86,11 @@ async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) ->
     return live is not None and await live(db, owner_id)
 
 
+def _clean_id(owner_type: str, owner_id: str) -> str:
+    clean = CLEANERS.get(owner_type)
+    return clean(owner_id) if clean else owner_id
+
+
 async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, action: str) -> None:
     require_visible(user, AREA_OF_FILE_OWNER.get(owner_type))  # e.g. order boards switched off: 404
     check = OWNERS.get(owner_type)
@@ -98,15 +112,14 @@ def out(f: StoredFile, names: dict[int, str] | None = None) -> dict:
 
 async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_type: str, owner_id: str,
                  is_public: bool = False) -> dict:
-    if owner_type == "board":
-        owner_id = owner_id.upper()  # board codes are upper case: "abc117-3" must land on ABC117-3
+    owner_id = _clean_id(owner_type, owner_id)
     await _check(db, user, owner_type, owner_id, "write")
     if is_public and owner_type not in PUBLIC_OWNERS:
         # e.g. an order-board document must never become downloadable without login
         raise AppError(422, "not_public", "Only product files can be shown on the website.")
     name = upload_file.filename or "file"
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-    if ext not in cfg().storage.allowed_types or ext not in TYPES:
+    if ext not in cfg().storage.allowed_types or ext not in TYPES or owner_type not in ONLY_FOR.get(ext, {owner_type}):
         raise AppError(422, "file_type", f"Files of type .{ext or '?'} are not allowed.",
                        {"allowed": cfg().storage.allowed_types})
     limit = cfg().storage.max_upload_mb * 1024 * 1024
@@ -115,6 +128,10 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
         raise AppError(413, "too_big", f"Max file size is {cfg().storage.max_upload_mb} MB.")
     if not data:
         raise AppError(422, "empty", "The file is empty.")
+    # Checked off the main thread: testing every part of a big zip or Excel file takes a moment
+    if not await asyncio.to_thread(file_check.is_valid, ext, data):
+        raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file. "
+                       "Please check it and try again.")
     key = f"{owner_type}/{safe_name(owner_id)}/{uuid.uuid4().hex[:12]}-{safe_name(name)}"
     try:
         await asyncio.to_thread(storage().put, key, data, TYPES[ext])
@@ -143,8 +160,7 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
 
 
 async def list_files(db: AsyncSession, user: User, owner_type: str, owner_id: str) -> list[dict]:
-    if owner_type == "board":
-        owner_id = owner_id.upper()
+    owner_id = _clean_id(owner_type, owner_id)
     await _check(db, user, owner_type, owner_id, "read")
     rows = (await db.scalars(select(StoredFile).where(
         StoredFile.owner_type == owner_type, StoredFile.owner_id == owner_id, StoredFile.deleted_at.is_(None))

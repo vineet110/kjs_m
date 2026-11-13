@@ -301,18 +301,33 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = Fal
     return lead
 
 
+def _lead_id(owner_id: str) -> int | None:
+    """'7' and '007' -> 7. Anything else ('abc', '²', a number too big for the database) -> None."""
+    if not (owner_id.isascii() and owner_id.isdigit()) or len(owner_id) > 10:
+        return None
+    n = int(owner_id)
+    return n if 0 < n <= 2**31 - 1 else None  # leads.id is a database "integer"
+
+
+def _clean_lead_id(owner_id: str) -> str:
+    n = _lead_id(owner_id)
+    return str(n) if n else owner_id  # a bad id stays as it is, and the access check then refuses it
+
+
 async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
-    """Files on a lead (a visiting card, a price list): whoever may work the lead may see and add them."""
-    if "leads.view" not in effective_permissions(user.role, user.permissions) or not owner_id.isdigit():
+    """Files on a lead (a visiting card, a price list): whoever can see the lead can see its files.
+    Adding or asking to delete needs the lead to be yours (or leads.view_all), not just unassigned."""
+    lead_id = _lead_id(owner_id)
+    if "leads.view" not in effective_permissions(user.role, user.permissions) or lead_id is None:
         return False
     try:
-        await _lead_for(db, user, int(owner_id))
-        return True
+        lead = await _lead_for(db, user, lead_id)
     except AppError:
         return False
+    return action == "read" or lead.assigned_to == user.id or _can_see_all(user)
 
 
-file_service.register_owner("lead", _files_access)
+file_service.register_owner("lead", _files_access, clean=_clean_lead_id)
 
 
 # ---------- Working a lead ----------
