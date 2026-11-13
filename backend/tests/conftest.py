@@ -75,16 +75,18 @@ def id_token(email: str, verified: bool = True, signed_in_seconds_ago: int = 0) 
 
 class FakeFirebase:
     def __init__(self):
-        self.created: dict[str, str] = {}  # uid -> email
+        self.created: dict[str, str] = {}  # uid -> email (Firebase accounts that exist)
         self.deleted: list[str] = []
         self.disabled: dict[str, bool] = {}
+        self.reset: dict[str, str] = {}  # uid -> one-time password set on a reused account
+        self.valid_after_ms: dict[str, int] = {}  # uid -> when the password last changed (ms)
 
     async def verify_token(self, token: str) -> dict:
         for prefix, verified in ((FAKE_TOKEN, True), (FAKE_UNVERIFIED, False)):
             if token.startswith(prefix):
                 email, signed_in_at = token[len(prefix):].rsplit("|", 1)
                 return {"uid": uid_of(email), "email": email.lower(), "email_verified": verified,
-                        "auth_time": int(signed_in_at)}
+                        "auth_time": int(signed_in_at), "valid_after_ms": self.valid_after_ms.get(uid_of(email), 0)}
         from app.core.firebase import BadToken
         raise BadToken("InvalidIdTokenError")
 
@@ -94,6 +96,12 @@ class FakeFirebase:
 
     async def ensure_user(self, email: str, password: str, name: str) -> str:
         return await self.create_user(email, password, name)
+
+    async def uid_by_email(self, email: str) -> str | None:
+        return next((uid for uid, e in self.created.items() if e == email), None)
+
+    async def reset_account(self, uid: str, password: str, name: str) -> None:
+        self.reset[uid] = password
 
     async def delete_user(self, uid: str) -> None:
         self.deleted.append(uid)
@@ -106,7 +114,8 @@ class FakeFirebase:
 def fake_firebase(monkeypatch):
     from app.core import firebase
     fake = FakeFirebase()
-    for name in ("verify_token", "create_user", "ensure_user", "delete_user", "set_disabled"):
+    for name in ("verify_token", "create_user", "ensure_user", "uid_by_email", "reset_account", "delete_user",
+                 "set_disabled"):
         monkeypatch.setattr(firebase, name, getattr(fake, name))
     monkeypatch.setattr(firebase, "enabled", lambda: True)
     return fake

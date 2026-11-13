@@ -10,7 +10,7 @@ import { api, ApiFailure, type Me } from '@/lib/api';
 import { forgetAccount } from '@/lib/portal-session';
 import { safeNext } from '@/lib/safe-url';
 import { asset } from '@/lib/assets';
-import { backToLogin, firebaseAuth, firebaseMessage, leaveFirebase } from '@/lib/firebase';
+import { backToLogin, firebaseAuth, firebaseMessage, isWrongPassword, leaveFirebase, OLD_ACCOUNT_HINT } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
 import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 
@@ -115,7 +115,9 @@ function LoginInner() {
       if (err instanceof ApiFailure) {
         const fields = Object.values(err.body.details || {}).join(' ');
         setError(fields ? `${err.message} ${fields}` : err.message);
-      } else if (err instanceof FirebaseError) setError(firebaseMessage(err));
+      } else if (err instanceof FirebaseError) {
+        setError(tab === 'login' && isWrongPassword(err) ? `${firebaseMessage(err)} ${OLD_ACCOUNT_HINT}` : firebaseMessage(err));
+      }
       else setError('Could not reach the server.');
     } finally {
       setBusy(false);

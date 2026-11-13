@@ -9,7 +9,7 @@ import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
-import { firebaseAuth, firebaseMessage, leaveFirebase } from '@/lib/firebase';
+import { firebaseAuth, firebaseMessage, isWrongPassword, leaveFirebase } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
 import { signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 
@@ -75,21 +75,26 @@ export default function ProfilePage() {
     if (!p) return;
     // Firebase keeps the password: signing in with the current one proves it (and makes the sign-in fresh,
     // which the API asks for), then Firebase changes it. The API then logs out the other browsers.
+    let changed = false; // true once Firebase has the new password: from then on, never say "could not change"
     try {
       const { user } = await signInWithEmailAndPassword(firebaseAuth(), p.email, f.current).catch((err) => {
-        throw firebaseMessage(err) === 'Email or password is wrong.' ? new Error('Your current password is wrong.') : err;
+        throw isWrongPassword(err) ? new Error('Your current password is wrong.') : err;
       });
       await updatePassword(user, f.new);
-      const idToken = await user.getIdToken(true);
-      await api('/auth/password', { method: 'POST', body: { id_token: idToken } }).finally(leaveFirebase);
-      setPwMsg({ ok: true, text: 'Password changed. Other browsers where you were logged in are logged out.' });
+      changed = true;
       form.reset();
+      const idToken = await user.getIdToken(true);
+      await api('/auth/password', { method: 'POST', body: { id_token: idToken } });
+      setPwMsg({ ok: true, text: 'Password changed. Other browsers where you were logged in are logged out.' });
     } catch (err) {
-      await leaveFirebase();
-      const text = err instanceof ApiFailure ? err.message
+      const reason = err instanceof ApiFailure ? err.message
         : err instanceof FirebaseError ? firebaseMessage(err, 'Could not change.')
         : err instanceof Error ? err.message : 'Could not change.';
-      setPwMsg({ ok: false, text });
+      setPwMsg(changed
+        ? { ok: true, text: `Password changed: use the new one from now on. Other browsers could not be logged out (${reason}); log out there yourself, or log in again here.` }
+        : { ok: false, text: reason });
+    } finally {
+      await leaveFirebase();
     }
   }
 

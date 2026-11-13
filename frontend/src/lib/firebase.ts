@@ -30,6 +30,16 @@ export function backToLogin() {
   return { url: `${window.location.origin}/employee/login` };
 }
 
+/** Firebase said "wrong email or password" (it doesn't say which, so nobody can probe who has an account). */
+export function isWrongPassword(err: unknown): boolean {
+  return err instanceof FirebaseError
+    && ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(err.code);
+}
+
+/** Accounts from before Firebase (13 Nov 2026) have no Firebase login yet: their old password fails there. */
+export const OLD_ACCOUNT_HINT =
+  'Had a staff account before 13 Nov 2026? Use "Sign up" once with the same email to move it to the new login (an admin approves it again).';
+
 /** A plain sentence for a Firebase error (its own messages are technical). */
 export function firebaseMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (!(err instanceof FirebaseError)) return fallback;

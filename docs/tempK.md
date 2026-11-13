@@ -54,3 +54,27 @@ public keys); email verification (proves the inbox is yours); "fresh sign-in" (a
 - CodeRabbit on #77: `auth_service.py` used `AuditLog` (main's `decided()`, Approvals > Approved list) without
   importing it: I had removed the import in the Firebase rewrite. Put back; scanned every changed file for
   other missing names: none. Lesson: "it imports" doesn't catch a missing name inside a function.
+
+### Review of #77 (13 Nov): 10 points
+
+- Real, from my Firebase code (to fix in #77): (1) Approve doesn't re-enable the Firebase account,
+  (2) old staff see "wrong password" with no hint to sign up once, (3) a Firebase reset doesn't end old
+  sessions, (4) Firebase errors (user deleted / Google down) crash as 500, (5) a broken key looks like
+  "sign-in expired" and locks the office out (429), (6) Profile says "Could not change" after it changed,
+  (7) half-finished sign-ups make "Create employee" say "already exists", (8) double-click login says
+  "no account", (9) a check compares message text instead of err.code.
+- (10) Decided: `tempK.md` is allowed (Vineet agreed in person). The service-account key is temporary and
+  will be replaced before going live.
+- Fixed (13 Nov): (1) `approve()` switches the Firebase account back on; (2) Firebase errors: user deleted /
+  forged / expired / disabled / revoked = 401, Google down = 503 (never 500); (3) broken key = 503
+  `login_not_set_up`, logged as `firebase.bad_config`, never counts toward the login limit; (4) "Create employee"
+  reuses a half-finished Firebase account (checked first: never another row's login), quiet cleanup;
+  (5) double-click login finds the account the other click linked; (6) `_verify()` looks the user up once and
+  returns `valid_after_ms`; `login()` ends sessions older than the last password change; a Profile password
+  change gives this browser a new session. Checked on the real Firebase project with a throwaway user
+  (deleted): a reset through the email link moves that time forward. (7, 8) old-account hint on the login
+  and forgot-password pages; (9) Profile checks `err.code`, and says "Password changed" if only the logout
+  of other browsers failed.
+- Checked here: Firebase checking code with fake Google answers (all 401/503 as planned), backend imports,
+  tests compile, missing-names scan, `tsc`, `npm test` (58), build, hints in a browser on the real Firebase.
+  Backend tests: CI.

@@ -9,7 +9,7 @@ import { FirebaseError } from 'firebase/app';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import Spinner from '@/components/ui/Spinner';
 import { asset } from '@/lib/assets';
-import { backToLogin, firebaseAuth, firebaseMessage } from '@/lib/firebase';
+import { backToLogin, firebaseAuth, firebaseMessage, OLD_ACCOUNT_HINT } from '@/lib/firebase';
 
 export default function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
@@ -51,6 +51,7 @@ export default function ForgotPasswordPage() {
                 If <span className="font-semibold">{sentTo}</span> has a staff account, a link to set a new password is
                 on its way. After that, log in with the new password.
               </p>
+              <p>{OLD_ACCOUNT_HINT} The reset link only works after that.</p>
               <p>
                 Nothing after 5 minutes? Check spam, or{' '}
                 <button type="button" onClick={() => setSentTo('')} className="font-semibold underline">

@@ -7,7 +7,6 @@ from app.core.database import get_db
 from app.core.deps import current_user, visitor_keys
 from app.core.modules import visible_to
 from app.core.permissions import effective_permissions
-from app.core.security import hash_token
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut, PasswordChangedIn, SignupIn
 from app.schemas.common import OneLine, RequiredPhone
@@ -33,6 +32,11 @@ async def signup(data: SignupIn, request: Request, db: AsyncSession = Depends(ge
 @router.post("/login", response_model=MeOut)
 async def login(data: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     user, token = await auth_service.login(db, data.id_token, *visitor_keys(request))
+    _set_session_cookie(response, token)
+    return _me(user)
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
         max_age=settings.SESSION_DAYS * 86400,
@@ -41,7 +45,6 @@ async def login(data: LoginIn, request: Request, response: Response, db: AsyncSe
         secure=settings.is_production,  # HTTPS-only in production
         path="/",
     )
-    return _me(user)
 
 
 @router.post("/logout", status_code=204)
@@ -73,8 +76,9 @@ async def update_profile(data: ProfileIn, user: User = Depends(current_user), db
 
 
 @router.post("/password", status_code=204)
-async def password_changed(data: PasswordChangedIn, request: Request, user: User = Depends(current_user),
-                           db: AsyncSession = Depends(get_db)):
-    """Called right after the browser changed the password in Firebase: logs out every other browser."""
-    token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
-    await auth_service.password_changed(db, user, data.id_token, hash_token(token), *visitor_keys(request))
+async def password_changed(data: PasswordChangedIn, request: Request, response: Response,
+                           user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Called right after the browser changed the password in Firebase: logs out every other browser, and
+    gives this one a new session cookie."""
+    token = await auth_service.password_changed(db, user, data.id_token, *visitor_keys(request))
+    _set_session_cookie(response, token)
