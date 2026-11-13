@@ -47,6 +47,9 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadErr, setLoadErr] = useState<unknown>(null);
+  // Two separate lists, so neither can wipe the other: the file the form was filled from (one at most:
+  // filling from another file replaces it) and the extra files picked in the Files box
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [savedId, setSavedId] = useState<number | null>(null); // saved, but a file failed: show the way to the lead
   // Filled from a file: the form is drawn again (new key) with these values; empty ones say "Not specified"
@@ -70,7 +73,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
     setFillKey((k) => k + 1);
     setSame(null);
     sameOk.current = null;
-    setFiles((now) => [source, ...now.filter((f) => f !== source)]); // the file is kept on the lead too
+    setSourceFile(source); // kept on the lead too; a new file replaces the old one
   }
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
@@ -98,7 +101,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
       });
       // Files go after the lead exists (they hang on its id). A failed file doesn't undo the lead:
       // we say which ones failed and the lead's Files tab takes them again.
-      const failed = await uploadFiles('lead', String(lead.id), files);
+      const failed = await uploadFiles('lead', String(lead.id), sourceFile ? [sourceFile, ...files] : files);
       if (failed.length) {
         setSavedId(lead.id);
         onSaved(); // the lead is in the list now, so nobody adds it a second time
@@ -156,6 +159,9 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
         <div><label className="label" htmlFor="il-msg">What they need</label><textarea id="il-msg" name="message" maxLength={4000} rows={3} className="input" defaultValue={v('message')} placeholder={ph('message')} /></div>
         <div>
           <span className="label">Files</span>
+          {sourceFile && savedId == null && (
+            <p className="mb-1 truncate text-sm text-slate-600">From file: <b>{sourceFile.name}</b> (will be attached to the lead)</p>
+          )}
           {/* The browser's own file button looks out of place, so it is hidden and this box opens it.
               No `name`: the files are sent after the lead is saved, not with the form. */}
           {/* Once the lead is saved, this form can't send files any more: more go in the lead's Files tab. */}
