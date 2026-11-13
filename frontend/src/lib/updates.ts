@@ -13,7 +13,9 @@ export type Updates = {
   notifications: number;
   approvals: number | null; // null = nothing for you to approve
   chat: number | null; // null = Chat switched off for you
-  leads: { all: number; koko: number; internal: number } | null; // new leads you can see; null = no leads.view
+  // New leads you can see (badges), and `changed`: when any lead last changed or got a note (lists reload on
+  // it, since one lead leaving "new" while another arrives keeps every count the same). null = no leads.view
+  leads: { all: number; koko: number; internal: number; changed: string | null } | null;
 };
 
 export const UPDATE_EVERY_MS = 30_000;
@@ -87,9 +89,10 @@ function theStore() {
   return store;
 }
 
-/** Check now, e.g. right after you approved someone or read a chat, so your own badges update at once. */
-export function pokeUpdates() {
-  store?.check();
+/** Check now, e.g. right after you approved someone or read a chat, so your own badges update at once.
+ *  Resolves when the new numbers are in. */
+export function pokeUpdates(): Promise<void> {
+  return store?.check() ?? Promise.resolve();
 }
 
 /** The latest counters for this account (null until the first answer). */

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { api, ApiFailure } from '@/lib/api';
 import { approvalsChanged } from '@/lib/portal-session';
 import { useToast } from './Toast';
+import { fmtIST } from './ui';
 
 export type StaffUser = {
   id: number; name: string; email: string; phone: string | null; role: string; status: string; permissions: string[];
@@ -41,7 +42,9 @@ export default function ApproveCard({ user, perms, onDone }: { user: StaffUser; 
         <p className="font-semibold">{user.name}</p>
         <p className="text-sm text-slate-500">{user.email}{user.phone ? ` · ${user.phone}` : ''} · signed up {new Date(user.created_at).toLocaleDateString('en-IN')}</p>
         {rejected && user.rejection_reason && (
-          <p className="mt-1 text-sm text-red-700">Rejected{user.decided_by_name ? ` by ${user.decided_by_name}` : ''}: “{user.rejection_reason}”</p>
+          <p className="mt-1 text-sm text-red-700">
+            Rejected{user.decided_by_name ? ` by ${user.decided_by_name}` : ''}{user.approved_at ? ` on ${fmtIST(user.approved_at)}` : ''}: “{user.rejection_reason}”
+          </p>
         )}
       </div>
       <div>

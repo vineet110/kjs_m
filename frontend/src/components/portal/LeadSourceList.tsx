@@ -2,7 +2,7 @@
 // The lead lists under Lead Management (Koko Lead, Internal lead): every lead from one source, in the same
 // table as Contacts. A name opens the contact page. leads.view_all sees everyone's, others own + unassigned.
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Lead } from '@/lib/api';
 import LoadError from '@/components/ui/LoadError';
 import DataTable from './DataTable';
@@ -15,15 +15,19 @@ export function useSourceLeads(source: string) {
   const all = me.permissions.includes('leads.view_all');
   const [rows, setRows] = useState<Lead[] | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const latest = useRef(0); // only the newest answer counts: an older, slower one can't put back an old list
   const load = useCallback(() => {
+    const mine = ++latest.current;
     setError(null);
-    api<Lead[]>(`${all ? '/admin/leads' : '/employee/leads'}?source=${source}`).then(setRows).catch(setError);
+    api<Lead[]>(`${all ? '/admin/leads' : '/employee/leads'}?source=${source}`)
+      .then((r) => { if (mine === latest.current) setRows(r); })
+      .catch((e) => { if (mine === latest.current) setError(e); });
   }, [all, source]);
   useEffect(() => {
     load();
   }, [load]);
-  // New Koko / internal leads: reload when the portal's 30-second check sees the number change
-  useOnUpdate(me.id, (u) => u.leads?.[source as 'koko' | 'internal'], load);
+  // A lead changed or arrived: reload when the portal's 30-second check says so
+  useOnUpdate(me.id, (u) => u.leads?.changed, load);
   return { rows, reload: load, error };
 }
 

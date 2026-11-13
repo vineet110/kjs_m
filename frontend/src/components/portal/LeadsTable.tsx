@@ -42,7 +42,7 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
     loadStaff();
   }, [loadStaff]);
   // New leads: reload as soon as the portal's 30-second check sees the number change
-  useOnUpdate(useMe().id, (u) => u.leads?.all, load);
+  useOnUpdate(useMe().id, (u) => u.leads?.changed, load); // a lead changed or arrived: reload
   // SLA timers move: refresh every minute, only while the tab is in front
   useEffect(() => {
     const t = setInterval(() => document.visibilityState === 'visible' && load(), 60_000);

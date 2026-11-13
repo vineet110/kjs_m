@@ -32,7 +32,7 @@ export default function EditUserPage() {
       </nav>
       {loadErr ? <LoadError error={loadErr} onRetry={load} /> : user === undefined ? <Loading /> : user === null ? <EmptyState title="User not found" /> : (
         <>
-          <UserForm user={user} />
+          <UserForm user={user} onSaved={setUser} />
           {me.role === 'admin' && user.id !== me.id && user.role !== 'admin' && (user.status === 'active' || user.status === 'disabled') && (
             <PermissionsBox user={user} onSaved={setUser} />
           )}

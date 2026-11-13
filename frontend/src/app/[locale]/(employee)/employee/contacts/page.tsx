@@ -3,7 +3,7 @@
 // Same page for admin and staff: leads.view_all sees everyone, others their own + unassigned enquiries.
 // "Opportunities" = enquiries: active = new or contacted, in-active = closed. Converted value: not tracked yet.
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DataTable from '@/components/portal/DataTable';
 import { PageTitle } from '@/components/portal/ui';
 import { api, type Contact } from '@/lib/api';
@@ -14,14 +14,18 @@ import LoadError from '@/components/ui/LoadError';
 export default function ContactsPage() {
   const [rows, setRows] = useState<Contact[] | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
+  const latest = useRef(0); // only the newest answer counts
   const load = useCallback(() => {
+    const mine = ++latest.current;
     setLoadErr(null);
-    api<Contact[]>('/employee/contacts').then(setRows).catch(setLoadErr);
+    api<Contact[]>('/employee/contacts')
+      .then((r) => { if (mine === latest.current) setRows(r); })
+      .catch((e) => { if (mine === latest.current) setLoadErr(e); });
   }, []);
   useEffect(() => {
     load();
   }, [load]);
-  useOnUpdate(useMe().id, (u) => u.leads?.all, load); // new leads arrived: reload
+  useOnUpdate(useMe().id, (u) => u.leads?.changed, load); // a lead changed or arrived: reload
 
   return (
     <div className="space-y-5">

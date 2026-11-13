@@ -4,7 +4,7 @@
 // Manage employees) and the rejected list (reason, who, when; an admin can still approve). Reloads itself
 // when the portal's 30-second check sees the number waiting change.
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser } from '@/components/portal/ApproveCard';
 import { useMe } from '@/components/portal/PortalShell';
 import { useToast } from '@/components/portal/Toast';
@@ -30,13 +30,17 @@ export default function Approvals() {
   const toast = useToast();
   const me = useMe();
 
+  const latest = useRef(0); // only the newest answer counts: an older one can't bring back a decided sign-up
   const load = useCallback(() => {
+    const mine = ++latest.current;
     setLoadErr(null);
     // Both must load: approving a sign-up from an empty permissions list would give no permissions
     api<Inbox>('/admin/approvals').then(async (i) => {
-      if (i.signups !== null) setPerms(await api<Perm[]>('/admin/permissions'));
+      const p = i.signups !== null ? await api<Perm[]>('/admin/permissions') : null;
+      if (mine !== latest.current) return;
+      if (p) setPerms(p);
       setInbox(i);
-    }).catch(setLoadErr);
+    }).catch((e) => { if (mine === latest.current) setLoadErr(e); });
   }, []);
   useEffect(() => {
     load();

@@ -18,7 +18,9 @@ import LoadError from '@/components/ui/LoadError';
 const DEPARTMENTS = ['Main Branch']; // suggestions only: any department can be typed (KJS to send the real list)
 const ADD_TITLE = '__add__';
 
-export default function UserForm({ user }: { user?: StaffUser }) {
+/** onSaved: after an edit is saved, with the account as the server now has it (the edit page uses it to show
+ *  or hide the Permissions box at once when Admin access changed). */
+export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?: (u: StaffUser) => void }) {
   const me = useMe();
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [v, setV] = useState({
@@ -35,6 +37,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
   const [titles, setTitles] = useState<string[]>([]);
   const [newTitle, setNewTitle] = useState<string | null>(null); // typing a new job title (admin)
   const [titleErr, setTitleErr] = useState('');
+  const [addingTitle, setAddingTitle] = useState(false);
 
   const [staffErr, setStaffErr] = useState<unknown>(null);
   // The "Reporting to" list. If it fails the saved choice is kept (the form state holds it), but say so.
@@ -50,10 +53,14 @@ export default function UserForm({ user }: { user?: StaffUser }) {
   }, []);
 
   // A new job title: saved to the list at once (admin only) and picked for this person
+  // While a new title is saving, Add / Cancel / Submit wait for it: the person is never saved with the old title
+  // while the new one is still on its way (CodeRabbit on #76)
   async function addTitle() {
+    if (addingTitle) return;
     const name = (newTitle ?? '').trim();
     if (name.length < 2) return setTitleErr('A job title needs at least 2 characters.');
     setTitleErr('');
+    setAddingTitle(true);
     try {
       const r = await api<{ name: string }>('/admin/job-titles', { method: 'POST', body: { name } });
       setTitles((t) => (t.includes(r.name) ? t : [...t, r.name].sort((a, b) => a.localeCompare(b))));
@@ -61,6 +68,8 @@ export default function UserForm({ user }: { user?: StaffUser }) {
       setNewTitle(null);
     } catch (err) {
       setTitleErr(err instanceof ApiFailure ? err.message : 'Could not add the job title.');
+    } finally {
+      setAddingTitle(false);
     }
   }
 
@@ -82,6 +91,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (addingTitle) return;
     // PhoneInput keeps its own state: read the composed number from the form
     const phone = String(new FormData(e.currentTarget).get('phone') ?? '');
     const body = { name: v.name, phone, employee_code: v.employee_code, branch: v.branch, role: v.role, job_title: v.job_title,
@@ -91,7 +101,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
     try {
       let id = user?.id;
       if (user) {
-        await api(`/admin/users/${user.id}`, { method: 'PATCH', body });
+        onSaved?.(await api<StaffUser>(`/admin/users/${user.id}`, { method: 'PATCH', body }));
       } else {
         const r = await api<{ user: StaffUser; temp_password: string }>('/admin/users', { method: 'POST', body: { ...body, email: v.email } });
         id = r.user.id;
@@ -168,8 +178,8 @@ export default function UserForm({ user }: { user?: StaffUser }) {
                 <input id="u-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} maxLength={60} autoFocus
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTitle(); } }}
                   placeholder="e.g. Sales Executive" className="input" />
-                <button type="button" onClick={addTitle} className="btn-dark px-3">Add</button>
-                <button type="button" onClick={() => { setNewTitle(null); setTitleErr(''); }} className="btn-ghost px-2" aria-label="Cancel new title">✕</button>
+                <button type="button" onClick={addTitle} disabled={addingTitle} className="btn-dark px-3 disabled:opacity-50">{addingTitle ? 'Adding…' : 'Add'}</button>
+                <button type="button" disabled={addingTitle} onClick={() => { setNewTitle(null); setTitleErr(''); }} className="btn-ghost px-2" aria-label="Cancel new title">✕</button>
               </div>
             )}
             {titleErr && <p className="mt-1 text-xs text-red-700">{titleErr}</p>}
@@ -196,7 +206,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
         <Msg msg={msg} />
         <div className="flex justify-end gap-2">
           <Link href="/admin/users" className="btn-ghost">Cancel</Link>
-          <button disabled={busy} className="btn-dark">{busy ? 'Saving…' : 'Submit'}</button>
+          <button disabled={busy || addingTitle} className="btn-dark">{busy ? 'Saving…' : 'Submit'}</button>
         </div>
       </form>
       <UserCard v={{ ...v, reporting_to: boss }} photo={preview ?? saved} />

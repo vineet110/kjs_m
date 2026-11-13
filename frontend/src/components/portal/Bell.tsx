@@ -11,14 +11,18 @@ import { fmtIST } from './ui';
 export default function Bell({ meId }: { meId: number }) {
   const updates = useUpdates(meId);
   const [items, setItems] = useState<Notice[] | null>(null);
-  const [hidden, setHidden] = useState<Set<number>>(new Set()); // opened here, not yet confirmed by a check
+  const [hidden, setHidden] = useState<Set<number>>(new Set()); // opened here: kept out of the list
+  const [pending, setPending] = useState<Set<number>>(new Set()); // opened here, the server's count doesn't know yet
+  const [err, setErr] = useState('');
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const latest = useRef(0); // only the newest list answer counts (CodeRabbit on #76)
 
-  // A fresh list from the server also clears what was hidden here (the server now leaves those out itself)
+  // A list asked for after a read leaves that notification out by itself, so it also clears `hidden`
   const load = useCallback(() => {
+    const mine = ++latest.current;
     api<{ unread: number; items: Notice[] }>('/employee/notifications?unread=1')
-      .then((r) => { setItems(r.items); setHidden(new Set()); })
+      .then((r) => { if (mine === latest.current) { setItems(r.items); setHidden(new Set()); } })
       .catch(() => undefined);
   }, []);
   useEffect(() => { if (open) load(); }, [open, load]);
@@ -34,24 +38,28 @@ export default function Bell({ meId }: { meId: number }) {
   }, []);
 
   const shown = (items ?? []).filter((n) => !hidden.has(n.id));
-  // The count drops at once for what was opened here; the next check brings the server's number
-  const unread = Math.max(0, (updates?.notifications ?? 0) - hidden.size);
+  // Only reads the server's count doesn't include yet are taken off it
+  const unread = Math.max(0, (updates?.notifications ?? 0) - pending.size);
+  const without = (set: Set<number>, ids: number[]) => { const x = new Set(set); ids.forEach((i) => x.delete(i)); return x; };
 
-  async function readAll() {
-    setHidden(new Set((items ?? []).map((n) => n.id)));
-    await api('/employee/notifications/read', { method: 'POST', body: {} }).catch(() => undefined);
-    pokeUpdates();
+  /** Marks these read: they leave the list and the count at once. Once the server has them and the count is
+   *  fresh, they stop being subtracted. If it fails they come back, and the panel says so. */
+  function markRead(ids: number[], body: { ids?: number[] }) {
+    latest.current++; // a list asked for before this read could still contain them: ignore it
+    setErr('');
+    setHidden((h) => new Set([...h, ...ids]));
+    setPending((p) => new Set([...p, ...ids]));
+    api('/employee/notifications/read', { method: 'POST', body })
+      .then(() => pokeUpdates())
+      .then(() => setPending((p) => without(p, ids)), () => {
+        setHidden((h) => without(h, ids));
+        setPending((p) => without(p, ids));
+        setErr('Could not mark them as read. Please try again.');
+      });
   }
+  const readAll = () => markRead((items ?? []).map((n) => n.id), {});
+  const readOne = (n: Notice) => { setOpen(false); markRead([n.id], { ids: [n.id] }); };
 
-  // Opening one marks it read: it leaves the list and the count goes down. If telling the server fails,
-  // the next check brings it back.
-  function readOne(n: Notice) {
-    setOpen(false);
-    setHidden((h) => new Set(h).add(n.id));
-    api('/employee/notifications/read', { method: 'POST', body: { ids: [n.id] } })
-      .catch(() => setHidden((h) => { const x = new Set(h); x.delete(n.id); return x; }))
-      .finally(pokeUpdates);
-  }
   return (
     <div ref={box} className="relative">
       <button onClick={() => setOpen(!open)} aria-label={`Notifications, ${unread} unread`} className="relative rounded-full p-2 hover:bg-slate-100">
@@ -70,6 +78,7 @@ export default function Bell({ meId }: { meId: number }) {
             <span className="text-sm font-semibold">Notifications</span>
             {shown.length > 0 && <button onClick={readAll} className="text-xs underline">Mark all read</button>}
           </div>
+          {err && <p role="alert" className="border-b bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
           <div className="max-h-96 overflow-y-auto">
             {items !== null && shown.length === 0 && <p className="p-4 text-sm text-slate-500">You&apos;re all caught up.</p>}
             {shown.map((n) => (

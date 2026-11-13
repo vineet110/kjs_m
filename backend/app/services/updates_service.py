@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.modules import visible
 from app.core.permissions import effective_permissions
 from app.models.attendance import Regularization
-from app.models.lead import Lead
+from app.models.lead import Lead, LeadNote
 from app.models.notification import Notification
 from app.models.user import User
 from app.services import chat_service, file_service
@@ -46,6 +46,14 @@ async def counters(db: AsyncSession, user: User) -> dict:
             new = new.where((Lead.assigned_to == user.id) | (Lead.assigned_to.is_(None)))
         by_source = dict((await db.execute(new)).all())
         out["leads"] = {"all": sum(by_source.values())} | {k: by_source.get(s, 0) for k, s in LEAD_SOURCES.items()}
+        # `changed` = when any lead last changed (status, owner, SLA) or got a note. The lists reload on it,
+        # the badges use the counts: one lead leaving "new" while another arrives keeps every count equal
+        # (CodeRabbit on #76). Over ALL leads, so a lead handed away from you still refreshes your list; it
+        # is only a time, nothing about the lead.
+        last_lead = await db.scalar(select(func.max(Lead.updated_at)))
+        last_note = await db.scalar(select(func.max(LeadNote.created_at)))
+        newest = max((t for t in (last_lead, last_note) if t), default=None)
+        out["leads"]["changed"] = newest.isoformat() if newest else None
     else:
         out["leads"] = None
     return out

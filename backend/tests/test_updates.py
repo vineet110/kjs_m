@@ -47,7 +47,7 @@ async def test_counters_for_a_plain_employee(client):
     r = (await client.get(URL, headers=HDR)).json()
     assert r["notifications"] == 2
     assert r["approvals"] is None  # nothing for them to approve
-    assert r["leads"] == {"all": 2, "koko": 1, "internal": 1}
+    assert {k: v for k, v in r["leads"].items() if k != "changed"} == {"all": 2, "koko": 1, "internal": 1}
     assert r["chat"] == 0
 
 
@@ -72,6 +72,32 @@ async def test_counter_changes_when_something_happens(client):
     assert (await client.get(URL, headers=HDR)).json()["notifications"] == 1
     await client.post("/api/v1/employee/notifications/read", headers=HDR, json={})
     assert (await client.get(URL, headers=HDR)).json()["notifications"] == 0
+
+
+async def test_leads_changed_moves_on_status_note_and_handover(client):
+    """The lead lists reload on `changed`, not on the counts: a lead leaving "new" while another arrives
+    keeps every count the same (CodeRabbit on #76). It must move on each kind of change."""
+    await make_user("staff@kjs.test")
+    await make_user("other@kjs.test")
+    me = await _uid("staff@kjs.test")
+    await _lead("koko", assigned_to=me)
+    async with AsyncSessionLocal() as db:
+        lead_id = await db.scalar(select(Lead.id))
+    await login(client, "staff@kjs.test")
+    changed = lambda: client.get(URL, headers=HDR)  # noqa: E731
+    seen = [(await changed()).json()["leads"]["changed"]]
+    assert seen[0]
+    steps = [
+        ("status", client.patch(f"/api/v1/employee/leads/{lead_id}", headers=HDR, json={"status": "contacted"})),
+        ("note", client.post(f"/api/v1/employee/leads/{lead_id}/notes", headers=HDR, json={"kind": "note", "text": "Asked for samples"})),
+        ("handover", client.post(f"/api/v1/employee/leads/{lead_id}/handover", headers=HDR, json={"user_id": await _uid("other@kjs.test")})),
+    ]
+    for name, request in steps:
+        r = await request
+        assert r.status_code == 204, (name, r.text)
+        now = (await changed()).json()["leads"]["changed"]
+        assert now != seen[-1], f"{name} did not move leads.changed"
+        seen.append(now)
 
 
 async def test_bell_unread_only_drops_opened_notifications(client):
