@@ -269,7 +269,7 @@ async def test_board_files_match_the_code_whatever_the_case(client):
     await login(client, "boss@kjsindia.com")
     await client.post("/api/v1/boards", json=board_body(pack, pack), headers=HDR)
     up = await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "abc117-3"},
-                           files={"file": ("po.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+                           files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)
     assert up.status_code == 201 and up.json()["owner_id"] == "ABC117-3"
     listed = (await client.get("/api/v1/files?owner_type=board&owner_id=ABC117-3")).json()
     assert [f["id"] for f in listed] == [up.json()["id"]]
@@ -280,7 +280,7 @@ async def test_product_files_need_a_real_product(client):
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     r = await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": "no-such-product"},
-                          files={"file": ("a.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+                          files={"file": ("a.pdf", b"%PDF", "application/pdf")}, headers=HDR)
     assert r.status_code == 403
 
 
@@ -290,12 +290,12 @@ async def test_public_photos_are_cacheable_staff_files_are_not(client):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"},
                            headers=HDR)).json()
     f = (await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": p["slug"], "is_public": "true"},
-                           files={"file": ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")}, headers=HDR)).json()
+                           files={"file": ("photo.png", b"\x89PNG..", "image/png")}, headers=HDR)).json()
     staff = await client.get(f"/api/v1/files/{f['id']}/download")
-    assert staff.headers["cache-control"] == "private, no-store" and staff.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
+    assert staff.headers["cache-control"] == "private, no-store" and staff.content == b"\x89PNG.."
     client.cookies.clear()
     public = await client.get(f"/api/v1/public/files/{f['id']}")
-    assert public.headers["cache-control"].startswith("public") and public.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
+    assert public.headers["cache-control"].startswith("public") and public.content == b"\x89PNG.."
 
 
 async def test_deleted_files_are_purged_from_storage_later(client, monkeypatch):
@@ -307,7 +307,7 @@ async def test_deleted_files_are_purged_from_storage_later(client, monkeypatch):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"},
                            headers=HDR)).json()
     f = (await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": p["slug"]},
-                           files={"file": ("a.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()
+                           files={"file": ("a.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()
     await client.post(f"/api/v1/files/{f['id']}/delete-request", json={"reason": "old version"}, headers=HDR)
     real_delete = storage_mod.LocalStorage.delete
 

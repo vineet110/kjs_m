@@ -93,7 +93,7 @@ async def test_owner_adds_people_and_everyone_on_the_board_can_update_it(client)
     r = await client.post(f"{B}/steps/{step2['id']}/checklist", json={"index": 0, "done": True}, headers=HDR)
     assert r.status_code == 200 and r.json()["steps"][1]["checklist"][0]["done"] is True
     up = await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                           files={"file": ("po.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+                           files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)
     assert up.status_code == 201
     # ...but only the step's people (or the owner) mark it done
     assert (await client.post(f"{B}/steps/{step1['id']}/done", headers=HDR)).status_code == 403
@@ -143,7 +143,7 @@ async def test_remove_person_keeps_every_step_staffed_and_loses_nothing(client):
     # blend uploads a file first
     await login(client, "blend@kjsindia.com")
     up = await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                           files={"file": ("batch.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+                           files={"file": ("batch.pdf", b"%PDF", "application/pdf")}, headers=HDR)
     assert up.status_code == 201
 
     await login(client, "owner@kjsindia.com")
@@ -177,7 +177,7 @@ async def test_owner_approves_file_deletes_and_others_cannot(client):
     await _create_as_plain_owner(client, ids)
     await login(client, "pack@kjsindia.com")
     fid = (await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                             files={"file": ("old.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
+                             files={"file": ("old.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()["id"]
     r = await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "wrong version"}, headers=HDR)
     assert r.status_code == 200
 
@@ -202,7 +202,7 @@ async def test_owner_cannot_approve_their_own_delete_request(client):
     await _create_as_plain_owner(client, ids)
     await login(client, "owner@kjsindia.com")
     fid = (await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                             files={"file": ("x.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
+                             files={"file": ("x.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()["id"]
     await client.post(f"/api/v1/files/{fid}/delete-request", json={"reason": "duplicate"}, headers=HDR)
     r = await client.post(f"/api/v1/files/{fid}/delete-decision", json={"approve": True}, headers=HDR)
     assert r.status_code == 403 and r.json()["code"] == "own_request"

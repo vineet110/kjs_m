@@ -1,12 +1,11 @@
 'use client';
 // Lead Management > Contacts > one contact. Opens on one enquiry (the lead in the address); the person's
 // other enquiries are chips under the name. Same page for admin and staff.
-// Left: the header, the lead pipeline (New → Contacted → Closed) and the tabs (Info, Notes, Task, Files,
-// Timeline, Proposals). Right: quick actions (Notes, Task, Files, Lead Share).
+// Left: the header, the lead pipeline (New → Contacted → Closed) and the tabs (Info, Notes, Task, Timeline,
+// Proposals). Right: quick actions (Notes, Task, Lead Share).
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import FileList from '@/components/portal/FileList';
 import { useMe } from '@/components/portal/PortalShell';
 import { Icon, type IconName } from '@/components/portal/icons';
 import { EmptyState, fmtIST, Msg, Pill } from '@/components/portal/ui';
@@ -24,12 +23,11 @@ const STAGES = [
   { key: 'contacted', label: 'Contacted', dot: 'bg-amber-500' },
   { key: 'closed', label: 'Closed', dot: 'bg-emerald-500' },
 ] as const;
-type Tab = 'info' | 'notes' | 'task' | 'files' | 'timeline' | 'proposals';
+type Tab = 'info' | 'notes' | 'task' | 'timeline' | 'proposals';
 const TABS: { key: Tab; label: string; icon: IconName }[] = [
   { key: 'info', label: 'Info', icon: 'info' },
   { key: 'notes', label: 'Notes', icon: 'note' },
   { key: 'task', label: 'Task', icon: 'tasks' },
-  { key: 'files', label: 'Files', icon: 'file' },
   { key: 'timeline', label: 'Timeline', icon: 'history' },
   { key: 'proposals', label: 'Proposals', icon: 'file' },
 ];
@@ -82,7 +80,6 @@ export default function ContactPage() {
               {tab === 'info' && <Info lead={lead} />}
               {tab === 'notes' && <Notes lead={lead} notes={notes} onChange={load} />}
               {tab === 'task' && <Tasks lead={lead} />}
-              {tab === 'files' && <FileList ownerType="lead" ownerId={String(lead.id)} />}
               {tab === 'timeline' && <Timeline lead={lead} notes={notes} />}
               {tab === 'proposals' && <EmptyState icon="file" title="No proposals yet" text="Quotes and proposals are not recorded in the portal yet. Log a sent quote as a note for now." />}
             </div>
@@ -95,7 +92,6 @@ export default function ContactPage() {
             <div className="grid grid-cols-2 gap-2">
               <Quick icon="note" label="Notes" onClick={() => setTab('notes')} />
               <Quick icon="tasks" label="Task" onClick={() => setTab('task')} />
-              <Quick icon="file" label="Files" onClick={() => setTab('files')} wide />
               <Quick icon="share" label="Lead Share" onClick={() => setSharing(!sharing)} wide />
             </div>
             {sharing && <Share lead={lead} onDone={() => { setSharing(false); load(); }} />}
