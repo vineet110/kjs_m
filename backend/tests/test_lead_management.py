@@ -128,6 +128,50 @@ async def test_lead_tasks_forbidden_on_someone_elses_lead(client):
     assert r.status_code == 404
 
 
+# ---------- Files on a lead ----------
+async def test_lead_files_upload_list_download(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    for f in [("card.pdf", b"%PDF-1.4 card", "application/pdf"), ("deck.pptx", b"PK deck", "application/octet-stream")]:
+        r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                              files={"file": f}, headers=HDR)
+        assert r.status_code == 201, r.text
+    files = (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).json()
+    assert sorted(x["name"] for x in files) == ["card.pdf", "deck.pptx"]
+    d = await client.get(f"/api/v1/files/{files[-1]['id']}/download")
+    assert d.status_code == 200 and d.content == b"%PDF-1.4 card"
+
+
+async def test_lead_files_forbidden_on_someone_elses_lead(client):
+    await make_user("a@kjs.in")
+    await make_user("b@kjs.in")
+    await login(client, "b@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    fid = (await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                             files={"file": ("card.pdf", b"%PDF-1.4", "application/pdf")}, headers=HDR)).json()["id"]
+    await login(client, "a@kjs.in")
+    assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 403
+    r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                          files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")}, headers=HDR)
+    assert r.status_code == 403
+    # a made-up lead id is refused the same way
+    r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": "abc"},
+                          files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")}, headers=HDR)
+    assert r.status_code == 403
+
+
+async def test_lead_files_still_block_risky_types(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    for name in ["run.exe", "page.html", "logo.svg"]:
+        r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                              files={"file": (name, b"x", "application/octet-stream")}, headers=HDR)
+        assert r.status_code == 422 and r.json()["code"] == "file_type"
+
+
 # ---------- User Creation Form ----------
 async def _form(boss_id: int, **extra) -> dict:
     return {"name": "Neha", "email": "neha@kjs.in", "phone": "+91 98480 12345", "employee_code": "KJS-014",

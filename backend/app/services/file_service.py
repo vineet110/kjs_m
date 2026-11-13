@@ -45,7 +45,10 @@ APPROVERS: dict[str, Approvers] = {}
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
          "xls": "application/vnd.ms-excel", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-         "doc": "application/msword", "csv": "text/csv", "txt": "text/plain", "zip": "application/zip"}
+         "doc": "application/msword", "csv": "text/csv", "txt": "text/plain", "zip": "application/zip",
+         "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+         "ppt": "application/vnd.ms-powerpoint", "gif": "image/gif", "heic": "image/heic",
+         "mp4": "video/mp4", "mov": "video/quicktime"}
 
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,

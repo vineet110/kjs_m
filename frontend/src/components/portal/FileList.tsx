@@ -14,6 +14,24 @@ function size(n: number) {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
+/** Uploads files to one owner, one by one. Returns a message for each file that failed (empty = all saved). */
+export async function uploadFiles(ownerType: string, ownerId: string, files: File[], isPublic = false): Promise<string[]> {
+  const failed: string[] = [];
+  for (const file of files) {
+    const form = new FormData();
+    form.set('owner_type', ownerType);
+    form.set('owner_id', ownerId);
+    form.set('is_public', String(isPublic));
+    form.set('file', file);
+    try {
+      await upload('/files', form);
+    } catch (x) {
+      failed.push(`${file.name}: ${x instanceof ApiFailure ? x.message : 'Upload failed.'}`);
+    }
+  }
+  return failed;
+}
+
 export default function FileList({ ownerType, ownerId, canUpload = true, publicToggle = false, canDecide = false }: {
   ownerType: string; ownerId: string; canUpload?: boolean; publicToggle?: boolean;
   canDecide?: boolean; // may approve / reject delete requests here (e.g. an order board's owner)
@@ -63,24 +81,16 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
   }, [load]);
 
   async function send(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
     setBusy(true);
     setErr('');
-    const form = new FormData();
-    form.set('owner_type', ownerType);
-    form.set('owner_id', ownerId);
-    form.set('is_public', String(isPublic));
-    form.set('file', file);
-    try {
-      await upload('/files', form);
-      load();
-    } catch (x) {
-      setErr(x instanceof ApiFailure ? x.message : 'Upload failed.');
-    } finally {
-      setBusy(false);
-      if (input.current) input.current.value = '';
-    }
+    // One at a time, so one bad file (too big, wrong type) doesn't stop the others
+    const failed = await uploadFiles(ownerType, ownerId, picked, isPublic);
+    setErr(failed.join(' '));
+    setBusy(false);
+    if (input.current) input.current.value = '';
+    load();
   }
 
   async function askDelete(f: StoredFile) {
@@ -110,8 +120,8 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
       {canUpload && (
         <div className="flex flex-wrap items-center gap-3">
           <label className={`btn-ghost cursor-pointer py-1 ${busy ? 'opacity-50' : ''}`}>
-            {busy ? 'Uploading…' : 'Upload file'}
-            <input ref={input} type="file" className="hidden" onChange={send} disabled={busy} />
+            {busy ? 'Uploading…' : 'Upload files'}
+            <input ref={input} type="file" multiple className="hidden" onChange={send} disabled={busy} />
           </label>
           {publicToggle && (
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} /> Show on website</label>

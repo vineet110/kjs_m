@@ -21,7 +21,7 @@ from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
-from app.services import audit_service, koko_service, notification_service, task_service
+from app.services import audit_service, file_service, koko_service, notification_service, task_service
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
@@ -299,6 +299,20 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = Fal
     if lead is None or not (_can_see_all(user) or lead.assigned_to in (None, user.id)):
         raise AppError(404, "not_found", "Lead not found.")
     return lead
+
+
+async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
+    """Files on a lead (a visiting card, a price list): whoever may work the lead may see and add them."""
+    if "leads.view" not in effective_permissions(user.role, user.permissions) or not owner_id.isdigit():
+        return False
+    try:
+        await _lead_for(db, user, int(owner_id))
+        return True
+    except AppError:
+        return False
+
+
+file_service.register_owner("lead", _files_access)
 
 
 # ---------- Working a lead ----------
