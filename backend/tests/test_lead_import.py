@@ -78,6 +78,17 @@ async def test_import_limits(client):
     assert r.status_code == 422 and r.json()["code"] == "too_many_rows"  # never cut silently
 
 
+async def test_empty_lines_do_not_hide_rows(client):
+    """Empty lines between rows (common in Excel exports) must not push real rows past the limit unseen."""
+    await _staff(client)
+    gappy = b"Name,Phone\n" + b"".join(b"B%d,+91 90000 %05d\n,\n" % (i, i) for i in range(501))
+    r = await client.post(PREVIEW, files={"file": ("gappy.csv", gappy, "text/csv")}, headers=HDR)
+    assert r.status_code == 422 and r.json()["code"] == "too_many_rows"
+    ok = b"Name,Phone\n" + b"".join(b"B%d,+91 90000 %05d\n,\n,\n" % (i, i) for i in range(400))
+    r = await client.post(PREVIEW, files={"file": ("ok.csv", ok, "text/csv")}, headers=HDR)
+    assert r.status_code == 200 and len(r.json()["rows"]) == 400
+
+
 async def test_import_needs_login(client):
     r = await client.post(IMPORT, json={"leads": [{"name": "Ravi", "phone": "+91 90000 11111"}]}, headers=HDR)
     assert r.status_code == 401

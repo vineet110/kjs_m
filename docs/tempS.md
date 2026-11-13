@@ -66,3 +66,9 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Lead page Info tab shows an "Extra Info" box.
 - Tests: 4 new in `tests/test_lead_extra.py`; full suite 407 passed; `tsc` clean. Browser click-through not done.
 - After pulling: `alembic upgrade head`.
+
+## #75 follow-up on #78 (13 Nov)
+
+- #75 had merged into `feat/lead-files-excel`, not `main` (that branch was never deleted, so GitHub didn't move it). #78 now targets `main` and carries #75 + Extra Info together.
+- Fix: the file reader looked at only the first 1,001 lines, so with many empty lines in between, real rows after that were dropped without a word. Now empty rows are skipped while reading and only real rows count (`lead_reader._filled`); a safety cap of 20,000 lines (`MAX_SCAN`) means "maybe more", so bulk import refuses instead of cutting.
+- Test: `test_empty_lines_do_not_hide_rows` (fails on the old code). Full suite 408 passed.
