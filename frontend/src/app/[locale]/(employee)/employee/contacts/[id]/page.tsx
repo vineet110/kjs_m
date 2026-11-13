@@ -253,6 +253,16 @@ function Info({ lead }: { lead: Lead }) {
         <Field icon="users" label="Buyer type">{lead.buyer_type}</Field>
         <Field icon="box" label="Quantity">{lead.quantity}</Field>
       </div>
+      {lead.extra && Object.keys(lead.extra).length > 0 && (
+        <div className="rounded-lg border border-slate-100 p-4 text-sm">
+          <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Extra Info</p>
+          <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
+            {Object.entries(lead.extra).map(([k, val]) => (
+              <div key={k} className="contents"><dt className="text-slate-500">{k}</dt><dd className="break-words">{val}</dd></div>
+            ))}
+          </dl>
+        </div>
+      )}
       {lead.message && (
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
           <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Message</p>

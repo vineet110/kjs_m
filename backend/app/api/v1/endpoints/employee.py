@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.core.rate_limit import lead_file_limiter
 from app.models.user import User
-from app.schemas.lead import Contact, InternalLeadIn, LeadOut
+from app.schemas.lead import MAX_EXTRA, Contact, ExtraName, InternalLeadFormIn, InternalLeadIn, LeadOut
 from app.services import lead_reader, lead_service, notification_service
 
 router = APIRouter()
@@ -47,7 +47,7 @@ async def my_leads(
 
 
 @router.post("/leads", response_model=LeadOut, status_code=201)
-async def add_internal_lead(data: InternalLeadIn, user: User = Depends(require_permission("leads.view")),
+async def add_internal_lead(data: InternalLeadFormIn, user: User = Depends(require_permission("leads.view")),
                             db: AsyncSession = Depends(get_db)):
     """Internal lead: typed in by staff (a call, a fair, a walk-in)."""
     return await lead_service.create_internal(db, user, data)
@@ -60,6 +60,27 @@ async def read_lead_file(file: UploadFile = File(...), user: User = Depends(requ
     lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
     data = await file.read(lead_reader.MAX_BYTES + 1)
     return await lead_service.read_lead_file(db, file.filename or "", data)
+
+
+class ImportIn(BaseModel):
+    leads: list[InternalLeadIn] = Field(min_length=1, max_length=lead_reader.MAX_IMPORT_ROWS)
+    extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)  # for the audit log
+
+
+@router.post("/leads/import/preview")
+async def import_preview(file: UploadFile = File(...), user: User = Depends(require_permission("leads.view")),
+                         db: AsyncSession = Depends(get_db)):
+    """Bulk import, step 1: read every row of an Excel / CSV file and check it. Nothing is saved."""
+    lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
+    data = await file.read(lead_reader.MAX_BYTES + 1)
+    return await lead_service.import_preview(db, user, file.filename or "", data)
+
+
+@router.post("/leads/import", status_code=201)
+async def import_leads(data: ImportIn, user: User = Depends(require_permission("leads.view")),
+                       db: AsyncSession = Depends(get_db)):
+    """Bulk import, step 2: the rows the person kept become internal leads (all or none)."""
+    return await lead_service.import_leads(db, user, data.leads, data.extra_rejected)
 
 
 @router.get("/leads/same-person")

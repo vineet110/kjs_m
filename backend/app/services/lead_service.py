@@ -9,6 +9,7 @@ import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 
+from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +22,7 @@ from app.models.catalog import Category, Product
 from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
+from app.schemas.lead import InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
 from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
                           task_service)
 from app.services.attendance_service import local_day, to_utc
@@ -172,7 +173,8 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
             status=lead.status, product_name=product_name, category_name=category_name,
             created_at=lead.created_at, assigned_to=lead.assigned_to, owner_name=owner_name,
             responded_at=lead.responded_at, resolved_at=lead.resolved_at, outcome=lead.outcome,
-            note_count=note_count or 0, updated_at=lead.updated_at, created_by_name=creator_name, **timers,
+            note_count=note_count or 0, updated_at=lead.updated_at, created_by_name=creator_name,
+            extra=lead.extra or {}, **timers,
         ))
     return out
 
@@ -248,24 +250,40 @@ async def contact_detail(db: AsyncSession, user: User, lead_id: int) -> dict:
     return {"lead": this, "enquiries": rows}
 
 
-async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) -> LeadOut:
+def _internal_lead(user: User, data: InternalLeadIn, category_id: int | None) -> Lead:
+    """A new internal lead (not yet in the database), the same for one typed in and one imported."""
+    return Lead(
+        source="internal", name=data.name.strip(), company=data.company.strip(), email=data.email or "",
+        phone=data.phone.strip(), country=data.country.strip(), buyer_type=data.buyer_type,
+        category_id=category_id, quantity=data.quantity, message=data.message.strip(),
+        source_page="", consent=True, consent_at=datetime.now(timezone.utc), ip_hash=None, status="new",
+        assigned_to=user.id, created_by=user.id, extra=dict(data.extra),
+    )
+
+
+def _audit_extra(db: AsyncSession, user: User, added: list[str], rejected: list[str], lead_ids: list[int]) -> None:
+    """Who added or rejected which file columns, for which lead(s). Column names only: the values are the
+    customer's data and stay on the lead itself."""
+    if not added and not rejected:
+        return
+    audit_service.record(db, actor=user, action="lead.extra_columns", entity_type="lead",
+                         entity_id=lead_ids[0] if len(lead_ids) == 1 else None,
+                         after={"added": sorted(added), "rejected": sorted(set(rejected)), "lead_ids": lead_ids})
+
+
+async def create_internal(db: AsyncSession, user: User, data: InternalLeadFormIn) -> LeadOut:
     """A lead a staff member types in. Source "internal", theirs from the start (assigned + created by them).
     No visitor ticked a consent box: the staff member spoke to the buyer, and that conversation is the consent
     (an assumption, noted for KJS to confirm)."""
     category_id = None
     if data.category_slug:
         category_id = await db.scalar(select(Category.id).where(Category.slug == data.category_slug))
-    lead = Lead(
-        source="internal", name=data.name.strip(), company=data.company.strip(), email=data.email or "",
-        phone=data.phone.strip(), country=data.country.strip(), buyer_type=data.buyer_type,
-        category_id=category_id, quantity=data.quantity, message=data.message.strip(),
-        source_page="", consent=True, consent_at=datetime.now(timezone.utc), ip_hash=None, status="new",
-        assigned_to=user.id, created_by=user.id,
-    )
+    lead = _internal_lead(user, data, category_id)
     db.add(lead)
     await db.flush()
     audit_service.record(db, actor=user, action="lead.created", entity_type="lead", entity_id=lead.id,
                          after={"source": "internal", "assigned_to": user.id})
+    _audit_extra(db, user, list(data.extra), data.extra_rejected, [lead.id])
     await db.commit()
     log.info("lead.created", extra={"lead_id": lead.id, "source": "internal"})
     return (await list_for(db, user, all_leads=True, limit=1, lead_ids=[lead.id]))[0]
@@ -279,6 +297,87 @@ async def read_lead_file(db: AsyncSession, filename: str, data: bytes) -> dict:
     # Counts only: the values are customers' personal data, which never go in the logs
     log.info("lead.file_read", extra={"leads": len(out["leads"]), "more_rows": out["more_rows"]})
     return out
+
+
+# ---------- Bulk import: each row of an Excel / CSV file becomes an internal lead ----------
+LABELS = {"name": "Name", "company": "Company", "email": "Email", "phone": "Phone", "country": "Country",
+          "buyer_type": "Buyer type", "category_slug": "Interested in", "quantity": "Quantity",
+          "message": "What they need"}
+
+
+def _as_input(fields: dict) -> dict:
+    """A row read from a file, shaped like the form sends it (empty email / category = none)."""
+    return fields | {"email": fields.get("email") or None, "category_slug": fields.get("category_slug") or None}
+
+
+def _problems(fields: dict) -> list[str]:
+    """Why this row can't become a lead, in words for the screen (empty = it can). Same checks as the form."""
+    try:
+        InternalLeadIn.model_validate(_as_input(fields))
+        return []
+    except ValidationError as e:
+        out = []
+        for err in e.errors():
+            field = str(err["loc"][0]) if err["loc"] else ""
+            msg = err["msg"].removeprefix("Value error, ")
+            out.append(f"{LABELS.get(field, field)}: {msg}" if field else msg)
+        return out
+
+
+async def _known_keys(db: AsyncSession, user: User, keys: set[str]) -> set[str]:
+    """Which of these phone / email keys already belong to leads this user can see (one query for all rows)."""
+    phones = [k[2:] for k in keys if k.startswith("p:")]
+    emails = [k[2:] for k in keys if k.startswith("e:")]
+    if not phones and not emails:
+        return set()
+    digits = func.regexp_replace(Lead.phone, "[^0-9]", "", "g")
+    q = _visible(select(Lead).where(or_(digits.in_(phones), func.lower(Lead.email).in_(emails))), user)
+    return {k for lead in (await db.scalars(q)).all() for k in _match_keys(lead)} & keys
+
+
+async def import_preview(db: AsyncSession, user: User, filename: str, data: bytes) -> dict:
+    """Bulk import, step 1: every row read and checked, nothing saved. Each row says what's wrong with it
+    (if anything) and whether the person is already in our leads or appears earlier in the same file."""
+    cats = (await db.scalars(select(Category))).all()
+    names = {c.slug.lower(): c.slug for c in cats} | {c.name.lower(): c.slug for c in cats}
+    out = await asyncio.to_thread(lead_reader.read, filename, data, names, lead_reader.MAX_IMPORT_ROWS)
+    if out["more_rows"]:  # never cut silently: they would think every row was imported
+        raise AppError(422, "too_many_rows", f"This file has more than {lead_reader.MAX_IMPORT_ROWS} rows. "
+                                             "Please split it into smaller files.")
+    row_keys = [set(_match_keys(Lead(phone=r["fields"]["phone"], email=r["fields"]["email"])))
+                for r in out["leads"]]
+    known = await _known_keys(db, user, set().union(*row_keys))
+    seen: set[str] = set()
+    rows = []
+    for r, keys in zip(out["leads"], row_keys):
+        duplicate = "existing" if keys & known else "file" if keys & seen else None
+        seen |= keys
+        rows.append(r | {"problems": _problems(r["fields"]), "duplicate": duplicate})
+    log.info("lead.import_preview", extra={"rows": len(rows)})  # counts only: no customer data in logs
+    return {"rows": rows}
+
+
+async def import_leads(db: AsyncSession, user: User, rows: list[InternalLeadIn],
+                       extra_rejected: list[str] | None = None) -> dict:
+    """Bulk import, step 2: the rows the person kept become internal leads, theirs from the start.
+    One transaction: either every lead is saved or none is (never a half-imported file)."""
+    slugs = {r.category_slug for r in rows if r.category_slug}
+    cat_ids = {}
+    if slugs:
+        cat_ids = dict((await db.execute(select(Category.slug, Category.id).where(Category.slug.in_(slugs)))).all())
+    leads = [_internal_lead(user, r, cat_ids.get(r.category_slug)) for r in rows]
+    db.add_all(leads)
+    await db.flush()
+    for lead in leads:
+        audit_service.record(db, actor=user, action="lead.created", entity_type="lead", entity_id=lead.id,
+                             after={"source": "internal", "assigned_to": user.id, "imported": True})
+    audit_service.record(db, actor=user, action="lead.imported", entity_type="lead",
+                         after={"count": len(leads), "lead_ids": [x.id for x in leads]})
+    added = sorted({k for r in rows for k in r.extra})
+    _audit_extra(db, user, added, extra_rejected or [], [x.id for x in leads])
+    await db.commit()
+    log.info("lead.imported", extra={"count": len(leads)})
+    return {"created": len(leads), "lead_ids": [x.id for x in leads]}
 
 
 async def same_person(db: AsyncSession, user: User, phone: str, email: str) -> dict:
