@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from 'react';
 import DataTable from '@/components/portal/DataTable';
 import { PageTitle } from '@/components/portal/ui';
 import { api, type Contact } from '@/lib/api';
+import { useMe } from '@/components/portal/PortalShell';
+import { useOnUpdate } from '@/lib/updates';
 import LoadError from '@/components/ui/LoadError';
 
 export default function ContactsPage() {
@@ -19,6 +21,7 @@ export default function ContactsPage() {
   useEffect(() => {
     load();
   }, [load]);
+  useOnUpdate(useMe().id, (u) => u.leads?.all, load); // new leads arrived: reload
 
   return (
     <div className="space-y-5">

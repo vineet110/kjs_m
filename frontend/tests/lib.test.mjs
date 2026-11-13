@@ -328,7 +328,7 @@ test('moving a group puts it at the chosen place, and keeps the places of groups
 });
 
 // ---------- Portal session: remembered account + approvals signal (PR #17 review) ----------
-const session = await load('portal-session');
+const session = await load('portal-session', 'function pokeUpdates() { globalThis.__pokes = (globalThis.__pokes ?? 0) + 1; }');
 
 test('the remembered account is forgotten (login page, log out), so a new person never sees the old one', () => {
   const A = { id: 1, name: 'A', email: 'a@kjsindia.com', role: 'admin', permissions: [] };
@@ -346,19 +346,10 @@ test('a "who am I" answer asked before a log out cannot bring the old account ba
   assert.equal(session.rememberedAccount(), null);
 });
 
-test('approvalsChanged() reaches the sidebar badge listener, and stops after it is removed', () => {
-  const before = globalThis.window;
-  globalThis.window = new EventTarget(); // what the functions use: addEventListener / dispatchEvent
-  try {
-    let calls = 0;
-    const stop = session.onApprovalsChanged(() => calls++);
-    session.approvalsChanged();
-    stop();
-    session.approvalsChanged();
-    assert.equal(calls, 1);
-  } finally {
-    globalThis.window = before;
-  }
+test('approvalsChanged() asks for updates at once (the sidebar badge drops now, not in 30 s)', () => {
+  globalThis.__pokes = 0;
+  session.approvalsChanged();
+  assert.equal(globalThis.__pokes, 1);
 });
 
 // ---------- in-page file preview (lib/preview.ts, order boards PR 2) ----------
@@ -473,4 +464,82 @@ test('mentionIds: only the people really mentioned (the ids sent to the server)'
   assert.deepEqual(mentionIds('@Ram and @Ram Kumar', people), [1, 2]);
   assert.deepEqual(mentionIds('@Ramesh @Meena!', people), [3]);
   assert.deepEqual(mentionIds('no mentions', people), []);
+});
+
+// ---------- The portal's one "anything new?" check (lib/updates.ts) ----------
+const { createUpdatesStore, UPDATE_EVERY_MS } = await load('updates', '',
+  'const useEffect = () => {}, useRef = () => ({}), useSyncExternalStore = () => null; const api = () => Promise.resolve(null);');
+
+function fakeEnv(answers) {
+  const env = { calls: 0, visible: true, timers: [], cleared: [], pending: [] };
+  env.fetch = () => {
+    env.calls++;
+    const next = answers.shift();
+    return next instanceof Promise ? next : next === 'fail' ? Promise.reject(new Error('down')) : Promise.resolve(next);
+  };
+  env.isVisible = () => env.visible;
+  env.setInterval = (fn, ms) => { env.timers.push({ fn, ms }); return env.timers.length; };
+  env.clearInterval = (t) => env.cleared.push(t);
+  return env;
+}
+const counters = (n) => ({ notifications: n, approvals: null, chat: 0, leads: null });
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+test('updates: checks every 30 s, and only while the tab is in front', async () => {
+  assert.equal(UPDATE_EVERY_MS, 30_000);
+  const env = fakeEnv([counters(0), counters(0), counters(1)]);
+  const s = createUpdatesStore(env);
+  s.subscribe(() => {});
+  assert.equal(env.calls, 1); // first check at once
+  assert.equal(env.timers[0].ms, 30_000);
+  env.visible = false;
+  env.timers[0].fn();
+  assert.equal(env.calls, 1); // hidden tab: no request
+  env.visible = true;
+  env.timers[0].fn();
+  s.onVisible();
+  assert.equal(env.calls, 3);
+});
+
+test('updates: listeners hear only real changes; a failed check changes nothing', async () => {
+  const env = fakeEnv([counters(2), counters(2), 'fail', counters(3)]);
+  const s = createUpdatesStore(env);
+  let heard = 0;
+  s.subscribe(() => heard++);
+  await settle();
+  assert.equal(heard, 1); // null -> 2
+  await s.check();
+  assert.equal(heard, 1); // still 2: nobody reloads
+  await s.check();
+  assert.deepEqual(s.get(), counters(2)); // the failed check kept the last good numbers
+  await s.check();
+  assert.equal(heard, 2);
+  assert.equal(s.get().notifications, 3);
+});
+
+test('updates: a slow older answer cannot overwrite a newer one', async () => {
+  let release;
+  const slow = new Promise((r) => { release = r; });
+  const env = fakeEnv([slow, counters(5)]);
+  const s = createUpdatesStore(env);
+  s.subscribe(() => {});
+  await s.check(); // the newer answer arrives first
+  release(counters(1)); // then the older one
+  await settle();
+  assert.equal(s.get().notifications, 5);
+});
+
+test('updates: the timer stops when nothing listens; reset forgets the numbers', async () => {
+  const env = fakeEnv([counters(4), counters(4)]);
+  const s = createUpdatesStore(env);
+  const stopA = s.subscribe(() => {});
+  const stopB = s.subscribe(() => {});
+  assert.equal(env.calls, 1); // one check for the whole tab, not one per component
+  await settle();
+  stopA();
+  assert.deepEqual(env.cleared, []);
+  stopB();
+  assert.deepEqual(env.cleared, [1]);
+  s.reset();
+  assert.equal(s.get(), null);
 });

@@ -3,6 +3,8 @@
 // Each card shows the SLA timer; logging a call/email or marking "contacted" stops the respond timer.
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Colleague, type Lead, type LeadNote } from '@/lib/api';
+import { useOnUpdate } from '@/lib/updates';
+import { useMe } from './PortalShell';
 import { fmtIST, Pill } from './ui';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
@@ -39,9 +41,11 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
   useEffect(() => {
     loadStaff();
   }, [loadStaff]);
-  // Timers move: refresh every minute.
+  // New leads: reload as soon as the portal's 30-second check sees the number change
+  useOnUpdate(useMe().id, (u) => u.leads?.all, load);
+  // SLA timers move: refresh every minute, only while the tab is in front
   useEffect(() => {
-    const t = setInterval(load, 60_000);
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 60_000);
     return () => clearInterval(t);
   }, [load]);
 

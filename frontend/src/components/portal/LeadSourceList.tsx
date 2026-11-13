@@ -7,6 +7,7 @@ import { api, type Lead } from '@/lib/api';
 import LoadError from '@/components/ui/LoadError';
 import DataTable from './DataTable';
 import { useMe } from './PortalShell';
+import { useOnUpdate } from '@/lib/updates';
 import { fmtIST, Pill } from './ui';
 
 export function useSourceLeads(source: string) {
@@ -21,6 +22,8 @@ export function useSourceLeads(source: string) {
   useEffect(() => {
     load();
   }, [load]);
+  // New Koko / internal leads: reload when the portal's 30-second check sees the number change
+  useOnUpdate(me.id, (u) => u.leads?.[source as 'koko' | 'internal'], load);
   return { rows, reload: load, error };
 }
 

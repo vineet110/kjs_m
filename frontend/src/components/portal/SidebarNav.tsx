@@ -4,18 +4,19 @@
 // this browser (localStorage: a per-person convenience, nothing on the server).
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { api, type Me } from '@/lib/api';
-import { useChatUnread } from '@/lib/chat';
+import { type Me } from '@/lib/api';
 import { areaOfPath, canSee } from '@/lib/modules';
 import { moveGroup, sortByOrder } from '@/lib/nav-order';
-import { onApprovalsChanged } from '@/lib/portal-session';
+import { useUpdates } from '@/lib/updates';
 import { Icon, type IconName } from './icons';
 
 // One sidebar config for everyone; each link names the permission it needs (null = every staff
 // member, a list = any one of them). A link of a portal area switched off for this person
 // (config/modules.ini, lib/modules.ts: found from the link itself) is hidden too.
-// `badge` = the link shows a count: things waiting (`useApprovalCount`) or unread chat messages (`useChatUnread`).
-type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; badge?: 'approvals' | 'chat' };
+// `badge` = the link shows a count from the portal's 30-second check (lib/updates.ts): things waiting for
+// approval, unread chat messages, or new (not yet contacted) leads: all, Koko's, internal.
+type Badge = 'approvals' | 'chat' | 'leads' | 'koko' | 'internal';
+type NavItem = { href: string; label: string; icon: IconName; perm: string | string[] | null; badge?: Badge };
 type NavGroup = { group: string; items: NavItem[] };
 const allowed = (perm: NavItem['perm'], mine: string[]) =>
   perm === null || (Array.isArray(perm) ? perm.some((p) => mine.includes(p)) : mine.includes(perm));
@@ -37,11 +38,11 @@ const NAV: NavGroup[] = [
     // Leads = one row per person who enquired; All Enquiries (admin only) = one row per enquiry, with owner + SLA.
     group: 'Lead Management',
     items: [
-      { href: '/employee/contacts', label: 'Leads', icon: 'contact', perm: 'leads.view' },
+      { href: '/employee/contacts', label: 'Leads', icon: 'contact', perm: 'leads.view', badge: 'leads' },
       { href: '/admin/leads', label: 'All Enquiries', icon: 'inbox', perm: 'leads.view_all' },
       { href: '/employee/tasks', label: 'Tasks & Track', icon: 'tasks', perm: null },
-      { href: '/employee/koko-leads', label: 'Koko chat leads', icon: 'chat', perm: 'leads.view' },
-      { href: '/employee/internal-leads', label: 'Internal leads', icon: 'userPlus', perm: 'leads.view' },
+      { href: '/employee/koko-leads', label: 'Koko chat leads', icon: 'chat', perm: 'leads.view', badge: 'koko' },
+      { href: '/employee/internal-leads', label: 'Internal leads', icon: 'userPlus', perm: 'leads.view', badge: 'internal' },
     ],
   },
   {
@@ -92,33 +93,6 @@ export function navFor(me: Pick<Me, 'permissions' | 'modules'>): NavGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
-type Inbox = { signups: unknown[] | null; regularizations: unknown[] | null; file_deletes: unknown[] | null };
-
-/** How many things wait in the Approvals inbox (sign-ups + attendance fixes + file deletions you may
- * approve), for the sidebar badge. Asked in the background: it never holds up the page. Re-asked on each
- * page change, and right after an approve / reject on the page you are on (approvalsChanged()). 0 when you
- * can't approve. Only the newest answer counts, so a slow older one can't put an old number back. */
-function useApprovalCount(enabled: boolean, pathname: string) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (!enabled) return;
-    let latest = 0;
-    const ask = () => {
-      const mine = ++latest;
-      api<Inbox>('/admin/approvals')
-        .then((i) => mine === latest && setN((i.signups?.length ?? 0) + (i.regularizations?.length ?? 0) + (i.file_deletes?.length ?? 0)))
-        .catch(() => undefined); // no badge is fine; the page itself shows any error
-    };
-    ask();
-    const stop = onApprovalsChanged(ask);
-    return () => {
-      latest = -1; // ignore answers that come after this page / account
-      stop();
-    };
-  }, [enabled, pathname]);
-  return n;
-}
-
 // Remembered in this browser. Read/write can fail (private mode, blocked storage): then nothing is
 // remembered and the defaults are used.
 const ORDER_KEY = 'kjs_nav_order';
@@ -140,10 +114,15 @@ function save(key: string, value: unknown) {
 const isActive = (pathname: string, href: string) => pathname.startsWith(href);
 
 export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathname: string; onNavigate: () => void }) {
-  const approvals = useApprovalCount(allowed(APPROVE_PERMS, me.permissions), pathname);
-  // No asking for unread messages while Chat is switched off: each answer would be "module_off"
-  const chatUnread = useChatUnread(pathname, canSee(me, 'chat'));
-  const countOf = (n: NavItem) => (n.badge === 'approvals' ? approvals : n.badge === 'chat' ? chatUnread : 0);
+  const u = useUpdates(me.id);
+  // null in a section = not this person's (no permission, or the area is switched off): no badge
+  const countOf = (n: NavItem): number => {
+    if (!u || !n.badge) return 0;
+    if (n.badge === 'approvals') return u.approvals ?? 0;
+    if (n.badge === 'chat') return u.chat ?? 0;
+    if (!u.leads) return 0;
+    return n.badge === 'leads' ? u.leads.all : u.leads[n.badge];
+  };
   const visible = navFor(me);
   const many = visible.length > 1; // one group (most staff): a plain list, no headers to open or drag
 
@@ -327,7 +306,7 @@ export default function SidebarNav({ me, pathname, onNavigate }: { me: Me; pathn
                       {count > 0 && (
                         <span className="min-w-[20px] rounded-full bg-gold px-1.5 text-center text-[11px] font-bold leading-5 text-ink">
                           {count > 99 ? '99+' : count}
-                          <span className="sr-only">{n.badge === 'chat' ? ' unread' : ' waiting'}</span>
+                          <span className="sr-only">{n.badge === 'chat' ? ' unread' : n.badge === 'approvals' ? ' waiting' : ' new'}</span>
                         </span>
                       )}
                     </Link>

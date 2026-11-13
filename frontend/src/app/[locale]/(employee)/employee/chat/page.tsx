@@ -14,6 +14,7 @@ import NewChat from '@/components/portal/chat/NewChat';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 import { api, ApiFailure } from '@/lib/api';
+import { useOnUpdate } from '@/lib/updates';
 import {
   chatUnreadChanged, useChatSocket,
   type ChatChannel, type ChatEvent, type ChatMessage, type ChatPage, type ChatPerson,
@@ -208,6 +209,9 @@ function ChatPageInner() {
   }, [soon]);
 
   const socket = useChatSocket(onEvent, onConnect);
+  // Without a live connection (on Vercel, until server push), the portal's 30-second check notices new
+  // messages: when my unread number changes, catch up the same way as after a reconnect.
+  useOnUpdate(me.id, (u) => u.chat, onConnect);
 
   const loadOlder = useCallback(async () => {
     const id = activeRef.current;

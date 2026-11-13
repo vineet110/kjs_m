@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 // Shared frame for /employee and /admin pages: loads "who am I", shows a sidebar
-// filtered by permissions (hidden until the ☰ button slides it in), and sends people to login when
+// filtered by permissions (hidden until the â˜° button slides it in), and sends people to login when
 // their session has ended.
 import Image from 'next/image';
 import Link from 'next/link';
@@ -50,7 +50,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
     const known = rememberedAccount();
     return known && (!requirePerm || known.permissions.includes(requirePerm)) ? { state: 'ready', me: known } : { state: 'loading' };
   });
-  // The sidebar: hidden by default on every screen; the ☰ button slides it in and out (see the render below).
+  // The sidebar: hidden by default on every screen; the â˜° button slides it in and out (see the render below).
   // On a computer, an open sidebar stays open in this tab (also between admin and employee pages, which each
   // have their own frame, and after a reload); it is never reopened on a phone, where it would cover the page.
   // Read once when the frame starts, so a remembered sidebar is simply there (no slide on every page load).
@@ -114,8 +114,8 @@ export default function PortalShell({ children, requirePerm }: { children: React
       if (!window.matchMedia(PHONE).matches) sessionStorage.setItem(MENU_KEY, open ? '1' : '0');
     } catch {}
   }
-  // Closed from inside the sidebar (a link, the ✕, the backdrop, Escape): the keyboard focus would fall to the
-  // top of the page as the sidebar becomes unreachable, so it goes to the ☰ button. After the close is drawn:
+  // Closed from inside the sidebar (a link, the âœ•, the backdrop, Escape): the keyboard focus would fall to the
+  // top of the page as the sidebar becomes unreachable, so it goes to the â˜° button. After the close is drawn:
   // on a phone the button is unreachable (`inert`) while the menu is open.
   useEffect(() => {
     if (menuOpen || !focusButtonAfterClose.current) return;
@@ -190,7 +190,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
   // Sidebar: always on the page, slid out of view when closed (a smooth slide both ways; none for "reduce
   // motion"). Closed, it is `inert`: its links can't be reached with Tab or a screen reader. On a computer the
   // page moves aside at once to make room (only the sidebar is animated: animating the page's width would make
-  // big tables stutter); on a phone it slides OVER the page, with a backdrop and its own ✕, and the page
+  // big tables stutter); on a phone it slides OVER the page, with a backdrop and its own âœ•, and the page
   // behind it is `inert` until it closes.
   return (
     <MeContext.Provider value={me}>
@@ -203,13 +203,13 @@ export default function PortalShell({ children, requirePerm }: { children: React
           className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-white/5 bg-gradient-to-b from-ink to-ink-soft text-stone-200 transition-transform duration-300 ease-out motion-reduce:transition-none md:w-60 ${menuOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}`}
         >
           <div className="relative p-4">
-            {/* Phone: the open sidebar covers the ☰/✕ button in the top bar, so it has its own */}
+            {/* Phone: the open sidebar covers the â˜°/âœ• button in the top bar, so it has its own */}
             <button
               onClick={() => setMenu(false, { focusButton: true })}
               aria-label="Close menu"
               className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-lg text-stone-300 hover:bg-white/10 md:hidden"
             >
-              <span aria-hidden>✕</span>
+              <span aria-hidden>âœ•</span>
             </button>
             <Image src={asset('/images/kjs/logo/Kjs.png')} alt="KJS India" width={120} height={28} className="h-7 w-auto" />
             <p className="mt-1 text-[11px] uppercase tracking-widest text-gold">{me.role === 'admin' ? 'Admin console' : 'Employee portal'}</p>
@@ -246,12 +246,12 @@ export default function PortalShell({ children, requirePerm }: { children: React
                 aria-label={menuOpen ? 'Close menu' : 'Open menu'}
                 className="flex h-8 w-8 items-center justify-center rounded text-base hover:bg-stone-100"
               >
-                <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
+                <span aria-hidden>{menuOpen ? 'âœ•' : 'â˜°'}</span>
               </button>
               <span className="font-semibold text-sm text-slate-800">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <Bell />
+              <Bell meId={me.id} />
               {/* Avatar menu with Log out, on every screen: the sidebar (with its own Log out) starts hidden */}
               <AccountMenu me={me} onLogout={() => setConfirmLogout(true)} />
             </div>
