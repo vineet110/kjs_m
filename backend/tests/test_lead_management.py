@@ -1,5 +1,8 @@
 """Lead Management: contacts (leads grouped per person), Koko / internal lead lists, tasks on a lead,
 and the admin User Creation Form (employee code, branch, role, reporting to)."""
+import io
+import zipfile
+
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
@@ -8,6 +11,16 @@ from app.models.user import User
 from tests.conftest import HDR, login, make_user
 
 ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "message": "Need sticks"}
+def _zip(parts: dict[str, bytes]) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, data in parts.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+PPTX = _zip({"[Content_Types].xml": b"<x/>", "ppt/presentation.xml": b"<x/>"})
+HEIC = b"\x00\x00\x00\x18ftypheic" + b"\x00" * 16
 INTERNAL = {"name": "Ravi Traders", "phone": "+91 90000 11111", "company": "Ravi", "message": "Met at the fair"}
 
 
@@ -128,6 +141,120 @@ async def test_lead_tasks_forbidden_on_someone_elses_lead(client):
     assert r.status_code == 404
 
 
+# ---------- Files on a lead ----------
+async def test_lead_files_upload_list_download(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    for f in [("card.pdf", b"%PDF-1.4 card %%EOF", "application/pdf"), ("deck.pptx", PPTX, "application/octet-stream")]:
+        r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                              files={"file": f}, headers=HDR)
+        assert r.status_code == 201, r.text
+    files = (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).json()
+    assert sorted(x["name"] for x in files) == ["card.pdf", "deck.pptx"]
+    d = await client.get(f"/api/v1/files/{files[-1]['id']}/download")
+    assert d.status_code == 200 and d.content == b"%PDF-1.4 card %%EOF"
+
+
+async def test_lead_files_forbidden_on_someone_elses_lead(client):
+    await make_user("a@kjs.in")
+    await make_user("b@kjs.in")
+    await login(client, "b@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    fid = (await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                             files={"file": ("card.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
+    await login(client, "a@kjs.in")
+    assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 403
+    r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                          files={"file": ("x.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+    assert r.status_code == 403
+    # a made-up lead id is refused the same way
+    r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": "abc"},
+                          files={"file": ("x.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+    assert r.status_code == 403
+
+
+async def test_lead_files_still_block_risky_types(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    for name in ["run.exe", "page.html", "logo.svg"]:
+        r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
+                              files={"file": (name, b"x", "application/octet-stream")}, headers=HDR)
+        assert r.status_code == 422 and r.json()["code"] == "file_type"
+
+
+async def _lead_upload(client, owner_id: str, name: str = "x.pdf", data: bytes = b"%PDF-1.4 %%EOF") -> int:
+    r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": owner_id},
+                          files={"file": (name, data, "application/octet-stream")}, headers=HDR)
+    return r.status_code
+
+
+async def test_lead_files_odd_ids_refused_not_crashing(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    for bad in ["²", "9" * 11, "99999999999999999999", "0", "-1", "1.5"]:  # '²' passes isdigit()
+        assert await _lead_upload(client, bad) == 403, bad
+
+
+async def test_lead_files_leading_zeros_land_on_the_same_lead(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    assert await _lead_upload(client, f"00{lead_id}") == 201
+    files = (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).json()
+    assert [f["owner_id"] for f in files] == [str(lead_id)]
+
+
+async def test_lead_files_unassigned_lead_read_only(client):
+    await make_user("a@kjs.in")
+    await _web_lead(client)  # website enquiry: nobody owns it yet
+    await login(client, "a@kjs.in")
+    lead_id = (await client.get("/api/v1/employee/leads")).json()[0]["id"]
+    assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).status_code == 200
+    assert await _lead_upload(client, str(lead_id)) == 403
+
+
+async def test_heic_only_on_leads(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = (await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"]
+    assert await _lead_upload(client, str(lead_id), "card.heic", HEIC) == 201
+    me = await _uid("a@kjs.in")
+    r = await client.post("/api/v1/files", data={"owner_type": "user", "owner_id": str(me)},
+                          files={"file": ("me.heic", b"heic", "image/heic")}, headers=HDR)
+    assert r.status_code == 422 and r.json()["code"] == "file_type"  # browsers can't show it as a photo
+
+
+async def test_lead_files_damaged_or_fake_refused(client):
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    lead_id = str((await client.post("/api/v1/employee/leads", json=INTERNAL, headers=HDR)).json()["id"])
+    bad = [
+        ("card.pdf", b"MZ\x90\x00 a Windows program renamed"),  # not a PDF at all
+        ("card.pdf", b"%PDF-1.4 cut short half way"),  # no end marker
+        ("photo.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32),  # PNG without its end
+        ("list.xlsx", _zip({"word/document.xml": b"<x/>"})),  # a Word file renamed .xlsx
+        ("list.xlsx", PPTX[:-30]),  # zip cut short
+        ("deck.ppt", b"PK not an old Office file"),
+        ("notes.txt", b"hello\x00world"),  # text never has zero bytes
+        ("card.heic", b"%PDF-1.4 %%EOF"),
+    ]
+    for name, data in bad:
+        r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": lead_id},
+                              files={"file": (name, data, "application/octet-stream")}, headers=HDR)
+        assert r.status_code == 422 and r.json()["code"] == "file_broken", name
+    assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).json() == []
+
+
+def test_zip_bomb_refused(monkeypatch):
+    from app.services import file_check
+    monkeypatch.setattr(file_check, "MAX_UNZIPPED", 1000)
+    assert not file_check.is_valid("zip", _zip({"big.txt": b"0" * 5000}))  # tiny zip, big when opened
+    assert file_check.is_valid("zip", _zip({"small.txt": b"0" * 500}))
+
+
 # ---------- User Creation Form ----------
 async def _form(boss_id: int, **extra) -> dict:
     return {"name": "Neha", "email": "neha@kjs.in", "phone": "+91 98480 12345", "employee_code": "KJS-014",
@@ -214,7 +341,7 @@ async def test_no_reporting_loops(client):
     assert await set_boss(c, a) == 422
 
 
-PNG = ("me.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32, "image/png")
+PNG = ("me.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32 + b"IEND\xaeB`\x82", "image/png")
 
 
 async def _photo(client, owner_id) -> int:
