@@ -51,3 +51,6 @@ public keys); email verification (proves the inbox is yours); "fresh sign-in" (a
   `test_a_stranger_cannot_lock_someone_else_out` (missed in the first PR #77 push).
 - Checked: one Alembic head (0024), backend imports, all tests compile, `tsc`, `npm test` (58 pass), build.
   Backend tests themselves: CI.
+- CodeRabbit on #77: `auth_service.py` used `AuditLog` (main's `decided()`, Approvals > Approved list) without
+  importing it: I had removed the import in the Firebase rewrite. Put back; scanned every changed file for
+  other missing names: none. Lesson: "it imports" doesn't catch a missing name inside a function.

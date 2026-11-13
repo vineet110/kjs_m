@@ -21,6 +21,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import login_ip_limiter, signup_limiter
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
 from app.core.security import hash_token, new_session_token
+from app.models.audit import AuditLog
 from app.models.user import User, UserSession
 from app.schemas.auth import UserOut, UserUpdateIn
 from app.services import assign_service, audit_service, chat_hub, file_service, job_title_service
