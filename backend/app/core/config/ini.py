@@ -117,7 +117,8 @@ class LoggingIni(BaseModel):
 class StorageIni(BaseModel):
     max_upload_mb: int = Field(25, ge=1, le=500)
     allowed_types: list[str] = Field(default_factory=lambda: [
-        "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip"])
+        "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip",
+        "pptx", "ppt", "gif", "heic", "mp4", "mov"])
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody

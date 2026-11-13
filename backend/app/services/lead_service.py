@@ -21,7 +21,7 @@ from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
-from app.services import audit_service, koko_service, notification_service, task_service
+from app.services import audit_service, file_service, koko_service, notification_service, task_service
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
@@ -299,6 +299,35 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = Fal
     if lead is None or not (_can_see_all(user) or lead.assigned_to in (None, user.id)):
         raise AppError(404, "not_found", "Lead not found.")
     return lead
+
+
+def _lead_id(owner_id: str) -> int | None:
+    """'7' and '007' -> 7. Anything else ('abc', '²', a number too big for the database) -> None."""
+    if not (owner_id.isascii() and owner_id.isdigit()) or len(owner_id) > 10:
+        return None
+    n = int(owner_id)
+    return n if 0 < n <= 2**31 - 1 else None  # leads.id is a database "integer"
+
+
+def _clean_lead_id(owner_id: str) -> str:
+    n = _lead_id(owner_id)
+    return str(n) if n else owner_id  # a bad id stays as it is, and the access check then refuses it
+
+
+async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
+    """Files on a lead (a visiting card, a price list): whoever can see the lead can see its files.
+    Adding or asking to delete needs the lead to be yours (or leads.view_all), not just unassigned."""
+    lead_id = _lead_id(owner_id)
+    if "leads.view" not in effective_permissions(user.role, user.permissions) or lead_id is None:
+        return False
+    try:
+        lead = await _lead_for(db, user, lead_id)
+    except AppError:
+        return False
+    return action == "read" or lead.assigned_to == user.id or _can_see_all(user)
+
+
+file_service.register_owner("lead", _files_access, clean=_clean_lead_id)
 
 
 # ---------- Working a lead ----------
