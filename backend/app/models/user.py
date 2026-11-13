@@ -13,7 +13,10 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)  # stored lower-case
     phone: Mapped[str | None] = mapped_column(String(20))
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Old password logins only (before Firebase, 13 Nov 2026). New accounts: None; Firebase keeps passwords.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    # The Firebase Authentication account this person signs in with (None = an old account, not linked yet)
+    firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True)
     role: Mapped[str] = mapped_column(String(20), default="employee")  # admin | employee
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | active | disabled
     # Extra permission keys for this person (see app/core/permissions.py). Admins have all.

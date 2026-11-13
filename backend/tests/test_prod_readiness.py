@@ -16,7 +16,7 @@ from app.models.task import Task
 from app.models.user import User
 from app.services import attendance_service, auth_service, notification_service
 from app.services import board_service as boards
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 from tests.test_boards import _ids, board_body
 
 
@@ -361,33 +361,29 @@ def test_rate_key_counts_an_ipv6_block_as_one_visitor():
 
 async def test_the_office_is_not_blocked_by_its_own_logins_and_signups():
     """CR7: everyone in the office shares one address. Successful logins don't count, sign-ups allow 30."""
-    from app.schemas.auth import SignupIn
     await make_user("staff@kjsindia.com")
     async with AsyncSessionLocal() as db:
         for _ in range(40):
-            await auth_service.login(db, "staff@kjsindia.com", "password1234", ip_hash="office")
+            await auth_service.login(db, id_token("staff@kjsindia.com"), ip_hash="office")
         for i in range(30):
-            await auth_service.signup(db, SignupIn(name=f"New {i}", email=f"new{i}@kjsindia.com", phone="+919876543210", password="password1234"),
-                                      ip_hash="office")
+            await auth_service.signup(db, id_token(f"new{i}@kjsindia.com"), f"New {i}", "+919876543210", ip_hash="office")
         with pytest.raises(Exception) as e:
-            await auth_service.signup(db, SignupIn(name="One more", email="new99@kjsindia.com", phone="+919876543210", password="password1234"),
-                                      ip_hash="office")
+            await auth_service.signup(db, id_token("new99@kjsindia.com"), "One more", "+919876543210", ip_hash="office")
         assert e.value.status_code == 429
 
 
 async def test_strangers_on_many_networks_cannot_lock_out_the_office():
-    """CR5: 10 wrong passwords from each of 10 networks used to lock the admin out everywhere."""
-    from app.core import rate_limit
+    """CR5: strangers must not lock the real person out. Bad tokens are counted per network only, so
+    attackers on other networks (however many) never block the office."""
+    from app.core.config.ini import cfg
     await make_user("boss@kjsindia.com")
     async with AsyncSessionLocal() as db:
-        await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="office")  # usual network
         for n in range(10):
-            for _ in range(10):
+            for _ in range(cfg().app.login_failures_per_ip):
                 with pytest.raises(Exception):
-                    await auth_service.login(db, "boss@kjsindia.com", "wrong-guess", ip_hash=f"attacker-{n}")
-        rate_limit.login_failures.reset()  # only the any-network counter is left, as after 15 min per network
-        user, _ = await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="office")
-        assert user.email == "boss@kjsindia.com"  # the office still gets in (also after an API restart:
-        with pytest.raises(Exception) as e:      # the known network comes from the audit log)
-            await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="never-seen")
-        assert e.value.status_code == 429  # a network never used before stays behind the backstop
+                    await auth_service.login(db, "fake-token-from-an-attacker", ip_hash=f"attacker-{n}")
+        user, _ = await auth_service.login(db, id_token("boss@kjsindia.com"), ip_hash="office")
+        assert user.email == "boss@kjsindia.com"  # the office still gets in
+        with pytest.raises(Exception) as e:
+            await auth_service.login(db, id_token("boss@kjsindia.com"), ip_hash="attacker-0")
+        assert e.value.status_code == 429  # the attackers' own network stays blocked

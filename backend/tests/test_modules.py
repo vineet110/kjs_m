@@ -19,7 +19,7 @@ from app.jobs.runner import should_run
 from app.main import app
 from app.models.user import User
 from app.services import chat_hub, file_service, notification_service
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 
 
 @pytest.fixture
@@ -252,7 +252,7 @@ async def test_chat_live_connection_closes_when_chat_is_hidden(modules):
 
     def scenario():
         with TestClient(app) as tc:
-            r = tc.post("/api/v1/auth/login", json={"email": "e@kjsindia.com", "password": "password1234"},
+            r = tc.post("/api/v1/auth/login", json={"id_token": id_token("e@kjsindia.com")},
                         headers=HDR)
             assert r.status_code == 200, r.text
             with tc.websocket_connect("/api/v1/chat/ws", headers={"origin": "http://localhost:3000"}) as ws:

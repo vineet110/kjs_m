@@ -83,7 +83,7 @@ export default function UserForm({ user }: { user?: StaffUser }) {
     return (
       <div className="card max-w-xl space-y-3 p-6">
         <h2 className="text-lg font-semibold">{created.name} can log in now</h2>
-        <p className="text-sm text-slate-600">Give them this one-time password. It is shown only once; they change it on their Profile page.</p>
+        <p className="text-sm text-slate-600">Give them this one-time password. It is shown only once. At their first login they verify their email (we send them a link), then they change the password on their Profile page.</p>
         <dl className="grid grid-cols-[8rem_1fr] gap-y-1 rounded-lg bg-slate-50 p-3 text-sm">
           <dt className="text-slate-500">Email</dt><dd className="font-mono">{created.email}</dd>
           <dt className="text-slate-500">Password</dt><dd className="select-all font-mono font-semibold">{created.password}</dd>
