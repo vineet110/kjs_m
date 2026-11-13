@@ -365,7 +365,8 @@ async def profile_out(db: AsyncSession, u: User) -> dict:
     return {"id": u.id, "name": u.name, "email": u.email, "phone": u.phone or "", "role": u.role,
             "categories": u.categories or [], "notify_email": u.notify_email, "notify_whatsapp": u.notify_whatsapp,
             # Set by the admin; shown read-only on the profile
-            "employee_code": u.employee_code, "branch": u.branch, "reporting_to_name": boss.name if boss else ""}
+            "employee_code": u.employee_code, "branch": u.branch, "job_title": u.job_title,
+            "reporting_to_name": boss.name if boss else ""}
 
 
 async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:

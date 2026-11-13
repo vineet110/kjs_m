@@ -543,3 +543,20 @@ test('updates: the timer stops when nothing listens; reset forgets the numbers',
   s.reset();
   assert.equal(s.get(), null);
 });
+
+// ---------- Reporting To search (lib/people.ts) ----------
+const { matchPeople } = await load('people');
+
+test('matchPeople: finds by name or employee code, any case; starts-with first; at most 8', () => {
+  const people = [
+    { id: 1, name: 'Ravi Kumar', employee_code: 'E-104' },
+    { id: 2, name: 'Arjun Ravichandran', employee_code: 'E-201' },
+    { id: 3, name: 'Meena Iyer', employee_code: 'KJS-007' },
+  ];
+  assert.deepEqual(matchPeople(people, 'ravi').map((p) => p.id), [1, 2]); // "Ravi…" before "…ravi…"
+  assert.deepEqual(matchPeople(people, 'kjs-0').map((p) => p.id), [3]); // by employee code
+  assert.deepEqual(matchPeople(people, '  MEENA ').map((p) => p.id), [3]);
+  assert.deepEqual(matchPeople(people, 'zz'), []);
+  const many = Array.from({ length: 20 }, (_, i) => ({ id: i, name: `Person ${i}` }));
+  assert.equal(matchPeople(many, '').length, 8);
+});
