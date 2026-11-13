@@ -2,7 +2,7 @@
 
 Nothing is saved here: the file is read, its values are matched to the form's fields (the ones in
 `InternalLeadIn`), and the person checks them and clicks Save as usual. Columns we have no field for come
-back as `extra`, so the screen can say they were not saved.
+back as `extra`: the person then chooses Add (kept as "Extra Info") or Reject (not saved) for each.
 
 Two layouts are understood:
   - a table: the first row names the columns, each next row is one lead (the person picks the row);
@@ -24,8 +24,10 @@ from app.services import file_check
 
 MAX_BYTES = 10 * 1024 * 1024
 MAX_ROWS = 50  # leads shown to pick from (one file fills one lead)
+MAX_IMPORT_ROWS = 500  # bulk import: each row becomes a lead
 MAX_COLS = 50
 MAX_CELL = 500  # characters kept from a cell we have no field for
+MAX_SCAN = 20_000  # lines looked at, empty ones included (Excel can pad a sheet with thousands of empty rows)
 
 # Our field (a field of InternalLeadIn) -> column names people actually use. Compared after _norm():
 # lower case, punctuation turned into spaces ("Mobile No." -> "mobile no").
@@ -73,7 +75,22 @@ def _text(value) -> str:
     return str(value).strip()
 
 
-def _table(filename: str, data: bytes) -> list[list[str]]:
+def _filled(rows, max_rows: int) -> tuple[list[list[str]], bool]:
+    """The non-empty rows: the header + up to max_rows + 1 (one extra, so the caller can tell there are more).
+    Empty rows are skipped while reading, so blank lines never push real rows past the limit.
+    Second value True = we stopped at MAX_SCAN lines and may not have seen every row."""
+    out: list[list[str]] = []
+    for n, row in enumerate(rows):
+        if n >= MAX_SCAN:
+            return out, True
+        if any(row):  # Excel files often carry empty formatted rows
+            out.append(row)
+            if len(out) > max_rows + 1:
+                break
+    return out, False
+
+
+def _table(filename: str, data: bytes, max_rows: int) -> tuple[list[list[str]], bool]:
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     if ext == "xls":
         raise AppError(422, "file_type", "Old Excel files (.xls) can't be read. In Excel, use Save As > .xlsx.")
@@ -86,8 +103,8 @@ def _table(filename: str, data: bytes) -> list[list[str]]:
     if ext == "xlsx":
         try:
             ws = load_workbook(io.BytesIO(data), read_only=True, data_only=True).active  # values, never formulas
-            rows = [[_text(c) for c in row]
-                    for row in ws.iter_rows(max_row=MAX_ROWS * 2 + 1, max_col=MAX_COLS, values_only=True)]
+            return _filled(([_text(c) for c in row]
+                            for row in ws.iter_rows(max_col=MAX_COLS, values_only=True)), max_rows)
         except Exception as e:  # noqa: BLE001 - openpyxl raises many kinds of error for a bad file
             raise AppError(422, "bad_file", "Could not read this Excel file.") from e
     else:
@@ -101,10 +118,9 @@ def _table(filename: str, data: bytes) -> list[list[str]]:
             dialect = csv.excel
         try:
             reader = csv.reader(io.StringIO(text), dialect)
-            rows = [[c.strip() for c in row[:MAX_COLS]] for _, row in zip(range(MAX_ROWS * 2 + 1), reader)]
+            return _filled(([c.strip() for c in row[:MAX_COLS]] for row in reader), max_rows)
         except csv.Error as e:
             raise AppError(422, "bad_file", "Could not read this CSV file.") from e
-    return [r for r in rows if any(r)]  # Excel files often carry empty formatted rows
 
 
 def _category(text: str, categories: dict[str, str]) -> str:
@@ -136,9 +152,10 @@ def _lead(pairs: list[tuple[str, str]], categories: dict[str, str]) -> dict:
     return {"fields": fields, "extra": extra}
 
 
-def read(filename: str, data: bytes, categories: dict[str, str]) -> dict:
-    """The file's leads, ready for the form. `categories`: name or slug (lower case) -> slug."""
-    table = _table(filename, data)
+def read(filename: str, data: bytes, categories: dict[str, str], max_rows: int = MAX_ROWS) -> dict:
+    """The file's leads, ready for the form. `categories`: name or slug (lower case) -> slug.
+    `max_rows`: rows returned at most (MAX_ROWS to pick one, MAX_IMPORT_ROWS for a bulk import)."""
+    table, unsure = _table(filename, data, max_rows)
     if not table:
         raise AppError(422, "empty", "This file has no data.")
     # Columns really used (Excel pads every row with empty cells up to MAX_COLS)
@@ -153,6 +170,6 @@ def read(filename: str, data: bytes, categories: dict[str, str]) -> dict:
         body = table[1:]
         if not body:
             raise AppError(422, "empty", "This file has column names but no rows under them.")
-        more = len(body) > MAX_ROWS
-        leads = [_lead(list(zip(headers, r)), categories) for r in body[:MAX_ROWS]]
+        more = len(body) > max_rows or unsure  # unsure: too many empty lines to look past, so never promise "all"
+        leads = [_lead(list(zip(headers, r)), categories) for r in body[:max_rows]]
     return {"leads": leads, "more_rows": more}

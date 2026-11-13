@@ -48,3 +48,27 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - CodeRabbit's 6 points fixed: encrypted zips refused (not a crash), JPEG needs its end marker, same-person check asks the DB (no newest-5000 limit, follows phone/email links), lead Files tab hides Upload / Request delete when you can only look (`canRequestDelete` on FileList), Save waits while a file is read, "Save as a new enquiry" approves only the checked phone + email.
 - Learned: the backend venv was made by uv (not on PATH) and had no pip; `python -m ensurepip` added it.
 - Tests: 397 passed. `tsc` clean. Next PRs: Extra Info pop-up + migration, Tesseract, bulk import.
+
+## Bulk import of leads (branch feat/lead-bulk-import, stacked on #74, 13 Nov)
+
+- Vineet's point 5 on #74: each row of an Excel / CSV file becomes its own lead, in a separate PR.
+- "Import from Excel / CSV" button on Internal leads (`components/portal/ImportLeads.tsx`). Step 1 `POST /employee/leads/import/preview`: every row read and checked, nothing saved (problems in words, duplicates marked "Already in your leads" / "Repeated in this file"). Step 2 `POST /employee/leads/import`: ticked rows saved in one transaction (all or none), assigned to the importer, audit `lead.created` per lead + one `lead.imported`.
+- Limits: 500 rows (more = refused, never cut), same file checks and hourly limit as "Fill from file".
+- `lead_service._internal_lead` now builds the lead for both "+ Add lead" and import. `lead_reader.read` takes `max_rows`.
+- Tests: 6 new in `tests/test_lead_import.py`; lead tests 65 passed, `tsc` clean. Browser click-through not done.
+
+## Extra Info (branch feat/lead-extra-info, stacked on #75, 13 Nov)
+
+- Vineet's point 2 on #74 (migration approved, column `extra`, shown as "Extra Info").
+- Migration `0022_lead_extra_info.py`: `leads.extra` JSONB, default `{}`. Numbered 0022 because open branches feat/firebase-auth and feat/employee-permissions already use 0021: fix `down_revision` to the newest on main before merging. Down + up tested on the test DB.
+- Pop-up `components/portal/ExtraColumns.tsx`: one column at a time, Add / Add all / Reject / Reject all, hint "Choose Add to save it in Extra Info". Used by "Fill from file" (per lead) and bulk import (once per file, applied to every row). "Change" reopens it. Save waits until every column is decided. Max 30 Extra Info columns per lead.
+- Audit: `lead.extra_columns` with added / rejected column names and lead ids, never the values.
+- Lead page Info tab shows an "Extra Info" box.
+- Tests: 4 new in `tests/test_lead_extra.py`; full suite 407 passed; `tsc` clean. Browser click-through not done.
+- After pulling: `alembic upgrade head`.
+
+## #75 follow-up on #78 (13 Nov)
+
+- #75 had merged into `feat/lead-files-excel`, not `main` (that branch was never deleted, so GitHub didn't move it). #78 now targets `main` and carries #75 + Extra Info together.
+- Fix: the file reader looked at only the first 1,001 lines, so with many empty lines in between, real rows after that were dropped without a word. Now empty rows are skipped while reading and only real rows count (`lead_reader._filled`); a safety cap of 20,000 lines (`MAX_SCAN`) means "maybe more", so bulk import refuses instead of cutting.
+- Test: `test_empty_lines_do_not_hide_rows` (fails on the old code). Full suite 408 passed.

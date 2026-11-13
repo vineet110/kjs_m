@@ -10,6 +10,7 @@ export type Product = {
 };
 
 export type Lead = {
+  extra?: Record<string, string>; // "Extra Info": file columns we have no field for, kept by choice
   id: number; source: string; name: string; company: string; email: string; phone: string; country: string;
   buyer_type: string; quantity: string; message: string; chat_summary: string; source_page: string;
   status: 'new' | 'contacted' | 'closed'; product_name: string | null; category_name: string | null; created_at: string;

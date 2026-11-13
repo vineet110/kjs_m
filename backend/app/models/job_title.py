@@ -9,7 +9,7 @@ class JobTitle(Base, TimestampMixin):
     A label only: access comes from permissions."""
 
     __tablename__ = "job_titles"
-    # lower(name) on the column itself, the same index as migration 0021 (CodeRabbit on #76: func.lower("name")
+    # lower(name) on the column itself, the same index as migration 0023 (CodeRabbit on #76: func.lower("name")
     # would have been lower() of the text 'name', not of the column)
     __table_args__ = (Index("uq_job_titles_name_lower", text("lower(name)"), unique=True),)
 

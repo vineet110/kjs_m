@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.schemas.common import Email, OneLine, RequiredPhone
 
@@ -68,6 +68,12 @@ class LeadOut(BaseModel):
     resolve_due_at: datetime | None = None
     updated_at: datetime | None = None
     created_by_name: str | None = None  # internal leads: who typed it in
+    extra: dict[str, str] = Field(default_factory=dict)  # "Extra Info" (see InternalLeadIn)
+
+
+ExtraName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+ExtraValue = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+MAX_EXTRA = 30  # Extra Info columns on one lead
 
 
 class InternalLeadIn(BaseModel):
@@ -81,6 +87,13 @@ class InternalLeadIn(BaseModel):
     category_slug: str | None = Field(default=None, max_length=120)
     quantity: OneLine = Field(default="", max_length=120)
     message: str = Field(default="", max_length=4000)
+    # "Extra Info": file columns we have no field for, that the person chose to Add
+    extra: dict[ExtraName, ExtraValue] = Field(default_factory=dict, max_length=MAX_EXTRA)
+
+
+class InternalLeadFormIn(InternalLeadIn):
+    """The New internal lead form: also says which file columns were rejected (names only, for the audit log)."""
+    extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)
 
 
 class Contact(BaseModel):

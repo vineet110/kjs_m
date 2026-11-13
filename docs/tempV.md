@@ -408,7 +408,7 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
 
 1. Asked by Vineet; plan agreed 13 Nov (reject reason required, job title = label only, update check 30 s).
 2. Backend:
-   1. Migration `0021`: `users.job_title`, `users.rejection_reason`, table `job_titles` (unique whatever
+   1. Migration `0023` (was 0021; renumbered after #78's 0022): `users.job_title`, `users.rejection_reason`, table `job_titles` (unique whatever
       the case). Status `rejected` is just a new value (no schema change). Not yet run on Neon.
    2. `POST /admin/users/{id}/reject` (reason required, pending only, needs `staff.approve`). A rejected
       person can't log in ("Your sign-up was not approved"). Only an admin can approve them later.
@@ -433,5 +433,5 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    6. User form: Branch shown as Department (stored as `branch`), Job title dropdown with
       "+ Add new title", "Admin access" checkbox (admins only, asks first), Reporting To searchable by
       name or employee code (`PersonPicker`, `lib/people.ts`).
-4. Deploy order: merge, then run 0021 on Neon by hand (adds only), then deploy, then the live tests.
-5. Words for kb.md at fold time: rejected status, job title, update check (`/updates`), migration 0021.
+4. Deploy order: merge, then run 0023 on Neon by hand (adds only), then deploy, then the live tests.
+5. Words for kb.md at fold time: rejected status, job title, update check (`/updates`), migration 0023.

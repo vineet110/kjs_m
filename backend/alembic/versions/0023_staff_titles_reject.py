@@ -6,18 +6,22 @@ users.rejection_reason: why a sign-up was rejected (status "rejected"; approved_
 record who rejected it and when).
 job_titles: the list admins pick from and add to. Names are unique whatever their case.
 
-Only adds a table and two columns with defaults: existing rows and the old code keep working.
+Only adds a table, two columns with defaults and one index: existing rows and the old code keep working.
+ix_leads_updated_at: the portal's 30-second update check asks for the newest lead change.
 
-Revision ID: 0021
-Revises: 0020
+Number 0023 (was 0021 on PR #76): 0022 (leads.extra, #78) merged first, and another open branch
+(feat/firebase-auth) also uses 0021. So this one comes after 0022.
+
+Revision ID: 0023
+Revises: 0022
 """
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = '0021'
-down_revision: Union[str, None] = '0020'
+revision: str = '0023'
+down_revision: Union[str, None] = '0022'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -35,9 +39,12 @@ def upgrade() -> None:
     )
     # "Sales executive" and "sales Executive" are the same title
     op.create_index('uq_job_titles_name_lower', 'job_titles', [sa.text('lower(name)')], unique=True)
+    # The portal's 30-second check asks for the newest lead change (MAX(updated_at)) from every open tab
+    op.create_index('ix_leads_updated_at', 'leads', ['updated_at'])
 
 
 def downgrade() -> None:
+    op.drop_index('ix_leads_updated_at', table_name='leads')
     op.drop_index('uq_job_titles_name_lower', table_name='job_titles')
     op.drop_table('job_titles')
     op.drop_column('users', 'rejection_reason')
