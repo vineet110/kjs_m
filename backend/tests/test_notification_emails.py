@@ -1,9 +1,7 @@
-"""Notification emails through Brevo: every bell notification also goes to the employee's email.
-Brevo isn't really called: a fake Brevo (httpx.MockTransport) answers, and `brevo.calls` keeps each request."""
-import json
-
-import httpx
+"""Notification emails through Firebase: every bell notification also goes to the employee's email.
+Firestore isn't really called: a fake keeps each "mail" document (like Firestore, it refuses an id twice)."""
 import pytest
+from google.api_core import exceptions as google_errors
 from sqlalchemy import select, update
 
 from app.core.config import settings
@@ -15,26 +13,28 @@ from app.services import email_service, notification_service
 from tests.conftest import make_user
 
 
-class FakeBrevo:
+class FakeFirestore:
     def __init__(self):
-        self.calls: list[httpx.Request] = []
-        self.answer = lambda request: httpx.Response(201, json={"messageId": "<1@brevo>"})
+        self.docs: dict[str, dict] = {}
+        self.calls = 0
+        self.error = lambda doc_id, data: None  # set to raise, to act like a failing Firestore
 
-    def handler(self, request: httpx.Request) -> httpx.Response:
-        self.calls.append(request)
-        return self.answer(request)
+    def create(self, doc_id: str, data: dict) -> None:
+        self.calls += 1
+        self.error(doc_id, data)
+        if doc_id in self.docs:
+            raise google_errors.AlreadyExists("document exists")
+        self.docs[doc_id] = data
 
     def sent_to(self) -> list[str]:
-        return [json.loads(c.content)["to"][0]["email"] for c in self.calls]
+        return [d["to"][0] for d in self.docs.values()]
 
 
 @pytest.fixture
-def brevo(monkeypatch):
-    fake = FakeBrevo()
-    real = httpx.AsyncClient
-    monkeypatch.setattr(email_service.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(fake.handler), **kw))
-    monkeypatch.setattr(settings, "BREVO_API_KEY", "test-key")
-    monkeypatch.setattr(settings, "SMTP_FROM", "KJS India <no-reply@kjsindia.com>")
+def firestore(monkeypatch):
+    fake = FakeFirestore()
+    monkeypatch.setattr(email_service, "_create", fake.create)
+    monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT", '{"fake": "only for tests"}')
     return fake
 
 
@@ -53,23 +53,34 @@ async def statuses() -> dict[str, tuple[str, int]]:
     return {e: (s, a) for e, s, a in rows}
 
 
-async def test_each_notification_is_emailed_once(brevo):
+async def test_each_notification_is_emailed_once(firestore):
     await make_user("e@kjsindia.com")
     await notify("e@kjsindia.com")
     assert await runner.run_job("send_emails") == {"sent": 1, "skipped": 0, "failed": 0}
-    req = brevo.calls[0]
-    assert str(req.url) == email_service.BREVO_URL and req.headers["api-key"] == "test-key"
-    body = json.loads(req.content)
-    assert body["sender"] == {"name": "KJS India", "email": "no-reply@kjsindia.com"}
-    assert body["to"] == [{"email": "e@kjsindia.com"}] and body["subject"] == "[KJS] New lead: Asha"
-    assert "Asha asked about coffee." in body["textContent"]
-    assert f"Open: {settings.PUBLIC_BASE_URL}/employee/dashboard" in body["textContent"]
+    [(doc_id, doc)] = firestore.docs.items()
+    assert doc_id.startswith("notification-1-")
+    assert doc["to"] == ["e@kjsindia.com"] and doc["message"]["subject"] == "[KJS] New lead: Asha"
+    assert "Asha asked about coffee." in doc["message"]["text"]
+    assert f"Open: {settings.PUBLIC_BASE_URL}/employee/dashboard" in doc["message"]["text"]
     assert await statuses() == {"e@kjsindia.com": ("sent", 0)}
     await runner.run_job("send_emails")  # nothing left: never sent twice
-    assert len(brevo.calls) == 1
+    assert firestore.calls == 1
 
 
-async def test_email_switched_off_or_disabled_account_gets_no_email(brevo):
+async def test_written_but_not_saved_as_sent_is_not_sent_twice(firestore):
+    # The API wrote the email to Firestore, then stopped before saving "sent": the next run writes the same
+    # id again, Firestore refuses the copy, and it counts as sent (one email in the inbox, not two)
+    await make_user("e@kjsindia.com")
+    await notify("e@kjsindia.com")
+    await runner.run_job("send_emails")
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Notification).values(email_status="pending"))
+        await db.commit()
+    assert await runner.run_job("send_emails") == {"sent": 1, "skipped": 0, "failed": 0}
+    assert len(firestore.docs) == 1
+
+
+async def test_email_switched_off_or_disabled_account_gets_no_email(firestore):
     await make_user("on@kjsindia.com")
     await make_user("off@kjsindia.com")
     await make_user("gone@kjsindia.com", status="disabled")
@@ -78,61 +89,69 @@ async def test_email_switched_off_or_disabled_account_gets_no_email(brevo):
         await db.commit()
     await notify("on@kjsindia.com", "off@kjsindia.com", "gone@kjsindia.com")
     assert await runner.run_job("send_emails") == {"sent": 1, "skipped": 2, "failed": 0}
-    assert brevo.sent_to() == ["on@kjsindia.com"]
+    assert firestore.sent_to() == ["on@kjsindia.com"]
 
 
-async def test_visitor_text_gets_the_warning_note(brevo):
+async def test_visitor_text_gets_the_warning_note(firestore):
     await make_user("e@kjsindia.com")
     await notify("e@kjsindia.com", kind="lead.new")
     await runner.run_job("send_emails")
-    assert "typed by a website visitor" in json.loads(brevo.calls[0].content)["textContent"]
+    [doc] = firestore.docs.values()
+    assert "typed by a website visitor" in doc["message"]["text"]
 
 
-async def test_a_refused_email_uses_a_try_and_the_others_still_go(brevo):
+async def test_a_refused_email_uses_a_try_and_the_others_still_go(firestore):
     await make_user("bad@kjsindia.com")
     await make_user("good@kjsindia.com")
     await notify("bad@kjsindia.com", "good@kjsindia.com")
-    brevo.answer = lambda request: (httpx.Response(400, json={"code": "invalid_parameter", "message": "email is not valid"})
-                                    if "bad@" in request.content.decode() else httpx.Response(201, json={}))
+
+    def refuse_bad(doc_id, data):
+        if data["to"] == ["bad@kjsindia.com"]:
+            raise google_errors.InvalidArgument("document too large")
+
+    firestore.error = refuse_bad
     assert await runner.run_job("send_emails") == {"sent": 1, "skipped": 0, "failed": 1}
     assert await statuses() == {"bad@kjsindia.com": ("pending", 1), "good@kjsindia.com": ("sent", 0)}
     for _ in range(2):  # 3 tries in all, then it stops
         await runner.run_job("send_emails")
     assert (await statuses())["bad@kjsindia.com"] == ("failed", 3)
-    calls = len(brevo.calls)
+    calls = firestore.calls
     await runner.run_job("send_emails")
-    assert len(brevo.calls) == calls  # a failed email isn't tried again
+    assert firestore.calls == calls  # a failed email isn't tried again
 
 
-def no_route(request: httpx.Request) -> httpx.Response:
-    raise httpx.ConnectError("no route to host")
+def raises(error: Exception):
+    def fail(doc_id, data):
+        raise error
+    return fail
 
 
-@pytest.mark.parametrize("answer", [
-    lambda r: httpx.Response(401, json={"code": "unauthorized", "message": "Key not found"}),
-    lambda r: httpx.Response(401, json={"code": "unauthorized", "message": "We have detected you are using an unrecognised IP address"}),
-    lambda r: httpx.Response(429, json={"message": "Too many requests"}),
-    lambda r: httpx.Response(503, text="Service Unavailable"),
-    lambda r: no_route(r),
+@pytest.mark.parametrize("error", [
+    google_errors.PermissionDenied("Missing or insufficient permissions"),
+    google_errors.Unauthenticated("bad key"),
+    google_errors.ServiceUnavailable("Google is down"),
+    google_errors.DeadlineExceeded("timeout"),
+    google_errors.ResourceExhausted("quota"),
+    ValueError("Invalid service account certificate"),  # a broken FIREBASE_SERVICE_ACCOUNT
 ])
-async def test_brevo_down_costs_no_try_and_one_request_per_run(brevo, answer):
+async def test_firebase_down_costs_no_try_and_one_request_per_run(firestore, error):
     for name in ("a", "b", "c"):
         await make_user(f"{name}@kjsindia.com")
     await notify("a@kjsindia.com", "b@kjsindia.com", "c@kjsindia.com")
-    brevo.answer = answer
+    firestore.error = raises(error)
     for _ in range(5):  # an outage of 5 runs: nothing lost, no tries used up (CR10)
         assert (await runner.run_job("send_emails"))["failed"] == 0
-    assert len(brevo.calls) == 5  # one try per run, not one per email
+    assert firestore.calls == 5  # one try per run, not one per email
     assert set((await statuses()).values()) == {("pending", 0)}
-    brevo.answer = lambda r: httpx.Response(201, json={})  # Brevo is back: everything goes out
+    firestore.error = lambda doc_id, data: None  # Firebase is back: everything goes out
     await runner.run_job("send_emails")
     assert set((await statuses()).values()) == {("sent", 0)}
 
 
-async def test_without_brevo_key_smtp_rules_stay(brevo, monkeypatch):
-    monkeypatch.setattr(settings, "BREVO_API_KEY", "")
+async def test_without_firebase_smtp_rules_stay(firestore, monkeypatch):
+    monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT", "")
     monkeypatch.setattr(settings, "SMTP_HOST", "")
     await make_user("e@kjsindia.com")
     await notify("e@kjsindia.com")
     assert await runner.run_job("send_emails") == {"sent": 0, "skipped": 1, "failed": 0}
-    assert brevo.calls == []
+    assert firestore.calls == 0

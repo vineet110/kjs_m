@@ -12,7 +12,7 @@ os.environ.update({
     "DATABASE_URL": TEST_DB,
     "MIGRATION_DATABASE_URL": TEST_DB,
     "LLM_PROVIDER": "none",  # no real AI calls in tests
-    "BREVO_API_KEY": "",  # no real emails from tests, even if a developer's .env has a key
+    "FIREBASE_SERVICE_ACCOUNT": "",  # no real Firebase from tests, even if a developer's .env has a key
     "SECRET_KEY": "test-secret",
     "STORAGE_DRIVER": "local",
     "FILE_STORAGE_PATH": tempfile.mkdtemp(prefix="kjs-test-files-"),

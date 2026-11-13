@@ -1,64 +1,57 @@
-"""Brevo (brevo.com) HTTP API: how notification emails go out when BREVO_API_KEY is set.
+"""Emails through Firebase: the API writes each email into the Firestore collection `mail`
+(FIREBASE_MAIL_COLLECTION), and Firebase's "Trigger Email from Firestore" extension sends it.
 
-Why not SMTP: Render's free tier blocks the SMTP ports, and Brevo's API is one HTTPS request (port 443).
-Without BREVO_API_KEY the queue in notification_service.py still uses SMTP (SMTP_HOST), as before.
+Why not SMTP from the API: Render's free tier blocks the SMTP ports. Writing to Firestore is HTTPS.
+Without FIREBASE_SERVICE_ACCOUNT the queue in notification_service.py still uses SMTP (SMTP_HOST), as before.
+
+Each email has a fixed document id (one per notification). Writing it twice is refused by Firestore
+(AlreadyExists), so a crash between "written" and "saved as sent" can never send the same email twice.
 
 Two kinds of failure, because the queue treats them differently (CR10):
-1. BrevoDown: Brevo can't be reached, or refuses US (wrong key, IP not authorised, account not active,
-   too many requests, its own error). Not the email's fault: it waits in the queue WITHOUT using up one of
-   its 3 tries, and the rest of the batch waits too.
-2. EmailRejected: Brevo refused this one email (e.g. a bad address). It uses up a try; the rest still go.
+1. MailDown: Firestore can't be reached or refuses US (bad or missing key, no permission, quota, Google
+   down, timeout). Not the email's fault: it waits WITHOUT using up one of its 3 tries; the batch waits too.
+2. EmailRejected: Firestore refused this one email (e.g. too big). It uses up a try; the rest still go.
 
+Delivery itself (a bad address, Gmail's daily limit) happens later in the extension: its result is written
+back on the same Firestore document (`delivery.state`, `delivery.error`), not in our database.
 Never logs an email's text or subject.
 """
-from email.utils import parseaddr
+import asyncio
 
-import httpx
+from google.api_core import exceptions as google_errors
 
+from app.core import firebase
 from app.core.config import settings
 
-BREVO_URL = "https://api.brevo.com/v3/smtp/email"
-TIMEOUT_SECONDS = 15
-# Answers that mean "Brevo won't take anything from us right now", not "this email is wrong":
-# 401 wrong key or IP not authorised, 402 account not activated / out of credits, 403 not allowed, 429 too many
-BREVO_DOWN_STATUSES = {401, 402, 403, 429}
+TIMEOUT_SECONDS = 20
 
 
-class BrevoDown(Exception):
-    """Brevo unreachable or refusing the whole account: try again later, without using up a try."""
+class MailDown(Exception):
+    """Firestore unreachable, or refusing the whole account: try again later, without using up a try."""
 
 
 class EmailRejected(Exception):
-    """Brevo refused this one email."""
+    """Firestore refused this one email."""
 
 
 def enabled() -> bool:
-    return bool(settings.BREVO_API_KEY)
+    return firebase.enabled()
 
 
-def sender() -> dict:
-    """{"name": "KJS India", "email": "no-reply@kjsindia.com"} from SMTP_FROM (must be verified in Brevo)."""
-    name, address = parseaddr(settings.SMTP_FROM)
-    return {"name": name or "KJS India", "email": address}
+def _create(doc_id: str, data: dict) -> None:
+    """Runs in a worker thread (Google's client is not async). create() fails if the id exists."""
+    (firebase.firestore_client().collection(settings.FIREBASE_MAIL_COLLECTION)
+     .document(doc_id).create(data, timeout=TIMEOUT_SECONDS))
 
 
-def client() -> httpx.AsyncClient:
-    """One client for a whole batch: the connection to Brevo is reused, like the SMTP connection."""
-    return httpx.AsyncClient(timeout=TIMEOUT_SECONDS,
-                             headers={"api-key": settings.BREVO_API_KEY, "accept": "application/json"})
-
-
-async def send(http: httpx.AsyncClient, to: str, subject: str, text: str) -> None:
-    """Sends one plain-text email. Raises BrevoDown or EmailRejected (see the top of this file)."""
+async def send(doc_id: str, to: str, subject: str, text: str) -> None:
+    """Hands one plain-text email to Firebase. Raises MailDown or EmailRejected (see the top of this file)."""
+    data = {"to": [to], "message": {"subject": subject, "text": text}}  # the extension's format
     try:
-        r = await http.post(BREVO_URL, json={"sender": sender(), "to": [{"email": to}],
-                                              "subject": subject, "textContent": text})
-    except httpx.HTTPError as e:  # no answer: network, DNS, timeout
-        raise BrevoDown(f"{type(e).__name__}: {e}") from e
-    if r.status_code < 300:
-        return
-    # Brevo explains in JSON, e.g. {"code": "unauthorized", "message": "Key not found"}
-    reason = f"Brevo answered {r.status_code}: {r.text[:200]}"
-    if r.status_code in BREVO_DOWN_STATUSES or r.status_code >= 500:
-        raise BrevoDown(reason)
-    raise EmailRejected(reason)
+        await asyncio.to_thread(_create, doc_id, data)
+    except google_errors.AlreadyExists:
+        return  # handed over before (e.g. the API stopped before saving "sent"): never twice
+    except google_errors.InvalidArgument as e:
+        raise EmailRejected(f"Firestore refused the email: {str(e)[:200]}") from e
+    except Exception as e:  # no answer, no permission, bad key, quota, Google down...
+        raise MailDown(f"{type(e).__name__}: {str(e)[:200]}") from e

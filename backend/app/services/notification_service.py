@@ -111,9 +111,10 @@ async def send_emails(db: AsyncSession) -> dict:
         .with_for_update(of=Notification, skip_locked=True)
     )).all()
     sent = skipped = failed = 0
-    # Brevo's HTTP API when BREVO_API_KEY is set (Render's free tier blocks SMTP), else SMTP, else skipped
-    use_brevo = email_service.enabled()
-    email_on = "email" in cfg().alerts.channels and (use_brevo or bool(settings.SMTP_HOST))
+    # Firebase (Firestore "mail" + Trigger Email extension) when FIREBASE_SERVICE_ACCOUNT is set (Render's
+    # free tier blocks SMTP), else SMTP, else skipped
+    use_firebase = email_service.enabled()
+    email_on = "email" in cfg().alerts.channels and (use_firebase or bool(settings.SMTP_HOST))
     for n, u in rows:  # claim the whole batch first, so nobody else picks these rows
         if email_on and u.notify_email and u.status == "active":
             n.email_status = "sending"
@@ -121,7 +122,7 @@ async def send_emails(db: AsyncSession) -> dict:
             n.email_status = "skipped"
             skipped += 1
     await db.commit()
-    conn, http, started, server_down = None, None, time.monotonic(), False
+    conn, started, server_down = None, time.monotonic(), False
     try:
         for n, u in rows:
             if n.email_status != "sending":
@@ -134,18 +135,18 @@ async def send_emails(db: AsyncSession) -> dict:
             link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if link_for(u, n.link) else ""
             note = VISITOR_TEXT_NOTE if n.kind.startswith(("lead.", "partner.")) else ""
             subject, text = f"[KJS] {n.title}", f"{n.body}{link}{note}"
-            if use_brevo:
-                http = http or email_service.client()  # one connection to Brevo for the whole batch
+            if use_firebase:
                 try:
-                    await email_service.send(http, u.email, subject, text)
-                    n.email_status = "sent"
+                    # One fixed id per notification: Firestore refuses a second copy (never sent twice)
+                    await email_service.send(_mail_id(n), u.email, subject, text)
+                    n.email_status = "sent"  # handed to Firebase; delivery result is on the Firestore document
                     sent += 1
-                except email_service.BrevoDown as e:
+                except email_service.MailDown as e:
                     # Same rule as an unreachable SMTP server (CR10): back in the queue without using up a
-                    # try, the rest of the batch too (wrong key, IP not authorised, Brevo down...)
+                    # try, the rest of the batch too (bad key, no permission, Google down...)
                     server_down = True
                     n.email_status = "pending"
-                    log.warning("email.server_down", extra={"provider": "brevo", "reason": str(e)[:200]})
+                    log.warning("email.server_down", extra={"provider": "firebase", "reason": str(e)[:200]})
                 except Exception as e:  # this one email was refused: it uses up a try, the rest still go
                     _failed_try(n, e)
                     failed += 1
@@ -175,9 +176,13 @@ async def send_emails(db: AsyncSession) -> dict:
             await db.commit()
     finally:
         await asyncio.to_thread(_close, conn)
-        if http is not None:
-            await http.aclose()
     return {"sent": sent, "skipped": skipped, "failed": failed}
+
+
+def _mail_id(n: Notification) -> str:
+    """The Firestore document id of this notification's email. With the creation time, so a database that
+    starts again from id 1 (a reset, a copy) can't hit an old email's id and skip a new email."""
+    return f"notification-{n.id}-{int(n.created_at.timestamp())}"
 
 
 def _failed_try(n: Notification, e: Exception) -> None:

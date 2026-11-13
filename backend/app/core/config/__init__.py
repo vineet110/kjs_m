@@ -37,10 +37,12 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "KJS India <no-reply@kjsindia.com>"  # also the sender for Brevo
-    # Brevo HTTP API (brevo.com, free 300 emails/day). Set = emails go through Brevo instead of SMTP
-    # (Render's free tier blocks SMTP). The sender in SMTP_FROM must be verified in Brevo.
-    BREVO_API_KEY: str = ""
+    SMTP_FROM: str = "KJS India <no-reply@kjsindia.com>"
+    # Firebase (app/core/firebase.py): the service-account JSON on ONE line (secret). Set = emails go into
+    # Firestore's FIREBASE_MAIL_COLLECTION, sent by the "Trigger Email from Firestore" extension, instead
+    # of SMTP (Render's free tier blocks SMTP).
+    FIREBASE_SERVICE_ACCOUNT: str = ""
+    FIREBASE_MAIL_COLLECTION: str = "mail"
     # Full URL of the site, used for links inside emails
     PUBLIC_BASE_URL: str = "http://localhost:3000"
 
