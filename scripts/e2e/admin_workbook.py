@@ -3,7 +3,7 @@
 Build (cases only, every status "Not run"):
     python scripts/e2e/admin_workbook.py
 Fill in a run (Playwright JSON report; test titles start with the case ID, e.g. "ADM-062 ..."):
-    python scripts/e2e/admin_workbook.py --results frontend/test-results/admin-results.json
+    python scripts/e2e/admin_workbook.py --results e2e-output/results.json
 
 The Summary sheet counts with Excel formulas, so editing a Status by hand updates it.
 """

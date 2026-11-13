@@ -1,8 +1,8 @@
-﻿"""Employee module end-to-end test cases + stress test: builds docs/testing/employee-e2e.xlsx.
+"""Employee module end-to-end test cases + stress test: builds docs/testing/employee-e2e.xlsx.
 
 Build (cases only):            python scripts/e2e/employee_workbook.py
-Fill in a run:                 python scripts/e2e/employee_workbook.py --results frontend/test-results/results.json
-                                   --stress frontend/stress-results/stress.json
+Fill in a run:                 python scripts/e2e/employee_workbook.py --results e2e-output/results.json
+                                   --stress e2e-output/stress/stress.json
 Same layout as the admin workbook (scripts/e2e/admin_workbook.py), plus a "Stress test" sheet.
 """
 import argparse

@@ -61,8 +61,5 @@ backend/storage-e2e/
 .claude/skills/neon-postgres/
 skills-lock.json
 
-# Playwright (live-site tests): saved logins, results, report
-frontend/.auth/
-frontend/test-results/
-frontend/playwright-report/
-frontend/stress-results/
+# Everything the live-site tests write: saved logins, test passwords, results, reports
+e2e-output/

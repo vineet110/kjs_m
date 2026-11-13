@@ -1,6 +1,6 @@
 // Fills the live site with realistic test data from the E2E test employees (Vineet 12 Nov: keep it; it is
 // cleared before production). Everything is marked "E2E" so it is easy to find and remove later.
-// Needs frontend/.auth/stress-users.json (scripts/e2e/create_test_employees.mjs).
+// Needs e2e-output/auth/stress-users.json (scripts/e2e/create_test_employees.mjs).
 // Run from the repo root:  node scripts/e2e/seed_test_data.mjs
 //
 // What it adds (from test employees only, never from real staff):
@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 if (existsSync('frontend/.env.e2e.local')) process.loadEnvFile('frontend/.env.e2e.local');
 const BASE = process.env.E2E_BASE_URL || 'https://kjs-m.vercel.app';
-const USERS = JSON.parse(readFileSync('frontend/.auth/stress-users.json', 'utf8'));
+const USERS = JSON.parse(readFileSync('e2e-output/auth/stress-users.json', 'utf8'));
 const counts = {};
 const problems = [];
 

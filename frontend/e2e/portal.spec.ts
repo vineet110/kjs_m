@@ -7,11 +7,11 @@ import { navFor } from '@/components/portal/SidebarNav';
 import { login, logIn, tester, type Me } from './helpers';
 
 function me(t: string): Me {
-  return JSON.parse(readFileSync(`.auth/${t}.me.json`, 'utf8'));
+  return JSON.parse(readFileSync(`../e2e-output/auth/${t}.me.json`, 'utf8'));
 }
 
 test.beforeEach(async ({}, info) => {
-  test.skip(!existsSync(`.auth/${tester(info)}.me.json`), 'Not logged in (see setup)');
+  test.skip(!existsSync(`../e2e-output/auth/${tester(info)}.me.json`), 'Not logged in (see setup)');
 });
 
 /** The sidebar starts closed on some screens: open it with ☰ if needed. */

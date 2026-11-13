@@ -11,8 +11,8 @@ const STAMP = new Date().toISOString().slice(0, 16).replace('T', ' ');
 const LEAD = `E2E Lead ${STAMP}`;
 const TASK = `E2E Task ${STAMP}`;
 const GROUP = 'E2E Group';
-const me = (): Me => JSON.parse(readFileSync('.auth/V.me.json', 'utf8'));
-const testEmployees = (): { id: number; name: string }[] => JSON.parse(readFileSync('.auth/stress-users.json', 'utf8'));
+const me = (): Me => JSON.parse(readFileSync('../e2e-output/auth/V.me.json', 'utf8'));
+const testEmployees = (): { id: number; name: string }[] => JSON.parse(readFileSync('../e2e-output/auth/stress-users.json', 'utf8'));
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
@@ -233,7 +233,7 @@ test.describe('My attendance', () => {
   });
 
   test('EMP-028 Requests reach the admin', async ({ playwright, baseURL }) => {
-    const ctx = await playwright.request.newContext({ baseURL, storageState: '.auth/A.json' });
+    const ctx = await playwright.request.newContext({ baseURL, storageState: '../e2e-output/auth/A.json' });
     const r = await ctx.get('/api/v1/admin/approvals');
     expect(r.ok(), 'admin session (run project A setup first)').toBeTruthy();
     const text = JSON.stringify(await r.json());
@@ -584,7 +584,7 @@ test.describe('All employee pages', () => {
   });
 
   test('EMP-091 Phone layout', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: '.auth/V.json', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const ctx = await browser.newContext({ storageState: '../e2e-output/auth/V.json', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
     await page.goto('/employee/dashboard');
     await page.getByRole('button', { name: 'Open menu' }).click();

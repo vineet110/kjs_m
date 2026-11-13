@@ -16,7 +16,7 @@ const SOURCE = 'E2E Source';
 const PRODUCT = 'E2E Product';
 const BOARD_NAME = 'E2E Board (test)';
 
-const me = (): Me => JSON.parse(readFileSync('.auth/A.me.json', 'utf8'));
+const me = (): Me => JSON.parse(readFileSync('../e2e-output/auth/A.me.json', 'utf8'));
 
 // Every confirm() popup (Remove?, Delete?, Mark done?) is answered "OK"
 test.beforeEach(async ({ page }) => {
@@ -687,7 +687,7 @@ test.describe('All admin pages', () => {
   });
 
   test('ADM-171 Phone layout', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: '.auth/A.json', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const ctx = await browser.newContext({ storageState: '../e2e-output/auth/A.json', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
     await page.goto('/admin/dashboard');
     await page.getByRole('button', { name: 'Open menu' }).click();

@@ -1,6 +1,6 @@
 // Creates test employees on the live site (kept on purpose, Vineet 12 Nov) through the admin API.
 // Emails e2e.emp001@kjs-e2e.test ... ; branch "E2E Branch"; role employee; active.
-// Their one-time passwords go to frontend/.auth/stress-users.json (git-ignored), for the stress test.
+// Their one-time passwords go to e2e-output/auth/stress-users.json (git-ignored), for the stress test.
 // Run from the repo root:  node scripts/e2e/create_test_employees.mjs [count=75]
 // Safe to run again: existing emails are skipped (their passwords stay in the file from the first run).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ const ENV = 'frontend/.env.e2e.local';
 if (existsSync(ENV)) process.loadEnvFile(ENV);
 const BASE = process.env.E2E_BASE_URL || 'https://kjs-m.vercel.app';
 const COUNT = Number(process.argv[2] || 75);
-const OUT = 'frontend/.auth/stress-users.json';
+const OUT = 'e2e-output/auth/stress-users.json';
 
 const FIRST = ['Aarav', 'Priya', 'Rohan', 'Ananya', 'Vikram', 'Sneha', 'Arjun', 'Kavya', 'Rahul', 'Meera', 'Aditya', 'Pooja', 'Karan', 'Divya', 'Siddharth'];
 const LAST = ['Sharma', 'Patel', 'Iyer', 'Reddy', 'Gupta'];
@@ -48,7 +48,7 @@ for (let i = 1; i <= COUNT; i++) {
   } else failed.push(`${email}: ${r.status} ${(await r.text()).slice(0, 120)}`);
 }
 
-mkdirSync('frontend/.auth', { recursive: true });
+mkdirSync('e2e-output/auth', { recursive: true });
 writeFileSync(OUT, JSON.stringify(saved, null, 2));
 console.log(`created ${made}, already there ${skipped}, failed ${failed.length}; ${saved.length} logins in ${OUT}`);
 if (failed.length) console.log(failed.join('\n'));

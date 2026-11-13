@@ -46,7 +46,7 @@ they start their own servers on your machine.
 
 1. Needs `E2E_EMAIL_A` and `E2E_PASSWORD_A` (the admin test account) in `.env.e2e.local`.
 2. Run: `npx playwright test --project=A` (about 3 minutes, one test after another).
-3. Fill the workbook: `python scripts/e2e/admin_workbook.py --results frontend/test-results/results.json`
+3. Fill the workbook: `python scripts/e2e/admin_workbook.py --results e2e-output/results.json`
    (from the repo root). Result: `docs/testing/admin-e2e.xlsx`, Summary + Test cases.
 4. It creates and removes "E2E" test data. Left behind on purpose (no delete in the app): the disabled
    E2E user, the hidden E2E product, and one cancelled E2E board per run.
@@ -54,14 +54,14 @@ they start their own servers on your machine.
 ## 6. Employee module (project E) and stress test
 
 1. Test employees (once): `node scripts/e2e/create_test_employees.mjs 75` from the repo root (admin login
-   needed). Their one-time passwords go to `frontend/.auth/stress-users.json` (git-ignored).
+   needed). Their one-time passwords go to `e2e-output/auth/stress-users.json` (git-ignored).
 2. Extra test data (optional): `node scripts/e2e/seed_test_data.mjs` (attendance, leads, tasks, leave,
    missed punches, a group chat; all marked E2E).
 3. Employee tests as tester V: `npx playwright test --project=E` (needs V's and the admin's logins).
 4. Stress test: `node scripts/e2e/stress.mjs` (10, 25, 50 users, 2 minutes each; stops itself if the
-   site is overloaded). Result: `frontend/stress-results/stress.json`.
-5. Fill the workbook: `python scripts/e2e/employee_workbook.py --results frontend/test-results/results.json
-   --stress frontend/stress-results/stress.json`. Result: `docs/testing/employee-e2e.xlsx`.
+   site is overloaded). Result: `e2e-output/stress/stress.json`.
+5. Fill the workbook: `python scripts/e2e/employee_workbook.py --results e2e-output/results.json
+   --stress e2e-output/stress/stress.json`. Result: `docs/testing/employee-e2e.xlsx`.
 6. All E2E data is kept on purpose (Vineet, 12 Nov) and must be cleared before production.
 
 ## 7. When a check fails

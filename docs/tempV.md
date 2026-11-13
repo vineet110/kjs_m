@@ -410,7 +410,7 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
 2. Files: `frontend/playwright.config.ts`, `frontend/e2e/` (`auth.setup.ts`, `portal.spec.ts`,
    `helpers.ts`, `README.md`). Script: `npm run e2e`. How to run: `frontend/e2e/README.md`.
 3. One project per tester: V (Vineet), S (Nishita), K (Kunal). Logins in `frontend/.env.e2e.local`
-   (git-ignored). Saved sessions in `frontend/.auth/` (git-ignored and docker-ignored).
+   (git-ignored). Saved sessions in `e2e-output/auth/` (git-ignored).
 4. Read-only checks: login, dashboard, sidebar = `navFor(permissions, modules)`, every sidebar page opens
    with no error / console error / 403 / 5xx, the admin API refuses, logout. Soft checks: the run carries on.
 5. The three test accounts are all role `employee` with extra permissions (none is admin):
@@ -474,4 +474,11 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    3. From `scripts/e2e/seed_test_data.mjs`: 20 check-ins (12 checked out), 12 internal leads, 24 tasks,
       6 leave requests, 4 missed-punch requests, "E2E Sales Team" group chat with 8 messages.
 8. Lesson: Playwright empties `frontend/test-results/` on every run, which deleted the first stress
-   result. Recovered from the workbook; stress output now goes to `frontend/stress-results/` (git-ignored).
+   result. Recovered from the workbook; stress output now goes to `e2e-output/stress/` (git-ignored).
+
+## Test output folder (13 Nov)
+
+1. Asked by Vineet: everything the live-site tests write now goes to ONE git-ignored folder at the repo
+   root, `e2e-output/`, never inside `frontend/`: `auth/` (saved logins, test employees' passwords),
+   `results/` (Playwright's per-test files), `report/` (HTML report), `results.json`, `stress/`.
+2. Existing files were moved there, nothing deleted. `.gitignore` has one line for it.

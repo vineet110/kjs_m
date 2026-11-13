@@ -5,7 +5,3 @@ npm-debug.log
 .env*
 Dockerfile
 .dockerignore
-.auth
-test-results
-playwright-report
-stress-results

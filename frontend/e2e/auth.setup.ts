@@ -13,7 +13,7 @@ setup('log in', async ({ page }, info) => {
   // Who am I: role, permissions, portal areas. Saved for the other tests.
   const r = await page.request.get('/api/v1/auth/me');
   expect(r.ok()).toBeTruthy();
-  mkdirSync('.auth', { recursive: true });
-  writeFileSync(`.auth/${tester(info)}.me.json`, JSON.stringify(await r.json(), null, 2));
-  await page.context().storageState({ path: `.auth/${tester(info)}.json` });
+  mkdirSync('../e2e-output/auth', { recursive: true });
+  writeFileSync(`../e2e-output/auth/${tester(info)}.me.json`, JSON.stringify(await r.json(), null, 2));
+  await page.context().storageState({ path: `../e2e-output/auth/${tester(info)}.json` });
 });

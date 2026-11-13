@@ -1,19 +1,19 @@
-﻿// Stress test of the live site with the test employees (frontend/.auth/stress-users.json).
+// Stress test of the live site with the test employees (e2e-output/auth/stress-users.json).
 // Each virtual user logs in once, then opens a random employee page every 2-4 s (the same API calls the
 // page makes, sent together like a browser does). Steps: 10, 25, 50 users, 2 minutes each.
 // Read-only: no check-in, no messages, nothing saved. Stops itself if the site is clearly overloaded:
 // more than 20% errors, or p95 above 10 s, over the last 30 s.
-// Run from the repo root:  node scripts/e2e/stress.mjs   ->  frontend/stress-results/stress.json
+// Run from the repo root:  node scripts/e2e/stress.mjs   ->  e2e-output/stress/stress.json
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ENV = 'frontend/.env.e2e.local';
 if (existsSync(ENV)) process.loadEnvFile(ENV);
 const BASE = process.env.E2E_BASE_URL || 'https://kjs-m.vercel.app';
-const USERS = JSON.parse(readFileSync('frontend/.auth/stress-users.json', 'utf8'));
+const USERS = JSON.parse(readFileSync('e2e-output/auth/stress-users.json', 'utf8'));
 const STAGES = (process.env.STRESS_STAGES || '10,25,50').split(',').map(Number);
 const STAGE_MS = Number(process.env.STRESS_STAGE_SECONDS || 120) * 1000;
 const TIMEOUT_MS = 30_000;
-const OUT = 'frontend/stress-results/stress.json'; // not test-results: Playwright empties that folder on every run
+const OUT = 'e2e-output/stress/stress.json'; // not results/: Playwright empties that folder on every run
 
 // Employee pages and the API calls each one makes when it opens
 const PAGES = {
@@ -143,7 +143,7 @@ const report = {
   error_kinds: Object.entries(api.filter((x) => !x.ok).reduce((m, x) => ({ ...m, [`${x.name} -> ${x.status}`]: (m[`${x.name} -> ${x.status}`] || 0) + 1 }), {}))
     .map(([what, count]) => ({ what, count })).sort((a, b) => b.count - a.count),
 };
-mkdirSync('frontend/stress-results', { recursive: true });
+mkdirSync('e2e-output/stress', { recursive: true });
 writeFileSync(OUT, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report.stages, null, 1));
 console.log(stop ? stopReason : 'Finished all steps.');
