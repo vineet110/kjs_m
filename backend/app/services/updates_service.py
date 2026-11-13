@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.modules import visible
 from app.core.permissions import effective_permissions
 from app.models.attendance import Regularization
+from app.models.chat import ChatMember, ChatMessage
 from app.models.lead import Lead, LeadNote
 from app.models.notification import Notification
 from app.models.user import User
@@ -37,6 +38,11 @@ async def counters(db: AsyncSession, user: User) -> dict:
     out["approvals"] = approvals if perms & {"staff.approve", "attendance.manage", "files.approve"} else None
 
     out["chat"] = await chat_service.unread_total(db, user) if visible(user, "chat") else None
+    # The newest message in any of my chats (muted ones too). The chat page catches up when it changes: the
+    # unread number alone misses muted chats and also moves when I read (CodeRabbit / review on #76).
+    out["chat_last"] = await db.scalar(
+        select(func.max(ChatMessage.id)).join(ChatMember, ChatMember.channel_id == ChatMessage.channel_id)
+        .where(ChatMember.user_id == user.id)) if visible(user, "chat") else None
 
     # New (not yet contacted) leads this person can see: everyone's with leads.view_all, else their own
     # plus unassigned ones (the same rule as the lead lists)
@@ -50,10 +56,10 @@ async def counters(db: AsyncSession, user: User) -> dict:
         # the badges use the counts: one lead leaving "new" while another arrives keeps every count equal
         # (CodeRabbit on #76). Over ALL leads, so a lead handed away from you still refreshes your list; it
         # is only a time, nothing about the lead.
+        # Both are index lookups: ix_leads_updated_at (migration 0023) and the notes' primary key
         last_lead = await db.scalar(select(func.max(Lead.updated_at)))
-        last_note = await db.scalar(select(func.max(LeadNote.created_at)))
-        newest = max((t for t in (last_lead, last_note) if t), default=None)
-        out["leads"]["changed"] = newest.isoformat() if newest else None
+        last_note = await db.scalar(select(func.max(LeadNote.id)))
+        out["leads"]["changed"] = f"{last_lead.isoformat() if last_lead else ''}|{last_note or 0}"
     else:
         out["leads"] = None
     return out

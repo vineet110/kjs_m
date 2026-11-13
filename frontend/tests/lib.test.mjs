@@ -545,7 +545,7 @@ test('updates: the timer stops when nothing listens; reset forgets the numbers',
 });
 
 // ---------- Reporting To search (lib/people.ts) ----------
-const { matchPeople } = await load('people');
+const { matchPeople, enterPick } = await load('people');
 
 test('matchPeople: finds by name or employee code, any case; starts-with first; at most 8', () => {
   const people = [
@@ -559,4 +559,22 @@ test('matchPeople: finds by name or employee code, any case; starts-with first; 
   assert.deepEqual(matchPeople(people, 'zz'), []);
   const many = Array.from({ length: 20 }, (_, i) => ({ id: i, name: `Person ${i}` }));
   assert.equal(matchPeople(many, '').length, 8);
+});
+
+test('enterPick: Enter picks only a highlighted match, never the first one by itself', () => {
+  const m = [{ id: 1, name: 'Ravi' }, { id: 2, name: 'Meena' }];
+  assert.equal(enterPick(-1, m), null); // just focused, nothing typed or highlighted
+  assert.equal(enterPick(1, m).id, 2);
+  assert.equal(enterPick(0, []), null); // nothing matches
+});
+
+test('updates: check() says whether its numbers are the current ones', async () => {
+  let release;
+  const env = fakeEnv([new Promise((r) => { release = r; }), counters(2), 'fail']);
+  const s = createUpdatesStore(env);
+  const older = s.check();
+  assert.equal(await s.check(), true); // the newer answer
+  release(counters(1));
+  assert.equal(await older, false); // overtaken: not current
+  assert.equal(await s.check(), false); // failed
 });

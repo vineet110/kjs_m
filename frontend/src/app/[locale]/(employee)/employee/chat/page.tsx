@@ -210,8 +210,9 @@ function ChatPageInner() {
 
   const socket = useChatSocket(onEvent, onConnect);
   // Without a live connection (on Vercel, until server push), the portal's 30-second check notices new
-  // messages: when my unread number changes, catch up the same way as after a reconnect.
-  useOnUpdate(me.id, (u) => u.chat, onConnect);
+  // messages: when the newest message in my chats changes (muted chats too; my own reads don't move it),
+  // catch up the same way as after a reconnect.
+  useOnUpdate(me.id, (u) => u.chat_last, onConnect);
 
   const loadOlder = useCallback(async () => {
     const id = activeRef.current;

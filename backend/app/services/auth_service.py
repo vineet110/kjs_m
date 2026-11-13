@@ -1,11 +1,11 @@
-﻿"""Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
+"""Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
 import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import String, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,11 +121,17 @@ async def list_users(db: AsyncSession, status: str | None) -> list[User]:
 
 
 async def decided(db: AsyncSession, status: str, limit: int = 200) -> list[dict]:
-    """Approved (active) or rejected accounts for the Approvals page, newest decision first, each with
-    `decided_by_name`. Admins are left out (nobody approves them)."""
-    rows = (await db.scalars(
-        select(User).where(User.status == status, User.role == "employee")
-        .order_by(User.approved_at.desc().nulls_last(), User.id.desc()).limit(limit))).all()
+    """Decided sign-ups for the Approvals page, newest decision first, each with `decided_by_name`.
+    "approved": accounts that really went through Approve (the activity log has "user.approved"), still
+    listed if disabled later; accounts an admin created directly never were sign-ups, so they are left out.
+    "rejected": rejected sign-ups. Admins are left out (nobody approves them)."""
+    q = select(User).where(User.role == "employee")
+    if status == "approved":
+        approved_ids = select(AuditLog.entity_id).where(AuditLog.entity_type == "user", AuditLog.action == "user.approved")
+        q = q.where(User.status.in_(("active", "disabled")), func.cast(User.id, String).in_(approved_ids))
+    else:
+        q = q.where(User.status == status)
+    rows = (await db.scalars(q.order_by(User.approved_at.desc().nulls_last(), User.id.desc()).limit(limit))).all()
     ids = {u.approved_by for u in rows if u.approved_by}
     names = dict((await db.execute(select(User.id, User.name).where(User.id.in_(ids)))).all()) if ids else {}
     return [UserOut.model_validate(u).model_dump() | {"decided_by_name": names.get(u.approved_by, "")} for u in rows]

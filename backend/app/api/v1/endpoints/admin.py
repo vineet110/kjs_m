@@ -185,7 +185,7 @@ async def approvals(user: User = Depends(current_user), db: AsyncSession = Depen
     signups = await auth_service.list_users(db, "pending") if staff else None
     return {
         "signups": [UserOut.model_validate(u).model_dump() for u in signups] if signups is not None else None,
-        "approved": await auth_service.decided(db, "active") if staff else None,
+        "approved": await auth_service.decided(db, "approved") if staff else None,
         "rejected": await auth_service.decided(db, "rejected") if staff else None,
         "regularizations": await attendance_service.list_regularizations(db, status="pending")
         if "attendance.manage" in perms and visible(user, "attendance") else None,

@@ -435,3 +435,11 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
       name or employee code (`PersonPicker`, `lib/people.ts`).
 4. Deploy order: merge, then run 0023 on Neon by hand (adds only), then deploy, then the live tests.
 5. Words for kb.md at fold time: rejected status, job title, update check (`/updates`), migration 0023.
+6. Review fixes (13 Nov, CodeRabbit 2 rounds + own review): picker Enter no longer picks the first person;
+   bell keeps a read hidden until the server has it and stops subtracting only on a fresh count; chat catches
+   up on `chat_last` (muted chats too, own reads don't trigger it); lead lists reload on `leads.changed`
+   (newest lead change or note); every list uses only its newest answer; Approved list = real approvals
+   from the activity log (direct-created accounts left out, disabled ones kept); one update check on page
+   load, not two; index `ix_leads_updated_at` added to 0023; stray byte-order marks removed.
+7. Lesson: never edit files with PowerShell Get-Content / Set-Content (it corrupted ✕ ☰ … and added
+   byte-order marks). Use Python or the editor.

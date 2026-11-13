@@ -1,4 +1,4 @@
-﻿"""Files: upload rules, owner access, download, public files, delete needs approval."""
+"""Files: upload rules, owner access, download, public files, delete needs approval."""
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal

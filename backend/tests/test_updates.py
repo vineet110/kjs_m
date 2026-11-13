@@ -117,3 +117,27 @@ async def test_bell_unread_only_drops_opened_notifications(client):
 async def test_updates_needs_login():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         assert (await c.get(URL, headers=HDR)).status_code == 401
+
+
+async def test_chat_last_moves_on_a_new_message_even_in_a_muted_chat(client):
+    """The chat page catches up on `chat_last` (newest message in my chats), not on the unread number, which
+    leaves muted chats out and moves when I read."""
+    await make_user("staff@kjs.test")
+    await make_user("a@kjs.test")
+    await make_user("b@kjs.test")
+    await login(client, "staff@kjs.test")
+    ids = [await _uid("a@kjs.test"), await _uid("b@kjs.test")]
+    ch = (await client.post("/api/v1/chat/channels", headers=HDR,
+                            json={"kind": "group", "name": "G", "description": "", "is_private": True, "member_ids": ids})).json()
+    async with AsyncSessionLocal() as db:  # mute it for me
+        from app.models.chat import ChatMember
+        m = await db.scalar(select(ChatMember).where(ChatMember.channel_id == ch["id"], ChatMember.user_id == await _uid("staff@kjs.test")))
+        m.muted = True
+        await db.commit()
+    before = (await client.get(URL, headers=HDR)).json()["chat_last"]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
+        await login(other, "a@kjs.test")
+        r = await other.post(f"/api/v1/chat/channels/{ch['id']}/messages", headers=HDR, json={"body": "hello", "mention_ids": []})
+        assert r.status_code in (200, 201), r.text
+    after = (await client.get(URL, headers=HDR)).json()
+    assert after["chat_last"] != before and after["chat"] == 0  # muted: no unread badge, but the page still catches up

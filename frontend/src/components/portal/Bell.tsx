@@ -17,12 +17,16 @@ export default function Bell({ meId }: { meId: number }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const latest = useRef(0); // only the newest list answer counts (CodeRabbit on #76)
+  const pendingNow = useRef(pending); // the latest `pending`, for answers that arrive later
+  pendingNow.current = pending;
+  const sent = useRef<Set<number>>(new Set()); // read saved on the server; waiting for a fresh count
 
   // A list asked for after a read leaves that notification out by itself, so it also clears `hidden`
   const load = useCallback(() => {
     const mine = ++latest.current;
     api<{ unread: number; items: Notice[] }>('/employee/notifications?unread=1')
-      .then((r) => { if (mine === latest.current) { setItems(r.items); setHidden(new Set()); } })
+      // A read still being saved may be in this answer: it stays hidden until the server has it
+      .then((r) => { if (mine === latest.current) { setItems(r.items); setHidden(new Set(pendingNow.current)); } })
       .catch(() => undefined);
   }, []);
   useEffect(() => { if (open) load(); }, [open, load]);
@@ -50,13 +54,21 @@ export default function Bell({ meId }: { meId: number }) {
     setHidden((h) => new Set([...h, ...ids]));
     setPending((p) => new Set([...p, ...ids]));
     api('/employee/notifications/read', { method: 'POST', body })
-      .then(() => pokeUpdates())
-      .then(() => setPending((p) => without(p, ids)), () => {
+      .then(() => { ids.forEach((i) => sent.current.add(i)); return pokeUpdates(); })
+      // Stop subtracting only once a fresh count is in; if this check failed, the next one does it (below)
+      .then((fresh) => { if (fresh) { setPending((p) => without(p, ids)); ids.forEach((i) => sent.current.delete(i)); } }, () => {
         setHidden((h) => without(h, ids));
         setPending((p) => without(p, ids));
         setErr('Could not mark them as read. Please try again.');
       });
   }
+  // A fresh count arrived (any check): reads already saved on the server are in it now
+  useEffect(() => {
+    if (!updates || sent.current.size === 0) return;
+    const done = [...sent.current];
+    sent.current.clear();
+    setPending((p) => without(p, done));
+  }, [updates]); // eslint-disable-line react-hooks/exhaustive-deps
   const readAll = () => markRead((items ?? []).map((n) => n.id), {});
   const readOne = (n: Notice) => { setOpen(false); markRead([n.id], { ids: [n.id] }); };
 

@@ -13,6 +13,7 @@ export type Updates = {
   notifications: number;
   approvals: number | null; // null = nothing for you to approve
   chat: number | null; // null = Chat switched off for you
+  chat_last: number | null; // the newest message in my chats (muted too): the chat page catches up when it moves
   // New leads you can see (badges), and `changed`: when any lead last changed or got a note (lists reload on
   // it, since one lead leaving "new" while another arrives keeps every count the same). null = no leads.view
   leads: { all: number; koko: number; internal: number; changed: string | null } | null;
@@ -40,10 +41,14 @@ export function createUpdatesStore(env: Env, every = UPDATE_EVERY_MS) {
     listeners.forEach((fn) => fn());
   };
 
-  /** Asks now. Only the newest answer counts (a slow older one can't put an old number back). */
-  function check() {
+  /** Asks now. Only the newest answer counts (a slow older one can't put an old number back). Resolves to true
+   *  when this answer's numbers are now the current ones; false when it failed or a newer one took over. */
+  function check(): Promise<boolean> {
     const mine = ++latest;
-    return env.fetch().then((r) => { if (mine === latest) set(r); }, () => undefined); // a failed check changes nothing
+    return env.fetch().then(
+      (r) => { if (mine !== latest) return false; set(r); return true; },
+      () => false, // a failed check changes nothing
+    );
   }
 
   const tick = () => { if (env.isVisible()) check(); };
@@ -90,9 +95,9 @@ function theStore() {
 }
 
 /** Check now, e.g. right after you approved someone or read a chat, so your own badges update at once.
- *  Resolves when the new numbers are in. */
-export function pokeUpdates(): Promise<void> {
-  return store?.check() ?? Promise.resolve();
+ *  Resolves to true when fresh numbers are in (false: the check failed or was overtaken). */
+export function pokeUpdates(): Promise<boolean> {
+  return store?.check() ?? Promise.resolve(false);
 }
 
 /** The latest counters for this account (null until the first answer). */
@@ -101,7 +106,9 @@ export function useUpdates(accountId: number): Updates | null {
   // Another account on this tab: drop the old numbers and ask again (after drawing, never during it)
   useEffect(() => {
     if (storeFor === accountId) return;
+    const first = storeFor === null; // first account of this tab: subscribe() is already asking, nothing to forget
     storeFor = accountId;
+    if (first) return;
     s.reset();
     s.check();
   }, [accountId, s]);

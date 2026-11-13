@@ -1,9 +1,10 @@
 'use client';
 // Pick one colleague by typing part of their name or employee code (instead of scrolling a long list).
-// Arrow keys move through the matches, Enter picks, Escape closes. Empty = nobody ("No one" in `emptyLabel`).
+// Arrow keys move through the matches, Enter picks the highlighted one (only once you typed or used the
+// arrows; otherwise Enter closes the list and submits the form as usual), Escape closes. Empty = nobody ("No one" in `emptyLabel`).
 // A small combobox of our own (no extra package); the value is the person's id as a string, '' for nobody.
 import { useId, useMemo, useState } from 'react';
-import { matchPeople, type Person } from '@/lib/people';
+import { enterPick, matchPeople, type Person } from '@/lib/people';
 
 export default function PersonPicker({ id, people, value, onChange, emptyLabel }: {
   id: string; people: Person[]; value: string; onChange: (id: string) => void; emptyLabel: string;
@@ -11,7 +12,7 @@ export default function PersonPicker({ id, people, value, onChange, emptyLabel }
   const listId = useId();
   const picked = people.find((p) => String(p.id) === value) ?? null;
   const [text, setText] = useState<string | null>(null); // null = not typing: the input shows the picked person
-  const [at, setAt] = useState(0);
+  const [at, setAt] = useState(-1); // -1 = nothing highlighted yet
   const open = text !== null;
   const matches = useMemo(() => (open ? matchPeople(people, text) : []), [open, people, text]);
   const label = (p: Person) => (p.employee_code ? `${p.name} (${p.employee_code})` : p.name);
@@ -26,10 +27,15 @@ export default function PersonPicker({ id, people, value, onChange, emptyLabel }
       e.preventDefault();
       if (!open) setText('');
       const n = matches.length;
-      if (n) setAt((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n));
+      if (n) setAt((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i <= 0 ? n - 1 : i - 1)));
     } else if (e.key === 'Enter' && open) {
-      e.preventDefault(); // not the form's submit
-      if (matches[at]) choose(matches[at]);
+      const p = enterPick(at, matches);
+      if (!p) {
+        setText(null); // nothing chosen: close, and let Enter submit the form as usual
+        return;
+      }
+      e.preventDefault(); // picking, not submitting
+      choose(p);
     } else if (e.key === 'Escape' && open) {
       e.preventDefault();
       setText(null);
@@ -48,8 +54,8 @@ export default function PersonPicker({ id, people, value, onChange, emptyLabel }
           aria-activedescendant={open && matches[at] ? `${listId}-${matches[at].id}` : undefined}
           value={open ? text : picked ? label(picked) : ''}
           placeholder={picked ? undefined : `${emptyLabel} · type a name or code`}
-          onFocus={() => { setText(''); setAt(0); }}
-          onChange={(e) => { setText(e.target.value); setAt(0); }}
+          onFocus={() => { setText(''); setAt(-1); }}
+          onChange={(e) => { setText(e.target.value); setAt(e.target.value.trim() ? 0 : -1); }}
           onKeyDown={onKey}
           onBlur={() => setTimeout(() => setText(null), 150)} // after a click on a match
           className="input"

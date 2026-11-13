@@ -1,4 +1,4 @@
-﻿"""Staff management (feat/employee-permissions): reject sign-ups with a reason, approved / rejected lists,
+"""Staff management (feat/employee-permissions): reject sign-ups with a reason, approved / rejected lists,
 editing an approved employee's permissions (admin only), job titles, and "Admin access"."""
 from httpx import ASGITransport, AsyncClient
 
@@ -202,3 +202,20 @@ async def test_admin_access_only_given_by_an_admin(client):
             "branch": "HQ", "role": "admin"}
     assert (await c.post(f"{API}/users", headers=HDR, json=body)).status_code == 403
     await c.aclose()
+
+
+async def test_approved_list_has_real_approvals_only_and_keeps_disabled_ones(client):
+    """Accounts an admin created directly were never sign-ups: not in Approved. An approved person who is
+    disabled later stays in the list (it is the decision history)."""
+    await make_user(ADMIN, role="admin")
+    await _signup(client)
+    await login(client, ADMIN)
+    uid = await _id(client, "new@kjs.test")
+    await client.post(f"{API}/users/{uid}/approve", headers=HDR, json={"permissions": []})
+    made = await client.post(f"{API}/users", headers=HDR, json={"name": "Made Direct", "email": "direct@kjs.test",
+                             "phone": "+91 98765 33333", "employee_code": "D1", "branch": "HQ", "role": "employee"})
+    assert made.status_code == 201, made.text
+    await client.post(f"{API}/users/{uid}/status", headers=HDR, json={"status": "disabled"})
+    approved = (await client.get(f"{API}/approvals", headers=HDR)).json()["approved"]
+    assert [u["email"] for u in approved] == ["new@kjs.test"]
+    assert approved[0]["status"] == "disabled"

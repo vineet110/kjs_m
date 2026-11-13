@@ -101,7 +101,9 @@ export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?
     try {
       let id = user?.id;
       if (user) {
-        onSaved?.(await api<StaffUser>(`/admin/users/${user.id}`, { method: 'PATCH', body }));
+        // Save first, then tell the page: inside onSaved?.(…) the save would be skipped without a callback
+        const saved = await api<StaffUser>(`/admin/users/${user.id}`, { method: 'PATCH', body });
+        onSaved?.(saved);
       } else {
         const r = await api<{ user: StaffUser; temp_password: string }>('/admin/users', { method: 'POST', body: { ...body, email: v.email } });
         id = r.user.id;
