@@ -60,3 +60,6 @@ backend/storage-e2e/
 .claude/skills/neon/
 .claude/skills/neon-postgres/
 skills-lock.json
+
+# Everything the live-site tests write: saved logins, test passwords, results, reports
+e2e-output/
