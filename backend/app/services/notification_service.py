@@ -22,6 +22,7 @@ from app.core.permissions import effective_permissions
 from app.jobs.runner import job
 from app.models.notification import Notification
 from app.models.user import User
+from app.services import email_service
 
 log = logging.getLogger(__name__)
 
@@ -110,7 +111,9 @@ async def send_emails(db: AsyncSession) -> dict:
         .with_for_update(of=Notification, skip_locked=True)
     )).all()
     sent = skipped = failed = 0
-    email_on = "email" in cfg().alerts.channels and bool(settings.SMTP_HOST)
+    # Brevo's HTTP API when BREVO_API_KEY is set (Render's free tier blocks SMTP), else SMTP, else skipped
+    use_brevo = email_service.enabled()
+    email_on = "email" in cfg().alerts.channels and (use_brevo or bool(settings.SMTP_HOST))
     for n, u in rows:  # claim the whole batch first, so nobody else picks these rows
         if email_on and u.notify_email and u.status == "active":
             n.email_status = "sending"
@@ -118,7 +121,7 @@ async def send_emails(db: AsyncSession) -> dict:
             n.email_status = "skipped"
             skipped += 1
     await db.commit()
-    conn, started, server_down = None, time.monotonic(), False
+    conn, http, started, server_down = None, None, time.monotonic(), False
     try:
         for n, u in rows:
             if n.email_status != "sending":
@@ -130,6 +133,24 @@ async def send_emails(db: AsyncSession) -> dict:
             # no link to a portal area hidden from this person (config/modules.ini)
             link = f"\n\nOpen: {settings.PUBLIC_BASE_URL}{n.link}" if link_for(u, n.link) else ""
             note = VISITOR_TEXT_NOTE if n.kind.startswith(("lead.", "partner.")) else ""
+            subject, text = f"[KJS] {n.title}", f"{n.body}{link}{note}"
+            if use_brevo:
+                http = http or email_service.client()  # one connection to Brevo for the whole batch
+                try:
+                    await email_service.send(http, u.email, subject, text)
+                    n.email_status = "sent"
+                    sent += 1
+                except email_service.BrevoDown as e:
+                    # Same rule as an unreachable SMTP server (CR10): back in the queue without using up a
+                    # try, the rest of the batch too (wrong key, IP not authorised, Brevo down...)
+                    server_down = True
+                    n.email_status = "pending"
+                    log.warning("email.server_down", extra={"provider": "brevo", "reason": str(e)[:200]})
+                except Exception as e:  # this one email was refused: it uses up a try, the rest still go
+                    _failed_try(n, e)
+                    failed += 1
+                await db.commit()
+                continue
             if conn is None:
                 try:
                     conn = await asyncio.to_thread(_smtp_connect)
@@ -143,18 +164,25 @@ async def send_emails(db: AsyncSession) -> dict:
                     log.warning("email.server_down", extra={"reason": f"{type(e).__name__}: {str(e)[:200]}"})
                     continue
             try:
-                await asyncio.to_thread(conn.send_message, _message(u.email, f"[KJS] {n.title}", f"{n.body}{link}{note}"))
+                await asyncio.to_thread(conn.send_message, _message(u.email, subject, text))
                 n.email_status = "sent"
                 sent += 1
             except Exception as e:  # any error stays with this one email; the rest still go out
                 _close(conn)
                 conn = None  # the connection may be broken: open a fresh one for the next email
-                n.email_attempts += 1
-                n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
+                _failed_try(n, e)
                 failed += 1
-                log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
-                                                   "reason": f"{type(e).__name__}: {str(e)[:200]}"})
             await db.commit()
     finally:
         await asyncio.to_thread(_close, conn)
+        if http is not None:
+            await http.aclose()
     return {"sent": sent, "skipped": skipped, "failed": failed}
+
+
+def _failed_try(n: Notification, e: Exception) -> None:
+    """One try used up: back in the queue, or "failed" after MAX_EMAIL_ATTEMPTS."""
+    n.email_attempts += 1
+    n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
+    log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
+                                       "reason": f"{type(e).__name__}: {str(e)[:200]}"})
