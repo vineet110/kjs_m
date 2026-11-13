@@ -15,11 +15,11 @@ from app.core.permissions import PERMISSIONS, effective_permissions
 from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
-from app.schemas.auth import ApproveIn, UserCreateIn, UserOut, UserPatchIn
+from app.schemas.auth import ApproveIn, JobTitleIn, PermissionsIn, RejectIn, UserCreateIn, UserOut, UserPatchIn
 from app.schemas.catalog import ProductIn, ProductOut, ProductPatchIn
 from app.schemas.lead import LeadOut
 from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
-                          catalog_service, file_service, lead_service)
+                          catalog_service, file_service, job_title_service, lead_service)
 
 router = APIRouter()
 
@@ -94,6 +94,36 @@ async def set_user_status(
     return await auth_service.set_status(db, admin, user_id, data.status)
 
 
+@router.post("/users/{user_id}/reject", response_model=UserOut)
+async def reject_user(
+    user_id: int, data: RejectIn,
+    approver: User = Depends(require_permission("staff.approve")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await auth_service.reject(db, approver, user_id, data.reason)
+
+
+@router.put("/users/{user_id}/permissions", response_model=UserOut)
+async def set_user_permissions(
+    user_id: int, data: PermissionsIn,
+    admin: User = Depends(require_permission("staff.approve")),  # and admin only (auth_service)
+    db: AsyncSession = Depends(get_db),
+):
+    return await auth_service.set_permissions(db, admin, user_id, data.permissions)
+
+
+@router.get("/job-titles")
+async def job_titles(_: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
+    return await job_title_service.list_titles(db)
+
+
+@router.post("/job-titles", status_code=201)
+async def add_job_title(data: JobTitleIn, admin: User = Depends(require_permission("staff.approve")),
+                        db: AsyncSession = Depends(get_db)):
+    """Admin only (job_title_service). An existing title (any case) comes back as it is spelled."""
+    return {"name": await job_title_service.add(db, admin, data.name)}
+
+
 @router.post("/products", response_model=ProductOut, status_code=201, dependencies=area("website_admin"))
 async def create_product(
     data: ProductIn,
@@ -148,11 +178,15 @@ async def sla_settings(_: User = Depends(require_permission("leads.view_all"))):
 
 @router.get("/approvals")
 async def approvals(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """One inbox: each section only if you may approve it (null = not yours)."""
+    """One inbox: each section only if you may approve it (null = not yours). `approved` and `rejected`
+    are the decided sign-ups (newest decision first), with the name of who decided."""
     perms = effective_permissions(user.role, user.permissions)
-    signups = await auth_service.list_users(db, "pending") if "staff.approve" in perms else None
+    staff = "staff.approve" in perms
+    signups = await auth_service.list_users(db, "pending") if staff else None
     return {
         "signups": [UserOut.model_validate(u).model_dump() for u in signups] if signups is not None else None,
+        "approved": await auth_service.decided(db, "active") if staff else None,
+        "rejected": await auth_service.decided(db, "rejected") if staff else None,
         "regularizations": await attendance_service.list_regularizations(db, status="pending")
         if "attendance.manage" in perms and visible(user, "attendance") else None,
         "file_deletes": await file_service.delete_requests(db, user) if "files.approve" in perms else None,
