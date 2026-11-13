@@ -5,6 +5,7 @@ resolve_minutes. The clock only runs in working hours (shift_start–shift_end i
 config/app.ini, Mon–Sat minus holidays), so a lead that arrives on Saturday night is
 due on Monday morning, not "overdue" at midnight.
 """
+import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 
@@ -21,7 +22,8 @@ from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
-from app.services import audit_service, file_service, koko_service, notification_service, task_service
+from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
+                          task_service)
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
@@ -267,6 +269,30 @@ async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) ->
     await db.commit()
     log.info("lead.created", extra={"lead_id": lead.id, "source": "internal"})
     return (await list_for(db, user, all_leads=True, limit=1, lead_ids=[lead.id]))[0]
+
+
+async def read_lead_file(db: AsyncSession, filename: str, data: bytes) -> dict:
+    """An Excel / CSV file read for the New internal lead form (see lead_reader). Nothing is saved."""
+    cats = (await db.scalars(select(Category))).all()
+    names = {c.slug.lower(): c.slug for c in cats} | {c.name.lower(): c.slug for c in cats}
+    out = await asyncio.to_thread(lead_reader.read, filename, data, names)  # openpyxl is slow and blocking
+    # Counts only: the values are customers' personal data, which never go in the logs
+    log.info("lead.file_read", extra={"leads": len(out["leads"]), "more_rows": out["more_rows"]})
+    return out
+
+
+async def same_person(db: AsyncSession, user: User, phone: str, email: str) -> dict:
+    """Before saving a lead: does this person already have leads (same phone or email, the Contacts rule)?
+    Only leads this user may see are counted, so it never tells anyone about someone else's buyers."""
+    probe = Lead(phone=phone.strip()[:40], email=email.strip()[:255])  # never added to the database
+    if not _match_keys(probe):
+        return {"count": 0, "lead_id": None}
+    q = _visible(select(Lead).order_by(Lead.created_at.desc(), Lead.id.desc()), user).limit(5000)
+    for group in group_contacts([probe, *(await db.scalars(q)).all()]):
+        if group[0] is probe:
+            rest = group[1:]
+            return {"count": len(rest), "lead_id": rest[0].id if rest else None}
+    return {"count": 0, "lead_id": None}
 
 
 async def lead_tasks(db: AsyncSession, user: User, lead_id: int) -> list[dict]:

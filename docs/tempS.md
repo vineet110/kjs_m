@@ -29,3 +29,13 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Test fixtures updated to be real whole files. A fake `.pdf` (a web page) is now refused at upload instead of only sandboxed at preview.
 - Tests: full suite 387 passed. Frontend `tsc` clean. `scripts/e2e/api_e2e.py` updated, not run yet.
 - Next (new branch): read lead data from Excel/CSV, address field, new-column pop-up with audit log, then Tesseract for images (needs Vineet's OK for `pytesseract` + Dockerfile change).
+
+## Fill a lead from Excel / CSV (branch feat/lead-from-file, Part A, 13 Nov)
+
+- Built on top of `feat/internal-lead-files` (uses its `file_check`). Not committed yet.
+- New `backend/app/services/lead_reader.py`: reads .xlsx / .csv into the fields of `InternalLeadIn`. Understands a table (headers on top, person picks the row, max 50) and a card ("Phone | +91 ..." per row). Loose column names ("Mobile No." = phone, "Firm" = company). Unknown columns come back as `extra` (shown as "Not saved" for now; Part B adds the pop-up).
+- Endpoints: `POST /employee/leads/read-file` (nothing saved, 60 per person per hour) and `GET /employee/leads/same-person` (counts only leads you can see).
+- Form: "Fill from Excel / CSV" button. Fields the file didn't have show "Not specified" (placeholder, saved as empty). The source file is attached to the lead. Before saving, if the phone/email already has leads: "Open the existing lead" or "Save as a new enquiry".
+- Security: file_check, values only (no formulas), row/column/cell limits, no customer data in logs.
+- Tests: 7 new in `tests/test_lead_reader.py`. Lead tests 56 passed, `tsc` clean. Browser click-through not done.
+- Waiting on Vineet: `defusedxml` (safer Excel XML), migration for `extra` details (Part B), Tesseract (Part C).
