@@ -5,10 +5,11 @@ resolve_minutes. The clock only runs in working hours (shift_start–shift_end i
 config/app.ini, Mon–Sat minus holidays), so a lead that arrives on Saturday night is
 due on Monday morning, not "overdue" at midnight.
 """
+import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -21,7 +22,8 @@ from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
-from app.services import audit_service, koko_service, notification_service, task_service
+from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
+                          task_service)
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
@@ -269,6 +271,44 @@ async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) ->
     return (await list_for(db, user, all_leads=True, limit=1, lead_ids=[lead.id]))[0]
 
 
+async def read_lead_file(db: AsyncSession, filename: str, data: bytes) -> dict:
+    """An Excel / CSV file read for the New internal lead form (see lead_reader). Nothing is saved."""
+    cats = (await db.scalars(select(Category))).all()
+    names = {c.slug.lower(): c.slug for c in cats} | {c.name.lower(): c.slug for c in cats}
+    out = await asyncio.to_thread(lead_reader.read, filename, data, names)  # openpyxl is slow and blocking
+    # Counts only: the values are customers' personal data, which never go in the logs
+    log.info("lead.file_read", extra={"leads": len(out["leads"]), "more_rows": out["more_rows"]})
+    return out
+
+
+async def same_person(db: AsyncSession, user: User, phone: str, email: str) -> dict:
+    """Before saving a lead: does this person already have leads (same phone or email, the Contacts rule)?
+    Only leads this user may see are counted, so it never tells anyone about someone else's buyers.
+    Asks the database for matching leads (not a newest-N list), then follows the links the Contacts page
+    follows: a lead found by phone may carry an email that ties in more leads."""
+    keys = set(_match_keys(Lead(phone=phone.strip()[:40], email=email.strip()[:255])))
+    digits = func.regexp_replace(Lead.phone, "[^0-9]", "", "g")  # the same digits _match_keys compares
+    found: dict[int, Lead] = {}
+    for _ in range(10):  # each round adds the keys of newly found leads; 10 rounds is far more than real data
+        phones = [k[2:] for k in keys if k.startswith("p:")]
+        emails = [k[2:] for k in keys if k.startswith("e:")]
+        if not phones and not emails:
+            break
+        q = _visible(select(Lead).where(or_(digits.in_(phones), func.lower(Lead.email).in_(emails))), user)
+        if found:
+            q = q.where(Lead.id.not_in(list(found)))
+        new = (await db.scalars(q)).all()
+        if not new:
+            break
+        for lead in new:
+            found[lead.id] = lead
+            keys.update(_match_keys(lead))
+    if not found:
+        return {"count": 0, "lead_id": None}
+    newest = max(found.values(), key=lambda x: (x.created_at, x.id))
+    return {"count": len(found), "lead_id": newest.id}
+
+
 async def lead_tasks(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
     """Tasks made from this lead (anyone's: whoever may see the lead sees what is planned on it)."""
     await _lead_for(db, user, lead_id)
@@ -299,6 +339,35 @@ async def _lead_for(db: AsyncSession, user: User, lead_id: int, lock: bool = Fal
     if lead is None or not (_can_see_all(user) or lead.assigned_to in (None, user.id)):
         raise AppError(404, "not_found", "Lead not found.")
     return lead
+
+
+def _lead_id(owner_id: str) -> int | None:
+    """'7' and '007' -> 7. Anything else ('abc', '²', a number too big for the database) -> None."""
+    if not (owner_id.isascii() and owner_id.isdigit()) or len(owner_id) > 10:
+        return None
+    n = int(owner_id)
+    return n if 0 < n <= 2**31 - 1 else None  # leads.id is a database "integer"
+
+
+def _clean_lead_id(owner_id: str) -> str:
+    n = _lead_id(owner_id)
+    return str(n) if n else owner_id  # a bad id stays as it is, and the access check then refuses it
+
+
+async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
+    """Files on a lead (a visiting card, a price list): whoever can see the lead can see its files.
+    Adding or asking to delete needs the lead to be yours (or leads.view_all), not just unassigned."""
+    lead_id = _lead_id(owner_id)
+    if "leads.view" not in effective_permissions(user.role, user.permissions) or lead_id is None:
+        return False
+    try:
+        lead = await _lead_for(db, user, lead_id)
+    except AppError:
+        return False
+    return action == "read" or lead.assigned_to == user.id or _can_see_all(user)
+
+
+file_service.register_owner("lead", _files_access, clean=_clean_lead_id)
 
 
 # ---------- Working a lead ----------

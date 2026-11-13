@@ -42,6 +42,7 @@ class AppIni(BaseModel):
     page_size: int = Field(50, ge=1, le=500)
     lead_rate_per_hour: int = Field(5, ge=1)  # enquiries per IP per hour
     koko_rate_per_hour: int = Field(40, ge=1)  # chat messages per IP per hour
+    lead_file_reads_per_hour: int = Field(60, ge=1)  # Excel / CSV files read into the lead form, per person
     login_failures_per_ip: int = Field(100, ge=1)  # wrong passwords per network per 15 min (all emails)
     signups_per_ip_per_hour: int = Field(30, ge=1)  # the office shares one address: go-live day
     jobs_enabled: bool = True
@@ -117,7 +118,8 @@ class LoggingIni(BaseModel):
 class StorageIni(BaseModel):
     max_upload_mb: int = Field(25, ge=1, le=500)
     allowed_types: list[str] = Field(default_factory=lambda: [
-        "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip"])
+        "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip",
+        "pptx", "ppt", "gif", "heic", "mp4", "mov"])
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody

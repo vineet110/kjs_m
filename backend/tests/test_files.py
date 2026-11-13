@@ -5,7 +5,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.catalog import Category, Product
 from tests.conftest import HDR, login, make_user
 
-PDF = ("spec.pdf", b"%PDF-1.4 test", "application/pdf")
+PDF = ("spec.pdf", b"%PDF-1.4 test %%EOF", "application/pdf")
 
 
 async def _product(slug: str) -> None:
@@ -31,7 +31,7 @@ async def test_upload_list_download(client):
     fid = r.json()["id"]
     assert [f["name"] for f in (await client.get("/api/v1/files?owner_type=product&owner_id=coffee-stick")).json()] == ["spec.pdf"]
     d = await client.get(f"/api/v1/files/{fid}/download")
-    assert d.status_code == 200 and d.content == b"%PDF-1.4 test" and "attachment" in d.headers["content-disposition"]
+    assert d.status_code == 200 and d.content == b"%PDF-1.4 test %%EOF" and "attachment" in d.headers["content-disposition"]
 
 
 async def test_upload_needs_owner_permission(client):
@@ -54,7 +54,7 @@ async def test_public_files_only_when_marked_public(client):
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"}, headers=HDR)).json()
     private_id = (await _upload(client, owner_id=p["slug"])).json()["id"]
-    public_id = (await _upload(client, owner_id=p["slug"], file=("photo.png", b"\x89PNG..", "image/png"), public=True)).json()["id"]
+    public_id = (await _upload(client, owner_id=p["slug"], file=("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png"), public=True)).json()["id"]
     client.cookies.clear()
     assert (await client.get(f"/api/v1/public/files/{private_id}")).status_code == 404
     r = await client.get(f"/api/v1/public/files/{public_id}")
@@ -128,13 +128,14 @@ async def test_view_shows_the_file_in_the_page_to_allowed_staff_only(client):
     csv = (await _upload(client, file=("prices.csv", b"item,qty\nA,1\n", "text/csv"))).json()["id"]
 
     r = await client.get(f"/api/v1/files/{pdf}/view")
-    assert r.status_code == 200 and r.content == b"%PDF-1.4 test"
+    assert r.status_code == 200 and r.content == b"%PDF-1.4 test %%EOF"
     assert r.headers["content-type"] == "application/pdf" and r.headers["content-disposition"] == "inline"
     assert r.headers["cache-control"] == "private, no-store" and r.headers["x-content-type-options"] == "nosniff"
     # Chrome's PDF viewer won't open a sandboxed PDF: a real PDF may only be framed by our own pages
     assert r.headers["content-security-policy"] == "frame-ancestors 'self'"
-    fake = (await _upload(client, file=("trick.pdf", b"<html><script>x</script>", "application/pdf"))).json()["id"]
-    assert (await client.get(f"/api/v1/files/{fake}/view")).headers["content-security-policy"] == "sandbox"
+    # A web page dressed up as a PDF is now refused at upload (the view's sandbox still guards older files)
+    fake = await _upload(client, file=("trick.pdf", b"<html><script>x</script>", "application/pdf"))
+    assert fake.status_code == 422 and fake.json()["code"] == "file_broken"
     r = await client.get(f"/api/v1/files/{csv}/view")
     assert r.status_code == 200 and r.content == b"item,qty\nA,1\n"
     assert r.headers["content-security-policy"] == "sandbox" and r.headers["content-type"].startswith("text/csv")
@@ -152,7 +153,7 @@ async def test_view_of_a_board_file_only_for_people_on_the_board(client):
     await login(client, "boss@kjsindia.com")
     assert (await client.post("/api/v1/boards", json=board_body(pack, pack), headers=HDR)).status_code == 201
     fid = (await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                             files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()["id"]
+                             files={"file": ("po.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
     await login(client, "pack@kjsindia.com")
     assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 200
     await login(client, "other@kjsindia.com")

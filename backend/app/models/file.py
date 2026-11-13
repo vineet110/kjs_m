@@ -18,7 +18,7 @@ class StoredFile(Base, TimestampMixin):
     content_type: Mapped[str] = mapped_column(String(100))
     size: Mapped[int] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64))
-    owner_type: Mapped[str] = mapped_column(String(30))  # board | product
+    owner_type: Mapped[str] = mapped_column(String(30))  # board | product | user (profile photo) | lead
     owner_id: Mapped[str] = mapped_column(String(60))
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)  # product images on the website
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
