@@ -12,7 +12,8 @@ class Lead(Base, TimestampMixin):
     distributors, private-label brands)."""
 
     __tablename__ = "leads"
-    __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"))
+    __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"),
+                      Index("ix_leads_updated_at", "updated_at"))  # the 30-second update check (migration 0023)
 
     source: Mapped[str] = mapped_column(String(30))  # enquiry_form | price_sheet | koko | internal (typed in by staff)
     name: Mapped[str] = mapped_column(String(120))

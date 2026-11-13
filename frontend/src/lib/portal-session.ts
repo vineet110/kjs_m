@@ -1,5 +1,6 @@
 // Small shared state for the staff portal, in this browser tab only.
 import type { Me } from './api';
+import { pokeUpdates } from './updates';
 
 // ----- The remembered account -----
 // Admin and employee pages each have their own frame (PortalShell), so moving between them starts a new
@@ -24,16 +25,8 @@ export function forgetAccount() {
 }
 
 // ----- "Something was approved" -----
-// The sidebar's Approvals badge listens for this, so its count drops right after an approve / reject on
-// the same page (not only after moving to another page; PR #17 review).
-const APPROVALS_CHANGED = 'kjs:approvals-changed';
-
+// Right after an approve / reject on this page, the portal checks for updates at once (lib/updates.ts), so
+// the sidebar's Approvals badge drops now, not at the next 30-second check (PR #17 review).
 export function approvalsChanged() {
-  window.dispatchEvent(new Event(APPROVALS_CHANGED));
-}
-
-/** Calls `fn` on every approvalsChanged(); returns the function that stops listening. */
-export function onApprovalsChanged(fn: () => void) {
-  window.addEventListener(APPROVALS_CHANGED, fn);
-  return () => window.removeEventListener(APPROVALS_CHANGED, fn);
+  pokeUpdates();
 }

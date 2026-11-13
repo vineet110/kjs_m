@@ -1,8 +1,10 @@
 'use client';
 // Leads list used by "My day" (own + unassigned) and the admin "All leads" page (everyone's).
 // Each card shows the SLA timer; logging a call/email or marking "contacted" stops the respond timer.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, type Colleague, type Lead, type LeadNote } from '@/lib/api';
+import { useOnUpdate } from '@/lib/updates';
+import { useMe } from './PortalShell';
 import { fmtIST, Pill } from './ui';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
@@ -20,14 +22,19 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
   const [loadErr, setLoadErr] = useState<unknown>(null);
   const [staffErr, setStaffErr] = useState<unknown>(null);
 
-  // A failed refresh keeps the list already shown and puts the error with "Try again" above it
+  // A failed refresh keeps the list already shown and puts the error with "Try again" above it.
+  // Only the newest answer counts: a slower older one (e.g. before a filter change) can't replace it.
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const mine = ++latest.current;
     setLoadErr(null);
     const qs = new URLSearchParams();
     if (status) qs.set('status', status);
     if (admin && sla) qs.set('sla', sla);
     if (admin && owner) qs.set('owner', owner);
-    api<Lead[]>(`${admin ? '/admin/leads' : '/employee/leads'}?${qs}`).then(setLeads).catch(setLoadErr);
+    api<Lead[]>(`${admin ? '/admin/leads' : '/employee/leads'}?${qs}`)
+      .then((r) => { if (mine === latest.current) setLeads(r); })
+      .catch((e) => { if (mine === latest.current) setLoadErr(e); });
   }, [status, sla, owner, admin]);
   useEffect(() => {
     load();
@@ -39,9 +46,11 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
   useEffect(() => {
     loadStaff();
   }, [loadStaff]);
-  // Timers move: refresh every minute.
+  // New leads: reload as soon as the portal's 30-second check sees the number change
+  useOnUpdate(useMe().id, (u) => u.leads?.changed, load); // a lead changed or arrived: reload
+  // SLA timers move: refresh every minute, only while the tab is in front
   useEffect(() => {
-    const t = setInterval(load, 60_000);
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 60_000);
     return () => clearInterval(t);
   }, [load]);
 

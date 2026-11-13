@@ -251,7 +251,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
               <span className="font-semibold text-sm text-slate-800">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <Bell />
+              <Bell meId={me.id} />
               {/* Avatar menu with Log out, on every screen: the sidebar (with its own Log out) starts hidden */}
               <AccountMenu me={me} onLogout={() => setConfirmLogout(true)} />
             </div>

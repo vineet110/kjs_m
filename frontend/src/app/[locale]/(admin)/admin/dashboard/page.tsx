@@ -5,10 +5,9 @@ import { useCallback, useEffect, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser as User } from '@/components/portal/ApproveCard';
 import { useMe } from '@/components/portal/PortalShell';
 import StatTile from '@/components/portal/StatTile';
-import { useToast } from '@/components/portal/Toast';
 import { EmptyState } from '@/components/portal/ui';
 import { Icon, type IconName } from '@/components/portal/icons';
-import { api, ApiFailure } from '@/lib/api';
+import { api } from '@/lib/api';
 import { canSee } from '@/lib/modules';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
@@ -39,7 +38,6 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [perms, setPerms] = useState<Perm[]>([]);
   const [error, setError] = useState<unknown>(null);
-  const toast = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -58,7 +56,7 @@ export default function AdminDashboard() {
   if (!stats) return <Loading />;
 
   const pending = users.filter((u) => u.status === 'pending');
-  const others = users.filter((u) => u.status !== 'pending');
+  const others = users.filter((u) => u.status !== 'pending' && u.status !== 'rejected'); // rejected: in Approvals
   // Links only to pages this person can open (the sidebar hides the others too)
   const can = (p: string) => me.role === 'admin' || me.permissions.includes(p);
   const leadsHref = can('leads.view_all') ? '/admin/leads' : '/employee/dashboard';
@@ -142,22 +140,9 @@ export default function AdminDashboard() {
                   <td className="p-3 text-xs text-slate-500">{u.role === 'admin' ? 'all' : u.permissions.join(', ')}</td>
                   <td className="p-3">{u.status}</td>
                   <td className="p-3 text-right">
-                    {u.role !== 'admin' && (
-                      <button
-                        className="text-xs underline"
-                        onClick={async () => {
-                          const disable = u.status === 'active';
-                          try {
-                            await api(`/admin/users/${u.id}/status`, { method: 'POST', body: { status: disable ? 'disabled' : 'active' } });
-                            toast(disable ? `${u.name} can no longer log in` : `${u.name} can log in again`);
-                            load();
-                          } catch (e) {
-                            toast(e instanceof ApiFailure ? e.message : 'Could not change it. Please try again.', 'error');
-                          }
-                        }}
-                      >
-                        {u.status === 'active' ? 'Disable' : 'Enable'}
-                      </button>
+                    {/* Staff are managed in one place: Manage employees (edit, permissions, disable / enable) */}
+                    {me.role === 'admin' && u.id !== me.id && (
+                      <Link href={`/admin/users/${u.id}`} className="text-xs font-semibold underline">Edit</Link>
                     )}
                   </td>
                 </tr>
