@@ -39,9 +39,11 @@ async def users_with(db: AsyncSession, permission: str) -> list[int]:
     return [u.id for u in users if permission in effective_permissions(u.role, u.permissions)]
 
 
-async def list_mine(db: AsyncSession, user: User, limit: int = 30) -> dict:
-    rows = (await db.scalars(select(Notification).where(Notification.user_id == user.id)
-                             .order_by(Notification.id.desc()).limit(limit))).all()
+async def list_mine(db: AsyncSession, user: User, limit: int = 30, unread_only: bool = False) -> dict:
+    q = select(Notification).where(Notification.user_id == user.id)
+    if unread_only:
+        q = q.where(Notification.read_at.is_(None))
+    rows = (await db.scalars(q.order_by(Notification.id.desc()).limit(limit))).all()
     unread = await db.scalar(select(func.count()).select_from(Notification)
                              .where(Notification.user_id == user.id, Notification.read_at.is_(None)))
     return {"unread": unread, "items": [

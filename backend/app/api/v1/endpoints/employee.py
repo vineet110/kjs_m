@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.models.user import User
 from app.schemas.lead import Contact, InternalLeadIn, LeadOut
-from app.services import lead_service, notification_service
+from app.services import lead_service, notification_service, updates_service
 
 router = APIRouter()
 
@@ -114,8 +114,15 @@ async def colleagues(_: User = Depends(current_user), db: AsyncSession = Depends
 
 # ---------- Notifications (the bell) ----------
 @router.get("/notifications")
-async def my_notifications(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    return await notification_service.list_mine(db, user)
+async def my_notifications(unread: bool = False, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """unread=1: only the ones not opened yet (the bell); an opened notification drops out of the list."""
+    return await notification_service.list_mine(db, user, unread_only=unread)
+
+
+@router.get("/updates")
+async def updates(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Counters for the portal's 30-second check (updates_service). Tiny, so it's the only thing polled."""
+    return await updates_service.counters(db, user)
 
 
 class ReadIn(BaseModel):
