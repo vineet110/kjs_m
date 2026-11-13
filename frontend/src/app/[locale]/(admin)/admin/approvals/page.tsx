@@ -1,22 +1,34 @@
 'use client';
 // Approvals inbox: everything waiting for a yes/no, in one place. Sections you can't approve are hidden.
+// Sign-ups: waiting ones (Approve / Reject with a reason), then the approved list (Edit opens that person in
+// Manage employees) and the rejected list (reason, who, when; an admin can still approve). Reloads itself
+// when the portal's 30-second check sees the number waiting change.
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import ApproveCard, { type Perm, type StaffUser } from '@/components/portal/ApproveCard';
+import { useMe } from '@/components/portal/PortalShell';
 import { useToast } from '@/components/portal/Toast';
 import { approvalsChanged } from '@/lib/portal-session';
 import { EmptyState, fmtDay, fmtIST, PageTitle } from '@/components/portal/ui';
 import { api, ApiFailure, type Regularization, type StoredFile } from '@/lib/api';
+import { useOnUpdate } from '@/lib/updates';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
-type Inbox = { signups: StaffUser[] | null; regularizations: Regularization[] | null; file_deletes: StoredFile[] | null };
+type Inbox = {
+  signups: StaffUser[] | null; approved: StaffUser[] | null; rejected: StaffUser[] | null;
+  regularizations: Regularization[] | null; file_deletes: StoredFile[] | null;
+};
+type SignupTab = 'waiting' | 'approved' | 'rejected';
 
 export default function Approvals() {
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [perms, setPerms] = useState<Perm[]>([]);
   const [err, setErr] = useState('');
   const [loadErr, setLoadErr] = useState<unknown>(null);
+  const [tab, setTab] = useState<SignupTab>('waiting');
   const toast = useToast();
+  const me = useMe();
 
   const load = useCallback(() => {
     setLoadErr(null);
@@ -29,6 +41,7 @@ export default function Approvals() {
   useEffect(() => {
     load();
   }, [load]);
+  useOnUpdate(me.id, (u) => u.approvals, load); // something new is waiting (or someone else decided)
 
   // `done` = the toast shown when it worked ("Approved ✓")
   async function run(path: string, body: unknown, done: string) {
@@ -44,7 +57,6 @@ export default function Approvals() {
   }
 
   if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
-  if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!inbox) return <Loading />;
   const count = (inbox.signups?.length ?? 0) + (inbox.regularizations?.length ?? 0) + (inbox.file_deletes?.length ?? 0);
 
@@ -55,9 +67,37 @@ export default function Approvals() {
 
       {inbox.signups !== null && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">New staff ({inbox.signups.length})</h2>
-          {inbox.signups.length === 0 && <EmptyState tone="done" title="No sign-ups waiting" text="New staff who sign up will show here for you to approve." />}
-          {inbox.signups.map((u) => <ApproveCard key={u.id} user={u} perms={perms} onDone={load} />)}
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="mr-2 text-lg font-bold">New staff</h2>
+            {([['waiting', 'Waiting', inbox.signups.length], ['approved', 'Approved', inbox.approved?.length ?? 0],
+               ['rejected', 'Rejected', inbox.rejected?.length ?? 0]] as [SignupTab, string, number][]).map(([t, label, n]) => (
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
+                className={`rounded-full px-3 py-1 text-sm ${tab === t ? 'bg-ink text-white' : 'bg-white ring-1 ring-slate-200'}`}>
+                {label} ({n})
+              </button>
+            ))}
+          </div>
+
+          {tab === 'waiting' && (
+            <>
+              {inbox.signups.length === 0 && <EmptyState tone="done" title="No sign-ups waiting" text="New staff who sign up will show here for you to approve." />}
+              {inbox.signups.map((u) => <ApproveCard key={u.id} user={u} perms={perms} onDone={load} />)}
+            </>
+          )}
+
+          {tab === 'approved' && (
+            <DecidedList rows={inbox.approved ?? []} empty="Nobody approved yet."
+              action={(u) => <Link href={`/admin/users/${u.id}`} className="btn-ghost py-1">Edit</Link>} />
+          )}
+
+          {tab === 'rejected' && (
+            me.role === 'admin'
+              // An admin can still approve a rejected sign-up: the same card, with the reason shown
+              ? (inbox.rejected ?? []).length === 0
+                ? <EmptyState tone="done" title="No rejected sign-ups" text="Sign-ups you reject show here with the reason." />
+                : (inbox.rejected ?? []).map((u) => <ApproveCard key={u.id} user={u} perms={perms} onDone={load} />)
+              : <DecidedList rows={inbox.rejected ?? []} empty="No rejected sign-ups." />
+          )}
         </section>
       )}
 
@@ -96,6 +136,28 @@ export default function Approvals() {
           ))}
         </section>
       )}
+    </div>
+  );
+}
+
+/** Approved or rejected sign-ups: who, decided by whom and when, the reason (rejected), and an action. */
+function DecidedList({ rows, empty, action }: { rows: StaffUser[]; empty: string; action?: (u: StaffUser) => React.ReactNode }) {
+  if (rows.length === 0) return <p className="card p-4 text-sm text-slate-500">{empty}</p>;
+  return (
+    <div className="card divide-y">
+      {rows.map((u) => (
+        <div key={u.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{u.name} <span className="font-normal text-slate-500">· {u.email}</span></p>
+            <p className="text-xs text-slate-500">
+              {u.decided_by_name ? `By ${u.decided_by_name}` : 'Decided'}{u.approved_at ? ` · ${fmtIST(u.approved_at)}` : ''}
+              {u.job_title ? ` · ${u.job_title}` : ''}
+            </p>
+            {u.rejection_reason && <p className="mt-0.5 text-red-700">“{u.rejection_reason}”</p>}
+          </div>
+          {action?.(u)}
+        </div>
+      ))}
     </div>
   );
 }

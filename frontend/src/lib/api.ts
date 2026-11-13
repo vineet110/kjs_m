@@ -24,6 +24,9 @@ export type ContactDetail = { lead: Lead; enquiries: Lead[] };
 export type StaffUser = {
   id: number; name: string; email: string; phone: string | null; role: 'admin' | 'employee'; status: string;
   permissions: string[]; created_at: string; employee_code: string; branch: string; reporting_to: number | null;
+  job_title: string; // a label ("Sales Executive"); access comes from permissions (and role: "Admin access")
+  // The sign-up decision: who approved or rejected it, when, and why it was rejected
+  approved_by: number | null; approved_at: string | null; rejection_reason: string | null;
 };
 export type LeadNote = { id: number; kind: string; text: string; user_name: string; created_at: string };
 export type Colleague = { id: number; name: string };
