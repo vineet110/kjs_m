@@ -3,8 +3,7 @@
 // role / reporting to. The admin's form shows it live while typing; the Profile page shows the saved one.
 // Photos are files owned by ("user", id); the newest one is the photo.
 import { useEffect, useState } from 'react';
-import { api, type StoredFile } from '@/lib/api';
-import { uploadOne } from './FileList';
+import { api, upload, type StoredFile } from '@/lib/api';
 import { Icon } from './icons';
 
 export type CardValues = {
@@ -27,7 +26,11 @@ export function usePhoto(userId: number | null, version = 0) {
 }
 
 export async function uploadPhoto(userId: number, file: File) {
-  await uploadOne('user', String(userId), file);
+  const form = new FormData();
+  form.append('owner_type', 'user');
+  form.append('owner_id', String(userId));
+  form.append('file', file);
+  await upload('/files', form);
 }
 
 export default function UserCard({ v, photo }: { v: CardValues; photo: string | null }) {

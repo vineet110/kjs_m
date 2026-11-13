@@ -121,7 +121,7 @@ async def test_board_files_follow_membership(client):
     await client.post("/api/v1/boards", json=board_body(pack, pack), headers=HDR)
     await login(client, "pack@kjsindia.com")
     up = await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "ABC117-3"},
-                           files={"file": ("po.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
+                           files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)
     assert up.status_code == 201
     await login(client, "other@kjsindia.com")
     assert (await client.get("/api/v1/files?owner_type=board&owner_id=ABC117-3")).status_code == 403
@@ -162,7 +162,7 @@ async def test_board_files_can_never_be_public(client):
     assert (await client.post("/api/v1/boards", json=board_body(pack, blend), headers=HDR)).status_code == 201
     await login(client, "blend@kjsindia.com")
     form = {"owner_type": "board", "owner_id": "ABC117-3"}
-    pdf = {"file": ("order.pdf", b"%PDF-1.4 order %%EOF", "application/pdf")}
+    pdf = {"file": ("order.pdf", b"%PDF-1.4 order", "application/pdf")}
     r = await client.post("/api/v1/files", data=form | {"is_public": "true"}, files=pdf, headers=HDR)
     assert r.status_code == 422 and r.json()["code"] == "not_public"
     fid = (await client.post("/api/v1/files", data=form, files=pdf, headers=HDR)).json()["id"]
