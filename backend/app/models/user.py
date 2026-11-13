@@ -14,8 +14,8 @@ class User(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)  # stored lower-case
     phone: Mapped[str | None] = mapped_column(String(20))
     password_hash: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(20), default="employee")  # admin | employee
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | active | disabled
+    role: Mapped[str] = mapped_column(String(20), default="employee")  # admin | employee ("Admin access")
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | active | disabled | rejected
     # Extra permission keys for this person (see app/core/permissions.py). Admins have all.
     permissions: Mapped[list[str]] = mapped_column(JSONB, default=list)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -27,10 +27,14 @@ class User(Base, TimestampMixin):
     shift_id: Mapped[int | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"), nullable=True)
     # Set by the admin (User Creation Form). Staff see them on their profile but can't change them.
     employee_code: Mapped[str] = mapped_column(String(40), default="")
-    branch: Mapped[str] = mapped_column(String(80), default="")
+    branch: Mapped[str] = mapped_column(String(80), default="")  # shown as "Department"
+    # A label from job_titles ("Sales Executive"); gives no access (permissions do)
+    job_title: Mapped[str] = mapped_column(String(60), default="", server_default="")
     reporting_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # Who approved or rejected the sign-up, and when (status tells which)
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(String(500))
 
 
 class UserSession(Base):
