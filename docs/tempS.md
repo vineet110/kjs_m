@@ -56,3 +56,13 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Limits: 500 rows (more = refused, never cut), same file checks and hourly limit as "Fill from file".
 - `lead_service._internal_lead` now builds the lead for both "+ Add lead" and import. `lead_reader.read` takes `max_rows`.
 - Tests: 6 new in `tests/test_lead_import.py`; lead tests 65 passed, `tsc` clean. Browser click-through not done.
+
+## Extra Info (branch feat/lead-extra-info, stacked on #75, 13 Nov)
+
+- Vineet's point 2 on #74 (migration approved, column `extra`, shown as "Extra Info").
+- Migration `0022_lead_extra_info.py`: `leads.extra` JSONB, default `{}`. Numbered 0022 because open branches feat/firebase-auth and feat/employee-permissions already use 0021: fix `down_revision` to the newest on main before merging. Down + up tested on the test DB.
+- Pop-up `components/portal/ExtraColumns.tsx`: one column at a time, Add / Add all / Reject / Reject all, hint "Choose Add to save it in Extra Info". Used by "Fill from file" (per lead) and bulk import (once per file, applied to every row). "Change" reopens it. Save waits until every column is decided. Max 30 Extra Info columns per lead.
+- Audit: `lead.extra_columns` with added / rejected column names and lead ids, never the values.
+- Lead page Info tab shows an "Extra Info" box.
+- Tests: 4 new in `tests/test_lead_extra.py`; full suite 407 passed; `tsc` clean. Browser click-through not done.
+- After pulling: `alembic upgrade head`.

@@ -22,7 +22,7 @@ from app.models.catalog import Category, Product
 from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.lead import InternalLeadIn, LeadIn, LeadOut
+from app.schemas.lead import InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
 from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
                           task_service)
 from app.services.attendance_service import local_day, to_utc
@@ -173,7 +173,8 @@ async def list_for(db: AsyncSession, user: User, status: str | None = None, owne
             status=lead.status, product_name=product_name, category_name=category_name,
             created_at=lead.created_at, assigned_to=lead.assigned_to, owner_name=owner_name,
             responded_at=lead.responded_at, resolved_at=lead.resolved_at, outcome=lead.outcome,
-            note_count=note_count or 0, updated_at=lead.updated_at, created_by_name=creator_name, **timers,
+            note_count=note_count or 0, updated_at=lead.updated_at, created_by_name=creator_name,
+            extra=lead.extra or {}, **timers,
         ))
     return out
 
@@ -256,11 +257,21 @@ def _internal_lead(user: User, data: InternalLeadIn, category_id: int | None) ->
         phone=data.phone.strip(), country=data.country.strip(), buyer_type=data.buyer_type,
         category_id=category_id, quantity=data.quantity, message=data.message.strip(),
         source_page="", consent=True, consent_at=datetime.now(timezone.utc), ip_hash=None, status="new",
-        assigned_to=user.id, created_by=user.id,
+        assigned_to=user.id, created_by=user.id, extra=dict(data.extra),
     )
 
 
-async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) -> LeadOut:
+def _audit_extra(db: AsyncSession, user: User, added: list[str], rejected: list[str], lead_ids: list[int]) -> None:
+    """Who added or rejected which file columns, for which lead(s). Column names only: the values are the
+    customer's data and stay on the lead itself."""
+    if not added and not rejected:
+        return
+    audit_service.record(db, actor=user, action="lead.extra_columns", entity_type="lead",
+                         entity_id=lead_ids[0] if len(lead_ids) == 1 else None,
+                         after={"added": sorted(added), "rejected": sorted(set(rejected)), "lead_ids": lead_ids})
+
+
+async def create_internal(db: AsyncSession, user: User, data: InternalLeadFormIn) -> LeadOut:
     """A lead a staff member types in. Source "internal", theirs from the start (assigned + created by them).
     No visitor ticked a consent box: the staff member spoke to the buyer, and that conversation is the consent
     (an assumption, noted for KJS to confirm)."""
@@ -272,6 +283,7 @@ async def create_internal(db: AsyncSession, user: User, data: InternalLeadIn) ->
     await db.flush()
     audit_service.record(db, actor=user, action="lead.created", entity_type="lead", entity_id=lead.id,
                          after={"source": "internal", "assigned_to": user.id})
+    _audit_extra(db, user, list(data.extra), data.extra_rejected, [lead.id])
     await db.commit()
     log.info("lead.created", extra={"lead_id": lead.id, "source": "internal"})
     return (await list_for(db, user, all_leads=True, limit=1, lead_ids=[lead.id]))[0]
@@ -345,7 +357,8 @@ async def import_preview(db: AsyncSession, user: User, filename: str, data: byte
     return {"rows": rows}
 
 
-async def import_leads(db: AsyncSession, user: User, rows: list[InternalLeadIn]) -> dict:
+async def import_leads(db: AsyncSession, user: User, rows: list[InternalLeadIn],
+                       extra_rejected: list[str] | None = None) -> dict:
     """Bulk import, step 2: the rows the person kept become internal leads, theirs from the start.
     One transaction: either every lead is saved or none is (never a half-imported file)."""
     slugs = {r.category_slug for r in rows if r.category_slug}
@@ -360,6 +373,8 @@ async def import_leads(db: AsyncSession, user: User, rows: list[InternalLeadIn])
                              after={"source": "internal", "assigned_to": user.id, "imported": True})
     audit_service.record(db, actor=user, action="lead.imported", entity_type="lead",
                          after={"count": len(leads), "lead_ids": [x.id for x in leads]})
+    added = sorted({k for r in rows for k in r.extra})
+    _audit_extra(db, user, added, extra_rejected or [], [x.id for x in leads])
     await db.commit()
     log.info("lead.imported", extra={"count": len(leads)})
     return {"created": len(leads), "lead_ids": [x.id for x in leads]}

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { uploadFiles } from '@/components/portal/FileList';
 import { Icon } from '@/components/portal/icons';
 import ImportLeads from '@/components/portal/ImportLeads';
+import ExtraColumns, { extraColumns, pickExtra, type ExtraDecision } from '@/components/portal/ExtraColumns';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import LeadSourceList, { useSourceLeads } from '@/components/portal/LeadSourceList';
 import { Msg, PageTitle } from '@/components/portal/ui';
@@ -55,6 +56,9 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
   // Filled from a file: the form is drawn again (new key) with these values; empty ones say "Not specified"
   const [fill, setFill] = useState<FileLead | null>(null);
   const [fillKey, setFillKey] = useState(0);
+  // File columns we have no field for: the pop-up asks Add / Reject for each (null = still to ask)
+  const [decision, setDecision] = useState<ExtraDecision | null>(null);
+  const [asking, setAsking] = useState(false);
   const [same, setSame] = useState<SamePerson | null>(null); // this person already has leads: asked before saving
   // "Save as a new enquiry" approves this phone + email only: change either and the check runs again
   const sameOk = useRef<string | null>(null);
@@ -70,6 +74,8 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
 
   function applyFileLead(lead: FileLead, source: File) {
     setFill(lead);
+    setDecision(null);
+    setAsking(Object.keys(lead.extra).length > 0);
     setFillKey((k) => k + 1);
     setSame(null);
     sameOk.current = null;
@@ -97,7 +103,10 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
       }
       const lead = await api<Lead>('/employee/leads', {
         method: 'POST',
-        body: { ...f, email: f.email || null, category_slug: f.category_slug || null },
+        body: {
+          ...f, email: f.email || null, category_slug: f.category_slug || null,
+          extra: pickExtra(fill?.extra ?? {}, decision), extra_rejected: decision?.rejected ?? [],
+        },
       });
       // Files go after the lead exists (they hang on its id). A failed file doesn't undo the lead:
       // we say which ones failed and the lead's Files tab takes them again.
@@ -119,6 +128,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
   const v = (k: keyof Fields) => fill?.fields[k] ?? '';
   const ph = (k: keyof Fields, normal?: string) => (fill && !fill.fields[k] ? NOT_SPECIFIED : normal);
   const extra = Object.keys(fill?.extra ?? {});
+  const kept = pickExtra(fill?.extra ?? {}, decision);
 
   return (
     <div className="card space-y-4 p-5">
@@ -127,10 +137,21 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
         <h2 className="font-semibold">New internal lead</h2>
         {savedId == null && <FillFromFile onPick={applyFileLead} disabled={busy} onReading={setReading} />}
       </div>
+      {asking && fill && (
+        <ExtraColumns columns={extraColumns([fill])} onDone={(d) => { setDecision(d); setAsking(false); }} />
+      )}
       {fill && (
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
           Filled from the file. Please check every field before saving. Fields the file didn&apos;t have say &quot;{NOT_SPECIFIED}&quot;.
-          {extra.length > 0 && <> <b>Not saved</b> (no field for these yet): {extra.join(', ')}.</>}
+          {extra.length > 0 && decision && (
+            <div className="mt-2 space-y-1">
+              {Object.keys(kept).length > 0 && (
+                <p><b>Extra Info</b> (saved with the lead): {Object.entries(kept).map(([k, val]) => `${k}: ${val}`).join(' · ')}</p>
+              )}
+              {decision.rejected.length > 0 && <p><b>Not saved</b>: {decision.rejected.join(', ')}</p>}
+              <button type="button" className="text-xs underline" onClick={() => setAsking(true)} disabled={busy}>Change</button>
+            </div>
+          )}
         </div>
       )}
       <form key={fillKey} ref={form} onSubmit={save} className="space-y-4">
@@ -193,7 +214,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
         <Msg msg={msg} />
         {savedId != null
           ? <Link href={`/employee/contacts/${savedId}`} className="btn-dark inline-block">Open the lead</Link>
-          : <button disabled={busy || reading} className="btn-dark">{busy ? 'Saving…' : reading ? 'Reading the file…' : 'Save lead'}</button>}
+          : <button disabled={busy || reading || asking} className="btn-dark">{busy ? 'Saving…' : reading ? 'Reading the file…' : 'Save lead'}</button>}
       </form>
     </div>
   );

@@ -2,7 +2,7 @@
 
 Nothing is saved here: the file is read, its values are matched to the form's fields (the ones in
 `InternalLeadIn`), and the person checks them and clicks Save as usual. Columns we have no field for come
-back as `extra`, so the screen can say they were not saved.
+back as `extra`: the person then chooses Add (kept as "Extra Info") or Reject (not saved) for each.
 
 Two layouts are understood:
   - a table: the first row names the columns, each next row is one lead (the person picks the row);
