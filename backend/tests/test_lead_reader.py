@@ -100,3 +100,24 @@ async def test_same_person_counts_only_leads_i_can_see(client):
     await login(client, "a@kjs.in")  # b's lead: a can't see it, so it isn't counted
     assert (await client.get("/api/v1/employee/leads/same-person", params={"phone": "+91 90000 11111"})).json() == \
         {"count": 0, "lead_id": None}
+
+
+async def test_same_person_follows_phone_then_email_links(client):
+    """Lead 1 and lead 2 share an email; lead 2 has another phone. Asking by lead 1's phone finds both,
+    the same way the Contacts page groups them."""
+    await make_user("a@kjs.in")
+    await login(client, "a@kjs.in")
+    for lead in ({"name": "Ravi", "phone": "+91 90000 11111", "email": "ravi@x.in"},
+                 {"name": "Ravi", "phone": "+91 90000 22222", "email": "ravi@x.in"},
+                 {"name": "Other", "phone": "+91 90000 33333"}):
+        assert (await client.post("/api/v1/employee/leads", json=lead, headers=HDR)).status_code == 201
+    r = (await client.get("/api/v1/employee/leads/same-person", params={"phone": "+91 90000 22222"})).json()
+    assert r["count"] == 2
+
+
+async def test_file_reads_limit_comes_from_app_ini(client, monkeypatch):
+    from app.core.config import ini
+    await _staff(client)
+    monkeypatch.setattr(ini.cfg().app, "lead_file_reads_per_hour", 2)
+    codes = [(await _read(client, "a.csv", b"Name\nX\n")).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]

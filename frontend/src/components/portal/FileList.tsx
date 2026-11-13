@@ -45,8 +45,9 @@ export async function uploadFiles(ownerType: string, ownerId: string, files: Fil
   return failed;
 }
 
-export default function FileList({ ownerType, ownerId, canUpload = true, publicToggle = false, canDecide = false }: {
+export default function FileList({ ownerType, ownerId, canUpload = true, canRequestDelete = true, publicToggle = false, canDecide = false }: {
   ownerType: string; ownerId: string; canUpload?: boolean; publicToggle?: boolean;
+  canRequestDelete?: boolean; // false = can only look (e.g. someone else's lead): no "Request delete"
   canDecide?: boolean; // may approve / reject delete requests here (e.g. an order board's owner)
 }) {
   const [files, setFiles] = useState<StoredFile[]>([]);
@@ -162,7 +163,7 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
               <a href={downloadUrl(f.id)} className="text-xs underline">Download</a>
               {f.delete_status === 'requested'
                 ? <Pill value="pending" label="delete requested" />
-                : <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
+                : canRequestDelete && <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
               {f.delete_status === 'requested' && canDecide && f.own_request && (
                 <span className="text-xs text-slate-500">You asked: someone else decides</span>
               )}

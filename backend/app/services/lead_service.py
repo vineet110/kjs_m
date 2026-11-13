@@ -9,7 +9,7 @@ import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -283,16 +283,30 @@ async def read_lead_file(db: AsyncSession, filename: str, data: bytes) -> dict:
 
 async def same_person(db: AsyncSession, user: User, phone: str, email: str) -> dict:
     """Before saving a lead: does this person already have leads (same phone or email, the Contacts rule)?
-    Only leads this user may see are counted, so it never tells anyone about someone else's buyers."""
-    probe = Lead(phone=phone.strip()[:40], email=email.strip()[:255])  # never added to the database
-    if not _match_keys(probe):
+    Only leads this user may see are counted, so it never tells anyone about someone else's buyers.
+    Asks the database for matching leads (not a newest-N list), then follows the links the Contacts page
+    follows: a lead found by phone may carry an email that ties in more leads."""
+    keys = set(_match_keys(Lead(phone=phone.strip()[:40], email=email.strip()[:255])))
+    digits = func.regexp_replace(Lead.phone, "[^0-9]", "", "g")  # the same digits _match_keys compares
+    found: dict[int, Lead] = {}
+    for _ in range(10):  # each round adds the keys of newly found leads; 10 rounds is far more than real data
+        phones = [k[2:] for k in keys if k.startswith("p:")]
+        emails = [k[2:] for k in keys if k.startswith("e:")]
+        if not phones and not emails:
+            break
+        q = _visible(select(Lead).where(or_(digits.in_(phones), func.lower(Lead.email).in_(emails))), user)
+        if found:
+            q = q.where(Lead.id.not_in(list(found)))
+        new = (await db.scalars(q)).all()
+        if not new:
+            break
+        for lead in new:
+            found[lead.id] = lead
+            keys.update(_match_keys(lead))
+    if not found:
         return {"count": 0, "lead_id": None}
-    q = _visible(select(Lead).order_by(Lead.created_at.desc(), Lead.id.desc()), user).limit(5000)
-    for group in group_contacts([probe, *(await db.scalars(q)).all()]):
-        if group[0] is probe:
-            rest = group[1:]
-            return {"count": len(rest), "lead_id": rest[0].id if rest else None}
-    return {"count": 0, "lead_id": None}
+    newest = max(found.values(), key=lambda x: (x.created_at, x.id))
+    return {"count": len(found), "lead_id": newest.id}
 
 
 async def lead_tasks(db: AsyncSession, user: User, lead_id: int) -> list[dict]:

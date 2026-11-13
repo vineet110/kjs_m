@@ -248,6 +248,18 @@ async def test_lead_files_damaged_or_fake_refused(client):
     assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).json() == []
 
 
+def test_password_zip_and_cut_jpeg_refused():
+    from app.services import file_check
+    data = bytearray(PPTX)
+    data[6] |= 0x1  # "encrypted" flag on the first part (local header) ...
+    central = data.find(b"PK\x01\x02")
+    data[central + 8] |= 0x1  # ... and in the zip's table of contents
+    assert not file_check.is_valid("pptx", bytes(data))  # refused, not a crash
+    assert not file_check.is_valid("jpg", b"\xff\xd8\xff")  # header only
+    assert file_check.is_valid("jpg", b"\xff\xd8\xff\xe0 data \xff\xd9")
+    assert file_check.is_valid("jpg", b"\xff\xd8\xff\xe0 data \xff\xd9 extra bytes some phones add")
+
+
 def test_zip_bomb_refused(monkeypatch):
     from app.services import file_check
     monkeypatch.setattr(file_check, "MAX_UNZIPPED", 1000)

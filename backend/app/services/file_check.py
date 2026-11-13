@@ -24,8 +24,10 @@ def _zip_ok(data: bytes, folder: str | None) -> bool:
                 return False
             if folder and not any(p.filename.startswith(folder) for p in parts):
                 return False  # a plain zip renamed to .xlsx
+            if any(p.flag_bits & 0x1 for p in parts):
+                return False  # password-protected: we can't check (or preview) what's inside
             return z.testzip() is None  # None = every part inside reads back correctly
-    except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, NotImplementedError, ValueError):
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, NotImplementedError, ValueError, RuntimeError):
         return False
 
 
@@ -36,7 +38,8 @@ def is_valid(ext: str, data: bytes) -> bool:
     if ext == "png":
         return data.startswith(b"\x89PNG\r\n\x1a\n") and data.endswith(b"IEND\xaeB`\x82")
     if ext in ("jpg", "jpeg"):
-        return data.startswith(b"\xff\xd8\xff")  # start only: some phones add extra bytes after the end
+        # Needs its end marker too, but not as the very last bytes: some phones add extra data after it
+        return data.startswith(b"\xff\xd8\xff") and b"\xff\xd9" in data[3:]
     if ext == "gif":
         return data[:6] in (b"GIF87a", b"GIF89a") and data.endswith(b";")
     if ext == "webp":  # RIFF says its own size, so a cut-short file doesn't match

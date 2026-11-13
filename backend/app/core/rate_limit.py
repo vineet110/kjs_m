@@ -72,7 +72,7 @@ class RateLimiter:
 lead_limiter = RateLimiter(limit=lambda: cfg().app.lead_rate_per_hour, window_seconds=3600)
 koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_seconds=3600)
 # Staff reading Excel / CSV files into the New internal lead form, per person per hour
-lead_file_limiter = RateLimiter(limit=lambda: 60, window_seconds=3600)
+lead_file_limiter = RateLimiter(limit=lambda: cfg().app.lead_file_reads_per_hour, window_seconds=3600)
 # Wrong passwords. Locked per email AND network: a stranger guessing from their own network can't
 # lock the real person out. The per-email limit is a high backstop against guessing from many networks.
 login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # per email + IP, 15 min

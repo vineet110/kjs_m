@@ -47,7 +47,10 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
   const [fill, setFill] = useState<FileLead | null>(null);
   const [fillKey, setFillKey] = useState(0);
   const [same, setSame] = useState<SamePerson | null>(null); // this person already has leads: asked before saving
-  const sameOk = useRef(false);
+  // "Save as a new enquiry" approves this phone + email only: change either and the check runs again
+  const sameOk = useRef<string | null>(null);
+  const sameAsked = useRef('');
+  const [reading, setReading] = useState(false); // a file is being read: Save waits, so the two never mix
   const loadCats = useCallback(() => {
     setLoadErr(null);
     api<Category[]>('/public/categories').then(setCats).catch(setLoadErr);
@@ -60,21 +63,24 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
     setFill(lead);
     setFillKey((k) => k + 1);
     setSame(null);
-    sameOk.current = false;
+    sameOk.current = null;
     setFiles((now) => [source, ...now.filter((f) => f !== source)]); // the file is kept on the lead too
   }
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy || reading) return; // Enter pressed while a file is still being read
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    const who = `${(f.phone ?? '').trim()}|${(f.email ?? '').trim().toLowerCase()}`;
     setBusy(true);
     setMsg(null);
     try {
       // Same phone or email as an existing lead: ask first, so nobody adds the same buyer twice by mistake
-      if (!sameOk.current) {
+      if (sameOk.current !== who) {
         const q = new URLSearchParams({ phone: f.phone ?? '', email: f.email ?? '' });
         const found = await api<SamePerson>(`/employee/leads/same-person?${q}`);
         if (found.count > 0) {
+          sameAsked.current = who;
           setSame(found);
           setBusy(false);
           return;
@@ -110,7 +116,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
       {loadErr != null && <LoadError error={loadErr} onRetry={loadCats} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-semibold">New internal lead</h2>
-        {savedId == null && <FillFromFile onPick={applyFileLead} />}
+        {savedId == null && <FillFromFile onPick={applyFileLead} disabled={busy} onReading={setReading} />}
       </div>
       {fill && (
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
@@ -166,7 +172,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
             <p>This person already has {same.count} lead{same.count > 1 ? 's' : ''} (same phone or email).</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {same.lead_id != null && <Link href={`/employee/contacts/${same.lead_id}`} className="btn-ghost py-1">Open the existing lead</Link>}
-              <button type="button" className="btn-dark py-1" onClick={() => { sameOk.current = true; setSame(null); form.current?.requestSubmit(); }}>
+              <button type="button" className="btn-dark py-1" onClick={() => { sameOk.current = sameAsked.current; setSame(null); form.current?.requestSubmit(); }}>
                 Save as a new enquiry
               </button>
             </div>
@@ -175,7 +181,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
         <Msg msg={msg} />
         {savedId != null
           ? <Link href={`/employee/contacts/${savedId}`} className="btn-dark inline-block">Open the lead</Link>
-          : <button disabled={busy} className="btn-dark">{busy ? 'Saving…' : 'Save lead'}</button>}
+          : <button disabled={busy || reading} className="btn-dark">{busy ? 'Saving…' : reading ? 'Reading the file…' : 'Save lead'}</button>}
       </form>
     </div>
   );
@@ -183,9 +189,14 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
 
 /** "Fill from file": reads an Excel / CSV file on the server and hands back one lead (the person picks
  *  the row when the file has several). Nothing is saved here. */
-function FillFromFile({ onPick }: { onPick: (lead: FileLead, source: File) => void }) {
+function FillFromFile({ onPick, disabled, onReading }: {
+  onPick: (lead: FileLead, source: File) => void;
+  disabled: boolean; // the lead is being saved: no reading or picking now
+  onReading: (reading: boolean) => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
-  const [reading, setReading] = useState(false);
+  const [reading, setReadingHere] = useState(false);
+  const setReading = (r: boolean) => { setReadingHere(r); onReading(r); };
   const [err, setErr] = useState('');
   const [choice, setChoice] = useState<{ leads: FileLead[]; more: boolean; file: File } | null>(null);
 
@@ -211,9 +222,9 @@ function FillFromFile({ onPick }: { onPick: (lead: FileLead, source: File) => vo
 
   return (
     <div className="space-y-2 text-right">
-      <label className={`btn-ghost cursor-pointer py-1 ${reading ? 'opacity-50' : ''}`}>
+      <label className={`btn-ghost cursor-pointer py-1 ${reading || disabled ? 'opacity-50' : ''}`}>
         {reading ? 'Reading…' : 'Fill from Excel / CSV'}
-        <input ref={input} type="file" accept=".xlsx,.csv" className="sr-only" onChange={read} disabled={reading} />
+        <input ref={input} type="file" accept=".xlsx,.csv" className="sr-only" onChange={read} disabled={reading || disabled} />
       </label>
       {err && <p className="text-sm text-red-700">{err}</p>}
       {choice && (
@@ -223,7 +234,7 @@ function FillFromFile({ onPick }: { onPick: (lead: FileLead, source: File) => vo
           <ul className="max-h-60 divide-y overflow-auto">
             {choice.leads.map((l, i) => (
               <li key={i}>
-                <button type="button" className="w-full px-2 py-1.5 text-left hover:bg-slate-50"
+                <button type="button" disabled={disabled} className="w-full px-2 py-1.5 text-left hover:bg-slate-50 disabled:opacity-50"
                   onClick={() => { onPick(l, choice.file); setChoice(null); }}>
                   {[l.fields.name, l.fields.company, l.fields.phone].filter(Boolean).join(' · ') || `Row ${i + 2}`}
                 </button>

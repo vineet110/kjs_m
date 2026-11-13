@@ -69,6 +69,8 @@ phonenumbers==8.13.38
     # Google's libphonenumber port to validate E.164 phone numbers in the Category Gate
 openpyxl==3.1.5
     # Reads requirement sheets and exports monthly attendance to Excel for HR/payroll
+defusedxml==0.7.1
+    # openpyxl uses it by itself: blocks XML tricks (entity bombs) hidden in an uploaded Excel file
 python-magic-bin==0.4.14
     # Server-side MIME type detection to ensure uploaded files match PDF, Excel, or Word
 

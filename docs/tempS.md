@@ -39,3 +39,12 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Security: file_check, values only (no formulas), row/column/cell limits, no customer data in logs.
 - Tests: 7 new in `tests/test_lead_reader.py`. Lead tests 56 passed, `tsc` clean. Browser click-through not done.
 - Waiting on Vineet: `defusedxml` (safer Excel XML), migration for `extra` details (Part B), Tesseract (Part C).
+
+### PR #74 follow-ups (13 Nov)
+
+- PR #72 was merged then reverted (#73). PR #74 = #72 re-applied + Excel/CSV form filling.
+- Vineet's answers on #74: defusedxml OK, `extra` migration OK (show as "Extra Info"), Tesseract OK, rate limit to app.ini, bulk import (each row = a lead) in a separate PR.
+- Done on #74: `defusedxml==0.7.1` in both requirements files (openpyxl now reports DEFUSEDXML = True); `lead_file_reads_per_hour = 60` in `config/app.ini`.
+- CodeRabbit's 6 points fixed: encrypted zips refused (not a crash), JPEG needs its end marker, same-person check asks the DB (no newest-5000 limit, follows phone/email links), lead Files tab hides Upload / Request delete when you can only look (`canRequestDelete` on FileList), Save waits while a file is read, "Save as a new enquiry" approves only the checked phone + email.
+- Learned: the backend venv was made by uv (not on PATH) and had no pip; `python -m ensurepip` added it.
+- Tests: 397 passed. `tsc` clean. Next PRs: Extra Info pop-up + migration, Tesseract, bulk import.

@@ -36,6 +36,7 @@ const TABS: { key: Tab; label: string; icon: IconName }[] = [
 
 export default function ContactPage() {
   const { id } = useParams<{ id: string }>();
+  const me = useMe();
   const [data, setData] = useState<ContactDetail | null>(null);
   const [failed, setFailed] = useState('');
   const [tab, setTab] = useState<Tab>('info');
@@ -60,6 +61,7 @@ export default function ContactPage() {
   if (failed) return <div className="space-y-4"><Back name="" /><EmptyState title="Can't open this contact" text={failed} /></div>;
   if (!data) return loadErr ? <div className="space-y-4"><Back name="" /><LoadError error={loadErr} onRetry={load} /></div> : <Loading />;
   const lead = data.lead;
+  const canWriteFiles = lead.assigned_to === me.id || me.permissions.includes('leads.view_all');
 
   return (
     <div className="space-y-4">
@@ -82,7 +84,10 @@ export default function ContactPage() {
               {tab === 'info' && <Info lead={lead} />}
               {tab === 'notes' && <Notes lead={lead} notes={notes} onChange={load} />}
               {tab === 'task' && <Tasks lead={lead} />}
-              {tab === 'files' && <FileList ownerType="lead" ownerId={String(lead.id)} />}
+              {/* Same rule as the server: an unassigned lead's files can be seen, but only its owner
+                  (or leads.view_all) adds files or asks to delete them */}
+              {tab === 'files' && <FileList ownerType="lead" ownerId={String(lead.id)}
+                canUpload={canWriteFiles} canRequestDelete={canWriteFiles} />}
               {tab === 'timeline' && <Timeline lead={lead} notes={notes} />}
               {tab === 'proposals' && <EmptyState icon="file" title="No proposals yet" text="Quotes and proposals are not recorded in the portal yet. Log a sent quote as a note for now." />}
             </div>
