@@ -1,16 +1,17 @@
 """Portal routes for any logged-in staff member. Each route names the permission it needs."""
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
+from app.core.rate_limit import lead_file_limiter
 from app.models.user import User
 from app.schemas.lead import Contact, InternalLeadIn, LeadOut
-from app.services import lead_service, notification_service, updates_service
+from app.services import lead_reader, lead_service, notification_service, updates_service
 
 router = APIRouter()
 
@@ -50,6 +51,22 @@ async def add_internal_lead(data: InternalLeadIn, user: User = Depends(require_p
                             db: AsyncSession = Depends(get_db)):
     """Internal lead: typed in by staff (a call, a fair, a walk-in)."""
     return await lead_service.create_internal(db, user, data)
+
+
+@router.post("/leads/read-file")
+async def read_lead_file(file: UploadFile = File(...), user: User = Depends(require_permission("leads.view")),
+                         db: AsyncSession = Depends(get_db)):
+    """Read an Excel / CSV file to fill the New internal lead form. Nothing is saved."""
+    lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
+    data = await file.read(lead_reader.MAX_BYTES + 1)
+    return await lead_service.read_lead_file(db, file.filename or "", data)
+
+
+@router.get("/leads/same-person")
+async def same_person(phone: str = Query("", max_length=40), email: str = Query("", max_length=255),
+                      user: User = Depends(require_permission("leads.view")), db: AsyncSession = Depends(get_db)):
+    """Before saving a lead: how many leads this person already has (that I can see), and the newest one."""
+    return await lead_service.same_person(db, user, phone, email)
 
 
 @router.get("/contacts", response_model=list[Contact])

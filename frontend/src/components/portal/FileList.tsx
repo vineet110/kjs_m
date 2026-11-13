@@ -1,5 +1,5 @@
 'use client';
-// Files of one owner (an order board, a product): upload, preview, download, ask to delete.
+// Files of one owner (an order board, a product, a lead): upload, preview, download, ask to delete.
 // Deleting needs an approver (files.approve, or e.g. the board's owner), so staff can't lose documents by accident.
 // Preview: click a file to see it beside the list (half the width on a computer, below it on a phone),
 // or full screen (Esc closes). Download is always there too.
@@ -14,8 +14,40 @@ function size(n: number) {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-export default function FileList({ ownerType, ownerId, canUpload = true, publicToggle = false, canDecide = false }: {
+/** Uploads one file to one owner (a board, a product, a lead, a user's photo). Throws if it fails. */
+export async function uploadOne(ownerType: string, ownerId: string, file: File, isPublic = false) {
+  const form = new FormData();
+  form.set('owner_type', ownerType);
+  form.set('owner_id', ownerId);
+  form.set('is_public', String(isPublic));
+  form.set('file', file);
+  await upload('/files', form);
+}
+
+const AT_ONCE = 3; // a few uploads side by side: faster than one by one, without choking a slow connection
+
+/** Uploads several files to one owner. One bad file (too big, wrong type) doesn't stop the others.
+ *  Returns a message for each file that failed (empty = all saved). */
+export async function uploadFiles(ownerType: string, ownerId: string, files: File[], isPublic = false): Promise<string[]> {
+  const failed: string[] = [];
+  let next = 0;
+  async function worker() {
+    while (next < files.length) {
+      const file = files[next++];
+      try {
+        await uploadOne(ownerType, ownerId, file, isPublic);
+      } catch (x) {
+        failed.push(`${file.name}: ${x instanceof ApiFailure ? x.message : 'Upload failed.'}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(AT_ONCE, files.length) }, worker));
+  return failed;
+}
+
+export default function FileList({ ownerType, ownerId, canUpload = true, canRequestDelete = true, publicToggle = false, canDecide = false }: {
   ownerType: string; ownerId: string; canUpload?: boolean; publicToggle?: boolean;
+  canRequestDelete?: boolean; // false = can only look (e.g. someone else's lead): no "Request delete"
   canDecide?: boolean; // may approve / reject delete requests here (e.g. an order board's owner)
 }) {
   const [files, setFiles] = useState<StoredFile[]>([]);
@@ -63,20 +95,16 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
   }, [load]);
 
   async function send(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
     setBusy(true);
     setErr('');
-    const form = new FormData();
-    form.set('owner_type', ownerType);
-    form.set('owner_id', ownerId);
-    form.set('is_public', String(isPublic));
-    form.set('file', file);
     try {
-      await upload('/files', form);
+      const failed = await uploadFiles(ownerType, ownerId, picked, isPublic);
+      setErr(failed.join(' '));
       load();
-    } catch (x) {
-      setErr(x instanceof ApiFailure ? x.message : 'Upload failed.');
+    } catch {
+      setErr('Upload failed.'); // something unexpected: say so instead of staying stuck on "Uploading…"
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
@@ -110,8 +138,8 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
       {canUpload && (
         <div className="flex flex-wrap items-center gap-3">
           <label className={`btn-ghost cursor-pointer py-1 ${busy ? 'opacity-50' : ''}`}>
-            {busy ? 'Uploading…' : 'Upload file'}
-            <input ref={input} type="file" className="hidden" onChange={send} disabled={busy} />
+            {busy ? 'Uploading…' : 'Upload files'}
+            <input ref={input} type="file" multiple className="hidden" onChange={send} disabled={busy} />
           </label>
           {publicToggle && (
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} /> Show on website</label>
@@ -135,7 +163,7 @@ export default function FileList({ ownerType, ownerId, canUpload = true, publicT
               <a href={downloadUrl(f.id)} className="text-xs underline">Download</a>
               {f.delete_status === 'requested'
                 ? <Pill value="pending" label="delete requested" />
-                : <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
+                : canRequestDelete && <button onClick={() => askDelete(f)} className="text-xs text-red-700 underline">Request delete</button>}
               {f.delete_status === 'requested' && canDecide && f.own_request && (
                 <span className="text-xs text-slate-500">You asked: someone else decides</span>
               )}
