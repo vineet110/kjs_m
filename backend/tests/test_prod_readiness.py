@@ -73,16 +73,18 @@ async def test_approver_cannot_turn_a_disabled_account_back_on(client):
 
 
 async def test_a_stranger_cannot_lock_someone_else_out():
-    # Before: 10 wrong passwords from anywhere locked the email, even for its real owner.
+    # Before: 10 wrong passwords from anywhere locked the email, even for its real owner. Now Firebase
+    # checks passwords; bad tokens lock only the network that sends them.
+    from app.core.config.ini import cfg
     await make_user("boss@kjsindia.com")
     async with AsyncSessionLocal() as db:
-        for _ in range(10):
+        for _ in range(cfg().app.login_failures_per_ip):
             with pytest.raises(Exception):
-                await auth_service.login(db, "boss@kjsindia.com", "wrong-guess-1", ip_hash="attacker")
+                await auth_service.login(db, "fake-token-from-an-attacker", ip_hash="attacker")
         with pytest.raises(Exception) as e:
-            await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="attacker")
+            await auth_service.login(db, id_token("boss@kjsindia.com"), ip_hash="attacker")
         assert e.value.status_code == 429  # the guessing network is locked
-        user, _ = await auth_service.login(db, "boss@kjsindia.com", "password1234", ip_hash="office")
+        user, _ = await auth_service.login(db, id_token("boss@kjsindia.com"), ip_hash="office")
         assert user.email == "boss@kjsindia.com"  # the real owner still gets in
 
 
@@ -269,7 +271,7 @@ async def test_board_files_match_the_code_whatever_the_case(client):
     await login(client, "boss@kjsindia.com")
     await client.post("/api/v1/boards", json=board_body(pack, pack), headers=HDR)
     up = await client.post("/api/v1/files", data={"owner_type": "board", "owner_id": "abc117-3"},
-                           files={"file": ("po.pdf", b"%PDF", "application/pdf")}, headers=HDR)
+                           files={"file": ("po.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
     assert up.status_code == 201 and up.json()["owner_id"] == "ABC117-3"
     listed = (await client.get("/api/v1/files?owner_type=board&owner_id=ABC117-3")).json()
     assert [f["id"] for f in listed] == [up.json()["id"]]
@@ -280,7 +282,7 @@ async def test_product_files_need_a_real_product(client):
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     r = await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": "no-such-product"},
-                          files={"file": ("a.pdf", b"%PDF", "application/pdf")}, headers=HDR)
+                          files={"file": ("a.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
     assert r.status_code == 403
 
 
@@ -290,12 +292,12 @@ async def test_public_photos_are_cacheable_staff_files_are_not(client):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"},
                            headers=HDR)).json()
     f = (await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": p["slug"], "is_public": "true"},
-                           files={"file": ("photo.png", b"\x89PNG..", "image/png")}, headers=HDR)).json()
+                           files={"file": ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")}, headers=HDR)).json()
     staff = await client.get(f"/api/v1/files/{f['id']}/download")
-    assert staff.headers["cache-control"] == "private, no-store" and staff.content == b"\x89PNG.."
+    assert staff.headers["cache-control"] == "private, no-store" and staff.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
     client.cookies.clear()
     public = await client.get(f"/api/v1/public/files/{f['id']}")
-    assert public.headers["cache-control"].startswith("public") and public.content == b"\x89PNG.."
+    assert public.headers["cache-control"].startswith("public") and public.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
 
 
 async def test_deleted_files_are_purged_from_storage_later(client, monkeypatch):
@@ -307,7 +309,7 @@ async def test_deleted_files_are_purged_from_storage_later(client, monkeypatch):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"},
                            headers=HDR)).json()
     f = (await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": p["slug"]},
-                           files={"file": ("a.pdf", b"%PDF", "application/pdf")}, headers=HDR)).json()
+                           files={"file": ("a.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()
     await client.post(f"/api/v1/files/{f['id']}/delete-request", json={"reason": "old version"}, headers=HDR)
     real_delete = storage_mod.LocalStorage.delete
 

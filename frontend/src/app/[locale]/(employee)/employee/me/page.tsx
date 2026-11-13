@@ -15,7 +15,7 @@ import { signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 
 type Profile = {
   id: number; name: string; email: string; phone: string; role: string; categories: string[]; notify_email: boolean; notify_whatsapp: boolean;
-  employee_code: string; branch: string; reporting_to_name: string;
+  employee_code: string; branch: string; job_title: string; reporting_to_name: string;
 };
 
 export default function ProfilePage() {
@@ -125,14 +125,14 @@ export default function ProfilePage() {
       </div>
       <div className="space-y-3">
         <UserCard
-          v={{ name: p.name, email: p.email, phone: p.phone, employee_code: p.employee_code, branch: p.branch, role: p.role, reporting_to: p.reporting_to_name }}
+          v={{ name: p.name, email: p.email, phone: p.phone, employee_code: p.employee_code, branch: p.branch, job_title: p.job_title, role: p.role, reporting_to: p.reporting_to_name }}
           photo={photo}
         />
         <div className="card space-y-2 p-4 text-sm">
           <label className="label" htmlFor="me-photo">Profile Image</label>
           <input id="me-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={changePhoto} className="input py-1.5" />
           <Msg msg={photoMsg} />
-          <p className="text-xs text-slate-500">Employee code, branch, role and reporting to are set by the admin. Ask them to change these.</p>
+          <p className="text-xs text-slate-500">Employee code, department, job title and reporting to are set by the admin. Ask them to change these.</p>
         </div>
       </div>
       </div>

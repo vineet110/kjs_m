@@ -195,6 +195,7 @@ ALWAYS_ON = (
     "/api/v1/files",  # by the file's owner, in file_service._check
     "/api/v1/admin/stats", "/api/v1/admin/permissions", "/api/v1/admin/users", "/api/v1/admin/leads",
     "/api/v1/admin/sla", "/api/v1/admin/approvals", "/api/v1/admin/config",
+    "/api/v1/admin/job-titles",  # part of Manage employees (always on)
 )
 
 

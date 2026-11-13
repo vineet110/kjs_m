@@ -23,7 +23,7 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   `POST /auth/password` logs out the other browsers (needs a sign-in from the last 5 minutes).
 - Removed: password checks and the wrong-password lockouts (Firebase blocks guessing). Kept: per-network
   limit on bad tokens (CR5/CR7 still hold: strangers can't lock the office out).
-- Migration `0021_firebase_uid`: `users.firebase_uid` (unique), `password_hash` now optional.
+- Migration `0024_firebase_uid` (was 0021; renumbered after main's 0022 + 0023 on 13 Nov): `users.firebase_uid` (unique), `password_hash` now optional.
 - Packages (approved): `firebase-admin==7.8.0` (needs `httpx` 0.28.1), `firebase` (npm).
 - Secret: `FIREBASE_SERVICE_ACCOUNT` is in the root `.env` (git-ignored). It was pasted in a chat once:
   rotate it (Firebase > Service accounts > delete key, generate new) and put the new one in `.env` + Render.
@@ -40,3 +40,14 @@ account is linked. (4) Notification emails (PR `feat/notification-emails`) when 
 
 **New concepts (for kb.md):** ID token (a short-lived signed proof of who you are, checked with Google's
 public keys); email verification (proves the inbox is yours); "fresh sign-in" (auth_time) for risky actions.
+
+### Merge of main into feat/firebase-auth (PR #77 conflicts)
+
+- Main got #74, #76, #78 meanwhile. Conflicts fixed: `rate_limit.py` (kept main's Excel/CSV limit, old
+  password limits stay removed), `user.py` (Firebase fields + main's "Admin access" / "rejected" comments),
+  `auth_service.py` imports (main's `UserOut`, `job_title_service`).
+- Hidden ones fixed: migration renumbered 0021 -> 0024 (after main's 0023; one head again), and two tests
+  still logging in with passwords: `test_staff_manage.py` (new on main) and `test_prod_readiness.py`
+  `test_a_stranger_cannot_lock_someone_else_out` (missed in the first PR #77 push).
+- Checked: one Alembic head (0024), backend imports, all tests compile, `tsc`, `npm test` (58 pass), build.
+  Backend tests themselves: CI.

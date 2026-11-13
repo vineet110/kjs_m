@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import String, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +22,8 @@ from app.core.rate_limit import login_ip_limiter, signup_limiter
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
 from app.core.security import hash_token, new_session_token
 from app.models.user import User, UserSession
-from app.schemas.auth import UserUpdateIn
-from app.services import assign_service, audit_service, chat_hub, file_service
+from app.schemas.auth import UserOut, UserUpdateIn
+from app.services import assign_service, audit_service, chat_hub, file_service, job_title_service
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +86,8 @@ async def login(db: AsyncSession, id_token: str, ip_hash: str | None = None,
         user = await _link_old_account(db, claims, ip_hash)
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
+    if user.status == "rejected":
+        raise AppError(403, "rejected", "Your sign-up was not approved. Please contact the admin.")
     if user.status != "active":
         raise AppError(403, "disabled", "Your account is disabled. Please contact the admin.")
 
@@ -134,6 +136,23 @@ async def list_users(db: AsyncSession, status: str | None) -> list[User]:
     return list((await db.scalars(q)).all())
 
 
+async def decided(db: AsyncSession, status: str, limit: int = 200) -> list[dict]:
+    """Decided sign-ups for the Approvals page, newest decision first, each with `decided_by_name`.
+    "approved": accounts that really went through Approve (the activity log has "user.approved"), still
+    listed if disabled later; accounts an admin created directly never were sign-ups, so they are left out.
+    "rejected": rejected sign-ups. Admins are left out (nobody approves them)."""
+    q = select(User).where(User.role == "employee")
+    if status == "approved":
+        approved_ids = select(AuditLog.entity_id).where(AuditLog.entity_type == "user", AuditLog.action == "user.approved")
+        q = q.where(User.status.in_(("active", "disabled")), func.cast(User.id, String).in_(approved_ids))
+    else:
+        q = q.where(User.status == status)
+    rows = (await db.scalars(q.order_by(User.approved_at.desc().nulls_last(), User.id.desc()).limit(limit))).all()
+    ids = {u.approved_by for u in rows if u.approved_by}
+    names = dict((await db.execute(select(User.id, User.name).where(User.id.in_(ids)))).all()) if ids else {}
+    return [UserOut.model_validate(u).model_dump() | {"decided_by_name": names.get(u.approved_by, "")} for u in rows]
+
+
 def _check_can_manage(actor: User, target: User) -> None:
     """Nobody changes their own account here, and only an admin can touch an admin account
     (otherwise a staff member with `staff.approve` could disable every admin)."""
@@ -165,6 +184,7 @@ async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list
     user.permissions = sorted(set(EMPLOYEE_DEFAULTS) | set(permissions))
     user.approved_by = admin.id
     user.approved_at = datetime.now(timezone.utc)
+    user.rejection_reason = None  # a rejected sign-up approved later (admin only, checked above)
     audit_service.record(
         db, actor=admin, action="user.approved", entity_type="user", entity_id=user.id,
         before=before, after={"status": user.status, "permissions": user.permissions},
@@ -173,11 +193,60 @@ async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list
     return user
 
 
+async def reject(db: AsyncSession, approver: User, user_id: int, reason: str) -> User:
+    """Reject a new sign-up (anyone who may approve). The reason is kept and shown in the Rejected list;
+    the person can't log in. An admin can still approve them later (approve() accepts a rejected account
+    from an admin only)."""
+    user = await db.get(User, user_id, with_for_update=True)
+    if user is None:
+        raise AppError(404, "not_found", "User not found.")
+    _check_can_manage(approver, user)
+    if user.status != "pending":
+        raise AppError(409, "not_pending", "Only a sign-up waiting for approval can be rejected.")
+    user.status = "rejected"
+    user.rejection_reason = reason.strip()
+    user.approved_by = approver.id  # "decided by": status says it was a rejection
+    user.approved_at = datetime.now(timezone.utc)
+    audit_service.record(db, actor=approver, action="user.rejected", entity_type="user", entity_id=user.id,
+                         before={"status": "pending"}, after={"status": "rejected", "reason": user.rejection_reason})
+    await db.commit()
+    return user
+
+
+async def set_permissions(db: AsyncSession, admin: User, user_id: int, permissions: list[str]) -> User:
+    """Change what an approved employee may do (Manage employees). Admin only. Takes effect on their next
+    request: permissions are read from the database every time. leads.view always stays."""
+    if admin.role != "admin":
+        raise AppError(403, "forbidden", "Only an admin can change permissions.")
+    unknown = sorted(p for p in permissions if p not in PERMISSIONS)
+    if unknown:
+        raise AppError(422, "unknown_permission", "Unknown permission.", {"unknown": unknown})
+    user = await db.get(User, user_id, with_for_update=True)
+    if user is None:
+        raise AppError(404, "not_found", "User not found.")
+    _check_can_manage(admin, user)
+    if user.role == "admin":
+        raise AppError(422, "admin_has_all", "An admin already has every permission.")
+    if user.status not in ("active", "disabled"):
+        raise AppError(409, "not_approved", "Approve the sign-up first; permissions are chosen there.")
+    before = sorted(user.permissions or [])
+    after = sorted(set(EMPLOYEE_DEFAULTS) | set(permissions))
+    if after != before:
+        user.permissions = after
+        audit_service.record(db, actor=admin, action="user.permissions_changed", entity_type="user",
+                             entity_id=user.id, before={"permissions": before}, after={"permissions": after})
+        await db.commit()
+    return user
+
+
 async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -> User:
     user = await db.get(User, user_id)
     if user is None:
         raise AppError(404, "not_found", "User not found.")
     _check_can_manage(admin, user)
+    if user.status in ("pending", "rejected"):
+        # A sign-up is decided with Approve (which sets permissions) or Reject, never switched on directly
+        raise AppError(409, "not_approved", "Approve or reject this sign-up first.")
     if admin.role != "admin" and status == "active":
         # Turning an account back on brings back all its old permissions, so only an admin may.
         # (A non-admin approver activates new sign-ups through approve(), with its checks.)
@@ -231,14 +300,20 @@ async def ensure_admin(db: AsyncSession, email: str, password: str, name: str = 
 
 
 # ---------- User Creation Form (admin) ----------
-STAFF_FIELDS = ("name", "phone", "employee_code", "branch", "role", "reporting_to")
+STAFF_FIELDS = ("name", "phone", "employee_code", "branch", "role", "job_title", "reporting_to")
 
 
 async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | None, data) -> None:
-    """Rules shared by create and edit: only an admin makes someone an admin, and "reporting to" must be
-    an active colleague (not the person themselves, and no loop like "A reports to B, B reports to A")."""
+    """Rules shared by create and edit: only an admin makes someone an admin, a job title must be one from
+    the list, and "reporting to" must be an active colleague (not the person themselves, and no loop like
+    "A reports to B, B reports to A")."""
     if data.role == "admin" and actor.role != "admin":
         raise AppError(403, "forbidden", "Only an admin can give the admin role.")
+    if data.job_title:
+        name = await job_title_service.find(db, data.job_title)
+        if name is None:
+            raise AppError(422, "unknown_job_title", "Pick a job title from the list, or add it first.")
+        data.job_title = name  # the list's own spelling
     if data.reporting_to is None:  # top of the chain: no manager, so nothing to check
         return
     if data.reporting_to == target_id:
@@ -270,7 +345,7 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
         name=data.name, email=data.email, phone=data.phone, role=data.role, status="active",
         password_hash=None, firebase_uid=uid,
         permissions=list(EMPLOYEE_DEFAULTS), employee_code=data.employee_code, branch=data.branch,
-        reporting_to=data.reporting_to, approved_by=admin.id, approved_at=datetime.now(timezone.utc),
+        job_title=data.job_title, reporting_to=data.reporting_to, approved_by=admin.id, approved_at=datetime.now(timezone.utc),
     )
     db.add(user)
     try:
@@ -331,7 +406,8 @@ async def profile_out(db: AsyncSession, u: User) -> dict:
     return {"id": u.id, "name": u.name, "email": u.email, "phone": u.phone or "", "role": u.role,
             "categories": u.categories or [], "notify_email": u.notify_email, "notify_whatsapp": u.notify_whatsapp,
             # Set by the admin; shown read-only on the profile
-            "employee_code": u.employee_code, "branch": u.branch, "reporting_to_name": boss.name if boss else ""}
+            "employee_code": u.employee_code, "branch": u.branch, "job_title": u.job_title,
+            "reporting_to_name": boss.name if boss else ""}
 
 
 async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:

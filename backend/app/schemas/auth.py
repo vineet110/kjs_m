@@ -45,8 +45,13 @@ class UserOut(BaseModel):
     permissions: list[str]
     created_at: datetime
     employee_code: str = ""
-    branch: str = ""
+    branch: str = ""  # shown as "Department"
+    job_title: str = ""
     reporting_to: int | None = None
+    # Sign-up decision: who approved or rejected it, when, and why it was rejected
+    approved_by: int | None = None
+    approved_at: datetime | None = None
+    rejection_reason: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -55,11 +60,24 @@ class ApproveIn(BaseModel):
     permissions: list[str] = Field(default_factory=list)
 
 
+class RejectIn(BaseModel):
+    reason: OneLine = Field(min_length=3, max_length=500)  # required: the person may ask why
+
+
+class PermissionsIn(BaseModel):
+    permissions: list[str] = Field(default_factory=list, max_length=50)
+
+
+class JobTitleIn(BaseModel):
+    name: OneLine = Field(min_length=2, max_length=60)
+
+
 class StaffDetailsIn(BaseModel):
     """What the admin sets on the User Creation Form (and can change later)."""
     employee_code: OneLine = Field(min_length=1, max_length=40)
-    branch: OneLine = Field(min_length=1, max_length=80)
-    role: Literal["admin", "employee"]
+    branch: OneLine = Field(min_length=1, max_length=80)  # "Department" on screen
+    role: Literal["admin", "employee"]  # "Admin access" on screen
+    job_title: OneLine = Field(default="", max_length=60)  # empty or a name from job_titles
     reporting_to: int | None = None  # empty = top of the chain (the top admin reports to no one)
 
 
@@ -77,6 +95,7 @@ class UserPatchIn(BaseModel):
     employee_code: OneLine | None = Field(default=None, min_length=1, max_length=40)
     branch: OneLine | None = Field(default=None, min_length=1, max_length=80)
     role: Literal["admin", "employee"] | None = None
+    job_title: OneLine | None = Field(default=None, max_length=60)
     reporting_to: int | None = None
 
 

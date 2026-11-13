@@ -403,3 +403,43 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
 3. Accepted as they are (Vineet): greeting headings on Today and Admin overview, no heading on My
    attendance, "Manage employees", "Client Schedulers (Lead Harvester)", and "Order Boards & Assigning"
    wrapping to 2 lines.
+
+## Employee management and live updates (13 Nov, branch `feat/employee-permissions`)
+
+1. Asked by Vineet; plan agreed 13 Nov (reject reason required, job title = label only, update check 30 s).
+2. Backend:
+   1. Migration `0023` (was 0021; renumbered after #78's 0022): `users.job_title`, `users.rejection_reason`, table `job_titles` (unique whatever
+      the case). Status `rejected` is just a new value (no schema change). Not yet run on Neon.
+   2. `POST /admin/users/{id}/reject` (reason required, pending only, needs `staff.approve`). A rejected
+      person can't log in ("Your sign-up was not approved"). Only an admin can approve them later.
+   3. `PUT /admin/users/{id}/permissions`: admin only; not yourself, not admins; `leads.view` always
+      stays; applies on the person's next request.
+   4. `GET/POST /admin/job-titles` (adding is admin only). The user form's job title must come from it.
+   5. Enable / Disable can no longer switch on a pending or rejected sign-up (Approve or Reject first).
+   6. `GET /employee/updates`: counters only (notifications, approvals, chat, new leads by source).
+      `GET /employee/notifications?unread=1` = the bell's list.
+   7. Tests: `tests/test_staff_manage.py` (13), `tests/test_updates.py` (5).
+3. Frontend:
+   1. `lib/updates.ts`: one check per tab every 30 s while visible, at once on return to the tab or
+      after your own action; each part reloads only when its number changed. Replaces the separate
+      timers of the bell, chat count and approvals badge.
+   2. Bell shows unread only; an opened one disappears. Sidebar badges on Leads, Koko chat leads,
+      Internal leads. Chat page catches up when its unread number changes (no live connection on Vercel).
+   3. All approvals: Waiting (Approve / Reject with reason), Approved (Edit opens that person), Rejected
+      (reason, who, when; an admin can approve).
+   4. Manage employees: tabs Accepted, Rejected, Pending, Disabled, All; row actions Edit, Permissions,
+      Disable / Enable. The edit page has a Permissions box (`#permissions`).
+   5. Admin overview Staff: Disable / Enable removed, Edit link instead.
+   6. User form: Branch shown as Department (stored as `branch`), Job title dropdown with
+      "+ Add new title", "Admin access" checkbox (admins only, asks first), Reporting To searchable by
+      name or employee code (`PersonPicker`, `lib/people.ts`).
+4. Deploy order: merge, then run 0023 on Neon by hand (adds only), then deploy, then the live tests.
+5. Words for kb.md at fold time: rejected status, job title, update check (`/updates`), migration 0023.
+6. Review fixes (13 Nov, CodeRabbit 2 rounds + own review): picker Enter no longer picks the first person;
+   bell keeps a read hidden until the server has it and stops subtracting only on a fresh count; chat catches
+   up on `chat_last` (muted chats too, own reads don't trigger it); lead lists reload on `leads.changed`
+   (newest lead change or note); every list uses only its newest answer; Approved list = real approvals
+   from the activity log (direct-created accounts left out, disabled ones kept); one update check on page
+   load, not two; index `ix_leads_updated_at` added to 0023; stray byte-order marks removed.
+7. Lesson: never edit files with PowerShell Get-Content / Set-Content (it corrupted ✕ ☰ … and added
+   byte-order marks). Use Python or the editor.

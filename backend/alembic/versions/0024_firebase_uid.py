@@ -4,16 +4,18 @@ users.firebase_uid: the Firebase account each person signs in with (unique). Emp
 this change: they are linked the first time that person logs in with Firebase using the same, verified email.
 users.password_hash: no longer required (Firebase keeps new passwords). Old hashes stay for now; dropped later.
 
-Revision ID: 0021
-Revises: 0020
+Number 0024: main already has 0022 (lead extra info) and 0023 (staff titles / reject), both merged first.
+
+Revision ID: 0024
+Revises: 0023
 """
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = '0021'
-down_revision: Union[str, None] = '0020'
+revision: str = '0024'
+down_revision: Union[str, None] = '0023'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

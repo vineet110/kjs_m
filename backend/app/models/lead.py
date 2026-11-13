@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -11,7 +12,8 @@ class Lead(Base, TimestampMixin):
     distributors, private-label brands)."""
 
     __tablename__ = "leads"
-    __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"))
+    __table_args__ = (Index("ix_leads_assigned_to", "assigned_to"), Index("ix_leads_created_at", "created_at"),
+                      Index("ix_leads_updated_at", "updated_at"))  # the 30-second update check (migration 0023)
 
     source: Mapped[str] = mapped_column(String(30))  # enquiry_form | price_sheet | koko | internal (typed in by staff)
     name: Mapped[str] = mapped_column(String(120))
@@ -37,6 +39,9 @@ class Lead(Base, TimestampMixin):
     outcome: Mapped[str] = mapped_column(String(40), default="")  # quote_sent, not_interested, …
     escalation_level: Mapped[int] = mapped_column(Integer, default=0)  # 1 = respond late reported, 2 = resolve late reported
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))  # internal leads only; website/Koko = empty
+    # "Extra Info": columns from an imported Excel / CSV file with no field of their own, kept because the
+    # person chose "Add" ({"GST No": "36AB..."}). Migration 0022.
+    extra: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
 
 class LeadNote(Base, TimestampMixin):

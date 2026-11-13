@@ -1,13 +1,14 @@
 'use client';
-// The profile card from the User Creation Form: photo, name, then email / phone / employee code / branch /
-// role / reporting to. The admin's form shows it live while typing; the Profile page shows the saved one.
+// The profile card from the User Creation Form: photo, name, then email / phone / employee code / department /
+// job title / reporting to. The admin's form shows it live while typing; the Profile page shows the saved one.
 // Photos are files owned by ("user", id); the newest one is the photo.
 import { useEffect, useState } from 'react';
-import { api, upload, type StoredFile } from '@/lib/api';
+import { api, type StoredFile } from '@/lib/api';
+import { uploadOne } from './FileList';
 import { Icon } from './icons';
 
 export type CardValues = {
-  name: string; email: string; phone: string; employee_code: string; branch: string; role: string; reporting_to: string;
+  name: string; email: string; phone: string; employee_code: string; branch: string; job_title: string; role: string; reporting_to: string;
 };
 
 /** The photo's address (or null) for a user; `version` re-asks after a new upload. */
@@ -26,11 +27,7 @@ export function usePhoto(userId: number | null, version = 0) {
 }
 
 export async function uploadPhoto(userId: number, file: File) {
-  const form = new FormData();
-  form.append('owner_type', 'user');
-  form.append('owner_id', String(userId));
-  form.append('file', file);
-  await upload('/files', form);
+  await uploadOne('user', String(userId), file);
 }
 
 export default function UserCard({ v, photo }: { v: CardValues; photo: string | null }) {
@@ -38,8 +35,9 @@ export default function UserCard({ v, photo }: { v: CardValues; photo: string | 
     ['Email', v.email || 'abc@kjsindia.com'],
     ['Phone Number', v.phone || '+91'],
     ['Employee Code', v.employee_code || 'Employee Code'],
-    ['Branch', v.branch || 'Branch'],
-    ['Role', v.role ? v.role.charAt(0).toUpperCase() + v.role.slice(1) : 'Role'],
+    ['Department', v.branch || 'Department'],
+    // The job title is a label; an admin with no title shows as Admin
+    ['Job title', v.job_title || (v.role === 'admin' ? 'Admin' : 'Job title')],
     ['Reporting To', v.reporting_to || 'Report To'],
   ];
   return (

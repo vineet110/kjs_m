@@ -1,11 +1,12 @@
 'use client';
 // Lead Management > Contacts > one contact. Opens on one enquiry (the lead in the address); the person's
 // other enquiries are chips under the name. Same page for admin and staff.
-// Left: the header, the lead pipeline (New → Contacted → Closed) and the tabs (Info, Notes, Task, Timeline,
-// Proposals). Right: quick actions (Notes, Task, Lead Share).
+// Left: the header, the lead pipeline (New → Contacted → Closed) and the tabs (Info, Notes, Task, Files,
+// Timeline, Proposals). Right: quick actions (Notes, Task, Files, Lead Share).
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import FileList from '@/components/portal/FileList';
 import { useMe } from '@/components/portal/PortalShell';
 import { Icon, type IconName } from '@/components/portal/icons';
 import { EmptyState, fmtIST, Msg, Pill } from '@/components/portal/ui';
@@ -23,17 +24,19 @@ const STAGES = [
   { key: 'contacted', label: 'Contacted', dot: 'bg-amber-500' },
   { key: 'closed', label: 'Closed', dot: 'bg-emerald-500' },
 ] as const;
-type Tab = 'info' | 'notes' | 'task' | 'timeline' | 'proposals';
+type Tab = 'info' | 'notes' | 'task' | 'files' | 'timeline' | 'proposals';
 const TABS: { key: Tab; label: string; icon: IconName }[] = [
   { key: 'info', label: 'Info', icon: 'info' },
   { key: 'notes', label: 'Notes', icon: 'note' },
   { key: 'task', label: 'Task', icon: 'tasks' },
+  { key: 'files', label: 'Files', icon: 'file' },
   { key: 'timeline', label: 'Timeline', icon: 'history' },
   { key: 'proposals', label: 'Proposals', icon: 'file' },
 ];
 
 export default function ContactPage() {
   const { id } = useParams<{ id: string }>();
+  const me = useMe();
   const [data, setData] = useState<ContactDetail | null>(null);
   const [failed, setFailed] = useState('');
   const [tab, setTab] = useState<Tab>('info');
@@ -58,6 +61,7 @@ export default function ContactPage() {
   if (failed) return <div className="space-y-4"><Back name="" /><EmptyState title="Can't open this contact" text={failed} /></div>;
   if (!data) return loadErr ? <div className="space-y-4"><Back name="" /><LoadError error={loadErr} onRetry={load} /></div> : <Loading />;
   const lead = data.lead;
+  const canWriteFiles = lead.assigned_to === me.id || me.permissions.includes('leads.view_all');
 
   return (
     <div className="space-y-4">
@@ -80,6 +84,10 @@ export default function ContactPage() {
               {tab === 'info' && <Info lead={lead} />}
               {tab === 'notes' && <Notes lead={lead} notes={notes} onChange={load} />}
               {tab === 'task' && <Tasks lead={lead} />}
+              {/* Same rule as the server: an unassigned lead's files can be seen, but only its owner
+                  (or leads.view_all) adds files or asks to delete them */}
+              {tab === 'files' && <FileList ownerType="lead" ownerId={String(lead.id)}
+                canUpload={canWriteFiles} canRequestDelete={canWriteFiles} />}
               {tab === 'timeline' && <Timeline lead={lead} notes={notes} />}
               {tab === 'proposals' && <EmptyState icon="file" title="No proposals yet" text="Quotes and proposals are not recorded in the portal yet. Log a sent quote as a note for now." />}
             </div>
@@ -92,6 +100,7 @@ export default function ContactPage() {
             <div className="grid grid-cols-2 gap-2">
               <Quick icon="note" label="Notes" onClick={() => setTab('notes')} />
               <Quick icon="tasks" label="Task" onClick={() => setTab('task')} />
+              <Quick icon="file" label="Files" onClick={() => setTab('files')} wide />
               <Quick icon="share" label="Lead Share" onClick={() => setSharing(!sharing)} wide />
             </div>
             {sharing && <Share lead={lead} onDone={() => { setSharing(false); load(); }} />}
@@ -244,6 +253,16 @@ function Info({ lead }: { lead: Lead }) {
         <Field icon="users" label="Buyer type">{lead.buyer_type}</Field>
         <Field icon="box" label="Quantity">{lead.quantity}</Field>
       </div>
+      {lead.extra && Object.keys(lead.extra).length > 0 && (
+        <div className="rounded-lg border border-slate-100 p-4 text-sm">
+          <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Extra Info</p>
+          <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
+            {Object.entries(lead.extra).map(([k, val]) => (
+              <div key={k} className="contents"><dt className="text-slate-500">{k}</dt><dd className="break-words">{val}</dd></div>
+            ))}
+          </dl>
+        </div>
+      )}
       {lead.message && (
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
           <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Message</p>

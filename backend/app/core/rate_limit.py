@@ -71,6 +71,8 @@ class RateLimiter:
 # Limits per IP per hour come from config/app.ini
 lead_limiter = RateLimiter(limit=lambda: cfg().app.lead_rate_per_hour, window_seconds=3600)
 koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_seconds=3600)
+# Staff reading Excel / CSV files into the New internal lead form, per person per hour
+lead_file_limiter = RateLimiter(limit=lambda: cfg().app.lead_file_reads_per_hour, window_seconds=3600)
 # Passwords are checked by Firebase (it blocks guessing itself). Here: bad Firebase tokens (fake, expired,
 # revoked) per network. Only bad ones count, so a whole office logging in from one address is never blocked
 # (CR7), and a stranger's network never blocks anyone else's (CR5).

@@ -3,6 +3,7 @@
 // unread count. Plan and rules: docs/tempV.md, "KJS Chat".
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
+import { pokeUpdates } from './updates';
 
 export type ChatKind = 'channel' | 'group' | 'dm';
 export type ChatPerson = { id: number; name: string; role: 'owner' | 'member' };
@@ -119,35 +120,6 @@ export function useChatSocket(onEvent: (e: ChatEvent) => void, onConnect: () => 
 }
 
 // ---------- The sidebar's unread number ----------
-const CHANGED = 'kjs:chat-unread';
-/** The chat page calls this after reading, so the sidebar asks again at once. */
-export const chatUnreadChanged = () => window.dispatchEvent(new Event(CHANGED));
-
-/** Total unread chat messages (muted chats don't count). Asked on each page change, every minute, and
- *  right after chatUnreadChanged(). Only the newest answer counts. */
-export function useChatUnread(pathname: string, enabled = true): number {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    // Chat switched off for this person (config/modules.ini): don't ask, show no count
-    if (!enabled) {
-      setN(0);
-      return;
-    }
-    let latest = 0;
-    const ask = () => {
-      const mine = ++latest;
-      api<{ total: number }>('/chat/unread')
-        .then((r) => mine === latest && setN(r.total))
-        .catch(() => undefined); // no badge is fine
-    };
-    ask();
-    const t = setInterval(ask, 60_000);
-    window.addEventListener(CHANGED, ask);
-    return () => {
-      latest = -1;
-      clearInterval(t);
-      window.removeEventListener(CHANGED, ask);
-    };
-  }, [pathname, enabled]);
-  return n;
-}
+// It comes from the portal's 30-second check (lib/updates.ts, `chat`). The chat page calls this after
+// reading, so the sidebar's number drops at once instead of at the next check.
+export const chatUnreadChanged = () => pokeUpdates();

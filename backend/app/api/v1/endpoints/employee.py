@@ -1,16 +1,17 @@
 """Portal routes for any logged-in staff member. Each route names the permission it needs."""
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
+from app.core.rate_limit import lead_file_limiter
 from app.models.user import User
-from app.schemas.lead import Contact, InternalLeadIn, LeadOut
-from app.services import lead_service, notification_service
+from app.schemas.lead import MAX_EXTRA, Contact, ExtraName, InternalLeadFormIn, InternalLeadIn, LeadOut
+from app.services import lead_reader, lead_service, notification_service, updates_service
 
 router = APIRouter()
 
@@ -46,10 +47,47 @@ async def my_leads(
 
 
 @router.post("/leads", response_model=LeadOut, status_code=201)
-async def add_internal_lead(data: InternalLeadIn, user: User = Depends(require_permission("leads.view")),
+async def add_internal_lead(data: InternalLeadFormIn, user: User = Depends(require_permission("leads.view")),
                             db: AsyncSession = Depends(get_db)):
     """Internal lead: typed in by staff (a call, a fair, a walk-in)."""
     return await lead_service.create_internal(db, user, data)
+
+
+@router.post("/leads/read-file")
+async def read_lead_file(file: UploadFile = File(...), user: User = Depends(require_permission("leads.view")),
+                         db: AsyncSession = Depends(get_db)):
+    """Read an Excel / CSV file to fill the New internal lead form. Nothing is saved."""
+    lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
+    data = await file.read(lead_reader.MAX_BYTES + 1)
+    return await lead_service.read_lead_file(db, file.filename or "", data)
+
+
+class ImportIn(BaseModel):
+    leads: list[InternalLeadIn] = Field(min_length=1, max_length=lead_reader.MAX_IMPORT_ROWS)
+    extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)  # for the audit log
+
+
+@router.post("/leads/import/preview")
+async def import_preview(file: UploadFile = File(...), user: User = Depends(require_permission("leads.view")),
+                         db: AsyncSession = Depends(get_db)):
+    """Bulk import, step 1: read every row of an Excel / CSV file and check it. Nothing is saved."""
+    lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
+    data = await file.read(lead_reader.MAX_BYTES + 1)
+    return await lead_service.import_preview(db, user, file.filename or "", data)
+
+
+@router.post("/leads/import", status_code=201)
+async def import_leads(data: ImportIn, user: User = Depends(require_permission("leads.view")),
+                       db: AsyncSession = Depends(get_db)):
+    """Bulk import, step 2: the rows the person kept become internal leads (all or none)."""
+    return await lead_service.import_leads(db, user, data.leads, data.extra_rejected)
+
+
+@router.get("/leads/same-person")
+async def same_person(phone: str = Query("", max_length=40), email: str = Query("", max_length=255),
+                      user: User = Depends(require_permission("leads.view")), db: AsyncSession = Depends(get_db)):
+    """Before saving a lead: how many leads this person already has (that I can see), and the newest one."""
+    return await lead_service.same_person(db, user, phone, email)
 
 
 @router.get("/contacts", response_model=list[Contact])
@@ -114,8 +152,15 @@ async def colleagues(_: User = Depends(current_user), db: AsyncSession = Depends
 
 # ---------- Notifications (the bell) ----------
 @router.get("/notifications")
-async def my_notifications(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    return await notification_service.list_mine(db, user)
+async def my_notifications(unread: bool = False, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """unread=1: only the ones not opened yet (the bell); an opened notification drops out of the list."""
+    return await notification_service.list_mine(db, user, unread_only=unread)
+
+
+@router.get("/updates")
+async def updates(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Counters for the portal's 30-second check (updates_service). Tiny, so it's the only thing polled."""
+    return await updates_service.counters(db, user)
 
 
 class ReadIn(BaseModel):

@@ -192,7 +192,7 @@ async def _files_approvers(db: AsyncSession, owner_id: str) -> tuple[set[int], s
     return ({owner} if owner else set()), f"/employee/order-boards/{owner_id.upper()}"
 
 
-file_service.register_owner("board", _files_access, approvers=_files_approvers)
+file_service.register_owner("board", _files_access, approvers=_files_approvers, clean=str.upper)  # codes are upper case
 
 
 # ---------- Create ----------
