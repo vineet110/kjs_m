@@ -52,7 +52,7 @@ CASES = [
     ("EMP-028", "My attendance", "Requests reach the admin", "As admin, read GET /api/v1/admin/approvals.",
      "V's E2E leave and missed-punch requests are waiting there.", S),
     # ---- Leads ----
-    ("EMP-040", "Leads", "Leads list loads", "Open /employee/contacts.", "Table with 'Showing â€¦ Contacts' (or an empty message).", V),
+    ("EMP-040", "Leads", "Leads list loads", "Open /employee/contacts.", "Table with 'Showing … Contacts' (or an empty message).", V),
     ("EMP-041", "Leads", "Search leads", "Search for a name from the list, then for nonsense.", "Matching rows; then 'Nothing matches your search'.", V),
     ("EMP-042", "Internal leads", "Add an internal lead", "+ Add lead: 'E2E Lead <time>', E2E Co, phone, India, coffee, 1 tonne a month.",
      "Saved; listed in Internal leads. (Kept; SLA timers apply.)", C),
@@ -78,7 +78,7 @@ CASES = [
     ("EMP-070", "Chat", "Chat page loads", "Open /employee/chat.", "Chat list shows.", V),
     ("EMP-071", "Chat", "Start a group chat", "+ Group chat 'E2E Group' with 2 test employees.", "The group opens. (Kept.)", C),
     ("EMP-072", "Chat", "Send a message", "Send 'E2E hello <time>'.", "The message shows.", C),
-    ("EMP-073", "Chat", "Edit own message", "Edit it to 'â€¦ (edited by test)'.", "New text shows, marked edited.", C),
+    ("EMP-073", "Chat", "Edit own message", "Edit it to '… (edited by test)'.", "New text shows, marked edited.", C),
     ("EMP-074", "Chat", "Delete own message", "Send another, delete it.", "Shows as 'message deleted'.", C),
     ("EMP-075", "Chat", "Live connection", "Open chat and watch the live connection.",
      "Connects. (Known bug: 404 on Vercel, expected to fail until fixed.)", V),
