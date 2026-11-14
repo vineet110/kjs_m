@@ -127,6 +127,20 @@ class MonitoringIni(BaseModel):
     max_range_days: int = Field(31, ge=1, le=366)  # longest date range one page may ask for
     timeline_page_size: int = Field(200, ge=20, le=1000)  # timeline items per "Load more"
     team_refresh_seconds: int = Field(30, ge=10, le=600)  # how often Team work reloads itself
+    screenshot_minutes: int = Field(15, ge=1, le=240)  # one screenshot every N minutes while checked in
+    keep_days: int = Field(30, ge=1, le=365)  # screenshots older than this are deleted (files and rows)
+    image_quality: int = Field(60, ge=10, le=95)  # JPEG quality the browser uses (lower = smaller files)
+    max_screenshot_kb: int = Field(600, ge=50, le=5000)  # bigger uploads are refused
+    break_minutes_per_day: int = Field(60, ge=0, le=480)  # admins are told once a day when someone goes over
+    idle_warn_minutes: int = Field(15, ge=1, le=240)  # no activity this long = idle (shorter pauses never count)
+    idle_admin_minutes: int = Field(30, ge=1, le=480)  # admins are told once per idle period
+    gap_alert_minutes: int = Field(5, ge=0, le=120)  # screen sharing off this long (while checked in) = alert
+
+    @model_validator(mode="after")
+    def idle_order(self):
+        if self.idle_admin_minutes < self.idle_warn_minutes:
+            raise ValueError("idle_admin_minutes must not be less than idle_warn_minutes")
+        return self
 
 
 class ComplaintsIni(BaseModel):
