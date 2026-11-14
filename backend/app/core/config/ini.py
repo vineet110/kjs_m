@@ -122,6 +122,10 @@ class StorageIni(BaseModel):
         "pptx", "ppt", "gif", "heic", "mp4", "mov"])
 
 
+class ComplaintsIni(BaseModel):
+    developer_email: str = ""  # gets new complaints by email, once email is set up (not used yet)
+
+
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
 ModuleLevel = Literal["on", "admin", "off"]
 # area -> areas it needs, switched on at least as far (batches go only to staff who checked in)
@@ -169,6 +173,7 @@ class Config(BaseModel):
     logging: LoggingIni = LoggingIni()
     storage: StorageIni = StorageIni()
     modules: ModulesIni = ModulesIni()
+    complaints: ComplaintsIni = ComplaintsIni()
 
 
 # file name -> section it fills

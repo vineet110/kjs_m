@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, content, employee, files, harvest, koko, public, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, koko, public, tasks
 from app.core.modules import area
 
 api_router = APIRouter()
@@ -15,6 +15,7 @@ api_router.include_router(harvest.router, prefix="/admin/harvest", tags=["Lead H
                           dependencies=area("lead_harvester"))
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"], dependencies=area("attendance"))
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
+api_router.include_router(complaints.router, prefix="/complaints", tags=["Complaints"])  # always on, no area
 api_router.include_router(files.router, prefix="/files", tags=["Files"])  # area of each file's owner: file_service
 api_router.include_router(boards.router, prefix="/boards", tags=["Order boards"], dependencies=area("order_boards"))
 api_router.include_router(assign.router, prefix="/assign", tags=["Auto-assign"], dependencies=area("batches"))

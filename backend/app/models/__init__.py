@@ -16,3 +16,4 @@ from app.models.content import KokoChat, Offer, PartnerApplication, SiteText  # 
 from app.models.harvest import HarvestRun, HarvestSource  # noqa: F401
 from app.models.chat import ChatChannel, ChatMember, ChatMessage  # noqa: F401
 from app.models.job_title import JobTitle  # noqa: F401
+from app.models.complaint import Complaint  # noqa: F401

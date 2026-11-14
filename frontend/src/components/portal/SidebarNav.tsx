@@ -79,6 +79,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/admin/analytics', label: 'Reports', icon: 'chart', perm: 'staff.approve' },
       { href: '/admin/alerts', label: 'Alerts', icon: 'bell', perm: 'staff.approve' },
+      { href: '/admin/complaints', label: 'Complaints', icon: 'info', perm: 'staff.approve' },
       { href: '/admin/audit', label: 'Activity log', icon: 'file', perm: 'audit.view' },
       { href: '/admin/settings', label: 'Manage settings', icon: 'settings', perm: 'staff.approve' },
     ],

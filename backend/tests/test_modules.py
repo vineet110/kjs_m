@@ -196,6 +196,7 @@ ALWAYS_ON = (
     "/api/v1/admin/stats", "/api/v1/admin/permissions", "/api/v1/admin/users", "/api/v1/admin/leads",
     "/api/v1/admin/sla", "/api/v1/admin/approvals", "/api/v1/admin/config",
     "/api/v1/admin/job-titles",  # part of Manage employees (always on)
+    "/api/v1/complaints",  # "Report a problem": every staff member, every page
 )
 
 

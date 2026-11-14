@@ -45,6 +45,8 @@ APPROVERS: dict[str, Approvers] = {}
 # board ABC117-3 and "007" finds lead 7. Owners without one keep the id as it came.
 Cleaner = Callable[[str], str]
 CLEANERS: dict[str, Cleaner] = {}
+# owner_type -> the only extensions it takes (e.g. a complaint's screenshot is a picture). Others: allowed_types.
+OWNER_TYPES: dict[str, set[str]] = {}
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -59,8 +61,11 @@ ONLY_FOR = {"heic": {"lead"}}
 
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
-                   approvers: Approvers | None = None, clean: Cleaner | None = None) -> None:
+                   approvers: Approvers | None = None, clean: Cleaner | None = None,
+                   types: set[str] | None = None) -> None:
     OWNERS[owner_type] = check
+    if types:
+        OWNER_TYPES[owner_type] = types
     if clean:
         CLEANERS[owner_type] = clean
     if public:
@@ -119,7 +124,8 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
         raise AppError(422, "not_public", "Only product files can be shown on the website.")
     name = upload_file.filename or "file"
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-    if ext not in cfg().storage.allowed_types or ext not in TYPES or owner_type not in ONLY_FOR.get(ext, {owner_type}):
+    if ext not in cfg().storage.allowed_types or ext not in TYPES or owner_type not in ONLY_FOR.get(ext, {owner_type}) \
+            or ext not in OWNER_TYPES.get(owner_type, {ext}):
         raise AppError(422, "file_type", f"Files of type .{ext or '?'} are not allowed.",
                        {"allowed": cfg().storage.allowed_types})
     limit = cfg().storage.max_upload_mb * 1024 * 1024
