@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiFailure, type Board, type Colleague } from '@/lib/api';
 import { fmtDay, Pill } from './ui';
+import Spinner from '@/components/ui/Spinner';
 
 type Draft = {
   key: string; id: number | null; name: string; size: number; status: 'pending' | 'active' | 'done';
@@ -144,7 +145,7 @@ export default function PlanEditor({ b, staff, onSave, onClose }: {
       </div>
 
       <div className="flex gap-2">
-        <button onClick={save} disabled={saving || !!missingPeople} className="btn-dark disabled:opacity-50">{saving ? 'Saving…' : 'Save plan'}</button>
+        <button onClick={save} disabled={saving || !!missingPeople} className="btn-dark disabled:opacity-50">{saving && <Spinner />}{saving ? 'Saving…' : 'Save plan'}</button>
         <button onClick={onClose} className="btn-ghost">Cancel</button>
       </div>
     </section>

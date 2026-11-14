@@ -6,6 +6,7 @@ import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, upload, type Category } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
+import Spinner from '@/components/ui/Spinner';
 
 type StaffRow = {
   user_id: number; name: string; categories: string[]; is_available: boolean; checked_in: boolean;
@@ -24,7 +25,10 @@ export default function AutoAssign() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false); // one action at a time: a double click can't hand out batches twice
+  // Which action is running (null = none). One at a time: a double click can't hand out batches twice.
+  // Knowing which one keeps the Run now spinner off while only Preview or a category change runs.
+  const [doing, setDoing] = useState<'run' | 'preview' | 'categories' | null>(null);
+  const busy = doing !== null;
 
   const load = useCallback(() => {
     setLoadErr(null);
@@ -52,8 +56,8 @@ export default function AutoAssign() {
 
   /** Runs one action with the buttons off. On any error: say so, and load the page again, so what the server
    *  really did (e.g. batches given before a time-out) shows before anyone clicks again. */
-  async function act(fn: () => Promise<void>, failed: string) {
-    setBusy(true);
+  async function act(what: 'run' | 'preview' | 'categories', fn: () => Promise<void>, failed: string) {
+    setDoing(what);
     setMsg(null);
     try {
       await fn();
@@ -61,24 +65,24 @@ export default function AutoAssign() {
       setMsg({ ok: false, text: err instanceof ApiFailure ? err.message : failed });
       load();
     } finally {
-      setBusy(false);
+      setDoing(null);
     }
   }
 
-  const toggleCat = (row: StaffRow, slug: string) => act(async () => {
+  const toggleCat = (row: StaffRow, slug: string) => act('categories', async () => {
     const next = row.categories.includes(slug) ? row.categories.filter((c) => c !== slug) : [...row.categories, slug];
     await api(`/assign/staff/${row.user_id}/categories`, { method: 'POST', body: { categories: next } });
     load();
   }, 'Could not change the categories.');
 
-  const runNow = () => act(async () => {
+  const runNow = () => act('run', async () => {
     // A save: waits up to 90 s (api()), longer than handing out every batch takes
     const r = await api<{ batches: number; given: { name: string; records: number }[] }>('/assign/run', { method: 'POST' });
     setMsg({ ok: true, text: r.batches ? `Gave ${r.given.map((g) => `${g.records} to ${g.name}`).join(', ')}.` : 'Nobody could get a batch right now (see the rules above).' });
     load();
   }, 'Could not run auto-assign.');
 
-  const preview = () => act(async () => setPlan(await api<Plan>('/assign/preview')), 'Could not load the preview.');
+  const preview = () => act('preview', async () => setPlan(await api<Plan>('/assign/preview')), 'Could not load the preview.');
 
   if (loadErr) return <LoadError error={loadErr} onRetry={load} />;
   if (!o) return <Loading />;
@@ -91,8 +95,8 @@ export default function AutoAssign() {
         sub={`Batches of ${s.batch_size} records, max ${s.max_batches_per_day} per person per day, ${s.work_start}–${s.work_end} IST. Only to people who are checked in, receiving tasks, and have categories. (Edit config/assign.ini to change.)`}
       >
         <div className="flex gap-2">
-          <button disabled={busy} onClick={preview} className="btn-ghost">Preview</button>
-          <button disabled={busy} onClick={runNow} className="btn-dark">{busy ? 'Working…' : 'Run now'}</button>
+          <button disabled={busy} onClick={preview} className="btn-ghost">{doing === 'preview' && <Spinner />}Preview</button>
+          <button disabled={busy} onClick={runNow} className="btn-dark">{doing === 'run' && <Spinner />}{doing === 'run' ? 'Working…' : 'Run now'}</button>
         </div>
       </PageTitle>
       <Msg msg={msg} />

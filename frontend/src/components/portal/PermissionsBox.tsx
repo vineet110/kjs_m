@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiFailure, type StaffUser } from '@/lib/api';
 import type { Perm } from './ApproveCard';
 import { useToast } from './Toast';
+import Spinner from '@/components/ui/Spinner';
 
 export default function PermissionsBox({ user, onSaved }: { user: StaffUser; onSaved: (u: StaffUser) => void }) {
   const [perms, setPerms] = useState<Perm[] | null>(null);
@@ -64,7 +65,7 @@ export default function PermissionsBox({ user, onSaved }: { user: StaffUser; onS
       )}
       {err && <p className="text-sm text-red-700">{err}</p>}
       <div className="flex gap-2">
-        <button disabled={busy || !changed || !perms} onClick={save} className="btn-dark disabled:opacity-50">{busy ? 'Saving…' : 'Save permissions'}</button>
+        <button disabled={busy || !changed || !perms} onClick={save} className="btn-dark disabled:opacity-50">{busy && <Spinner />}{busy ? 'Saving…' : 'Save permissions'}</button>
         {changed && <button disabled={busy} onClick={() => setChosen(user.permissions)} className="btn-ghost">Undo changes</button>}
       </div>
     </section>
