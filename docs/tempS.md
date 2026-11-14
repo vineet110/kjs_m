@@ -72,3 +72,16 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - #75 had merged into `feat/lead-files-excel`, not `main` (that branch was never deleted, so GitHub didn't move it). #78 now targets `main` and carries #75 + Extra Info together.
 - Fix: the file reader looked at only the first 1,001 lines, so with many empty lines in between, real rows after that were dropped without a word. Now empty rows are skipped while reading and only real rows count (`lead_reader._filled`); a safety cap of 20,000 lines (`MAX_SCAN`) means "maybe more", so bulk import refuses instead of cutting.
 - Test: `test_empty_lines_do_not_hide_rows` (fails on the old code). Full suite 408 passed.
+
+## Complaints: "Report a problem" (branch feat/complaints, 14 Nov)
+
+- Point 5: staff report a bug, issue or suggestion from any portal page. Saved in the database only. No email for now (not set up yet).
+- Header button "Report a problem" (next to the bell) opens a form: type, title (at least 3 words), description (at least 15 words), optional screenshot (png / jpg / webp). Live word counters; Send stays off until both rules pass. The same rules are checked again on the server.
+- Added by themselves: the page path (`window.location.pathname`, never a full link) and the date and time (`created_at` from the server).
+- Admins (`staff.approve`) see them on the new page `/admin/complaints` (sidebar: Reports & settings > Complaints), newest first, with screenshot links.
+- Backend: table `complaints` (migration `0026_complaints.py`), `complaint_service.py`, route `/api/v1/complaints` (POST any logged-in staff, GET `staff.approve`). Always on, no module switch. Audit `complaint.filed` names the kind and page, never the text.
+- Screenshot = a normal file, owner_type `complaint`, uploaded after the complaint is saved (existing `/files`). Only the person who filed it may add one; they and admins may see it. If only the screenshot fails, the report is still saved and a message says so.
+- `config/complaints.ini`: `developer_email` (empty, NOT USED YET). When email is ready, send each new complaint to it.
+- Migration number: PR #77 (feat/firebase-auth) has 0024 and 0025, so this is 0026 with down_revision 0023. Whichever merges second changes its down_revision to the other's last one. Tell Vineet.
+- Guesses (move to backlog section 3 at fold time): admins = `staff.approve` read them; no status (open / done) yet; no rate limit; list shows the newest 200 only.
+- Tests: `tests/test_complaints.py` (7: allowed + forbidden users, word rules, bad kind / link refused, screenshot access). Migration down + up tested on the test DB. Full backend suite 436 passed (added `/api/v1/complaints` to ALWAYS_ON in test_modules.py). `tsc` clean, `npm test` passes. Browser click-through not done.
