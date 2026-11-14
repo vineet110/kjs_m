@@ -66,7 +66,8 @@ FAKE_UNVERIFIED = "fake-firebase-unverified:"
 
 
 def uid_of(email: str) -> str:
-    return f"uid-{email.lower()}"
+    # Cut to 128 like a real Firebase uid (users.firebase_uid is 128): a very long test email still fits
+    return f"uid-{email.lower()}"[:128]
 
 
 def id_token(email: str, verified: bool = True, signed_in_seconds_ago: int = 0) -> str:

@@ -314,7 +314,7 @@ async def test_signing_up_twice_with_the_same_login_is_fine(client):
 
 async def test_signing_up_again_after_a_decision_is_still_refused(client):
     await make_user("e@kjsindia.com", status="rejected")
-    r = await client.post(SIGNUP, json={"id_token": id_token("e@kjsindia.com"), "name": "E", "phone": "+91 98765 43210"},
+    r = await client.post(SIGNUP, json={"id_token": id_token("e@kjsindia.com"), "name": "Eee", "phone": "+91 98765 43210"},
                           headers=HDR)
     assert r.status_code == 409
 

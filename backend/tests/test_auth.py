@@ -17,9 +17,15 @@ async def test_signup_then_pending_cannot_login(client):
 
 
 async def test_duplicate_email_rejected(client):
-    body = signup_body("a@kjsindia.com", "A B")
-    assert (await client.post("/api/v1/auth/signup", json=body, headers=HDR)).status_code == 201
-    r = await client.post("/api/v1/auth/signup", json=body, headers=HDR)
+    # The email already belongs to another Firebase login (another person). The same person signing up
+    # again is fine: test_signing_up_twice_with_the_same_login_is_fine (test_firebase_login.py).
+    from app.core.database import AsyncSessionLocal
+    from app.models.user import User
+    async with AsyncSessionLocal() as db:
+        db.add(User(name="A B", email="a@kjsindia.com", firebase_uid="uid-another-person", role="employee",
+                    status="pending", permissions=["leads.view"]))
+        await db.commit()
+    r = await client.post("/api/v1/auth/signup", json=signup_body("a@kjsindia.com", "A B"), headers=HDR)
     assert r.status_code == 409 and r.json()["code"] == "email_taken"
 
 

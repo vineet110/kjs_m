@@ -158,3 +158,11 @@ Undo: revert the one commit; the console policy can be turned back to 6.
   `user.linked_firebase` (with the old uid), employee back to `pending`; disabled/rejected stay as they are.
   A login that still exists is never taken over. Google down = 503.
 - Tests: 3 new. Checked here: compile, import, dry-run with fake data. Database tests: CI.
+
+**CI fix (14 Nov): 3 tests failed, 464 passed (app code fine)**
+- `test_auth.py::test_duplicate_email_rejected`: still expected 409 for the same person signing up twice
+  (now 201 on purpose, step 1). Now: another person's login has the email = 409.
+- `test_signing_up_again_after_a_decision_is_still_refused`: my test used name "E" (min 2) = 422. Now "Eee".
+- `test_long_name_and_email_do_not_break_actions` (failing since 13 Nov): fake uid "uid-" + 125-char email
+  = 129 > 128. `uid_of()` in conftest cuts to 128 like a real Firebase uid.
+- Lesson: CI logs need a GitHub sign-in; CI had been red on #77 since the first push, check it after every push.
