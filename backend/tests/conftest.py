@@ -103,6 +103,9 @@ class FakeFirebase:
     async def reset_account(self, uid: str, password: str, name: str) -> None:
         self.reset[uid] = password
 
+    async def tokens_valid_after_ms(self, uid: str) -> int | None:
+        return None if uid in self.deleted else self.valid_after_ms.get(uid, 0)
+
     async def delete_user(self, uid: str) -> None:
         self.deleted.append(uid)
 
@@ -115,7 +118,7 @@ def fake_firebase(monkeypatch):
     from app.core import firebase
     fake = FakeFirebase()
     for name in ("verify_token", "create_user", "ensure_user", "uid_by_email", "reset_account", "delete_user",
-                 "set_disabled"):
+                 "set_disabled", "tokens_valid_after_ms"):
         monkeypatch.setattr(firebase, name, getattr(fake, name))
     monkeypatch.setattr(firebase, "enabled", lambda: True)
     return fake

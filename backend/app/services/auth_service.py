@@ -99,6 +99,7 @@ async def login(db: AsyncSession, id_token: str, ip_hash: str | None = None,
     # began: those end now, so a reset logs out the other devices. (A reset never reaches our API itself, so
     # this happens at the next login. Firebase keeps the time in whole seconds.)
     valid_after_ms = claims.get("valid_after_ms") or 0
+    _remember_valid_after(user, valid_after_ms)
     if valid_after_ms:
         cutoff = datetime.fromtimestamp(valid_after_ms / 1000, tz=timezone.utc)
         ended = (await db.execute(delete(UserSession).where(
@@ -110,6 +111,12 @@ async def login(db: AsyncSession, id_token: str, ip_hash: str | None = None,
     await db.commit()
     log.info("auth.login_ok", extra={"login_user_id": user.id})
     return user, token
+
+
+def _remember_valid_after(user: User, valid_after_ms: int) -> None:
+    """Fresh from Firebase (the token check just looked): saves session_user() a Google call (core/deps.py)."""
+    user.firebase_valid_after = datetime.fromtimestamp(valid_after_ms / 1000, tz=timezone.utc) if valid_after_ms else None
+    user.firebase_checked_at = datetime.now(timezone.utc)
 
 
 async def _new_session(db: AsyncSession, user: User) -> str:
@@ -472,6 +479,7 @@ async def password_changed(db: AsyncSession, user: User, id_token: str,
     if time.time() - claims.get("auth_time", 0) > FRESH_SIGN_IN_SECONDS:
         raise AppError(401, "bad_token", "Please type your current password again.")
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    _remember_valid_after(user, claims.get("valid_after_ms") or 0)
     token = await _new_session(db, user)
     audit_service.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id,
                          ip_hash=ip_hash)

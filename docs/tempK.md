@@ -135,3 +135,17 @@ Undo: revert the one commit; the console policy can be turned back to 6.
 - Checked here: compile, firebase-admin 7.8.0 has `clock_skew_seconds`, error mapping run with fake Google
   answers (503/422/409/None as planned). Database tests: CI (no Docker on this PC).
 - Still to do: password policy in the Firebase console (min 10).
+
+**Step 2 done (14 Nov, on #77 too: Kunal chose the same branch and the full fix)**
+- Migration `0025_firebase_session_check.py` (0025 was free on every branch: tell Vineet).
+  New `users.firebase_valid_after` + `users.firebase_checked_at`; deletes sessions of accounts not linked
+  to Firebase yet (they log in once more, then the Profile password change works).
+- `core/deps.py` `session_user()`: at most every 5 min (`FIREBASE_CHECK_EVERY`) asks Firebase when the
+  password last changed; a session older than that, or of a deleted Firebase account, ends (401).
+  Google down = keeps the last known time, nobody is logged out. Plain UPDATE so `updated_at` isn't reloaded.
+- `auth_service.py`: login and Profile password change save that time (no extra Google call right after).
+- `firebase.py`: `tokens_valid_after_ms(uid)`; conftest fake has it too.
+- Tests: 5 new (reset ends a stolen session, at most one look per 5 min, Google down, deleted account,
+  the real lookup). Checked here: compile, import, one Alembic head, session check dry-run with fake
+  data (all 5 answers as planned). Database tests: CI.
+- Before deploy: warn staff still logged in from before 13 Nov that they will be logged out once.

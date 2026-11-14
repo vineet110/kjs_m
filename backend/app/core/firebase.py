@@ -142,6 +142,16 @@ async def ensure_user(email: str, password: str, name: str) -> str:
     return await uid_by_email(email) or await create_user(email, password, name)
 
 
+async def tokens_valid_after_ms(uid: str) -> int | None:
+    """When this account's password last changed (ms, 0 = never), or None if the Firebase account is gone.
+    Google down = AppError 503 (the caller decides what to do)."""
+    try:
+        user = await _admin(fb_auth.get_user, uid, passthrough=(fb_auth.UserNotFoundError,))
+    except fb_auth.UserNotFoundError:
+        return None
+    return user.tokens_valid_after_timestamp or 0
+
+
 async def delete_user(uid: str) -> None:
     await _admin(fb_auth.delete_user, uid)
 

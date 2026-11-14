@@ -17,6 +17,10 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     # The Firebase Authentication account this person signs in with (None = an old account, not linked yet)
     firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True)
+    # When the Firebase password last changed (a reset too): sessions begun before it have ended.
+    # Refreshed from Firebase at most every few minutes (core/deps.py session_user).
+    firebase_valid_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    firebase_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     role: Mapped[str] = mapped_column(String(20), default="employee")  # admin | employee ("Admin access")
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | active | disabled | rejected
     # Extra permission keys for this person (see app/core/permissions.py). Admins have all.

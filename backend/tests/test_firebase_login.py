@@ -133,6 +133,7 @@ async def test_password_changed_logs_out_other_browsers_only(client):
 # The real token check (firebase.verify_token / firebase.app), kept before conftest swaps in the fake
 REAL_VERIFY, REAL_APP = firebase.verify_token, firebase.app
 REAL_UID_BY_EMAIL, REAL_CREATE_USER = firebase.uid_by_email, firebase.create_user
+REAL_VALID_AFTER = firebase.tokens_valid_after_ms
 ME = "/api/v1/auth/me"
 
 
@@ -325,3 +326,66 @@ async def test_approving_a_new_signup_makes_no_firebase_call(client, fake_fireba
     r = await client.post(f"/api/v1/admin/users/{uid}/approve", json={"permissions": []}, headers=HDR)
     assert r.status_code == 200
     assert fake_firebase.disabled == {}
+
+
+# ---------- Step 2: a password reset ends the other sessions at once ----------
+def _check_every_request(monkeypatch):
+    from datetime import timedelta
+    from app.core import deps
+    monkeypatch.setattr(deps, "FIREBASE_CHECK_EVERY", timedelta(0))  # don't wait 5 minutes in a test
+
+
+async def test_a_reset_by_email_ends_a_stolen_session(client, fake_firebase, monkeypatch):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    assert (await client.get(ME)).status_code == 200
+    async with engine.begin() as conn:  # this session began a minute ago (the stolen one)
+        await conn.execute(text("UPDATE user_sessions SET created_at = now() - interval '1 minute'"))
+    # The real person resets the password by the emailed link (Firebase only: our API never hears of it)
+    fake_firebase.valid_after_ms[uid_of("e@kjsindia.com")] = int(time.time()) * 1000
+    _check_every_request(monkeypatch)
+    assert (await client.get(ME)).status_code == 401
+    await login(client, "e@kjsindia.com")  # a new login after the reset works
+
+
+async def test_firebase_is_asked_at_most_every_few_minutes(client, fake_firebase, monkeypatch):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")  # the login itself saved the time from Firebase
+    calls = []
+
+    async def counted(uid):
+        calls.append(uid)
+        return 0
+    monkeypatch.setattr(firebase, "tokens_valid_after_ms", counted)
+    for _ in range(3):
+        assert (await client.get(ME)).status_code == 200
+    assert calls == []
+
+
+async def test_google_down_never_logs_anyone_out(client, monkeypatch):
+    from app.core.errors import AppError
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+
+    async def down(uid):
+        raise AppError(503, "login_unavailable", firebase.UNAVAILABLE)
+    monkeypatch.setattr(firebase, "tokens_valid_after_ms", down)
+    _check_every_request(monkeypatch)
+    assert (await client.get(ME)).status_code == 200
+
+
+async def test_deleted_firebase_account_ends_the_session(client, fake_firebase, monkeypatch):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    fake_firebase.deleted.append(uid_of("e@kjsindia.com"))
+    _check_every_request(monkeypatch)
+    assert (await client.get(ME)).status_code == 401
+
+
+async def test_real_firebase_lookup_answers(monkeypatch):
+    monkeypatch.setattr(firebase, "tokens_valid_after_ms", REAL_VALID_AFTER)
+    monkeypatch.setattr(firebase, "app", lambda: object())
+    monkeypatch.setattr(firebase.fb_auth, "get_user", lambda uid, app: SimpleNamespace(tokens_valid_after_timestamp=5000))
+    assert await firebase.tokens_valid_after_ms("u") == 5000
+    monkeypatch.setattr(firebase.fb_auth, "get_user", _raises(fb_auth.UserNotFoundError("gone")))
+    assert await firebase.tokens_valid_after_ms("u") is None
