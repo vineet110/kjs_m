@@ -33,7 +33,7 @@ export function backToLogin() {
 /** Firebase said "wrong email or password" (it doesn't say which, so nobody can probe who has an account). */
 export function isWrongPassword(err: unknown): boolean {
   return err instanceof FirebaseError
-    && ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(err.code);
+    && ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(err.code);
 }
 
 /** Accounts from before Firebase (13 Nov 2026) have no Firebase login yet: their old password fails there. */
@@ -47,8 +47,9 @@ export function firebaseMessage(err: unknown, fallback = 'Something went wrong. 
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-    case 'auth/invalid-email':
       return 'Email or password is wrong.';
+    case 'auth/invalid-email': // only a badly written address (e.g. no ".com"), never "no such account"
+      return 'Please check the email address.';
     case 'auth/too-many-requests':
       return 'Too many tries. Please wait a few minutes, or reset your password.';
     case 'auth/network-request-failed':

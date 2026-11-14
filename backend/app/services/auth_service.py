@@ -486,16 +486,18 @@ async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
     return await profile_out(db, user)
 
 
-async def password_changed(db: AsyncSession, user: User, id_token: str,
+async def password_changed(db: AsyncSession, id_token: str,
                            ip_hash: str | None = None, rate_key: str | None = None) -> str:
     """The browser has just changed the password in Firebase (after signing in again with the current one).
-    Here: log out every browser of this person, and give THIS one a new session (returned token). The old one
-    began before the change, so the next login anywhere would end it (see login()); the new one doesn't."""
+    Here: log out every browser of this person, and give THIS one a new session (returned token).
+    The person is found from the fresh sign-in, not the old session cookie: that session began before the
+    change, so the session check would already end it (see the route)."""
     claims = await _claims(id_token, rate_key or ip_hash)
-    if claims["uid"] != user.firebase_uid:
-        raise AppError(403, "forbidden", "This sign-in belongs to another account.")
     if time.time() - claims.get("auth_time", 0) > FRESH_SIGN_IN_SECONDS:
         raise AppError(401, "bad_token", "Please type your current password again.")
+    user = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
+    if user is None or user.status != "active":
+        raise AppError(401, "not_logged_in", "Your session has ended. Please log in again.")
     await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
     _remember_valid_after(user, claims.get("valid_after_ms") or 0)
     token = await _new_session(db, user)

@@ -166,3 +166,26 @@ Undo: revert the one commit; the console policy can be turned back to 6.
 - `test_long_name_and_email_do_not_break_actions` (failing since 13 Nov): fake uid "uid-" + 125-char email
   = 129 > 128. `uid_of()` in conftest cuts to 128 like a real Firebase uid.
 - Lesson: CI logs need a GitHub sign-in; CI had been red on #77 since the first push, check it after every push.
+
+### Review of #77, round 3 (14 Nov): 4 points
+
+- (1) Real bug: changing the password after 5+ min on Profile logged this browser out (the step-2 session
+  check saw the new password time and ended the session before `/auth/password` could give a new one).
+  Fixed: `/auth/password` no longer uses `current_user`; it finds the person from the fresh Firebase
+  sign-in (like `/login`): password typed < 5 min ago, account active, `x-requested-with` header.
+- (3) Double-click / second Enter on Log in or Create account ran `submit()` twice: a `useRef` lock,
+  always released in `finally`.
+- (9) `auth/invalid-email` (badly written address) now says "Please check the email address", not
+  "wrong password" (and no old-account hint). Firebase only sends it for the format, so it reveals nothing.
+- (8) Decided (Kunal): option A, a separate Firebase project for local + Playwright. Warning added in
+  `.env.example`. Checklist (Firebase console, by hand):
+  1. New project `kjs-dev` (free plan). Authentication > Sign-in method: Email/Password on.
+  2. Authentication > Settings: Authorized domains has `localhost`; Password policy min 10.
+  3. Project settings > Your apps > Web app: copy apiKey, authDomain, projectId, appId into
+     `frontend/.env.local` and `frontend/.env.e2e.local` as `NEXT_PUBLIC_FIREBASE_*`.
+  4. Project settings > Service accounts > Generate new private key: one line into backend `.env`
+     `FIREBASE_SERVICE_ACCOUNT` (secret, never committed).
+  5. `python -m app.seed` again so the test accounts exist in the dev project; Playwright logins too.
+  Never put the dev values on Vercel / Render.
+- Tests: 4 new (password change after 10 min on Profile stays logged in, stale sign-in 401, disabled 401,
+  missing header 403). Checked here: compile, import, `tsc`, `npm test` (58), build. Database tests: CI.

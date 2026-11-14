@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import current_user, visitor_keys
+from app.core.deps import CSRF_HEADER, current_user, visitor_keys
+from app.core.errors import AppError
 from app.core.modules import visible_to
 from app.core.permissions import effective_permissions
 from app.models.user import User
@@ -77,8 +78,13 @@ async def update_profile(data: ProfileIn, user: User = Depends(current_user), db
 
 @router.post("/password", status_code=204)
 async def password_changed(data: PasswordChangedIn, request: Request, response: Response,
-                           user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+                           db: AsyncSession = Depends(get_db)):
     """Called right after the browser changed the password in Firebase: logs out every other browser, and
-    gives this one a new session cookie."""
-    token = await auth_service.password_changed(db, user, data.id_token, *visitor_keys(request))
+    gives this one a new session cookie.
+    No current_user here on purpose: the password has just changed in Firebase, so the session check
+    (core/deps.py) would end THIS browser's session too, before we can give it a new one (review of #77).
+    The fresh Firebase sign-in in the body proves who it is, the same way /login does."""
+    if not request.headers.get(CSRF_HEADER):
+        raise AppError(403, "csrf", "Missing request header.")
+    token = await auth_service.password_changed(db, data.id_token, *visitor_keys(request))
     _set_session_cookie(response, token)

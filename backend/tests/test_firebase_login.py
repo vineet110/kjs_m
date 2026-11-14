@@ -422,3 +422,39 @@ async def test_relinked_account_keeps_a_disabled_status(client, fake_firebase):
     r = await client.post(LOGIN, json={"id_token": id_token("neha@kjsindia.com")}, headers=HDR)
     assert r.status_code == 403 and r.json()["code"] == "disabled"  # a new login is no way around "disabled"
     assert (await _user("neha@kjsindia.com")).status == "disabled"
+
+
+# ---------- Review of #77, round 3: changing the password never logs THIS browser out ----------
+PASSWORD = "/api/v1/auth/password"
+
+
+async def test_password_change_after_5_minutes_on_profile_keeps_this_browser_in(client, fake_firebase):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    async with engine.begin() as conn:  # 10 minutes on the Profile page: the next request asks Firebase again
+        await conn.execute(text("UPDATE user_sessions SET created_at = now() - interval '10 minutes'"))
+        await conn.execute(text("UPDATE users SET firebase_checked_at = now() - interval '10 minutes'"))
+    fake_firebase.valid_after_ms[uid_of("e@kjsindia.com")] = int(time.time()) * 1000  # Firebase: changed now
+    r = await client.post(PASSWORD, json={"id_token": id_token("e@kjsindia.com")}, headers=HDR)
+    assert r.status_code == 204, r.text
+    assert (await client.get(ME)).status_code == 200  # still logged in, with the new session
+
+
+async def test_password_change_needs_a_fresh_sign_in(client):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    r = await client.post(PASSWORD, json={"id_token": id_token("e@kjsindia.com", signed_in_seconds_ago=600)}, headers=HDR)
+    assert r.status_code == 401
+
+
+async def test_password_change_of_a_disabled_account_is_refused(client):
+    await make_user("e@kjsindia.com", status="disabled")
+    r = await client.post(PASSWORD, json={"id_token": id_token("e@kjsindia.com")}, headers=HDR)
+    assert r.status_code == 401
+    assert "set-cookie" not in r.headers
+
+
+async def test_password_change_needs_the_request_header(client):
+    await make_user("e@kjsindia.com")
+    r = await client.post(PASSWORD, json={"id_token": id_token("e@kjsindia.com")})
+    assert r.status_code == 403 and r.json()["code"] == "csrf"

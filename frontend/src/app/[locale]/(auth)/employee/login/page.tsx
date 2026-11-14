@@ -23,6 +23,7 @@ const PAGE_OPEN_LIMIT_MS = 15_000;
 function LoginInner() {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [busy, setBusy] = useState(false);
+  const running = useRef(false); // submit() is running (see submit)
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   // After a successful login: true until the next page has opened (React tracks the page change), so the
@@ -62,6 +63,10 @@ function LoginInner() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // `busy` disables the button only after React draws again: a fast double-click or a second Enter
+    // would run this twice (two Firebase accounts tried, two verify emails). The ref stops it at once.
+    if (running.current) return;
+    running.current = true;
     const f = Object.fromEntries(new FormData(e.currentTarget));
     setBusy(true);
     setBye(false);
@@ -120,6 +125,7 @@ function LoginInner() {
       }
       else setError('Could not reach the server.');
     } finally {
+      running.current = false; // always, so the button never stays dead after an error
       setBusy(false);
     }
   }
