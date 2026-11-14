@@ -81,3 +81,18 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - `tsc` clean, `npm test` passes. Browser click-through not done.
 - CodeRabbit on #79 (after the quick-view fix): "Forget my details" could be clicked while the quick send was running, and the finished send then saved the details back. Forget is now off while sending, like "Change details".
 - Review fix (CodeRabbit, 2 points): (1) Auto-assign: `busy` was shared by Preview, category toggles and Run now, so Preview made Run now spin. Now `doing` says which action runs; `busy = doing !== null` still blocks double clicks. Run now spins only for a run, Preview for a preview. (2) Enquiry quick view: Send switched to `sending`, which hid the quick view and put the spinner on the full form's button. Now `fromQuick` keeps the quick view while sending, with the spinner on its own button (disabled). On a failed quick send it still falls back to the full form with the error (unchanged).
+
+## Complaints: "Report a problem" (branch feat/complaints, 14 Nov)
+
+- Point 5: staff report a bug, issue or suggestion from any portal page. Saved in the database only. No email for now (not set up yet).
+- Header button "Report a problem" (next to the bell) opens a form: type, title (at least 3 words), description (at least 15 words), optional screenshot (png / jpg / webp). Live word counters; Send stays off until both rules pass. The same rules are checked again on the server.
+- Added by themselves: the page path (`window.location.pathname`, never a full link) and the date and time (`created_at` from the server).
+- Admins (`staff.approve`) see them on the new page `/admin/complaints` (sidebar: Reports & settings > Complaints), newest first, with screenshot links.
+- Backend: table `complaints` (migration `0026_complaints.py`), `complaint_service.py`, route `/api/v1/complaints` (POST any logged-in staff, GET `staff.approve`). Always on, no module switch. Audit `complaint.filed` names the kind and page, never the text.
+- Screenshot = a normal file, owner_type `complaint`, uploaded after the complaint is saved (existing `/files`). Only the person who filed it may add one; they and admins may see it. If only the screenshot fails, the report is still saved and a message says so.
+- `config/complaints.ini`: `developer_email` (empty, NOT USED YET). When email is ready, send each new complaint to it.
+- Migration number: PR #77 (feat/firebase-auth) has 0024 and 0025, so this is 0026 with down_revision 0023. Whichever merges second changes its down_revision to the other's last one. Tell Vineet.
+- Guesses (move to backlog section 3 at fold time): admins = `staff.approve` read them; no status (open / done) yet; no rate limit; list shows the newest 200 only.
+- Tests: `tests/test_complaints.py` (7: allowed + forbidden users, word rules, bad kind / link refused, screenshot access). Migration down + up tested on the test DB. Full backend suite 436 passed (added `/api/v1/complaints` to ALWAYS_ON in test_modules.py). `tsc` clean, `npm test` passes. Browser click-through not done.
+- Review fix on #80 (Vineet + CodeRabbit, 3 points): (1) reopening the form kept the old screenshot name in the file picker while nothing would be sent: the picker is now new each time the form opens (`key`). (2) The server took any allowed file type as a complaint screenshot: now only png / jpg / jpeg / webp (`file_service.register_owner(..., types=...)`, other owners unchanged). (3) A page path starting with `//` (another website) is refused. Tests 2 and 3 failed first, pass now.
+- Merged `main` (#79) into the branch: only `docs/tempS.md` clashed (both added notes), kept both.

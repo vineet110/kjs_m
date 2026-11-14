@@ -11,6 +11,7 @@ import { areaOfPath, canSee, onModuleOff } from '@/lib/modules';
 import { accountEpoch, forgetAccount, rememberAccount, rememberedAccount } from '@/lib/portal-session';
 import AccountMenu, { Avatar, LogoutDialog, LogoutIcon, RoleBadge } from './AccountMenu';
 import Bell from './Bell';
+import ReportProblem from './ReportProblem';
 import SidebarNav from './SidebarNav';
 import { ToastProvider } from './Toast';
 import Loading from '@/components/ui/Loading';
@@ -251,6 +252,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
               <span className="font-semibold text-sm text-slate-800">KJS {me.role === 'admin' ? 'Admin' : 'Portal'}</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <ReportProblem />
               <Bell meId={me.id} />
               {/* Avatar menu with Log out, on every screen: the sidebar (with its own Log out) starts hidden */}
               <AccountMenu me={me} onLogout={() => setConfirmLogout(true)} />
