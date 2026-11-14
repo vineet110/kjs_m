@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { CountrySelect, PhoneInput } from '@/components/public/CountryPicker';
 import { savedPhoneOk } from '@/lib/countries';
 import { api, ApiFailure } from '@/lib/api';
+import Spinner from '@/components/ui/Spinner';
 
 export type LeadSource = 'enquiry_form' | 'price_sheet' | 'spec_pdf' | 'sample' | 'quote' | 'configurator';
 type Visitor = { name: string; company: string; email: string; phone: string; country: string; buyer_type: string };
@@ -169,7 +170,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
       </label>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <button disabled={state === 'sending'} className="btn-gold w-full">
-        {state === 'sending' ? 'Sending…' : BUTTON[source]}
+        {state === 'sending' && <Spinner />}{state === 'sending' ? 'Sending…' : BUTTON[source]}
       </button>
     </form>
   );

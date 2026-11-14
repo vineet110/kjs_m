@@ -14,6 +14,7 @@ import { Msg, PageTitle } from '@/components/portal/ui';
 import { PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure, upload, type Category, type Lead } from '@/lib/api';
 import LoadError from '@/components/ui/LoadError';
+import Spinner from '@/components/ui/Spinner';
 
 const BUYER_TYPES = ['Distributor', 'Retailer', 'Importer', 'Brand (private label)', 'Other']; // same list in lead_reader.py
 const NOT_SPECIFIED = 'Not specified'; // shown in a field the file didn't have; saved as empty
@@ -214,7 +215,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
         <Msg msg={msg} />
         {savedId != null
           ? <Link href={`/employee/contacts/${savedId}`} className="btn-dark inline-block">Open the lead</Link>
-          : <button disabled={busy || reading || asking} className="btn-dark">{busy ? 'Saving…' : reading ? 'Reading the file…' : 'Save lead'}</button>}
+          : <button disabled={busy || reading || asking} className="btn-dark">{(busy || reading) && <Spinner />}{busy ? 'Saving…' : reading ? 'Reading the file…' : 'Save lead'}</button>}
       </form>
     </div>
   );
@@ -256,7 +257,7 @@ function FillFromFile({ onPick, disabled, onReading }: {
   return (
     <div className="space-y-2 text-right">
       <label className={`btn-ghost cursor-pointer py-1 ${reading || disabled ? 'opacity-50' : ''}`}>
-        {reading ? 'Reading…' : 'Fill from Excel / CSV'}
+        {reading && <Spinner />}{reading ? 'Reading…' : 'Fill from Excel / CSV'}
         <input ref={input} type="file" accept=".xlsx,.csv" className="sr-only" onChange={read} disabled={reading || disabled} />
       </label>
       {err && <p className="text-sm text-red-700">{err}</p>}

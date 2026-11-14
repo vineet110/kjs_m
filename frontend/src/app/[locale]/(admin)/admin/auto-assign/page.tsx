@@ -6,6 +6,7 @@ import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, upload, type Category } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
+import Spinner from '@/components/ui/Spinner';
 
 type StaffRow = {
   user_id: number; name: string; categories: string[]; is_available: boolean; checked_in: boolean;
@@ -92,7 +93,7 @@ export default function AutoAssign() {
       >
         <div className="flex gap-2">
           <button disabled={busy} onClick={preview} className="btn-ghost">Preview</button>
-          <button disabled={busy} onClick={runNow} className="btn-dark">{busy ? 'Working…' : 'Run now'}</button>
+          <button disabled={busy} onClick={runNow} className="btn-dark">{busy && <Spinner />}{busy ? 'Working…' : 'Run now'}</button>
         </div>
       </PageTitle>
       <Msg msg={msg} />

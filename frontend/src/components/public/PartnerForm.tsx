@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CountrySelect, PhoneInput } from '@/components/public/CountryPicker';
 import { api, ApiFailure } from '@/lib/api';
 import { PARTNER_TYPES } from '@/lib/partners';
+import Spinner from '@/components/ui/Spinner';
 
 export default function PartnerForm() {
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
@@ -48,7 +49,7 @@ export default function PartnerForm() {
         <span>I agree that KJS India may contact me about the partner programme and store my details for that purpose.</span>
       </label>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-      <button disabled={state === 'sending'} className="btn-gold w-full">{state === 'sending' ? 'Sending…' : 'Apply'}</button>
+      <button disabled={state === 'sending'} className="btn-gold w-full">{state === 'sending' && <Spinner />}{state === 'sending' ? 'Sending…' : 'Apply'}</button>
     </form>
   );
 }

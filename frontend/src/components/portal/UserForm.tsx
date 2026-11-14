@@ -14,6 +14,7 @@ import { useMe } from './PortalShell';
 import UserCard, { uploadPhoto, usePhoto } from './UserCard';
 import { Msg } from './ui';
 import LoadError from '@/components/ui/LoadError';
+import Spinner from '@/components/ui/Spinner';
 
 const DEPARTMENTS = ['Main Branch']; // suggestions only: any department can be typed (KJS to send the real list)
 const ADD_TITLE = '__add__';
@@ -208,7 +209,7 @@ export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?
         <Msg msg={msg} />
         <div className="flex justify-end gap-2">
           <Link href="/admin/users" className="btn-ghost">Cancel</Link>
-          <button disabled={busy || addingTitle} className="btn-dark">{busy ? 'Saving…' : 'Submit'}</button>
+          <button disabled={busy || addingTitle} className="btn-dark">{busy && <Spinner />}{busy ? 'Saving…' : 'Submit'}</button>
         </div>
       </form>
       <UserCard v={{ ...v, reporting_to: boss }} photo={preview ?? saved} />

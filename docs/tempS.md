@@ -72,3 +72,10 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - #75 had merged into `feat/lead-files-excel`, not `main` (that branch was never deleted, so GitHub didn't move it). #78 now targets `main` and carries #75 + Extra Info together.
 - Fix: the file reader looked at only the first 1,001 lines, so with many empty lines in between, real rows after that were dropped without a word. Now empty rows are skipped while reading and only real rows count (`lead_reader._filled`); a safety cap of 20,000 lines (`MAX_SCAN`) means "maybe more", so bulk import refuses instead of cutting.
 - Test: `test_empty_lines_do_not_hide_rows` (fails on the old code). Full suite 408 passed.
+
+## Spinner on buttons that wait for the backend (branch fix/button-spinners, 14 Nov)
+
+- Review point 4 "no loader in the backend": pages already showed the spinner while loading (`ui/Loading.tsx`), but most buttons only changed text ("Saving…"). Only Login and Logout had the spinner.
+- Fix: the existing `ui/Spinner` added inside 12 buttons the same way Login does it: Save lead, Fill from Excel / CSV, Import leads + Choose file, Upload files, User form Submit, Save permissions, Save plan, New chat, Auto-assign Run now, public Enquiry and Partner forms. No new dependency, no backend change.
+- Overlap check: every button uses `.btn` (inline-flex + gap-2), so the spinner sits beside the text. Open PR #77 also edits `UserForm.tsx`, but other lines (132 vs 17/211), so no conflict.
+- `tsc` clean, `npm test` passes. Browser click-through not done.

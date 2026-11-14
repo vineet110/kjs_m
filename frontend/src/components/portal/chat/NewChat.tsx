@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type Colleague } from '@/lib/api';
 import type { ChatChannel } from '@/lib/chat';
 import { errorText } from '@/components/ui/LoadError';
+import Spinner from '@/components/ui/Spinner';
 
 type Mode = 'dm' | 'group' | 'channel';
 const TABS: { mode: Mode; label: string }[] = [
@@ -117,7 +118,7 @@ export default function NewChat({ meId, onDone, onClose }: {
             <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
             {mode !== 'dm' && (
               <button type="submit" disabled={busy || !canCreate} className="btn-gold">
-                {busy ? 'Creating…' : mode === 'group' ? 'Start group chat' : 'Create channel'}
+                {busy && <Spinner />}{busy ? 'Creating…' : mode === 'group' ? 'Start group chat' : 'Create channel'}
               </button>
             )}
           </div>

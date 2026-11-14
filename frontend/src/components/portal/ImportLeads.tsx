@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { api, ApiFailure, upload } from '@/lib/api';
 import ExtraColumns, { extraColumns, pickExtra, type ExtraColumn, type ExtraDecision } from './ExtraColumns';
 import { Msg } from './ui';
+import Spinner from '@/components/ui/Spinner';
 
 type Fields = Record<'name' | 'company' | 'email' | 'phone' | 'country' | 'buyer_type' | 'category_slug' | 'quantity' | 'message', string>;
 type Row = { fields: Fields; extra: Record<string, string>; problems: string[]; duplicate: 'existing' | 'file' | null };
@@ -88,7 +89,7 @@ export default function ImportLeads({ onDone }: { onDone: () => void }) {
           <p className="text-sm text-slate-500">First row = column names (Name, Phone, Company, Email…). Each row becomes a lead. Up to 500 rows.</p>
         </div>
         <label className={`btn-ghost cursor-pointer py-1 ${busy ? 'opacity-50' : ''}`}>
-          {busy === 'reading' ? 'Reading…' : rows ? 'Choose another file' : 'Choose file'}
+          {busy === 'reading' && <Spinner />}{busy === 'reading' ? 'Reading…' : rows ? 'Choose another file' : 'Choose file'}
           <input ref={input} type="file" accept=".xlsx,.csv" className="sr-only" onChange={read} disabled={!!busy} />
         </label>
       </div>
@@ -134,7 +135,7 @@ export default function ImportLeads({ onDone }: { onDone: () => void }) {
             </table>
           </div>
           <button type="button" className="btn-dark" disabled={!ticked.size || !!busy || asking} onClick={save}>
-            {busy === 'saving' ? 'Importing…' : `Import ${ticked.size} lead${ticked.size === 1 ? '' : 's'}`}
+            {busy === 'saving' && <Spinner />}{busy === 'saving' ? 'Importing…' : `Import ${ticked.size} lead${ticked.size === 1 ? '' : 's'}`}
           </button>
         </>
       )}
