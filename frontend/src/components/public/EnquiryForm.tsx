@@ -46,6 +46,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
   const messageRoom = Math.max(0, MESSAGE_MAX - (extraMessage ? extraMessage.length + 1 : 0)); // +1: the line break
   const [state, setState] = useState<'idle' | 'quick' | 'sending' | 'done'>('idle');
   const [error, setError] = useState('');
+  const [fromQuick, setFromQuick] = useState(false); // the send started on the quick view: keep showing it while sending
   const [saved, setSaved] = useState<Visitor | null>(null);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null); // the phone code follows it
   const [phoneAgain, setPhoneAgain] = useState(false); // the remembered phone couldn't be used
@@ -73,7 +74,8 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     setState('idle');
   }
 
-  async function send(v: Visitor, extra: { quantity?: string; message?: string; website?: string }, remember = true) {
+  async function send(v: Visitor, extra: { quantity?: string; message?: string; website?: string }, remember = true, quick = false) {
+    setFromQuick(quick);
     setState('sending');
     setError('');
     try {
@@ -113,15 +115,18 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     );
   }
 
-  if (state === 'quick' && saved) {
+  if (saved && (state === 'quick' || (state === 'sending' && fromQuick))) {
+    const sending = state === 'sending';
     return (
       <div className="space-y-3">
         {title && <h3 className="text-lg font-bold">{title}</h3>}
         <p className="text-sm">We will send this request as <b>{saved.name}</b>{saved.company ? ` (${saved.company})` : ''}, {saved.email || saved.phone}.</p>
         {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={() => send(saved, {})} className="btn-gold flex-1">{BUTTON[source]}</button>
-          <button onClick={() => setState('idle')} className="btn-ghost">Change details</button>
+          <button disabled={sending} onClick={() => send(saved, {}, true, true)} className="btn-gold flex-1">
+            {sending && <Spinner />}{sending ? 'Sending…' : BUTTON[source]}
+          </button>
+          <button disabled={sending} onClick={() => setState('idle')} className="btn-ghost">Change details</button>
         </div>
         <button onClick={forget} className="text-xs text-slate-500 underline">Not you? Forget my details on this device</button>
       </div>
