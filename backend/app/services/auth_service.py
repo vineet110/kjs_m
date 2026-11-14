@@ -61,6 +61,9 @@ async def signup(db: AsyncSession, id_token: str, name: str, phone: str, ip_hash
             # An account from before Firebase: it is linked at its first login, once the email is verified
             # (login() below). Nothing to save now; the person is told to verify, then log in.
             return existing
+        if existing.firebase_uid == claims["uid"] and existing.status == "pending":
+            # The same person again (the first answer got lost, or a second click): it already worked
+            return existing
         raise AppError(409, "email_taken", "An account with this email already exists.")
     user = User(name=name.strip(), email=email, phone=phone.strip() or None, password_hash=None,
                 firebase_uid=claims["uid"], role="employee", status="pending", permissions=[])
@@ -209,8 +212,11 @@ async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list
         before=before, after={"status": user.status, "permissions": user.permissions},
     )
     await db.commit()
-    # An admin may approve an account that was disabled (and so disabled in Firebase too): switch it back on
-    await _sync_firebase_disabled(user, False)
+    # An admin may approve an account that was disabled (and so disabled in Firebase too): switch it back on.
+    # Only then: other accounts were never disabled there (one Google call less per approval). If someone
+    # disabled it in the Firebase console by hand, disable + re-enable it here to fix that.
+    if before["status"] == "disabled":
+        await _sync_firebase_disabled(user, False)
     return user
 
 

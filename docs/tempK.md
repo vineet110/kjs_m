@@ -78,3 +78,60 @@ public keys); email verification (proves the inbox is yours); "fresh sign-in" (a
 - Checked here: Firebase checking code with fake Google answers (all 401/503 as planned), backend imports,
   tests compile, missing-names scan, `tsc`, `npm test` (58), build, hints in a browser on the real Firebase.
   Backend tests: CI.
+
+### Plan: second review of #77 (14 Nov), 10 points in 3 steps
+
+Why 3 steps: step 1 is small and safe, so it goes into #77 now. Steps 2 and 3 change how login and
+sign-up behave, so each gets its own branch and PR after #77 merges, and Vineet is told first (prompt.md 7.5).
+
+**Before step 1 (people, not code)**
+- Confirm no other app uses our Firebase project (the password policy is for the whole project).
+- Whoever owns the Firebase console sets: Authentication > Settings > Password policy, minimum 10,
+  "require update on sign-in" (not a hard block) if offered. Same day as step 1 goes live.
+
+**Step 1: fixes on `feat/firebase-auth` (#77), one commit "fix: review round 2 on #77"**
+| Point | Change | File | Test |
+|---|---|---|---|
+| Clock drift | `verify_id_token(..., clock_skew_seconds=10)` | `core/firebase.py` | fake that checks the argument |
+| Short passwords | console setting above; check sign-up, Profile and reset page show Firebase's "too short" message clearly | `frontend` error messages | manual, on real Firebase with a throwaway user |
+| 500 on Google errors | one helper: Google error = 503 `login_unavailable` (logged), Google's ValueError = 422; used by `create_user`, `uid_by_email`, `reset_account`, `delete_user`, `set_disabled` | `core/firebase.py` | fake raises UnavailableError -> 503; ValueError -> 422 |
+| Sign-up retry 409 | same `firebase_uid` and still `pending` = return the row (200); approved/rejected stays 409 | `services/auth_service.py` `signup()` | sign up twice with the same token -> 200, one row |
+| Extra call on approve | call `_sync_firebase_disabled` only if the status was `disabled` | `auth_service.py` `approve()` | pending -> no Firebase call; disabled -> one call |
+| Old password helpers | comment "legacy, tests only, never for logins" | `core/security.py` | none |
+
+Done when: backend tests pass (CI), `tsc`, `npm test`, build; notes added here; CodeRabbit re-run clean.
+Undo: revert the one commit; the console policy can be turned back to 6.
+
+**Step 2: sessions (new branch `fix/firebase-sessions` after #77 merges)**
+- Reset ends other sessions at once: new column `users.firebase_valid_after`, filled at login, at
+  password change and by a refresh every few minutes; `session_user()` (`core/deps.py`) ends a session
+  older than it. (Or the cheaper version: check only when someone comes back after a while. Decide first.)
+- Pre-Firebase sessions: a migration deletes sessions of users with no `firebase_uid`.
+- Migration number: next free one after pulling main (now 0025?). Tell Vineet before using it.
+- Warn staff: old-style logins are logged out once and employees wait for approval again.
+- Tests: reset -> old cookie gets 401; new login still works; old session deleted by the migration.
+
+**Step 3: sign-up and linking (new branch `fix/firebase-signup` after step 2)**
+- `approve()` refuses an unverified email (one Google call); Approvals page shows "email not verified".
+- `signup()`: a verified person replaces an unverified *pending* row with the same email (audit log keeps the old details).
+- `login()`: email row linked to a Firebase account that no longer exists -> relink to the new one,
+  audit log, employee back to `pending`.
+- Tests: squatter then real owner; approve unverified -> refused; deleted Firebase account -> relinked.
+
+**Open questions**
+1. Step 2: full fix (new column) or the cheaper one?
+2. Who sets the password policy, and when?
+
+**Step 1 done (14 Nov, not committed yet)**
+- `firebase.py`: token check allows 10 s clock difference (`CLOCK_SKEW_SECONDS`); every Admin call goes
+  through `_admin()`: Google down = 503 `login_unavailable` (logged), a value Google refuses = 422
+  `bad_account_details`, "email taken" / "user not found" still handled by the caller.
+- `auth_service.py`: sign-up retry with the same login while `pending` = 201, not 409; `approve()` calls
+  Firebase only for a `disabled` account.
+- `security.py`: old scrypt helpers marked LEGACY.
+- Frontend: nothing to change, "too short" already says "at least 10 characters". The emailed reset page
+  is Firebase's own, so only the console policy covers it.
+- Tests: 6 new in `test_firebase_login.py`; old fakes take `**kw` (the new clock argument).
+- Checked here: compile, firebase-admin 7.8.0 has `clock_skew_seconds`, error mapping run with fake Google
+  answers (503/422/409/None as planned). Database tests: CI (no Docker on this PC).
+- Still to do: password policy in the Firebase console (min 10).

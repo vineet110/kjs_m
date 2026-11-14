@@ -132,6 +132,7 @@ async def test_password_changed_logs_out_other_browsers_only(client):
 # ---------- Review of #77: fixes ----------
 # The real token check (firebase.verify_token / firebase.app), kept before conftest swaps in the fake
 REAL_VERIFY, REAL_APP = firebase.verify_token, firebase.app
+REAL_UID_BY_EMAIL, REAL_CREATE_USER = firebase.uid_by_email, firebase.create_user
 ME = "/api/v1/auth/me"
 
 
@@ -168,7 +169,7 @@ async def test_firebase_errors_are_401_or_503_never_500(client, monkeypatch, ste
     monkeypatch.setattr(firebase, "verify_token", REAL_VERIFY)
     monkeypatch.setattr(firebase, "app", lambda: object())
     good = {"uid": uid_of("e@kjsindia.com"), "email": "e@kjsindia.com", "email_verified": True, "iat": int(time.time())}
-    monkeypatch.setattr(firebase.fb_auth, "verify_id_token", _raises(error) if step == "verify" else lambda t, app: good)
+    monkeypatch.setattr(firebase.fb_auth, "verify_id_token", _raises(error) if step == "verify" else lambda t, app, **kw: good)
     monkeypatch.setattr(firebase.fb_auth, "get_user", _raises(error) if step == "get_user" else
                         lambda uid, app: SimpleNamespace(disabled=False, tokens_valid_after_timestamp=0))
     r = await client.post(LOGIN, json={"id_token": "a-real-looking-firebase-token"}, headers=HDR)
@@ -181,7 +182,7 @@ async def test_disabled_or_revoked_firebase_account_is_refused(client, monkeypat
     now = int(time.time())
     monkeypatch.setattr(firebase, "verify_token", REAL_VERIFY)
     monkeypatch.setattr(firebase, "app", lambda: object())
-    monkeypatch.setattr(firebase.fb_auth, "verify_id_token", lambda t, app: {
+    monkeypatch.setattr(firebase.fb_auth, "verify_id_token", lambda t, app, **kw: {
         "uid": uid_of("e@kjsindia.com"), "email": "e@kjsindia.com", "email_verified": True, "iat": now})
     # valid_after 60 s after the token was made = the password changed since: the token is revoked
     monkeypatch.setattr(firebase.fb_auth, "get_user", lambda uid, app: SimpleNamespace(
@@ -261,3 +262,66 @@ async def test_changing_your_own_password_keeps_this_browser_logged_in(client, f
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as phone:
         await login(phone, "e@kjsindia.com")  # a later login elsewhere
     assert (await client.get(ME)).status_code == 200  # this browser got a fresh session at the change
+
+
+# ---------- Second review of #77 (14 Nov) ----------
+async def test_token_check_allows_a_little_clock_difference(client, monkeypatch):
+    await make_user("e@kjsindia.com")
+    seen = {}
+    monkeypatch.setattr(firebase, "verify_token", REAL_VERIFY)
+    monkeypatch.setattr(firebase, "app", lambda: object())
+
+    def verify(token, app, **kw):
+        seen.update(kw)
+        return {"uid": uid_of("e@kjsindia.com"), "email": "e@kjsindia.com", "email_verified": True, "iat": int(time.time())}
+    monkeypatch.setattr(firebase.fb_auth, "verify_id_token", verify)
+    monkeypatch.setattr(firebase.fb_auth, "get_user", lambda uid, app: SimpleNamespace(disabled=False, tokens_valid_after_timestamp=0))
+    assert (await client.post(LOGIN, json={"id_token": "a-real-looking-firebase-token"}, headers=HDR)).status_code == 200
+    assert seen["clock_skew_seconds"] == firebase.CLOCK_SKEW_SECONDS > 0
+
+
+@pytest.mark.parametrize("error, status", [
+    (firebase_errors.UnavailableError("Google is down"), 503),
+    (ValueError("Google doesn't accept this email"), 422),
+])
+async def test_create_employee_when_google_fails_is_never_a_500(client, monkeypatch, error, status):
+    await _admin_logged_in(client)
+    monkeypatch.setattr(firebase, "uid_by_email", REAL_UID_BY_EMAIL)
+    monkeypatch.setattr(firebase, "app", lambda: object())
+    monkeypatch.setattr(firebase.fb_auth, "get_user_by_email", _raises(error))
+    r = await client.post("/api/v1/admin/users", json=NEHA, headers=HDR)
+    assert r.status_code == status, r.text
+    assert await _user("neha@kjsindia.com") is None
+
+
+async def test_create_employee_still_says_email_taken_from_firebase(client, monkeypatch):
+    await _admin_logged_in(client)
+    monkeypatch.setattr(firebase, "create_user", REAL_CREATE_USER)
+    monkeypatch.setattr(firebase, "app", lambda: object())
+    monkeypatch.setattr(firebase.fb_auth, "create_user", _raises(fb_auth.EmailAlreadyExistsError("taken", None, None)))
+    r = await client.post("/api/v1/admin/users", json=NEHA, headers=HDR)
+    assert r.status_code == 409 and r.json()["code"] == "email_taken"
+
+
+async def test_signing_up_twice_with_the_same_login_is_fine(client):
+    body = {"id_token": id_token("new@kjsindia.com"), "name": "New", "phone": "+91 98765 43210"}
+    assert (await client.post(SIGNUP, json=body, headers=HDR)).status_code == 201
+    assert (await client.post(SIGNUP, json=body, headers=HDR)).status_code == 201  # the retry, not a 409
+    async with AsyncSessionLocal() as db:
+        assert len((await db.scalars(select(User).where(User.email == "new@kjsindia.com"))).all()) == 1
+
+
+async def test_signing_up_again_after_a_decision_is_still_refused(client):
+    await make_user("e@kjsindia.com", status="rejected")
+    r = await client.post(SIGNUP, json={"id_token": id_token("e@kjsindia.com"), "name": "E", "phone": "+91 98765 43210"},
+                          headers=HDR)
+    assert r.status_code == 409
+
+
+async def test_approving_a_new_signup_makes_no_firebase_call(client, fake_firebase):
+    await _admin_logged_in(client)
+    await make_user("e@kjsindia.com", status="pending")
+    uid = (await _user("e@kjsindia.com")).id
+    r = await client.post(f"/api/v1/admin/users/{uid}/approve", json={"permissions": []}, headers=HDR)
+    assert r.status_code == 200
+    assert fake_firebase.disabled == {}

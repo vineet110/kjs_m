@@ -29,6 +29,10 @@ _lock = threading.Lock()  # two first requests at the same moment must not both 
 
 NOT_SET_UP = "Login isn't set up correctly on the server. Please tell the admin."
 UNAVAILABLE = "Login is not available right now. Please try again in a minute."
+BAD_DETAILS = "The login service didn't accept this email or name. Please check them."
+# Seconds our clock may differ from Google's: a server clock 1-2 s behind would otherwise refuse a token
+# made just now ("used too early"). A token lasts an hour, so 10 s changes nothing else.
+CLOCK_SKEW_SECONDS = 10
 
 
 class BadToken(Exception):
@@ -64,7 +68,7 @@ def app() -> firebase_admin.App:
 def _verify(token: str) -> dict:
     a = app()  # outside the try: a setup problem is a 503, not a bad token
     try:
-        claims = fb_auth.verify_id_token(token, app=a)  # signature, expiry, our project
+        claims = fb_auth.verify_id_token(token, app=a, clock_skew_seconds=CLOCK_SKEW_SECONDS)  # signature, expiry, project
         # One look at the account (what check_revoked=True did inside Firebase, done here so we also get the
         # "password changed" time): disabled, deleted, or a token from before the last password change.
         user = fb_auth.get_user(claims["uid"], app=a)
@@ -92,10 +96,27 @@ async def verify_token(token: str) -> dict:
         raise AppError(503, "login_unavailable", UNAVAILABLE) from e
 
 
+async def _admin(fn, *args, passthrough: tuple = (), **kwargs):
+    """One Admin call to Google, in a worker thread. Google down / an error answer = 503 (logged), a value
+    Google refuses (e.g. an email it doesn't accept) = 422; never a 500. Errors in `passthrough` (like
+    "user not found") reach the caller, which has its own answer for them."""
+    a = app()  # a setup problem stays its own 503
+    try:
+        return await asyncio.to_thread(fn, *args, app=a, **kwargs)
+    except passthrough:
+        raise
+    except ValueError as e:
+        raise AppError(422, "bad_account_details", BAD_DETAILS) from e
+    except (firebase_errors.FirebaseError, OSError) as e:
+        log.warning("firebase.unreachable", extra={"reason": f"{fn.__name__}: {type(e).__name__}: {str(e)[:200]}"})
+        raise AppError(503, "login_unavailable", UNAVAILABLE) from e
+
+
 async def create_user(email: str, password: str, name: str) -> str:
     """A new Firebase account (User Creation Form, first admin). Returns its uid."""
     try:
-        user = await asyncio.to_thread(fb_auth.create_user, email=email, password=password, display_name=name, app=app())
+        user = await _admin(fb_auth.create_user, email=email, password=password, display_name=name,
+                            passthrough=(fb_auth.EmailAlreadyExistsError,))
     except fb_auth.EmailAlreadyExistsError as e:
         raise AppError(409, "email_taken", "An account with this email already exists.") from e
     return user.uid
@@ -105,7 +126,7 @@ async def uid_by_email(email: str) -> str | None:
     """The uid of this email's Firebase account, or None. (A sign-up that stopped halfway leaves a Firebase
     account with no row of ours: the admin can still create that person; see auth_service.create_user.)"""
     try:
-        return (await asyncio.to_thread(fb_auth.get_user_by_email, email, app=app())).uid
+        return (await _admin(fb_auth.get_user_by_email, email, passthrough=(fb_auth.UserNotFoundError,))).uid
     except fb_auth.UserNotFoundError:
         return None
 
@@ -113,7 +134,7 @@ async def uid_by_email(email: str) -> str | None:
 async def reset_account(uid: str, password: str, name: str) -> None:
     """Takes over an existing Firebase account for the admin's new employee: new one-time password, name,
     and switched on. (Whoever made it can't log in with their old password any more.)"""
-    await asyncio.to_thread(fb_auth.update_user, uid, password=password, display_name=name, disabled=False, app=app())
+    await _admin(fb_auth.update_user, uid, password=password, display_name=name, disabled=False)
 
 
 async def ensure_user(email: str, password: str, name: str) -> str:
@@ -122,11 +143,11 @@ async def ensure_user(email: str, password: str, name: str) -> str:
 
 
 async def delete_user(uid: str) -> None:
-    await asyncio.to_thread(fb_auth.delete_user, uid, app=app())
+    await _admin(fb_auth.delete_user, uid)
 
 
 async def set_disabled(uid: str, disabled: bool) -> None:
     """Disabled in Firebase too (can't sign in, can't get new tokens), and its existing tokens are revoked."""
-    await asyncio.to_thread(fb_auth.update_user, uid, disabled=disabled, app=app())
+    await _admin(fb_auth.update_user, uid, disabled=disabled)
     if disabled:
-        await asyncio.to_thread(fb_auth.revoke_refresh_tokens, uid, app=app())
+        await _admin(fb_auth.revoke_refresh_tokens, uid)
