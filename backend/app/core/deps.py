@@ -66,7 +66,9 @@ async def _still_valid_in_firebase(db: AsyncSession, user: User, session: UserSe
         await db.commit()
         if gone:
             return await _end(db, user, session, "firebase_account_deleted")
-    if user.firebase_valid_after and session.created_at < user.firebase_valid_after:
+    # Our clock and Google's can differ by a few seconds: a session made just after the change must not look older
+    if user.firebase_valid_after and \
+            session.created_at + timedelta(seconds=firebase.CLOCK_SKEW_SECONDS) < user.firebase_valid_after:
         return await _end(db, user, session, "password_changed")
     return True
 

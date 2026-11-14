@@ -5,11 +5,10 @@ created_at is the date and time it was filed. Screenshots live in `files` (owner
 
 Only adds a table: existing rows and the old code keep working.
 
-Number 0026: open PR #77 (feat/firebase-auth) already uses 0024 and 0025. This one comes after 0023
-(the newest on main today). Whichever merges second changes its down_revision to the other's last one.
+Number 0026: comes after 0025 (PR #77, Firebase login), which was merged first.
 
 Revision ID: 0026
-Revises: 0023
+Revises: 0025
 """
 from typing import Sequence, Union
 
@@ -17,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = '0026'
-down_revision: Union[str, None] = '0023'
+down_revision: Union[str, None] = '0025'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

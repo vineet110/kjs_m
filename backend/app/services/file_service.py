@@ -126,8 +126,9 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
     if ext not in cfg().storage.allowed_types or ext not in TYPES or owner_type not in ONLY_FOR.get(ext, {owner_type}) \
             or ext not in OWNER_TYPES.get(owner_type, {ext}):
+        owner_types = OWNER_TYPES.get(owner_type)  # e.g. a complaint takes pictures only: show that list
         raise AppError(422, "file_type", f"Files of type .{ext or '?'} are not allowed.",
-                       {"allowed": cfg().storage.allowed_types})
+                       {"allowed": sorted(owner_types) if owner_types else cfg().storage.allowed_types})
     limit = cfg().storage.max_upload_mb * 1024 * 1024
     data = await upload_file.read(limit + 1)
     if len(data) > limit:

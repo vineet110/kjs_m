@@ -443,3 +443,18 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    load, not two; index `ix_leads_updated_at` added to 0023; stray byte-order marks removed.
 7. Lesson: never edit files with PowerShell Get-Content / Set-Content (it corrupted ✕ ☰ … and added
    byte-order marks). Use Python or the editor.
+
+## 14 Nov 2026: fix/complaints-review (after #77 and #80 merged)
+
+1. Why: #77 (0024, 0025) and #80 (0026) both built on 0023, so main had two migration heads and
+   `alembic upgrade head` failed. #77 merged first, so 0026 now builds on 0025. `alembic heads` = 0026 only.
+2. Upload error: a refused complaint screenshot now lists what a complaint takes (jpeg, jpg, png, webp),
+   not every type the app allows (`file_service.py`). Test added in `tests/test_complaints.py`.
+3. Clock skew (review on #77): `deps.py` allows `CLOCK_SKEW_SECONDS` (10 s) when comparing a session's
+   start with the Firebase password-change time, so a session made just after a change is not ended
+   when our clock is a few seconds behind Google's.
+4. Checks: complaints tests 9 passed, full backend 480 passed.
+5. Deploy: Neon upgraded 0023 -> 0026 on 14 Nov, before this merged (Render had already deployed #77 and #80).
+6. From the #77 review: Firebase console password policy set (min 10, enforced). The `email_verified`
+   check in `password_changed()` was left out on purpose (Vineet's call).
+7. Words for kb.md at fold time: migration head, clock skew.
