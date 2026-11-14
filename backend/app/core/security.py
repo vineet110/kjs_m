@@ -11,6 +11,8 @@ from app.core.config import settings
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
 
 
+# LEGACY: passwords live in Firebase now (app/core/firebase.py). These two only remain for accounts made
+# before Firebase (users.password_hash) and for tests/conftest.py. Never use them to log anyone in.
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.scrypt(password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P)

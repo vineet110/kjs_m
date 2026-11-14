@@ -1,6 +1,6 @@
 """Phone numbers (UI step 7, light check): digits, spaces, - ( ) and an optional leading +, 6 to 15 digits.
 The phone is required (Nov 2026): empty or missing is refused. Every form that takes a phone uses the same check."""
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 from tests.test_content import PARTNER
 from tests.test_public import LEAD
 
@@ -21,7 +21,7 @@ async def test_partner_phone_is_checked(client):
 
 
 async def test_signup_and_profile_phone_are_checked(client):
-    body = {"name": "Esha K", "email": "esha@kjsindia.com", "password": "a-long-password-1", "phone": "+91 98765 43210"}
+    body = {"name": "Esha K", "id_token": id_token("esha@kjsindia.com"), "phone": "+91 98765 43210"}
     assert (await client.post("/api/v1/auth/signup", json=body | {"phone": "12345"}, headers=HDR)).status_code == 422
     assert (await client.post("/api/v1/auth/signup", json=body | {"phone": "+91 98765 43210"}, headers=HDR)).status_code == 201
     await make_user("me@kjsindia.com", permissions=["leads.view"])
@@ -34,7 +34,7 @@ async def test_signup_and_profile_phone_are_checked(client):
 
 async def test_phone_is_required_everywhere(client):
     no_phone = lambda body: {k: v for k, v in body.items() if k != "phone"}  # noqa: E731
-    signup = {"name": "Esha K", "email": "esha@kjsindia.com", "password": "a-long-password-1"}
+    signup = {"name": "Esha K", "id_token": id_token("esha@kjsindia.com"), "phone": "+91 98765 43210"}
     for url, body in [("/api/v1/public/leads", LEAD), ("/api/v1/public/partners", PARTNER), ("/api/v1/auth/signup", signup)]:
         assert (await client.post(url, json=no_phone(body), headers=HDR)).status_code == 422, url
         assert (await client.post(url, json=no_phone(body) | {"phone": "  "}, headers=HDR)).status_code == 422, url

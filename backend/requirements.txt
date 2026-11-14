@@ -19,7 +19,11 @@ alembic==1.13.1
 # Background Scheduler
 
 # HTTP client (Groq / Anthropic / WhatsApp / email APIs are plain HTTPS calls)
-httpx==0.27.0
+httpx==0.28.1  # 0.28: needed by firebase-admin
+
+# Firebase (approved 13 Nov 2026): staff login (Firebase Authentication checks passwords, sends
+# verify-email and reset-password emails); the API checks its ID tokens
+firebase-admin==7.8.0
 
 # Validation & Excel export
 phonenumbers==8.13.38

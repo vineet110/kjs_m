@@ -9,7 +9,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.deps import client_ip
 from app.models.notification import Notification
 from app.models.user import User
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 
 
 async def _id(email: str) -> int:
@@ -18,15 +18,15 @@ async def _id(email: str) -> int:
 
 
 # ---------- Login ----------
-async def test_locked_email_refuses_even_the_right_password(client):
-    # Before: after 10 wrong guesses the right password still logged in, so guessing never stopped.
+async def test_a_network_sending_bad_tokens_is_stopped(client):
+    # Passwords are guessed at Firebase now (it has its own lockout). Here: a network that keeps sending
+    # fake or stolen-and-expired tokens is refused, even with a good one, until the window passes.
+    from app.core.config.ini import cfg
     await make_user("e@kjsindia.com")
-    for _ in range(10):
-        r = await client.post("/api/v1/auth/login", json={"email": "e@kjsindia.com", "password": "wrong-guess-123"},
-                              headers=HDR)
+    for _ in range(cfg().app.login_failures_per_ip):
+        r = await client.post("/api/v1/auth/login", json={"id_token": "fake-token-from-an-attacker"}, headers=HDR)
         assert r.status_code == 401
-    r = await client.post("/api/v1/auth/login", json={"email": "e@kjsindia.com", "password": "password1234"},
-                          headers=HDR)
+    r = await client.post("/api/v1/auth/login", json={"id_token": id_token("e@kjsindia.com")}, headers=HDR)
     assert r.status_code == 429
 
 
@@ -35,7 +35,7 @@ async def test_signup_is_rate_limited(client):
     from app.core.config.ini import cfg
     n = cfg().app.signups_per_ip_per_hour
     codes = [(await client.post("/api/v1/auth/signup", headers=HDR, json={
-        "name": f"Person {i}", "email": f"p{i}@kjsindia.com", "password": "password1234", "phone": "+91 98765 43210"})).status_code
+        "id_token": id_token(f"p{i}@kjsindia.com"), "name": f"Person {i}", "phone": "+91 98765 43210"})).status_code
         for i in range(n + 1)]
     assert codes == [201] * n + [429]
 

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://kjs_test:kjs_test@127.0.0.1:5433/kjs_test")
@@ -12,6 +13,7 @@ os.environ.update({
     "DATABASE_URL": TEST_DB,
     "MIGRATION_DATABASE_URL": TEST_DB,
     "LLM_PROVIDER": "none",  # no real AI calls in tests
+    "FIREBASE_SERVICE_ACCOUNT": "",  # never the real Firebase from tests (conftest fakes it)
     "SECRET_KEY": "test-secret",
     "STORAGE_DRIVER": "local",
     "FILE_STORAGE_PATH": tempfile.mkdtemp(prefix="kjs-test-files-"),
@@ -56,20 +58,91 @@ async def client():
         yield c
 
 
+# ---------- A fake Firebase (tests never call the real one) ----------
+# A fake ID token names its account: id_token("e@kjsindia.com") signs in as e@kjsindia.com, whose Firebase uid
+# is uid_of("e@kjsindia.com"). Anything else is refused like a fake or expired token.
+FAKE_TOKEN = "fake-firebase-token:"
+FAKE_UNVERIFIED = "fake-firebase-unverified:"
+
+
+def uid_of(email: str) -> str:
+    # Cut to 128 like a real Firebase uid (users.firebase_uid is 128): a very long test email still fits
+    return f"uid-{email.lower()}"[:128]
+
+
+def id_token(email: str, verified: bool = True, signed_in_seconds_ago: int = 0) -> str:
+    return f"{FAKE_TOKEN if verified else FAKE_UNVERIFIED}{email}|{int(time.time()) - signed_in_seconds_ago}"
+
+
+class FakeFirebase:
+    def __init__(self):
+        self.created: dict[str, str] = {}  # uid -> email (Firebase accounts that exist)
+        self.deleted: list[str] = []
+        self.disabled: dict[str, bool] = {}
+        self.reset: dict[str, str] = {}  # uid -> one-time password set on a reused account
+        self.valid_after_ms: dict[str, int] = {}  # uid -> when the password last changed (ms)
+
+    async def verify_token(self, token: str) -> dict:
+        for prefix, verified in ((FAKE_TOKEN, True), (FAKE_UNVERIFIED, False)):
+            if token.startswith(prefix):
+                email, signed_in_at = token[len(prefix):].rsplit("|", 1)
+                return {"uid": uid_of(email), "email": email.lower(), "email_verified": verified,
+                        "auth_time": int(signed_in_at), "valid_after_ms": self.valid_after_ms.get(uid_of(email), 0)}
+        from app.core.firebase import BadToken
+        raise BadToken("InvalidIdTokenError")
+
+    async def create_user(self, email: str, password: str, name: str) -> str:
+        self.created[uid_of(email)] = email
+        return uid_of(email)
+
+    async def ensure_user(self, email: str, password: str, name: str) -> str:
+        return await self.create_user(email, password, name)
+
+    async def uid_by_email(self, email: str) -> str | None:
+        return next((uid for uid, e in self.created.items() if e == email), None)
+
+    async def reset_account(self, uid: str, password: str, name: str) -> None:
+        self.reset[uid] = password
+
+    async def tokens_valid_after_ms(self, uid: str) -> int | None:
+        return None if uid in self.deleted else self.valid_after_ms.get(uid, 0)
+
+    async def delete_user(self, uid: str) -> None:
+        self.deleted.append(uid)
+
+    async def set_disabled(self, uid: str, disabled: bool) -> None:
+        self.disabled[uid] = disabled
+
+
+@pytest.fixture(autouse=True)
+def fake_firebase(monkeypatch):
+    from app.core import firebase
+    fake = FakeFirebase()
+    for name in ("verify_token", "create_user", "ensure_user", "uid_by_email", "reset_account", "delete_user",
+                 "set_disabled", "tokens_valid_after_ms"):
+        monkeypatch.setattr(firebase, name, getattr(fake, name))
+    monkeypatch.setattr(firebase, "enabled", lambda: True)
+    return fake
+
+
 async def make_user(email: str, password: str = "password1234", role: str = "employee",
-                    status: str = "active", permissions: list[str] | None = None):
+                    status: str = "active", permissions: list[str] | None = None, linked: bool = True):
+    """A staff account. linked=False: an account from before Firebase (no firebase_uid yet).
+    `password` is only for the old password hash of such accounts; Firebase keeps real passwords."""
     from app.core.security import hash_password
     from app.models.user import User
     async with AsyncSessionLocal() as db:
         if role == "admin":
             await auth_service.ensure_admin(db, email, password)
             return
-        db.add(User(name=email.split("@")[0], email=email, password_hash=hash_password(password),
+        db.add(User(name=email.split("@")[0], email=email, password_hash=None if linked else hash_password(password),
+                    firebase_uid=uid_of(email) if linked else None,
                     role=role, status=status, permissions=permissions or ["leads.view"]))
         await db.commit()
 
 
 async def login(client: AsyncClient, email: str, password: str = "password1234"):
-    r = await client.post("/api/v1/auth/login", json={"email": email, "password": password}, headers=HDR)
+    """Logs in as this person (with a fake Firebase ID token; `password` is kept so old calls still read well)."""
+    r = await client.post("/api/v1/auth/login", json={"id_token": id_token(email)}, headers=HDR)
     assert r.status_code == 200, r.text
     return r

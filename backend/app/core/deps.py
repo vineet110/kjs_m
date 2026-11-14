@@ -1,11 +1,14 @@
 """Route dependencies: who is calling, and are they allowed?"""
 import ipaddress
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, Request
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
+
+from app.core import firebase
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db
@@ -19,19 +22,60 @@ from app.models.user import User, UserSession
 # A browser on another site cannot add a custom header without our CORS approval.
 CSRF_HEADER = "x-requested-with"
 log = logging.getLogger(__name__)
+# How often we ask Firebase "did this person's password change?" (a reset by email never reaches our API).
+# So a stolen session ends at most this long after the real person resets their password.
+FIREBASE_CHECK_EVERY = timedelta(minutes=5)
 
 
 async def session_user(db: AsyncSession, token: str) -> User | None:
     """Who this session cookie belongs to: an active user with a session that hasn't expired, or None.
     The one place for this rule: current_user (normal requests) and ws_user (chat) both use it, so a
     change to how sessions work reaches both (PR #55 review)."""
-    user = (await db.execute(
-        select(User)
+    row = (await db.execute(
+        select(User, UserSession)
         .join(UserSession, UserSession.user_id == User.id)
         .where(UserSession.token_hash == hash_token(token))
         .where(UserSession.expires_at > datetime.now(timezone.utc))
-    )).scalar_one_or_none()
-    return user if user is not None and user.status == "active" else None
+    )).one_or_none()
+    if row is None or row.User.status != "active":
+        return None
+    if row.User.firebase_uid and not await _still_valid_in_firebase(db, row.User, row.UserSession):
+        return None
+    return row.User
+
+
+async def _still_valid_in_firebase(db: AsyncSession, user: User, session: UserSession) -> bool:
+    """False (and the session is deleted) if the Firebase password changed after this session began, or the
+    Firebase account was deleted. Asks Firebase at most every FIREBASE_CHECK_EVERY; Google down = keep the
+    last known time (never logs everyone out because Google is slow)."""
+    now = datetime.now(timezone.utc)
+    if user.firebase_checked_at is None or now - user.firebase_checked_at > FIREBASE_CHECK_EVERY:
+        values: dict = {"firebase_checked_at": now}  # also on failure: don't ask again on every request
+        gone = False
+        try:
+            ms = await firebase.tokens_valid_after_ms(user.firebase_uid)
+            gone = ms is None
+            if not gone:
+                values["firebase_valid_after"] = datetime.fromtimestamp(ms / 1000, tz=timezone.utc) if ms else None
+        except AppError as e:
+            log.warning("auth.firebase_check_skipped", extra={"reason": e.code})
+        # A plain UPDATE (not through the object): updated_at would otherwise expire and need a reload
+        await db.execute(update(User).where(User.id == user.id).values(**values))
+        for k, v in values.items():
+            set_committed_value(user, k, v)
+        await db.commit()
+        if gone:
+            return await _end(db, user, session, "firebase_account_deleted")
+    if user.firebase_valid_after and session.created_at < user.firebase_valid_after:
+        return await _end(db, user, session, "password_changed")
+    return True
+
+
+async def _end(db: AsyncSession, user: User, session: UserSession, reason: str) -> bool:
+    await db.execute(delete(UserSession).where(UserSession.id == session.id))
+    await db.commit()
+    log.info("auth.session_ended", extra={"target_user_id": user.id, "reason": reason})
+    return False
 
 
 async def current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:

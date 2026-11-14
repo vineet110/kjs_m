@@ -73,12 +73,9 @@ lead_limiter = RateLimiter(limit=lambda: cfg().app.lead_rate_per_hour, window_se
 koko_limiter = RateLimiter(limit=lambda: cfg().app.koko_rate_per_hour, window_seconds=3600)
 # Staff reading Excel / CSV files into the New internal lead form, per person per hour
 lead_file_limiter = RateLimiter(limit=lambda: cfg().app.lead_file_reads_per_hour, window_seconds=3600)
-# Wrong passwords. Locked per email AND network: a stranger guessing from their own network can't
-# lock the real person out. The per-email limit is a high backstop against guessing from many networks.
-login_failures = RateLimiter(limit=lambda: 10, window_seconds=900)  # per email + IP, 15 min
-login_email_failures = RateLimiter(limit=lambda: 100, window_seconds=900)  # per email, any IP, 15 min
-# Wrong passwords per network over all emails (stops guessing across many emails). Only wrong ones
-# count, so a whole office logging in from one address is never blocked (CR7).
+# Passwords are checked by Firebase (it blocks guessing itself). Here: bad Firebase tokens (fake, expired,
+# revoked) per network. Only bad ones count, so a whole office logging in from one address is never blocked
+# (CR7), and a stranger's network never blocks anyone else's (CR5).
 login_ip_limiter = RateLimiter(limit=lambda: cfg().app.login_failures_per_ip, window_seconds=900)
 signup_limiter = RateLimiter(limit=lambda: cfg().app.signups_per_ip_per_hour, window_seconds=3600)
 # Chat messages per person (not per IP): stops a stuck key or a script flooding a channel.

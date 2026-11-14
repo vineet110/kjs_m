@@ -3,7 +3,7 @@ editing an approved employee's permissions (admin only), job titles, and "Admin 
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 
 ADMIN = "admin@kjs.test"
 API = "/api/v1/admin"
@@ -11,7 +11,7 @@ API = "/api/v1/admin"
 
 async def _signup(client, email="new@kjs.test", name="New Person"):
     r = await client.post("/api/v1/auth/signup", headers=HDR,
-                          json={"name": name, "email": email, "phone": "+91 98765 43210", "password": "password1234"})
+                          json={"id_token": id_token(email), "name": name, "phone": "+91 98765 43210"})
     assert r.status_code in (200, 201), r.text
 
 
@@ -51,7 +51,7 @@ async def test_rejected_person_cannot_log_in(client):
     uid = await _id(client, "new@kjs.test")
     await client.post(f"{API}/users/{uid}/reject", headers=HDR, json={"reason": "Duplicate account"})
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
-        r = await other.post("/api/v1/auth/login", headers=HDR, json={"email": "new@kjs.test", "password": "password1234"})
+        r = await other.post("/api/v1/auth/login", headers=HDR, json={"id_token": id_token("new@kjs.test")})
     assert r.status_code == 403 and r.json()["code"] == "rejected"
 
 

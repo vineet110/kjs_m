@@ -1,6 +1,6 @@
 """Website content (texts, offers, Koko facts/transcripts), partners, gated leads, profile,
 analytics, alerts, settings view."""
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, id_token, login, make_user
 
 PARTNER = {"name": "Ravi", "partner_type": "forwarder", "country": "UAE", "email": "ravi@ship.ae", "consent": True, "phone": "+91 98765 43210"}
 
@@ -96,12 +96,16 @@ async def test_profile_and_password(client):
     await login(client, "e@kjsindia.com")
     r = await client.patch("/api/v1/auth/profile", json={"name": "Esha K", "notify_email": False}, headers=HDR)
     assert r.json()["name"] == "Esha K" and r.json()["notify_email"] is False
-    bad = await client.post("/api/v1/auth/password", json={"current": "wrong-password", "new": "a-new-password-1"}, headers=HDR)
-    assert bad.status_code == 422
-    ok = await client.post("/api/v1/auth/password", json={"current": "password1234", "new": "a-new-password-1"}, headers=HDR)
+    # The browser changes the password in Firebase (after typing the current one), then tells us
+    old = await client.post("/api/v1/auth/password", json={"id_token": id_token("e@kjsindia.com", signed_in_seconds_ago=3600)}, headers=HDR)
+    assert old.status_code == 401  # an hour-old sign-in can't log the person out everywhere
+    other = await client.post("/api/v1/auth/password", json={"id_token": id_token("x@kjsindia.com")}, headers=HDR)
+    # A sign-in with no staff account behind it. (The person comes from the sign-in, not the cookie, since
+    # round 3 of #77: a real colleague's fresh sign-in would just be a login as them, like /login.)
+    assert other.status_code == 401
+    ok = await client.post("/api/v1/auth/password", json={"id_token": id_token("e@kjsindia.com")}, headers=HDR)
     assert ok.status_code == 204
     assert (await client.get("/api/v1/auth/me")).status_code == 200  # this browser stays logged in
-    await login(client, "e@kjsindia.com", "a-new-password-1")
 
 
 async def test_analytics_alerts_config_for_admin_only(client):

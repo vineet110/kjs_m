@@ -18,7 +18,7 @@ from app.core.database import AsyncSessionLocal
 from app.main import app
 from app.models.user import User
 from app.services import chat_hub
-from tests.conftest import HDR, make_user
+from tests.conftest import HDR, id_token, make_user
 
 C = "/api/v1/chat"
 WS = f"{C}/ws"
@@ -33,7 +33,7 @@ async def _team(*names: str) -> dict[str, int]:
 
 
 def _login(tc: TestClient, name: str) -> None:
-    r = tc.post("/api/v1/auth/login", json={"email": f"{name}@kjsindia.com", "password": "password1234"}, headers=HDR)
+    r = tc.post("/api/v1/auth/login", json={"id_token": id_token(f"{name}@kjsindia.com")}, headers=HDR)
     assert r.status_code == 200, r.text
 
 
