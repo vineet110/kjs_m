@@ -389,3 +389,36 @@ async def test_real_firebase_lookup_answers(monkeypatch):
     assert await firebase.tokens_valid_after_ms("u") == 5000
     monkeypatch.setattr(firebase.fb_auth, "get_user", _raises(fb_auth.UserNotFoundError("gone")))
     assert await firebase.tokens_valid_after_ms("u") is None
+
+
+# ---------- Step 3: a deleted Firebase login made again with the same email ----------
+async def _row_with_login(email: str, uid: str, status: str = "active"):
+    async with AsyncSessionLocal() as db:
+        db.add(User(name="Neha", email=email, firebase_uid=uid, role="employee", status=status, permissions=["leads.view"]))
+        await db.commit()
+
+
+async def test_account_whose_firebase_login_was_deleted_is_linked_to_the_new_one(client, fake_firebase):
+    await _row_with_login("neha@kjsindia.com", "uid-deleted-in-console")
+    fake_firebase.deleted.append("uid-deleted-in-console")
+    r = await client.post(LOGIN, json={"id_token": id_token("neha@kjsindia.com")}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "pending_approval"  # an admin approves again
+    u = await _user("neha@kjsindia.com")
+    assert u.firebase_uid == uid_of("neha@kjsindia.com") and u.status == "pending"
+    async with engine.connect() as conn:
+        assert "user.linked_firebase" in (await conn.execute(text("SELECT action FROM audit_log"))).scalars().all()
+
+
+async def test_a_firebase_login_that_still_exists_is_never_taken_over(client, fake_firebase):
+    await _row_with_login("neha@kjsindia.com", "uid-still-in-firebase")  # not deleted
+    r = await client.post(LOGIN, json={"id_token": id_token("neha@kjsindia.com")}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "no_account"
+    assert (await _user("neha@kjsindia.com")).firebase_uid == "uid-still-in-firebase"
+
+
+async def test_relinked_account_keeps_a_disabled_status(client, fake_firebase):
+    await _row_with_login("neha@kjsindia.com", "uid-deleted-in-console", status="disabled")
+    fake_firebase.deleted.append("uid-deleted-in-console")
+    r = await client.post(LOGIN, json={"id_token": id_token("neha@kjsindia.com")}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "disabled"  # a new login is no way around "disabled"
+    assert (await _user("neha@kjsindia.com")).status == "disabled"

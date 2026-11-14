@@ -133,22 +133,40 @@ async def _new_session(db: AsyncSession, user: User) -> str:
 async def _link_old_account(db: AsyncSession, claims: dict, ip_hash: str | None) -> User:
     """First Firebase login of an account made before Firebase (same email, now verified): it keeps its
     history (leads, attendance, chats). An employee waits for an admin's approval again; an admin stays
-    active (nobody else could approve the first admin)."""
+    active (nobody else could approve the first admin).
+    Also: an account whose Firebase login was deleted (e.g. in the Firebase console) and made again with the
+    same email. Without this, login said "please sign up" and sign-up said "already exists"."""
     email = claims["email"].strip().lower()
     user = await db.scalar(select(User).where(User.email == email, User.firebase_uid.is_(None)).with_for_update())
+    relinked_from = None
     if user is None:
         # Two logins at the same moment (double-click, two devices): the other one may have just linked it
         linked = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
         if linked is not None:
             return linked
-        raise AppError(403, "no_account", "There's no staff account for this email yet. Please sign up first.")
-    before = {"status": user.status}
+        user = await _account_with_a_deleted_login(db, email)
+        if user is None:
+            raise AppError(403, "no_account", "There's no staff account for this email yet. Please sign up first.")
+        relinked_from = user.firebase_uid
+        # The old login's sessions and its "password changed" time belonged to the deleted account
+        await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+        user.firebase_valid_after = user.firebase_checked_at = None
+    before = {"status": user.status} | ({"firebase_uid": relinked_from} if relinked_from else {})
     user.firebase_uid = claims["uid"]
     if user.role != "admin" and user.status == "active":
         user.status = "pending"
     audit_service.record(db, actor=None, action="user.linked_firebase", entity_type="user", entity_id=user.id,
                          before=before, after={"status": user.status}, ip_hash=ip_hash)
     await db.commit()
+    return user
+
+
+async def _account_with_a_deleted_login(db: AsyncSession, email: str) -> User | None:
+    """The row with this email, if its Firebase login no longer exists in Firebase. A login that still
+    exists is someone's real login: never taken over. Google down = 503 (asked again at the next login)."""
+    user = await db.scalar(select(User).where(User.email == email, User.firebase_uid.is_not(None)).with_for_update())
+    if user is None or await firebase.tokens_valid_after_ms(user.firebase_uid) is not None:
+        return None
     return user
 
 

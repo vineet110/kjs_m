@@ -149,3 +149,12 @@ Undo: revert the one commit; the console policy can be turned back to 6.
   the real lookup). Checked here: compile, import, one Alembic head, session check dry-run with fake
   data (all 5 answers as planned). Database tests: CI.
 - Before deploy: warn staff still logged in from before 13 Nov that they will be logged out once.
+
+**Step 3 done (14 Nov, on #77; only the "deleted Firebase login" part)**
+- Kunal: no email-verification rules for now (add after testing). So "approve needs a verified email" and
+  "the verified owner replaces a fake pending sign-up" are NOT done: still open (point 4 of the review).
+- `auth_service.py` `_link_old_account()`: if the email's row is linked to a Firebase login that no longer
+  exists (`_account_with_a_deleted_login`), it is linked to the new login: old sessions deleted, audit
+  `user.linked_firebase` (with the old uid), employee back to `pending`; disabled/rejected stay as they are.
+  A login that still exists is never taken over. Google down = 503.
+- Tests: 3 new. Checked here: compile, import, dry-run with fake data. Database tests: CI.
