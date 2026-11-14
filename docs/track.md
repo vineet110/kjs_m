@@ -138,6 +138,32 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          Decision: `memory.md` 47. Follow-ups: `backlog.md` R54 (e2e check), R55 (`admin` and auto-assign).
 
 
+4p. KJS Chat phase 1 (Vineet): merged in PR #55 (10 Nov)
+
+   i.    Channels, group chats and DMs inside the portal, live messages over a WebSocket, unread counts,
+         @mentions, edit and delete your own. Migration 0020. Decision: `memory.md` 48.
+   ii.   Checks: backend 313, frontend 44 unit, chat browser test 55 (`scripts/e2e/chat_e2e.mjs`).
+         Follow-ups: `backlog.md` A93-A99, I16, R60.
+
+
+4q. Lead Harvester (devillover27, PR #53) + its security fix (Vineet, PR #62): merged 10 Nov
+
+   i.    #53 was merged first on purpose; #62 fixed the API-key leak and SSRF right after. Migration 0019.
+         Decision: `memory.md` 49. Follow-ups: `backlog.md` I17, R57.
+
+
+4r. Employee management and live updates (Vineet): merged in PR #76 (13 Nov)
+
+   i.    Reject a sign-up with a reason, per-person permissions, job titles, Manage employees tabs, one update
+         check every 30 s for the bell and badges. Migration 0023. Decision: `memory.md` 50.
+
+
+4s. Review fixes after #77 (Firebase login) and #80 (complaints): merged in PR #81 (14 Nov)
+
+   i.    One migration head again (0026 after 0025), the complaint upload error, clock skew in the session
+         check. Neon at 0026. Decision: `memory.md` 51.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
@@ -252,3 +278,10 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 10. 2–3 Nov: UI steps 4 to 7 merged (PR #16, migration 0012) and the admin redesign merged (PR #17).
     Backend 177, unit 34, API 114, browser 55 checks pass.
+
+11. 10 Nov: KJS Chat phase 1 (#55), Lead Harvester (#53) and its security fix (#62), phase switches (#58,
+    #60), sidebar names (#63) merged. Neon migrated to 0020. 27 local and 47 GitHub merged branches deleted.
+
+12. 13 Nov: employee management and live updates merged (#76, migration 0023).
+
+13. 14 Nov: Firebase login (#77) and complaints (#80) merged, then review fixes (#81). Neon migrated to 0026.

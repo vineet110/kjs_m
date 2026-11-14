@@ -234,6 +234,35 @@ Sections:
    What   The day the system is switched on for real use: Fri 11 Dec 2026.
 
 
+### Channel / group chat / DM (KJS Chat)
+
+   What   Channel: a room for a team or topic (`#sales`), needs a name, only the owner manages it.
+          Group chat: a quick talk between 3 or more people, always private, any member adds people.
+          DM: exactly 2 people, can't be changed. All three share one table; `kind` tells them apart.
+   Where  `backend/app/services/chat_service.py`, page `employee/chat`.
+
+
+### Rejected (sign-up status)
+
+   What   A sign-up an approver turned down, with a reason. The person can't log in; only an admin can
+          approve them later.
+   Where  `POST /admin/users/{id}/reject`, All approvals > Rejected.
+
+
+### Job title
+
+   What   A label on a staff member (e.g. "Sales executive"), picked from a list admins can add to. It gives
+          no rights: permissions are set separately.
+   Where  Table `job_titles`, `GET/POST /admin/job-titles`.
+
+
+### Update check (/employee/updates)
+
+   What   One small request every 30 s per open tab that returns only counters (bell, approvals, chat, new
+          leads). A part of the page reloads only when its number changed.
+   Where  `frontend/src/lib/updates.ts`, `GET /employee/updates`.
+
+
 ### IST / UTC
 
    What   IST = India time (UTC + 5:30). UTC = world standard time.
@@ -531,7 +560,7 @@ Sections:
           Neon. For a local check set BOTH `DATABASE_URL` and `MIGRATION_DATABASE_URL` to the local database,
           then run `current` first. The tests set both for you.
    Command  `cd backend` then `.venv/Scripts/alembic upgrade head`
-   Where  `backend/alembic/versions/` (0001 to 0018; next free: 0019).
+   Where  `backend/alembic/versions/` (0001 to 0026; next free: 0027). Two heads: see "Migration head".
 
 
 ### Table / column / row
@@ -732,6 +761,42 @@ Sections:
    What   Only the fields sent change; the rest stay as they are. "Send the whole form" can undo another
           person's change made in between.
    Where  Products, offers, accounts (`exclude_unset`, `OfferPatchIn`, `UserPatchIn`).
+
+
+### WebSocket
+
+   What   A connection that stays open between the browser and the API, so the server can push news at
+          once (a new chat message) instead of the browser asking again and again.
+   Why    Live chat. Sending still uses normal requests; the socket only pushes events.
+   Where  `WS /api/v1/chat/ws`, `useChatSocket` in `frontend/src/lib/chat.ts`, nginx chat block.
+
+
+### Hub (chat)
+
+   What   A list in the API's memory of who is connected right now, with `push(user_ids, event)` and
+          `kick(user_id)`. Works with one API process only.
+   Where  `backend/app/services/chat_hub.py`.
+
+
+### Cursor pagination
+
+   What   "Give me 50 messages before message 1234" instead of "page 3". New messages arriving don't shift
+          the pages, so nothing is shown twice or skipped.
+   Where  `GET /chat/channels/{id}/messages?before=&after=&limit=`.
+
+
+### Soft delete
+
+   What   The row is marked deleted (`deleted_at`) instead of removed, so history and order stay intact.
+   Where  Chat messages ("message deleted"), files.
+
+
+### Migration head (two heads)
+
+   What   The newest migration. Each one names the one before it (`down_revision`). If two branches both
+          build on the same one, there are two heads and `alembic upgrade head` stops.
+   Rule   The PR merged second changes its `down_revision` to the other's last one. Check: `alembic heads`
+          shows one.
 
 
 
@@ -1383,6 +1448,41 @@ Sections:
    What   The value a rate limit counts by. One home or phone line gets a whole IPv6 "/64" block (billions of
           addresses), so the block counts as one visitor; IPv4 counts per address.
    Where  `core/security.py` `rate_key`, `core/deps.py` `visitor_keys`. Leads and audit rows keep the real address hash.
+
+
+### Origin check
+
+   What   The browser sends the address of the site a request comes from (`Origin`). The chat WebSocket
+          accepts only our own site, because a socket can't carry the `x-requested-with` header.
+   Where  `origin_allowed` and `ws_user` in `backend/app/core/deps.py`.
+
+
+### SSRF (server-side request forgery)
+
+   What   Tricking our server into fetching an address it shouldn't, e.g. an internal one
+          (localhost, 169.254.169.254 cloud metadata) and showing the answer.
+   Why    The Lead Harvester fetches addresses an admin types in.
+   Where  `safe_get()` in `backend/app/services/harvest_net.py`: https and public addresses only.
+
+
+### DNS rebinding
+
+   What   A name that points to a public address when checked and an internal one a moment later. Stopped
+          by looking the name up once and connecting to that checked address.
+   Where  `safe_get()` in `harvest_net.py`.
+
+
+### Clock skew
+
+   What   Two computers' clocks differ by a few seconds. Comparing a time from our server with a time from
+          Google can then give the wrong answer, so we allow a margin.
+   Where  `CLOCK_SKEW_SECONDS` (10 s) in `backend/app/core/firebase.py`, used in `deps.py`.
+
+
+### WebRTC / TURN
+
+   What   WebRTC: how browsers send voice and video to each other. TURN: a relay server needed when they
+          can't connect directly. Weeks of work, so calls in chat are skipped (maybe a Jitsi link later).
 
 
 
