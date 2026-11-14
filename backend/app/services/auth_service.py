@@ -1,7 +1,13 @@
-"""Sign-up -> admin approval -> login -> logout. All business rules for staff accounts."""
-import asyncio
+"""Sign-up -> admin approval -> login -> logout. All business rules for staff accounts.
+
+Passwords live in Firebase Authentication (app/core/firebase.py): the browser signs in with Firebase and
+sends us its ID token. Firebase checks passwords, blocks guessing, and sends the "verify your email" and
+"reset your password" emails. From the token on, everything is ours: the account row, approval, status,
+role, permissions, and the session cookie.
+"""
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
@@ -9,82 +15,79 @@ from sqlalchemy import String, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import firebase
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import login_email_failures, login_failures, login_ip_limiter, signup_limiter
+from app.core.rate_limit import login_ip_limiter, signup_limiter
 from app.core.permissions import EMPLOYEE_DEFAULTS, PERMISSIONS, effective_permissions
-from app.core.security import hash_password, hash_token, new_session_token, verify_password
+from app.core.security import hash_token, new_session_token
 from app.models.audit import AuditLog
 from app.models.user import User, UserSession
-from app.schemas.auth import SignupIn, UserOut, UserUpdateIn
+from app.schemas.auth import UserOut, UserUpdateIn
 from app.services import assign_service, audit_service, chat_hub, file_service, job_title_service
 
 log = logging.getLogger(__name__)
 
-KNOWN_NETWORK_DAYS = 30  # CR5: a network this person logged in from recently
+# "Password changed" must come from a sign-in made just now (the browser signs in again with the current
+# password first), so a stolen, older token can't be used to log the real person out of everywhere.
+FRESH_SIGN_IN_SECONDS = 5 * 60
+BAD_TOKEN = "Your sign-in has expired. Please log in again."
 
-# Used when the email doesn't exist, so a login takes as long as a real password check.
-_DUMMY_HASH = hash_password("not-a-real-password-just-for-timing")
+
+async def _claims(token: str, net: str | None) -> dict:
+    """Checks the Firebase ID token. Too many bad tokens from one network = 429 (guessing / replaying)."""
+    if login_ip_limiter.blocked(net):
+        raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
+    try:
+        claims = await firebase.verify_token(token)
+    except firebase.BadToken as e:
+        login_ip_limiter.hit(net)
+        log.warning("auth.bad_token", extra={"reason": str(e)})
+        raise AppError(401, "bad_token", BAD_TOKEN) from e
+    if not claims.get("email"):
+        raise AppError(401, "bad_token", BAD_TOKEN)
+    return claims
 
 
-async def signup(db: AsyncSession, data: SignupIn, ip_hash: str | None, rate_key: str | None = None) -> User:
-    signup_limiter.check(rate_key or ip_hash)  # before any hashing: password hashing is deliberately expensive
-    exists = await db.scalar(select(func.count()).select_from(User).where(User.email == data.email))
-    if exists:
+async def signup(db: AsyncSession, id_token: str, name: str, phone: str, ip_hash: str | None,
+                 rate_key: str | None = None) -> User:
+    """A new person (already signed up in Firebase by the browser) waits for admin approval."""
+    signup_limiter.check(rate_key or ip_hash)
+    claims = await _claims(id_token, rate_key or ip_hash)
+    email = claims["email"].strip().lower()  # from the token, not the form: it is the Firebase account's email
+    existing = await db.scalar(select(User).where(User.email == email))
+    if existing is not None:
+        if existing.firebase_uid is None:
+            # An account from before Firebase: it is linked at its first login, once the email is verified
+            # (login() below). Nothing to save now; the person is told to verify, then log in.
+            return existing
+        if existing.firebase_uid == claims["uid"] and existing.status == "pending":
+            # The same person again (the first answer got lost, or a second click): it already worked
+            return existing
         raise AppError(409, "email_taken", "An account with this email already exists.")
-    user = User(
-        name=data.name.strip(),
-        email=data.email,
-        phone=data.phone.strip() or None,
-        password_hash=await asyncio.to_thread(hash_password, data.password),
-        role="employee",
-        status="pending",  # can't log in until an admin approves
-        permissions=[],
-    )
+    user = User(name=name.strip(), email=email, phone=phone.strip() or None, password_hash=None,
+                firebase_uid=claims["uid"], role="employee", status="pending", permissions=[])
     db.add(user)
-    await db.flush()  # gives user.id, still inside the transaction
-    audit_service.record(
-        db, actor=None, action="user.signed_up", entity_type="user", entity_id=user.id,
-        after={"email": user.email, "name": user.name}, ip_hash=ip_hash,
-    )
+    try:
+        await db.flush()  # gives user.id, still inside the transaction
+    except IntegrityError:  # the same person signing up twice at the same moment
+        await db.rollback()
+        raise AppError(409, "email_taken", "An account with this email already exists.")
+    audit_service.record(db, actor=None, action="user.signed_up", entity_type="user", entity_id=user.id,
+                         after={"email": user.email, "name": user.name}, ip_hash=ip_hash)
     await db.commit()
     return user
 
 
-async def _known_network(db: AsyncSession, user: User | None, ip_hash: str | None) -> bool:
-    """Did this person log in successfully from this network in the last 30 days? (CR5)"""
-    if user is None or not ip_hash:
-        return False
-    since = datetime.now(timezone.utc) - timedelta(days=KNOWN_NETWORK_DAYS)
-    return bool(await db.scalar(select(AuditLog.id).where(
-        AuditLog.entity_type == "user", AuditLog.entity_id == str(user.id), AuditLog.action == "auth.login_ok",
-        AuditLog.ip_hash == ip_hash, AuditLog.at >= since).limit(1)))
-
-
-async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None = None,
+async def login(db: AsyncSession, id_token: str, ip_hash: str | None = None,
                 rate_key: str | None = None) -> tuple[User, str]:
-    # Checked BEFORE the password: once an email is locked, even the right password is refused,
-    # otherwise an attacker could keep guessing and simply wait for the one "200".
-    net = rate_key or ip_hash
-    if login_ip_limiter.blocked(net):  # too many wrong passwords from this network, over all emails
-        raise AppError(429, "too_many", "Too many requests. Please try again later or WhatsApp us.")
-    user = await db.scalar(select(User).where(User.email == email))
-    lock_key = f"{email}|{net}"
-    # The any-network counter is a backstop against guessing from many networks. It must not let a
-    # stranger lock the real person out (CR5): a network they logged in from recently is never blocked
-    # by it. (Kept in the audit log, so a restart of the API doesn't forget it.)
-    email_locked = login_email_failures.blocked(email) and not await _known_network(db, user, ip_hash)
-    if login_failures.blocked(lock_key) or email_locked:
-        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
-    # Same message AND about the same time for "no such user" and "wrong password", so nobody can
-    # probe which emails exist (scrypt runs against a dummy hash when there is no user).
-    stored = user.password_hash if user else _DUMMY_HASH
-    if not await asyncio.to_thread(verify_password, password, stored) or user is None:
-        log.warning("auth.login_failed", extra={"email": email})
-        login_failures.hit(lock_key)  # 10 wrong passwords in 15 min from this network -> locked
-        login_email_failures.hit(email)
-        login_ip_limiter.hit(net)
-        raise AppError(401, "bad_credentials", "Email or password is wrong.")
+    claims = await _claims(id_token, rate_key or ip_hash)
+    if not claims.get("email_verified"):
+        # Anyone can make a Firebase account with any email; only a verified one proves the inbox is theirs
+        raise AppError(403, "email_not_verified", "Please verify your email first: open the link we emailed you.")
+    user = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
+    if user is None:
+        user = await _link_old_account(db, claims, ip_hash)
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")
     if user.status == "rejected":
@@ -92,19 +95,79 @@ async def login(db: AsyncSession, email: str, password: str, ip_hash: str | None
     if user.status != "active":
         raise AppError(403, "disabled", "Your account is disabled. Please contact the admin.")
 
-    token = new_session_token()
-    now = datetime.now(timezone.utc)
-    db.add(UserSession(
-        user_id=user.id, token_hash=hash_token(token),
-        created_at=now, expires_at=now + timedelta(days=settings.SESSION_DAYS),
-    ))
-    # Housekeeping: drop this user's expired sessions.
-    await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at < now))
-    # Who logged in from which network (hashed): also what lets this network past a stranger's lockout (CR5)
+    # The password was changed in Firebase (e.g. "Forgot password?") after some of this person's sessions
+    # began: those end now, so a reset logs out the other devices. (A reset never reaches our API itself, so
+    # this happens at the next login. Firebase keeps the time in whole seconds.)
+    valid_after_ms = claims.get("valid_after_ms") or 0
+    _remember_valid_after(user, valid_after_ms)
+    if valid_after_ms:
+        cutoff = datetime.fromtimestamp(valid_after_ms / 1000, tz=timezone.utc)
+        ended = (await db.execute(delete(UserSession).where(
+            UserSession.user_id == user.id, UserSession.created_at < cutoff))).rowcount
+        if ended:
+            log.info("auth.old_sessions_ended", extra={"login_user_id": user.id, "sessions": ended})
+    token = await _new_session(db, user)
     audit_service.record(db, actor=user, action="auth.login_ok", entity_type="user", entity_id=user.id, ip_hash=ip_hash)
     await db.commit()
     log.info("auth.login_ok", extra={"login_user_id": user.id})
     return user, token
+
+
+def _remember_valid_after(user: User, valid_after_ms: int) -> None:
+    """Fresh from Firebase (the token check just looked): saves session_user() a Google call (core/deps.py)."""
+    user.firebase_valid_after = datetime.fromtimestamp(valid_after_ms / 1000, tz=timezone.utc) if valid_after_ms else None
+    user.firebase_checked_at = datetime.now(timezone.utc)
+
+
+async def _new_session(db: AsyncSession, user: User) -> str:
+    """Adds a session (the caller commits) and returns its token for the cookie. Housekeeping: drops this
+    person's expired sessions."""
+    token = new_session_token()
+    now = datetime.now(timezone.utc)
+    db.add(UserSession(user_id=user.id, token_hash=hash_token(token),
+                       created_at=now, expires_at=now + timedelta(days=settings.SESSION_DAYS)))
+    await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at < now))
+    return token
+
+
+async def _link_old_account(db: AsyncSession, claims: dict, ip_hash: str | None) -> User:
+    """First Firebase login of an account made before Firebase (same email, now verified): it keeps its
+    history (leads, attendance, chats). An employee waits for an admin's approval again; an admin stays
+    active (nobody else could approve the first admin).
+    Also: an account whose Firebase login was deleted (e.g. in the Firebase console) and made again with the
+    same email. Without this, login said "please sign up" and sign-up said "already exists"."""
+    email = claims["email"].strip().lower()
+    user = await db.scalar(select(User).where(User.email == email, User.firebase_uid.is_(None)).with_for_update())
+    relinked_from = None
+    if user is None:
+        # Two logins at the same moment (double-click, two devices): the other one may have just linked it
+        linked = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
+        if linked is not None:
+            return linked
+        user = await _account_with_a_deleted_login(db, email)
+        if user is None:
+            raise AppError(403, "no_account", "There's no staff account for this email yet. Please sign up first.")
+        relinked_from = user.firebase_uid
+        # The old login's sessions and its "password changed" time belonged to the deleted account
+        await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+        user.firebase_valid_after = user.firebase_checked_at = None
+    before = {"status": user.status} | ({"firebase_uid": relinked_from} if relinked_from else {})
+    user.firebase_uid = claims["uid"]
+    if user.role != "admin" and user.status == "active":
+        user.status = "pending"
+    audit_service.record(db, actor=None, action="user.linked_firebase", entity_type="user", entity_id=user.id,
+                         before=before, after={"status": user.status}, ip_hash=ip_hash)
+    await db.commit()
+    return user
+
+
+async def _account_with_a_deleted_login(db: AsyncSession, email: str) -> User | None:
+    """The row with this email, if its Firebase login no longer exists in Firebase. A login that still
+    exists is someone's real login: never taken over. Google down = 503 (asked again at the next login)."""
+    user = await db.scalar(select(User).where(User.email == email, User.firebase_uid.is_not(None)).with_for_update())
+    if user is None or await firebase.tokens_valid_after_ms(user.firebase_uid) is not None:
+        return None
+    return user
 
 
 async def logout(db: AsyncSession, token: str | None) -> None:
@@ -174,6 +237,11 @@ async def approve(db: AsyncSession, admin: User, user_id: int, permissions: list
         before=before, after={"status": user.status, "permissions": user.permissions},
     )
     await db.commit()
+    # An admin may approve an account that was disabled (and so disabled in Firebase too): switch it back on.
+    # Only then: other accounts were never disabled there (one Google call less per approval). If someone
+    # disabled it in the Firebase console by hand, disable + re-enable it here to fix that.
+    if before["status"] == "disabled":
+        await _sync_firebase_disabled(user, False)
     return user
 
 
@@ -250,15 +318,30 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
     await db.commit()
     if status != "active":
         await chat_hub.hub.kick(user.id)  # close their open chat tabs now, not at the next ping
+    await _sync_firebase_disabled(user, status != "active")
     return user
 
 
+async def _sync_firebase_disabled(user: User, disabled: bool) -> None:
+    """Firebase too: a disabled person can't even sign in there. Our database stays the real check (login()
+    refuses any status but "active"), so a Firebase error here is only logged, never blocks the change."""
+    if not user.firebase_uid or not firebase.enabled():
+        return
+    try:
+        await firebase.set_disabled(user.firebase_uid, disabled)
+    except Exception as e:
+        log.warning("firebase.disable_failed", extra={"target_user_id": user.id, "reason": f"{type(e).__name__}: {str(e)[:200]}"})
+
+
 async def ensure_admin(db: AsyncSession, email: str, password: str, name: str = "Admin") -> bool:
-    """Create the first admin if missing. Returns True if created. Used by app.seed."""
+    """Create the first admin if missing (here and in Firebase). Returns True if created. Used by app.seed.
+    Without Firebase set up (local development), the row is made unlinked: the first Firebase login with
+    this verified email links it."""
     email = email.lower()
     if await db.scalar(select(User).where(User.email == email)):
         return False
-    admin = User(name=name, email=email, password_hash=hash_password(password),
+    uid = await firebase.ensure_user(email, password, name) if firebase.enabled() else None
+    admin = User(name=name, email=email, password_hash=None, firebase_uid=uid,
                  role="admin", status="active", permissions=[])
     db.add(admin)
     await db.flush()
@@ -302,14 +385,27 @@ async def _check_staff_details(db: AsyncSession, actor: User, target_id: int | N
 
 async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
     """An account the admin makes directly (no sign-up, no approval step): active at once. A one-time
-    password is returned for the admin to pass on; the person changes it on their Profile page."""
+    password is returned for the admin to pass on; the person changes it on their Profile page. The
+    password is set in Firebase (never stored by us); at the first login Firebase asks them to verify
+    their email."""
     await _check_staff_details(db, admin, None, data)
     if await db.scalar(select(func.count()).select_from(User).where(User.email == data.email)):
         raise AppError(409, "email_taken", "An account with this email already exists.")
     temp_password = secrets.token_urlsafe(9)  # 12 characters, above the 10 a password needs
+    # A sign-up that stopped halfway can leave a Firebase account with this email but no row here: reuse it
+    # (new one-time password, switched on), unless it is already the login of another account. Checked
+    # BEFORE changing anything, so another person's password is never touched.
+    uid = await firebase.uid_by_email(data.email)
+    created = uid is None
+    if uid is not None:
+        if await db.scalar(select(User.id).where(User.firebase_uid == uid)):
+            raise AppError(409, "email_taken", "This email's login already belongs to another account.")
+        await firebase.reset_account(uid, temp_password, data.name)
+    else:
+        uid = await firebase.create_user(data.email, temp_password, data.name)
     user = User(
         name=data.name, email=data.email, phone=data.phone, role=data.role, status="active",
-        password_hash=await asyncio.to_thread(hash_password, temp_password),
+        password_hash=None, firebase_uid=uid,
         permissions=list(EMPLOYEE_DEFAULTS), employee_code=data.employee_code, branch=data.branch,
         job_title=data.job_title, reporting_to=data.reporting_to, approved_by=admin.id, approved_at=datetime.now(timezone.utc),
     )
@@ -318,6 +414,11 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
         await db.flush()
     except IntegrityError:  # the same email saved at the same moment by another request
         await db.rollback()
+        if created:  # no Firebase account of ours left behind without a row (a reused one stays)
+            try:
+                await firebase.delete_user(uid)
+            except Exception as e:  # the admin still gets the real answer, not a 500
+                log.warning("firebase.cleanup_failed", extra={"reason": f"{type(e).__name__}: {str(e)[:200]}"})
         raise AppError(409, "email_taken", "An account with this email already exists.")
     audit_service.record(db, actor=admin, action="user.created", entity_type="user", entity_id=user.id,
                          after={"email": user.email, **{k: getattr(user, k) for k in STAFF_FIELDS}})
@@ -385,19 +486,23 @@ async def update_profile(db: AsyncSession, user: User, changes: dict) -> dict:
     return await profile_out(db, user)
 
 
-async def change_password(db: AsyncSession, user: User, current: str, new: str, keep_token_hash: str) -> None:
-    # A stolen session must not be able to guess the current password forever: 10 tries per 15 min.
-    lock_key = f"{user.email}|password_change"
-    if login_failures.blocked(lock_key):
-        raise AppError(429, "too_many", "Too many wrong passwords. Please wait 15 minutes and try again.")
-    if not await asyncio.to_thread(verify_password, current, user.password_hash):
-        login_failures.hit(lock_key)
-        raise AppError(422, "bad_password", "Your current password is wrong.")
-    if current == new:
-        raise AppError(422, "same_password", "Choose a new password that is different.")
-    user.password_hash = await asyncio.to_thread(hash_password, new)
-    # Log out every other browser of this person (keep the one making the change).
-    await db.execute(delete(UserSession).where(UserSession.user_id == user.id, UserSession.token_hash != keep_token_hash))
-    audit_service.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id)
+async def password_changed(db: AsyncSession, id_token: str,
+                           ip_hash: str | None = None, rate_key: str | None = None) -> str:
+    """The browser has just changed the password in Firebase (after signing in again with the current one).
+    Here: log out every browser of this person, and give THIS one a new session (returned token).
+    The person is found from the fresh sign-in, not the old session cookie: that session began before the
+    change, so the session check would already end it (see the route)."""
+    claims = await _claims(id_token, rate_key or ip_hash)
+    if time.time() - claims.get("auth_time", 0) > FRESH_SIGN_IN_SECONDS:
+        raise AppError(401, "bad_token", "Please type your current password again.")
+    user = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
+    if user is None or user.status != "active":
+        raise AppError(401, "not_logged_in", "Your session has ended. Please log in again.")
+    await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    _remember_valid_after(user, claims.get("valid_after_ms") or 0)
+    token = await _new_session(db, user)
+    audit_service.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id,
+                         ip_hash=ip_hash)
     await db.commit()
     log.info("auth.password_changed")
+    return token

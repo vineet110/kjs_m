@@ -4,12 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import current_user, visitor_keys
+from app.core.deps import CSRF_HEADER, current_user, visitor_keys
+from app.core.errors import AppError
 from app.core.modules import visible_to
 from app.core.permissions import effective_permissions
-from app.core.security import hash_token
 from app.models.user import User
-from app.schemas.auth import LoginIn, MeOut, SignupIn
+from app.schemas.auth import LoginIn, MeOut, PasswordChangedIn, SignupIn
 from app.schemas.common import OneLine, RequiredPhone
 from app.services import auth_service
 
@@ -24,13 +24,20 @@ def _me(user: User) -> MeOut:
 
 @router.post("/signup", status_code=201)
 async def signup(data: SignupIn, request: Request, db: AsyncSession = Depends(get_db)):
-    await auth_service.signup(db, data, *visitor_keys(request))
-    return {"status": "pending", "message": "Account created. An admin will approve it soon."}
+    """After the browser made the Firebase account (and asked Firebase to send the verify-email link)."""
+    await auth_service.signup(db, data.id_token, data.name, data.phone, *visitor_keys(request))
+    return {"status": "pending",
+            "message": "Account created. Verify your email (we sent a link), then an admin will approve it."}
 
 
 @router.post("/login", response_model=MeOut)
 async def login(data: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    user, token = await auth_service.login(db, data.email, data.password, *visitor_keys(request))
+    user, token = await auth_service.login(db, data.id_token, *visitor_keys(request))
+    _set_session_cookie(response, token)
+    return _me(user)
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
         max_age=settings.SESSION_DAYS * 86400,
@@ -39,7 +46,6 @@ async def login(data: LoginIn, request: Request, response: Response, db: AsyncSe
         secure=settings.is_production,  # HTTPS-only in production
         path="/",
     )
-    return _me(user)
 
 
 @router.post("/logout", status_code=204)
@@ -70,13 +76,15 @@ async def update_profile(data: ProfileIn, user: User = Depends(current_user), db
     return await auth_service.update_profile(db, user, data.model_dump(exclude_unset=True, exclude_none=True))
 
 
-class PasswordIn(BaseModel):
-    current: str = Field(max_length=200)
-    new: str = Field(min_length=10, max_length=200)
-
-
 @router.post("/password", status_code=204)
-async def change_password(data: PasswordIn, request: Request, user: User = Depends(current_user),
-                          db: AsyncSession = Depends(get_db)):
-    token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
-    await auth_service.change_password(db, user, data.current, data.new, hash_token(token))
+async def password_changed(data: PasswordChangedIn, request: Request, response: Response,
+                           db: AsyncSession = Depends(get_db)):
+    """Called right after the browser changed the password in Firebase: logs out every other browser, and
+    gives this one a new session cookie.
+    No current_user here on purpose: the password has just changed in Firebase, so the session check
+    (core/deps.py) would end THIS browser's session too, before we can give it a new one (review of #77).
+    The fresh Firebase sign-in in the body proves who it is, the same way /login does."""
+    if not request.headers.get(CSRF_HEADER):
+        raise AppError(403, "csrf", "Missing request header.")
+    token = await auth_service.password_changed(db, data.id_token, *visitor_keys(request))
+    _set_session_cookie(response, token)

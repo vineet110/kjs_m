@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "KJS India <no-reply@kjsindia.com>"
+    # Firebase (app/core/firebase.py): the service-account JSON on ONE line (secret: .env and Render only).
+    # Firebase Authentication checks staff passwords; the API checks the ID token it gives the browser.
+    FIREBASE_SERVICE_ACCOUNT: str = ""
     # Full URL of the site, used for links inside emails
     PUBLIC_BASE_URL: str = "http://localhost:3000"
 

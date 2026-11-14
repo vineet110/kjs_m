@@ -10,6 +10,9 @@ import { api, ApiFailure, type Me } from '@/lib/api';
 import { forgetAccount } from '@/lib/portal-session';
 import { safeNext } from '@/lib/safe-url';
 import { asset } from '@/lib/assets';
+import { backToLogin, firebaseAuth, firebaseMessage, isWrongPassword, leaveFirebase, OLD_ACCOUNT_HINT } from '@/lib/firebase';
+import { FirebaseError } from 'firebase/app';
+import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 
 // Time limits, so the form is never locked with no way out: for the server to answer a login, and for the
 // next page to open after it. (Not for sign-up: a slow sign-up may still succeed, and "failed" would mislead;
@@ -20,6 +23,7 @@ const PAGE_OPEN_LIMIT_MS = 15_000;
 function LoginInner() {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [busy, setBusy] = useState(false);
+  const running = useRef(false); // submit() is running (see submit)
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   // After a successful login: true until the next page has opened (React tracks the page change), so the
@@ -59,6 +63,10 @@ function LoginInner() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // `busy` disables the button only after React draws again: a fast double-click or a second Enter
+    // would run this twice (two Firebase accounts tried, two verify emails). The ref stops it at once.
+    if (running.current) return;
+    running.current = true;
     const f = Object.fromEntries(new FormData(e.currentTarget));
     setBusy(true);
     setBye(false);
@@ -66,9 +74,23 @@ function LoginInner() {
     setNotice('');
     setSlowTo(null);
     window.clearTimeout(slowTimer.current);
+    const email = String(f.email || '').trim();
+    const password = String(f.password || '');
+    const auth = firebaseAuth();
     try {
       if (tab === 'login') {
-        const me = await api<Me>('/auth/login', { method: 'POST', body: { email: f.email, password: f.password }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true });
+        // 1. Firebase checks the password. 2. Only a verified email may log in (anyone can make a Firebase
+        // account with someone else's email). 3. Our API turns Firebase's proof into the normal session.
+        const { user } = await signInWithEmailAndPassword(auth, email, password);
+        if (!user.emailVerified) {
+          await sendEmailVerification(user, backToLogin()).catch(() => undefined); // a fresh link, also for admin-made accounts
+          await leaveFirebase();
+          setNotice(`Please verify your email first: we sent a link to ${email}. Open it, then log in again.`);
+          return;
+        }
+        const idToken = await user.getIdToken();
+        const me = await api<Me>('/auth/login', { method: 'POST', body: { id_token: idToken }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true })
+          .finally(leaveFirebase); // from here on, our session cookie is the login
         forgetAccount(); // also if this tab opened the login page without leaving the portal first
         const to = safeNext(next) ?? (me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
         setPageOpening(true);
@@ -78,16 +100,32 @@ function LoginInner() {
           setSlowTo(to);
         }, PAGE_OPEN_LIMIT_MS);
       } else {
-        await api('/auth/signup', { method: 'POST', body: { name: f.name, email: f.email, phone: f.phone, password: f.password } });
-        setNotice('Account created. An admin will approve it; then you can log in.');
+        // The Firebase account first (it keeps the password), then ours (waits for admin approval). If an
+        // earlier try made the Firebase account but stopped before ours, signing in finishes it.
+        let user;
+        try {
+          user = (await createUserWithEmailAndPassword(auth, email, password)).user;
+        } catch (err) {
+          if (!(err instanceof FirebaseError) || err.code !== 'auth/email-already-in-use') throw err;
+          user = (await signInWithEmailAndPassword(auth, email, password).catch(() => { throw err; })).user;
+        }
+        if (!user.emailVerified) await sendEmailVerification(user, backToLogin()).catch(() => undefined);
+        const idToken = await user.getIdToken();
+        await api('/auth/signup', { method: 'POST', body: { id_token: idToken, name: f.name, phone: f.phone } })
+          .finally(leaveFirebase);
+        setNotice(`Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`);
         setTab('login');
       }
     } catch (err) {
       if (err instanceof ApiFailure) {
         const fields = Object.values(err.body.details || {}).join(' ');
         setError(fields ? `${err.message} ${fields}` : err.message);
-      } else setError('Could not reach the server.');
+      } else if (err instanceof FirebaseError) {
+        setError(tab === 'login' && isWrongPassword(err) ? `${firebaseMessage(err)} ${OLD_ACCOUNT_HINT}` : firebaseMessage(err));
+      }
+      else setError('Could not reach the server.');
     } finally {
+      running.current = false; // always, so the button never stays dead after an error
       setBusy(false);
     }
   }
@@ -134,6 +172,11 @@ function LoginInner() {
               <label className="label" htmlFor="password">Password</label>
               <input id="password" name="password" type="password" required minLength={tab === 'signup' ? 10 : 1} className="input" autoComplete={tab === 'login' ? 'current-password' : 'new-password'} />
               {tab === 'signup' && <p className="mt-1 text-xs text-slate-500">At least 10 characters.</p>}
+              {tab === 'login' && (
+                <Link href="/employee/forgot-password" className="mt-1 inline-block text-xs font-semibold text-sky-700 hover:underline">
+                  Forgot password?
+                </Link>
+              )}
             </div>
             {notice && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p>}
             {slowTo && (

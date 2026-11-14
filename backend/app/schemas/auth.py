@@ -1,21 +1,29 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
 from app.schemas.common import Email, OneLine, RequiredPhone
 
 
+# The browser signs in with Firebase first; it sends the ID token it got (a signed proof of who it is),
+# never the password. The email comes from the token, not from the form.
+IdToken = Annotated[str, Field(min_length=20, max_length=4096)]
+
+
 class SignupIn(BaseModel):
+    id_token: IdToken
     name: OneLine = Field(min_length=2, max_length=100)
-    email: Email
     phone: RequiredPhone = Field(max_length=20)
-    password: str = Field(min_length=10, max_length=200)
 
 
 class LoginIn(BaseModel):
-    email: Email
-    password: str = Field(max_length=200)
+    id_token: IdToken
+
+
+class PasswordChangedIn(BaseModel):
+    """Sent right after the browser changed the password in Firebase (with a fresh sign-in)."""
+    id_token: IdToken
 
 
 class MeOut(BaseModel):
