@@ -10,6 +10,23 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 14 Nov 2026 (chat, harvester, staff management, review fixes, Vineet)
+
+1. (V) Save first, then push: the live connection only tells people online; the database is the truth.
+
+2. (V) A review fix should fix the one shared rule, not the place the bug showed. Break the fix on purpose
+   and the test must fail.
+
+3. (V) Two PRs on the same migration don't clash in Git, only in Alembic: check `alembic heads` before merging.
+
+4. (V) Render deploys on merge but doesn't migrate: run the migration on Neon right away.
+
+5. (V) PowerShell Set-Content changes characters and adds byte-order marks: edit with Python or the editor.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 10 Nov 2026 (phase switches, PRs #58 and #60, Nishita)
 
 1. (T) Plan, then look for the risks before building: "hide leads" sounded fine until we saw website

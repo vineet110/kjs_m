@@ -963,6 +963,49 @@ A92. Koko's catalogue card  🟢 (Nishita, PR #50, 9 Nov)
          Embeddings (pgvector, a new dependency) only when the facts outgrow this (`memory.md` decision 45).
 
 
+### KJS Chat (10 Nov, PR #55)
+
+A93. Who manages a chat  🟢
+
+   i.    Channel: only the owner renames, archives, adds and removes people.
+   ii.   Group chat: any member adds people and renames; only the owner removes others and archives.
+         A group needs at least 2 other people (one person = a DM).
+   iii.  DM: no changes at all. Anyone can create a channel.
+   iv.   No admin override yet: admins manage only their own chats.
+
+
+A94. Leaving a chat  🟢
+
+   i.    The last owner leaves: the longest-standing member becomes owner.
+   ii.   The last person leaves: the chat is archived (read-only).
+
+
+A95. Public channels can't be browsed or joined yet  🟢
+
+   i.    You see only chats you are in. `is_private` is stored for a later "browse channels" page.
+
+
+A96. Keeping and deleting messages  🟠 (ask KJS)
+
+   i.    Messages are kept forever.
+   ii.   People delete only their own; the text is wiped and "message deleted" shows (the row stays).
+
+
+A97. Mentions and unread counts  🟢
+
+   i.    A mention notifies even in a muted chat (bell + email, like Teams).
+   ii.   Editing a message notifies only the people newly mentioned.
+   iii.  Muted chats don't count in the sidebar total.
+
+
+A98. Sending limit: 30 messages a minute per person  🟢
+
+
+A99. A disabled person stays in their chats  🟢
+
+   i.    Their live tabs close at once and they can't log in; removing them would break their DMs.
+
+
 
 
 
@@ -1014,6 +1057,18 @@ I14. Correct sales phone number: catalogue vs website (A76)  🔴 before go-live
 I15. Real branch list for the User Creation Form  🟢
 
    i.    Branch is free text for now, with "Main Branch" suggested.
+
+
+I16. Can admins read private chats (DMs)?  🔴 before chat goes live
+
+   i.    A privacy question: get the answer in writing. Built as "no".
+
+
+I17. Web scraping: government site list and Stage 1 or Stage 2 (D18)  🟠
+
+   i.    D18 says nightly scraping is Stage 2 (2027), but KJS's demo video shows it.
+   ii.   Ask for the list of sites. Use open data (data.gov.in) or RSS first; names and phone numbers are
+         personal data (DPDP).
 
 
 
@@ -1674,3 +1729,49 @@ R51. `scripts/e2e/login_e2e.mjs` is unsteady  🟢 after go-live (Nishita)
    ii.   Look at: the timing of the held requests, and the new login lockout counting (PR #44).
    iii.  The other suites pass: api 196, browser 73, sidebar 25 (PR #49). Esc inside a PDF in full screen stays a
          hand check (a script's key press can't leave Chrome's own full screen).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 18. Chat, harvester and hosting follow-ups (10–14 Nov)
+
+
+R56. `leave_requests` foreign keys differ between model and migration  🟢
+
+   i.    `alembic check` reports `user_id` and `decided_by` (`ondelete`). A separate small fix.
+
+
+R57. Lead Harvester follow-up PR  🟠 before real use
+
+   i.    Open bugs: robots.txt allows scraping when it can't be read; unknown categories (`spices`,
+         `private_label`); a number in the phone field crashes a run; duplicates inside one fetch;
+         `+91 98765 43210` numbers lost; one failing source breaks the rest of the run; phone duplicates in other
+         formats; the job lock released early (only with several API processes).
+   ii.   Not done in #62: public IPv6 typed as an address is refused; validators written twice (create, edit);
+         no size limit on downloads (only `assign.manage` can add sources).
+   iii.  Too basic for real use: one record per page. Read many records per page (Python's own HTML parser).
+
+
+R58. `sidebar_e2e.mjs`: "phone: choosing a page closes it" fails  🟢 (test fault)
+
+   i.    Its `clickLink` helper opens all closed groups at once and only the last stays open. A real tap works.
+   ii.   Fix: open only the needed group in the test, or make the group toggle in `SidebarNav.tsx` use the
+         latest state.
+
+
+R59. Oracle free VM for hosting  🟠 (decided with Nishita and KJS, 10 Nov)
+
+   i.    Oracle Always Free (ARM), home region Mumbai, Pay As You Go (still free). VM: Ubuntu 24.04,
+         2 CPU / 12 GB, 100 GB disk. Our `deploy/` setup runs on it unchanged (`deploy/README.md` section 2).
+   ii.   Live through a Cloudflare Tunnel (no open web ports), nightly backups to R2, then `test-restore.sh`.
+   iii.  Still open: staging or production; access to the Cloudflare account for `kjsindia.com` and the R2
+         backup token before starting. About 3 to 4 hours.
+
+
+R60. Chat before going live  🟠
+
+   i.    10 minutes by hand in two browsers.
+   ii.   On deploy to our own server: reload nginx (the chat WebSocket block).
+   iii.  Accepted: edits to older messages show after a reload. Phase 3 "typing…": raise the 20-frames limit
+         between session checks, or the page's own typing events will close the socket.
