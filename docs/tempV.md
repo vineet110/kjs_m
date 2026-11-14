@@ -454,7 +454,7 @@ From the PR #53 review. #53 was merged first (devillover27 away 2 weeks); this f
    start with the Firebase password-change time, so a session made just after a change is not ended
    when our clock is a few seconds behind Google's.
 4. Checks: complaints tests 9 passed, full backend 480 passed.
-5. Deploy: run `alembic upgrade head` on Neon right after this merges (0024, 0025, 0026 all add only).
-6. Still open from the #77 review: `password_changed()` does not check `email_verified` like `login()`;
-   Firebase console password policy (min 10, enforced).
+5. Deploy: Neon upgraded 0023 -> 0026 on 14 Nov, before this merged (Render had already deployed #77 and #80).
+6. From the #77 review: Firebase console password policy set (min 10, enforced). The `email_verified`
+   check in `password_changed()` was left out on purpose (Vineet's call).
 7. Words for kb.md at fold time: migration head, clock skew.
