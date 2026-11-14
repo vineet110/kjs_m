@@ -99,3 +99,5 @@ async def test_screenshot_must_be_a_picture(client):
     pdf = ("notes.pdf", b"%PDF-1.4 test %%EOF", "application/pdf")
     r = await client.post("/api/v1/files", data={"owner_type": "complaint", "owner_id": str(cid)}, files={"file": pdf}, headers=HDR)
     assert r.status_code == 422 and r.json()["code"] == "file_type"
+    # The error names what a complaint takes, not every type the app allows
+    assert r.json()["details"]["allowed"] == ["jpeg", "jpg", "png", "webp"]
