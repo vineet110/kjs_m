@@ -15,15 +15,18 @@ down_revision: Union[str, None] = '0027'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-USER = sa.ForeignKey('users.id', ondelete='CASCADE')
 NOW = sa.text('now()')
+
+
+def user_fk():
+    return sa.ForeignKey('users.id', ondelete='CASCADE')  # a new one per table (SQLAlchemy can't share one)
 
 
 def upgrade() -> None:
     op.create_table(
         'screenshots',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.Integer(), USER, nullable=False),
+        sa.Column('user_id', sa.Integer(), user_fk(), nullable=False),
         sa.Column('taken_at', sa.DateTime(timezone=True), server_default=NOW, nullable=False),
         sa.Column('storage_key', sa.String(200), nullable=False, unique=True),
         sa.Column('size_bytes', sa.Integer(), nullable=False),
@@ -35,7 +38,7 @@ def upgrade() -> None:
     op.create_table(
         'share_events',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.Integer(), USER, nullable=False),
+        sa.Column('user_id', sa.Integer(), user_fk(), nullable=False),
         sa.Column('at', sa.DateTime(timezone=True), server_default=NOW, nullable=False),
         sa.Column('state', sa.String(10), nullable=False),
         sa.Column('source', sa.String(10), nullable=False),
@@ -47,7 +50,7 @@ def upgrade() -> None:
     op.create_table(
         'breaks',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.Integer(), USER, nullable=False),
+        sa.Column('user_id', sa.Integer(), user_fk(), nullable=False),
         sa.Column('day', sa.Date(), nullable=False),
         sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('ended_at', sa.DateTime(timezone=True)),
@@ -60,7 +63,7 @@ def upgrade() -> None:
     op.create_table(
         'idle_periods',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.Integer(), USER, nullable=False),
+        sa.Column('user_id', sa.Integer(), user_fk(), nullable=False),
         sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('ended_at', sa.DateTime(timezone=True)),
         sa.Column('reason', sa.String(20), nullable=False, server_default=''),

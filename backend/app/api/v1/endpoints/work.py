@@ -6,6 +6,7 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,6 +14,7 @@ from app.core.deps import current_user, require_permission
 from app.core.errors import AppError
 from app.models.user import User
 from app.services import attendance_service as att
+from app.services import monitor_service as monitor
 from app.services import work_service as svc
 
 router = APIRouter()
@@ -106,3 +108,20 @@ async def person_attendance(user_id: int, year: int | None = Query(None, ge=2000
                             _: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
     u = await svc.person(db, user_id)
     return await att.month(db, u.id, *_month(year, month))
+
+
+@router.get("/{user_id}/screenshots")
+async def person_screenshots(user_id: int, day: date | None = None,
+                             _: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
+    u = await svc.person(db, user_id)
+    d = day or att.today_local()
+    return {"day": d, "screenshots": await monitor.screenshots_of(db, u.id, d),
+            "gaps": await monitor.share_gaps(db, u.id, d)}
+
+
+@router.get("/{user_id}/screenshots/{shot_id}/image")
+async def person_screenshot_image(user_id: int, shot_id: int,
+                                  _: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
+    data = await monitor.screenshot_image(db, user_id, shot_id)
+    # private: the browser may keep it for this page only; never a shared cache
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})

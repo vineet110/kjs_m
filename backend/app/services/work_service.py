@@ -20,6 +20,7 @@ from app.models.attendance import Attendance, AttendancePunch
 from app.models.audit import AuditLog
 from app.models.chat import ChatChannel, ChatMessage
 from app.models.lead import Lead, LeadNote
+from app.models.monitor import Break, IdlePeriod, Screenshot, ShareEvent
 from app.models.task import Task
 from app.models.user import User
 from app.services import attendance_service as att
@@ -27,7 +28,8 @@ from app.services import audit_service
 from app.services.task_service import task_out
 
 # Range limit, page size and refresh time: config/monitoring.ini (read with cfg() each time, so edits apply live)
-KINDS = ("call", "email", "note", "outcome", "task", "chat", "attendance")
+KINDS = ("call", "email", "note", "outcome", "task", "chat", "attendance", "break", "idle", "screen")
+IDLE_REASON = {"call": "On a call", "meeting": "In a meeting", "other": "Other"}
 NOTE_KIND = {"call": "call", "email": "email", "note": "note", "handover": "note", "outcome": "outcome"}
 
 
@@ -87,12 +89,53 @@ async def team_day(db: AsyncSession, day: date) -> dict:
     """One row per active person: attendance (same numbers as Team attendance) plus what they did."""
     people = await att.team_day(db, day)
     counts = await _counts(db, *utc_bounds(day, day))
-    rows = [{**p, **counts.get(p["user_id"], EMPTY)} for p in people]
+    live = await _live(db, day)
+    rows = [{**p, **counts.get(p["user_id"], EMPTY), **live.get(p["user_id"], LIVE_EMPTY)} for p in people]
     in_now = sum(1 for p in rows if p["check_in"] and not p["check_out"])
     return {"day": day, "rows": rows, "refresh_seconds": cfg().monitoring.team_refresh_seconds,
             "summary": {"people": len(rows), "checked_in_now": in_now,
                         "checked_out": sum(1 for p in rows if p["check_out"]),
-                        "not_in": sum(1 for p in rows if not p["check_in"])}}
+                        "not_in": sum(1 for p in rows if not p["check_in"]),
+                        "on_break": sum(1 for p in rows if p["on_break"]),
+                        "idle_now": sum(1 for p in rows if p["idle_minutes"])}}
+
+
+LIVE_EMPTY = {"on_break": False, "break_minutes": 0, "idle_minutes": 0, "sharing": None, "device": None,
+              "extension": "not_connected"}
+
+
+async def _live(db: AsyncSession, day: date) -> dict[int, dict]:
+    """Breaks, idle now, screen sharing and device per person for one day (Phase B)."""
+    now = datetime.now(timezone.utc)
+    t0, t1 = utc_bounds(day, day)
+    warn = cfg().monitoring.idle_warn_minutes
+    out: dict[int, dict] = {}
+
+    def row(uid: int) -> dict:
+        return out.setdefault(uid, dict(LIVE_EMPTY))
+
+    for b in (await db.scalars(select(Break).where(Break.day == day))).all():
+        r = row(b.user_id)
+        r["break_minutes"] += _mins(b.started_at, b.ended_at or now)
+        r["on_break"] = r["on_break"] or b.ended_at is None
+    if day == att.local_day(now):  # "idle now" only means something for today
+        for i in (await db.scalars(select(IdlePeriod).where(IdlePeriod.ended_at.is_(None)))).all():
+            if _mins(i.started_at, now) >= warn:
+                row(i.user_id)["idle_minutes"] = _mins(i.started_at, now)
+    last = (select(ShareEvent.user_id, ShareEvent.state,
+                   func.row_number().over(partition_by=ShareEvent.user_id,
+                                          order_by=(ShareEvent.at.desc(), ShareEvent.id.desc())).label("n"))
+            .where(ShareEvent.at >= t0, ShareEvent.at < t1).subquery())
+    for uid, state in (await db.execute(select(last.c.user_id, last.c.state).where(last.c.n == 1))).all():
+        row(uid)["sharing"] = state
+    for uid, device in (await db.execute(select(Attendance.user_id, Attendance.device)
+                                         .where(Attendance.day == day, Attendance.device.is_not(None)))).all():
+        row(uid)["device"] = device
+    return out
+
+
+def _mins(a: datetime, b: datetime) -> int:
+    return max(0, int((b - a).total_seconds() // 60))
 
 
 async def person(db: AsyncSession, user_id: int) -> User:
@@ -107,10 +150,22 @@ async def overview(db: AsyncSession, u: User, start: date, end: date) -> dict:
     counts = (await _counts(db, *utc_bounds(start, end), user_id=u.id)).get(u.id, EMPTY)
     days = (await db.scalars(select(Attendance).where(
         Attendance.user_id == u.id, Attendance.day >= start, Attendance.day <= end))).all()
+    t0, t1 = utc_bounds(start, end)
+    now = datetime.now(timezone.utc)
+    warn = cfg().monitoring.idle_warn_minutes
+    breaks = (await db.scalars(select(Break).where(Break.user_id == u.id, Break.day >= start, Break.day <= end))).all()
+    idles = (await db.scalars(select(IdlePeriod).where(IdlePeriod.user_id == u.id, IdlePeriod.started_at >= t0,
+                                                       IdlePeriod.started_at < t1))).all()
+    idle_mins = [_mins(i.started_at, i.ended_at or now) for i in idles]
+    shots = await db.scalar(select(func.count()).select_from(Screenshot).where(
+        Screenshot.user_id == u.id, Screenshot.taken_at >= t0, Screenshot.taken_at < t1))
     return {"user": {"id": u.id, "name": u.name, "email": u.email, "role": u.role},
             "from": start, "to": end, "today": await att.today(db, u),
+            "extension": "not_connected",  # Phase C: the browser extension
             "totals": {**counts, "days_present": sum(1 for a in days if a.check_in_at),
-                       "hours": round(sum(att.hours(a) for a in days), 2)}}
+                       "hours": round(sum(att.hours(a) for a in days), 2),
+                       "break_minutes": sum(_mins(b.started_at, b.ended_at or now) for b in breaks),
+                       "idle_minutes": sum(m for m in idle_mins if m >= warn), "screenshots": shots or 0}}
 
 
 # ---------- Timeline ----------
@@ -167,6 +222,37 @@ async def timeline(db: AsyncSession, user_id: int, start: date, end: date,
         for p in (await db.scalars(q)).all():
             items.append({"kind": "attendance", "at": p.punched_at,
                           "title": "Checked in" if p.punch_type == "in" else "Checked out", "text": p.notes or ""})
+
+    if "break" in kinds:
+        q = (select(Break).where(Break.user_id == user_id, Break.started_at >= t0, Break.started_at < t1)
+             .order_by(Break.started_at.desc()).limit(size))
+        for b in (await db.scalars(q)).all():
+            title = f"Break · {_mins(b.started_at, b.ended_at)}m" if b.ended_at else "On a break now"
+            text = f"Until {att.hm(b.ended_at)}. Tracking paused." if b.ended_at else "Tracking paused."
+            items.append({"kind": "break", "at": b.started_at, "title": title, "text": text})
+
+    if "idle" in kinds:
+        now = datetime.now(timezone.utc)
+        warn = cfg().monitoring.idle_warn_minutes
+        q = (select(IdlePeriod).where(IdlePeriod.user_id == user_id, IdlePeriod.started_at >= t0,
+                                      IdlePeriod.started_at < t1)
+             .order_by(IdlePeriod.started_at.desc()).limit(size))
+        for i in (await db.scalars(q)).all():
+            mins = _mins(i.started_at, i.ended_at or now)
+            if mins < warn:  # shorter pauses never show
+                continue
+            reason = IDLE_REASON.get(i.reason, "")
+            title = f"Idle {mins}m" + (f" · reason: {reason}" if reason else "") + ("" if i.ended_at else " (still idle)")
+            bits = [f"Ended {att.hm(i.ended_at)}." if i.ended_at else "", i.reason_note,
+                    "" if i.reason else "Reason: none given.", "Admins were told." if i.admin_alerted_at else ""]
+            items.append({"kind": "idle", "at": i.started_at, "title": title, "text": " ".join(x for x in bits if x)})
+
+    if "screen" in kinds:
+        q = (select(ShareEvent).where(ShareEvent.user_id == user_id, ShareEvent.at >= t0, ShareEvent.at < t1)
+             .order_by(ShareEvent.at.desc()).limit(size))
+        for e in (await db.scalars(q)).all():
+            items.append({"kind": "screen", "at": e.at, "title": f"Screen sharing {e.state}",
+                          "text": "From the browser extension." if e.source == "extension" else ""})
 
     items.sort(key=lambda i: i["at"], reverse=True)
     page, next_before = items[:size], None
