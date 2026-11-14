@@ -76,5 +76,7 @@ async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str
     return action == "read" and "staff.approve" in effective_permissions(user.role, user.permissions)
 
 
-file_service.register_owner("complaint", _files_access,
+SCREENSHOT_TYPES = {"png", "jpg", "jpeg", "webp"}  # the same list as the form's file picker
+
+file_service.register_owner("complaint", _files_access, types=SCREENSHOT_TYPES,
                             clean=lambda owner_id: str(n) if (n := _complaint_id(owner_id)) else owner_id)

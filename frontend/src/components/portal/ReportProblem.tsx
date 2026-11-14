@@ -24,6 +24,9 @@ export default function ReportProblem() {
   const [path, setPath] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // Goes up each time the form opens. The <dialog> stays on the page, so without a new key the file picker
+  // would still show the last file's name while `shot` is empty: it would look attached but not be sent.
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     const d = ref.current;
@@ -38,6 +41,7 @@ export default function ReportProblem() {
     setTitle('');
     setDescription('');
     setShot(null);
+    setRound((r) => r + 1); // a fresh, empty file picker
     setErr('');
     setOpen(true);
   }
@@ -120,7 +124,7 @@ export default function ReportProblem() {
 
           <div>
             <label htmlFor="rp-shot" className="label">Screenshot (optional)</label>
-            <input id="rp-shot" type="file" accept=".png,.jpg,.jpeg,.webp" disabled={busy}
+            <input key={round} id="rp-shot" type="file" accept=".png,.jpg,.jpeg,.webp" disabled={busy}
               onChange={(e) => setShot(e.target.files?.[0] ?? null)} className="text-sm" />
           </div>
 

@@ -19,8 +19,9 @@ class ComplaintIn(BaseModel):
     kind: Literal["bug", "issue", "suggestion"]
     title: str = Field(max_length=200)
     description: str = Field(max_length=5000)
-    # The page it was filed from, sent by the portal: a path like /employee/internal-leads, never a full link
-    page_path: str = Field(max_length=300, pattern=r"^/[^\s]*$")
+    # The page it was filed from, sent by the portal: a path like /employee/internal-leads, never a full link.
+    # A second "/" right after the first is refused too: "//site.com/x" means another website.
+    page_path: str = Field(max_length=300, pattern=r"^/([^/\s]\S*)?$")
 
     @field_validator("title")
     @classmethod

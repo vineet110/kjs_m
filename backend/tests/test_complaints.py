@@ -84,3 +84,18 @@ async def test_screenshot_on_unknown_complaint_refused(client):
     for owner_id in ("999", "abc", "0"):
         r = await client.post("/api/v1/files", data={"owner_type": "complaint", "owner_id": owner_id}, files={"file": PNG}, headers=HDR)
         assert r.status_code == 403
+
+
+async def test_page_path_must_not_be_another_site(client):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    assert (await _file(client, page_path="//evil.example/x")).status_code == 422  # "//" = another website
+
+
+async def test_screenshot_must_be_a_picture(client):
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    cid = (await _file(client)).json()["id"]
+    pdf = ("notes.pdf", b"%PDF-1.4 test %%EOF", "application/pdf")
+    r = await client.post("/api/v1/files", data={"owner_type": "complaint", "owner_id": str(cid)}, files={"file": pdf}, headers=HDR)
+    assert r.status_code == 422 and r.json()["code"] == "file_type"
