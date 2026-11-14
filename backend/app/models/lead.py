@@ -48,6 +48,7 @@ class LeadNote(Base, TimestampMixin):
     """What staff did on a lead: a note, a call, an email, a hand-over."""
 
     __tablename__ = "lead_notes"
+    __table_args__ = (Index("ix_lead_notes_user_created", "user_id", "created_at"),)  # timeline (0027)
 
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

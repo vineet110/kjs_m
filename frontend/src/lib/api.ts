@@ -292,3 +292,23 @@ export type Task = {
   overdue: boolean; completed_at: string | null; created_at: string;
 };
 export type TaskStats = { total: number; done: number; pending: number; overdue: number };
+
+// ----- Work pages (Team work / My work): /work/... -----
+export type WorkCounts = { calls: number; emails: number; notes: number; outcomes: number; tasks_done: number; chat: number };
+export type TeamWorkRow = WorkCounts & {
+  user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number;
+};
+export type TeamWork = {
+  day: string; rows: TeamWorkRow[]; refresh_seconds: number;
+  summary: { people: number; checked_in_now: number; checked_out: number; not_in: number };
+};
+export type WorkOverview = {
+  user: { id: number; name: string; email: string; role: string }; from: string; to: string; today: Today;
+  totals: WorkCounts & { days_present: number; hours: number };
+};
+export type TimelineKind = 'call' | 'email' | 'note' | 'outcome' | 'task' | 'chat' | 'attendance';
+export type TimelineItem = {
+  kind: TimelineKind; at: string; day: string; time: string; title: string; text: string;
+  lead_id?: number; task_id?: number; channel_id?: number;
+};
+export type Timeline = { items: TimelineItem[]; next_before: string | null };
