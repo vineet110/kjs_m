@@ -128,7 +128,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
           </button>
           <button disabled={sending} onClick={() => setState('idle')} className="btn-ghost">Change details</button>
         </div>
-        <button onClick={forget} className="text-xs text-slate-500 underline">Not you? Forget my details on this device</button>
+        <button disabled={sending} onClick={forget} className="text-xs text-slate-500 underline disabled:opacity-50">Not you? Forget my details on this device</button>
       </div>
     );
   }
