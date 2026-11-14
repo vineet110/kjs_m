@@ -9,6 +9,7 @@ import { downloadUrl } from '@/lib/preview';
 import FilePreview from './FilePreview';
 import LoadError from '@/components/ui/LoadError';
 import { fmtIST, Pill } from './ui';
+import Spinner from '@/components/ui/Spinner';
 
 function size(n: number) {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -138,7 +139,7 @@ export default function FileList({ ownerType, ownerId, canUpload = true, canRequ
       {canUpload && (
         <div className="flex flex-wrap items-center gap-3">
           <label className={`btn-ghost cursor-pointer py-1 ${busy ? 'opacity-50' : ''}`}>
-            {busy ? 'Uploading…' : 'Upload files'}
+            {busy && <Spinner />}{busy ? 'Uploading…' : 'Upload files'}
             <input ref={input} type="file" multiple className="hidden" onChange={send} disabled={busy} />
           </label>
           {publicToggle && (
