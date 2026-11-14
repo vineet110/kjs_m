@@ -11,6 +11,7 @@ import { areaOfPath, canSee, onModuleOff } from '@/lib/modules';
 import { accountEpoch, forgetAccount, rememberAccount, rememberedAccount } from '@/lib/portal-session';
 import AccountMenu, { Avatar, LogoutDialog, LogoutIcon, RoleBadge } from './AccountMenu';
 import Bell from './Bell';
+import MonitorBar from './MonitorBar';
 import ReportProblem from './ReportProblem';
 import SidebarNav from './SidebarNav';
 import { ToastProvider } from './Toast';
@@ -258,6 +259,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
               <AccountMenu me={me} onLogout={() => setConfirmLogout(true)} />
             </div>
           </header>
+          {canSee(me, 'monitoring') && <MonitorBar />}
           {/* Full-bleed for full-screen attendance workspace, padded container for standard pages */}
           {isAttendance ? (
             <div key={pathname} className="flex-1 w-full overflow-hidden flex flex-col">

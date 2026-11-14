@@ -20,7 +20,7 @@ export default function PersonWork() {
     <div className="space-y-6">
       <Link href="/admin/team-work" className="text-sm text-sky-700 hover:underline">← Team work</Link>
       <PageTitle title={who?.user.name ?? 'Employee'} sub={status} />
-      <WorkView base={`/work/${Number(id)}`} onPerson={onPerson} />
+      <WorkView base={`/work/${Number(id)}`} onPerson={onPerson} admin />
       <p className="text-xs text-slate-500">Opening this page is recorded in the activity log.</p>
     </div>
   );

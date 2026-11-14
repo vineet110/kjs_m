@@ -2,6 +2,7 @@
 // Top of "My day" and the attendance page: check in / out + "receiving tasks" switch.
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiFailure, type Today } from '@/lib/api';
+import { attendanceChanged, onCheckedIn, onCheckedOut } from '@/lib/monitor';
 import { Pill } from './ui';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
@@ -58,6 +59,13 @@ export default function TodayCard({
       if ('day' in res) setT(res);
       else setT((cur) => (cur ? { ...cur, ...res } : cur));
       onChange?.();
+      if (path === '/attendance/check-in') {
+        attendanceChanged();
+        await onCheckedIn().catch((e) => setErr(e instanceof Error ? e.message : 'Screen sharing failed.'));
+      } else if (path === '/attendance/check-out') {
+        onCheckedOut();
+        attendanceChanged();
+      }
     } catch (e) {
       setErr(e instanceof ApiFailure ? e.message : 'Something went wrong.');
     } finally {
