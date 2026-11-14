@@ -100,7 +100,9 @@ async def test_profile_and_password(client):
     old = await client.post("/api/v1/auth/password", json={"id_token": id_token("e@kjsindia.com", signed_in_seconds_ago=3600)}, headers=HDR)
     assert old.status_code == 401  # an hour-old sign-in can't log the person out everywhere
     other = await client.post("/api/v1/auth/password", json={"id_token": id_token("x@kjsindia.com")}, headers=HDR)
-    assert other.status_code == 403  # someone else's sign-in
+    # A sign-in with no staff account behind it. (The person comes from the sign-in, not the cookie, since
+    # round 3 of #77: a real colleague's fresh sign-in would just be a login as them, like /login.)
+    assert other.status_code == 401
     ok = await client.post("/api/v1/auth/password", json={"id_token": id_token("e@kjsindia.com")}, headers=HDR)
     assert ok.status_code == 204
     assert (await client.get("/api/v1/auth/me")).status_code == 200  # this browser stays logged in
