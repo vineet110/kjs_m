@@ -89,3 +89,22 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    iv.   Screenshots are scaled to at most 1920 px wide; quality drops until under max_screenshot_kb.
 
 5. Day 1 test page: `e2e-output/screen-share-test.html` (not committed). Vineet runs it on a KJS laptop.
+
+
+## Employee monitoring, Phase C: extension API, Sites, outcomes (branch feat/monitoring-extension, PR #85)
+
+1. Connect: one-time code on My activity -> `/ext/connect` -> device key (only hashes stored). Person or
+   admin can switch a device off. `/ext/status|sites|idle|screenshot|share` use the key, not the cookie.
+
+2. Privacy choices (guesses, to backlog section 3): addresses saved without `?query` / `#fragment`
+   (`store_query = false`); site visits deleted after `sites_keep_days` (90); a starter `never_record`
+   list of Indian banks and payment sites in `monitoring.ini` (KJS to confirm the list).
+
+3. Visits are cut to checked-in time on the server; the same visit sent twice is saved once.
+   Outcome asked per site per IST hour of `outcome_min_minutes`+, bell reminder once.
+
+4. Migration 0029: `extension_devices`, `extension_pair_codes`, `site_visits`, `site_blocks`. Tell Nishita.
+
+5. `extension/API.md`: what the extension sends (for Phase D).
+
+6. Lesson: never run two pytest runs at once; they share the test database and empty each other's tables.
