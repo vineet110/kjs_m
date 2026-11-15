@@ -86,16 +86,14 @@ NOT_VERIFIED = "Please verify your email first: open the link we emailed you."
 async def login(db: AsyncSession, id_token: str, ip_hash: str | None = None,
                 rate_key: str | None = None) -> tuple[User, str]:
     claims = await _claims(id_token, rate_key or ip_hash)
-    verified = bool(claims.get("email_verified"))
     # Anyone can make a Firebase account with any email; only a verified one proves the inbox is theirs.
     # config/app.ini require_verified_email = false lets an account made through sign-up (and approved by an
-    # admin) in without it, for now. Linking an OLD account by its email always needs a verified email.
-    if not verified and cfg().app.require_verified_email:
-        raise AppError(403, "email_not_verified", NOT_VERIFIED)
+    # admin) in without it, for now. Linking an OLD account by its email (user None here) always needs a
+    # verified email: otherwise anyone could take over e.g. the first admin with an unverified Firebase account.
     user = await db.scalar(select(User).where(User.firebase_uid == claims["uid"]))
+    if not claims.get("email_verified") and (user is None or cfg().app.require_verified_email):
+        raise AppError(403, "email_not_verified", NOT_VERIFIED)
     if user is None:
-        if not verified:
-            raise AppError(403, "email_not_verified", NOT_VERIFIED)
         user = await _link_old_account(db, claims, ip_hash)
     if user.status == "pending":
         raise AppError(403, "pending_approval", "Your account is waiting for admin approval.")

@@ -16,6 +16,7 @@ import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
 type Inbox = {
+  email_checks_off?: boolean;
   signups: StaffUser[] | null; approved: StaffUser[] | null; rejected: StaffUser[] | null;
   regularizations: Regularization[] | null; file_deletes: StoredFile[] | null;
 };
@@ -68,6 +69,12 @@ export default function Approvals() {
     <div className="space-y-8">
       <PageTitle title="All approvals" sub={count ? `${count} waiting for you.` : 'Nothing is waiting. All clear.'} />
       {err && <p className="text-sm text-red-700">{err}</p>}
+      {inbox.email_checks_off && (
+        <p role="note" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          Email checks are off for now: a sign-up&apos;s email is not proven to be theirs. Confirm the person is who
+          they say (in person or by phone) before you approve.
+        </p>
+      )}
 
       {inbox.signups !== null && (
         <section className="space-y-3">

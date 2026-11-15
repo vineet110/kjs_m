@@ -52,6 +52,18 @@ async def clean_db():
     yield
 
 
+@pytest.fixture(autouse=True)
+def verified_emails_required(monkeypatch):
+    """config/app.ini may have require_verified_email = false for a while (Firebase emails failing): tests
+    run with the safe value unless one says otherwise (test_firebase_login.verified_rule)."""
+    from app.core.config import ini
+    monkeypatch.setenv("KJS__APP__REQUIRE_VERIFIED_EMAIL", "true")
+    ini.reload_now()
+    yield
+    monkeypatch.undo()
+    ini.reload_now()
+
+
 @pytest.fixture
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:

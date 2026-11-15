@@ -21,6 +21,19 @@ import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailA
 const LOGIN_TIMEOUT_MS = 20_000;
 const PAGE_OPEN_LIMIT_MS = 15_000;
 
+/** Sends the "verify your email" link. Returns '' when sent, else what to tell the person (the real reason:
+ *  "wait an hour" only when Firebase says too many tries). */
+async function sendVerify(user: Parameters<typeof sendEmailVerification>[0]): Promise<string> {
+  try {
+    await sendEmailVerification(user, backToLogin());
+    return '';
+  } catch (err) {
+    return err instanceof FirebaseError && err.code === 'auth/too-many-requests'
+      ? "We couldn't send the link just now (too many tries): please try again in an hour."
+      : `We couldn't send the link just now (${firebaseMessage(err)}).`;
+  }
+}
+
 function LoginInner() {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [busy, setBusy] = useState(false);
@@ -99,11 +112,11 @@ function LoginInner() {
         try {
           me = await api<Me>('/auth/login', { method: 'POST', body: { id_token: idToken }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true });
         } catch (err) {
-          if (err instanceof ApiFailure && err.body.code === 'email_not_verified' && !user.emailVerified) {
-            const sent = await sendEmailVerification(user, backToLogin()).then(() => true, () => false); // also for admin-made accounts
-            setNotice(sent
-              ? `Please verify your email first: we sent a link to ${email}. Open it, then log in again.`
-              : `Please verify your email first. We couldn't send the link just now (too many tries): please try again in an hour.`);
+          if (err instanceof ApiFailure && err.body.code === 'email_not_verified') {
+            const failed = await sendVerify(user); // also for admin-made accounts
+            setNotice(failed
+              ? `Please verify your email first. ${failed}`
+              : `Please verify your email first: we sent a link to ${email}. Open it, then log in again.`);
             return;
           }
           throw err;
@@ -128,14 +141,23 @@ function LoginInner() {
           if (!(err instanceof FirebaseError) || err.code !== 'auth/email-already-in-use') throw err;
           user = (await signInWithEmailAndPassword(auth, email, password).catch(() => { throw err; })).user;
         }
-        const emailSent = user.emailVerified || await sendEmailVerification(user, backToLogin()).then(() => true, () => false);
         const idToken = await user.getIdToken();
         await serverReady().catch(async (e) => { await leaveFirebase(); throw e; });
-        await api('/auth/signup', { method: 'POST', body: { id_token: idToken, name: f.name, phone: f.phone } })
-          .finally(leaveFirebase);
-        setNotice(emailSent
-          ? `Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`
-          : 'Account created. An admin will approve your account. (The verify email could not be sent just now.)');
+        // Our account first; the server says whether a verify email is needed (config/app.ini), so none is
+        // sent (and Firebase's email limit isn't used up) while email checks are off.
+        let notice = 'Account created. An admin will approve your account.';
+        try {
+          const res = await api<{ verify_email?: boolean }>('/auth/signup', { method: 'POST', body: { id_token: idToken, name: f.name, phone: f.phone } });
+          if (res.verify_email !== false && !user.emailVerified) {
+            const failed = await sendVerify(user);
+            notice = failed
+              ? `Account created. ${failed} An admin will approve your account.`
+              : `Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`;
+          }
+        } finally {
+          await leaveFirebase();
+        }
+        setNotice(notice);
         setTab('login');
       }
     } catch (err) {

@@ -33,7 +33,7 @@ def verified_rule(monkeypatch):
     def set_(on: bool):
         monkeypatch.setenv("KJS__APP__REQUIRE_VERIFIED_EMAIL", "true" if on else "false")
         ini.reload_now()
-    set_(True)  # the safe default unless a test says otherwise
+    set_(True)  # the safe default (conftest also sets it for every test)
     yield set_
     monkeypatch.undo()
     ini.reload_now()
@@ -497,3 +497,16 @@ async def test_password_change_needs_the_request_header(client):
     await make_user("e@kjsindia.com")
     r = await client.post(PASSWORD, json={"id_token": id_token("e@kjsindia.com")})
     assert r.status_code == 403 and r.json()["code"] == "csrf"
+
+
+async def test_signup_and_approvals_say_whether_email_checks_are_on(client, verified_rule):
+    body = {"id_token": id_token("a@kjsindia.com", verified=False), "name": "Asha", "phone": "+91 98765 43210"}
+    r = await client.post(SIGNUP, json=body, headers=HDR)
+    assert r.status_code == 201 and r.json()["verify_email"] is True
+    await make_user("admin@kjsindia.com", role="admin")
+    await login(client, "admin@kjsindia.com")
+    assert (await client.get("/api/v1/admin/approvals")).json()["email_checks_off"] is False
+    verified_rule(False)
+    assert (await client.get("/api/v1/admin/approvals")).json()["email_checks_off"] is True
+    body = {"id_token": id_token("b@kjsindia.com", verified=False), "name": "Bina", "phone": "+91 98765 43211"}
+    assert (await client.post(SIGNUP, json=body, headers=HDR)).json()["verify_email"] is False
