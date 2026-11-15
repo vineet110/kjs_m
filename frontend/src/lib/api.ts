@@ -108,6 +108,10 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
   }
   if (!res.ok) {
     if (res.status === 404 && data.code === 'module_off') moduleOff(); // the portal frame shows "Not available yet"
+    // A 503 that isn't our JSON: the hosting's "application loading" page while the API wakes up (lib/server-wake.ts).
+    // The request never reached our app, so nothing was saved: say so plainly instead of "Something went wrong".
+    if (res.status === 503 && !data.code)
+      throw new ApiFailure(503, { code: 'server_waking', message: SERVER_WAKING, details: {}, request_id: requestId });
     throw new ApiFailure(res.status, {
       code: data.code || 'error',
       message: data.message || fallback,
@@ -130,6 +134,7 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
  *  (a preview, log in): treated as a read. Uploads use upload(), which has no limit. */
 export const READ_TIMEOUT_MS = 20_000;
 export const SAVE_TIMEOUT_MS = 90_000;
+export const SERVER_WAKING = 'The server is starting up after a quiet spell. Please try again in a minute.';
 const UNCONFIRMED = "The server didn't confirm. It may have been saved: refresh to check before trying again.";
 export async function api<T = unknown>(
   path: string,

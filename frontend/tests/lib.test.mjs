@@ -578,3 +578,48 @@ test('updates: check() says whether its numbers are the current ones', async () 
   assert.equal(await older, false); // overtaken: not current
   assert.equal(await s.check(), false); // failed
 });
+
+// ---------- server-wake: the API sleeps when unused (Render free plan) and wakes slowly ----------
+const { serverAwake, waitForServer } = await load('server-wake');
+const renderLoading = async () => new Response('<html>Application loading</html>', { status: 503, headers: { 'content-type': 'text/html' } });
+const ourHealth = async () => new Response('{"status":"ok","service":"kjs-api"}', { status: 200, headers: { 'content-type': 'application/json' } });
+
+test('serverAwake: only our own JSON counts, not the hosting’s loading page', async () => {
+  globalThis.fetch = renderLoading;
+  assert.equal(await serverAwake(), false);
+  globalThis.fetch = async () => new Response('<html>ok</html>', { status: 200, headers: { 'content-type': 'text/html' } });
+  assert.equal(await serverAwake(), false, 'a 200 that is not our JSON');
+  globalThis.fetch = async () => { throw new TypeError('network'); };
+  assert.equal(await serverAwake(), false);
+  globalThis.fetch = ourHealth;
+  assert.equal(await serverAwake(), true);
+});
+
+test('waitForServer: waits while it wakes, tells once, then goes on', async () => {
+  let asks = 0, told = 0;
+  globalThis.fetch = async () => (++asks < 3 ? renderLoading() : ourHealth());
+  assert.equal(await waitForServer({ stepMs: 5, limitMs: 1000, onWaiting: () => told++ }), true);
+  assert.equal(asks, 3);
+  assert.equal(told, 1, 'the "waking up" message is shown once, not on every ask');
+});
+
+test('waitForServer: awake at once = no "waking up" message', async () => {
+  let told = 0;
+  globalThis.fetch = ourHealth;
+  assert.equal(await waitForServer({ onWaiting: () => told++ }), true);
+  assert.equal(told, 0);
+});
+
+test('waitForServer: gives up after the limit', async () => {
+  globalThis.fetch = renderLoading;
+  assert.equal(await waitForServer({ stepMs: 5, limitMs: 30 }), false);
+});
+
+test('api: the hosting’s 503 loading page says "starting up", not "Something went wrong"', async () => {
+  globalThis.fetch = renderLoading;
+  await assert.rejects(api('/auth/login', { method: 'POST', body: {}, safeToRepeat: true }),
+    (err) => err instanceof ApiFailure && err.status === 503 && err.body.code === 'server_waking' && /starting up/.test(err.message));
+  // our own 503 (JSON) keeps our message
+  globalThis.fetch = answer('{"code":"jobs_stalled","message":"Background jobs have stopped.","details":{},"request_id":"r"}', 503);
+  await assert.rejects(api('/x'), (err) => err.body.code === 'jobs_stalled');
+});
