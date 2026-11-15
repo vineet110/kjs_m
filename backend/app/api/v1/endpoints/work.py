@@ -14,6 +14,7 @@ from app.core.deps import current_user, require_permission
 from app.core.errors import AppError
 from app.models.user import User
 from app.services import attendance_service as att
+from app.services import extension_service as ext
 from app.services import monitor_service as monitor
 from app.services import work_service as svc
 
@@ -53,6 +54,14 @@ async def my_timeline(start: date | None = Query(None, alias="from"), end: date 
                       kinds: str | None = None, before: datetime | None = None,
                       user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     return await svc.timeline(db, user.id, *_range(start, end), _kinds(kinds), before)
+
+
+@router.get("/me/sites")
+async def my_sites(start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"),
+                   user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    s, e = _range(start, end)
+    svc.check_range(s, e)
+    return await ext.sites(db, user.id, s, e)
 
 
 @router.get("/me/tasks")
@@ -125,3 +134,25 @@ async def person_screenshot_image(user_id: int, shot_id: int,
     data = await monitor.screenshot_image(db, user_id, shot_id)
     # private: the browser may keep it for this page only; never a shared cache
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.get("/{user_id}/sites")
+async def person_sites(user_id: int, start: date | None = Query(None, alias="from"),
+                       end: date | None = Query(None, alias="to"),
+                       _: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
+    u = await svc.person(db, user_id)
+    s, e = _range(start, end)
+    svc.check_range(s, e)
+    return await ext.sites(db, u.id, s, e)
+
+
+@router.get("/{user_id}/devices")
+async def person_devices(user_id: int, _: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
+    u = await svc.person(db, user_id)
+    return await ext.devices_of(db, u.id)
+
+
+@router.post("/devices/{device_id}/disable")
+async def disable_device(device_id: int, admin: User = Depends(MONITOR), db: AsyncSession = Depends(get_db)):
+    await ext.disable_device(db, admin, device_id, own_only=False)
+    return {"ok": True}

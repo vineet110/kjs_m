@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.deps import current_user
 from app.core.errors import AppError
 from app.models.user import User
+from app.services import extension_service as ext
 from app.services import monitor_service as svc
 
 router = APIRouter()
@@ -74,4 +75,32 @@ async def idle_reason(idle_id: int, data: ReasonIn, user: User = Depends(current
     if data.reason == "other" and not data.note.strip():
         raise AppError(400, "note_needed", "Please say what you were doing.")
     await svc.set_idle_reason(db, user, idle_id, data.reason, data.note)
+    return {"ok": True}
+
+
+# ---------- Browser extension (Phase C): connect a computer, see / switch off my devices ----------
+@router.post("/extension/code")
+async def extension_code(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await ext.new_pair_code(db, user)
+
+
+@router.get("/extension/devices")
+async def my_devices(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await ext.devices_of(db, user.id)
+
+
+@router.post("/extension/devices/{device_id}/disable")
+async def disable_my_device(device_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    await ext.disable_device(db, user, device_id, own_only=True)
+    return {"ok": True}
+
+
+class OutcomeIn(BaseModel):
+    outcome: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/sites/blocks/{block_id}/outcome")
+async def site_outcome(block_id: int, data: OutcomeIn, user: User = Depends(current_user),
+                       db: AsyncSession = Depends(get_db)):
+    await ext.set_outcome(db, user, block_id, data.outcome)
     return {"ok": True}

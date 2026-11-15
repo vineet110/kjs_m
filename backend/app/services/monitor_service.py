@@ -30,6 +30,7 @@ from app.models.monitor import Break, IdlePeriod, Screenshot, ShareEvent
 from app.models.notification import Notification
 from app.models.user import User
 from app.services import attendance_service as att
+from app.services import extension_service
 from app.services.notification_service import users_with
 
 log = logging.getLogger(__name__)
@@ -105,8 +106,7 @@ async def state(db: AsyncSession, user: User, now: datetime | None = None) -> di
         "on_break": bool(b),
         "break_started_at": b.started_at if b else None,
         "break_minutes_today": await break_minutes(db, user.id, att.local_day(now), now),
-        # The extension arrives in Phase C: until then, idle can't be measured
-        "extension": "not_connected",
+        "extension": await extension_service.is_connected(db, user.id),
         "idle": ({"id": idle.id, "started_at": idle.started_at, "minutes": idle_min, "reason": idle.reason}
                  if idle and idle_min >= c.idle_warn_minutes else None),
         "last_screenshot_at": last_shot,

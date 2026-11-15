@@ -25,6 +25,7 @@ from app.models.task import Task
 from app.models.user import User
 from app.services import attendance_service as att
 from app.services import audit_service
+from app.services import extension_service
 from app.services.task_service import task_out
 
 # Range limit, page size and refresh time: config/monitoring.ini (read with cfg() each time, so edits apply live)
@@ -101,7 +102,7 @@ async def team_day(db: AsyncSession, day: date) -> dict:
 
 
 LIVE_EMPTY = {"on_break": False, "break_minutes": 0, "idle_minutes": 0, "sharing": None, "device": None,
-              "extension": "not_connected"}
+              "extension": "not_connected", "site_minutes": 0}
 
 
 async def _live(db: AsyncSession, day: date) -> dict[int, dict]:
@@ -131,6 +132,10 @@ async def _live(db: AsyncSession, day: date) -> dict[int, dict]:
     for uid, device in (await db.execute(select(Attendance.user_id, Attendance.device)
                                          .where(Attendance.day == day, Attendance.device.is_not(None)))).all():
         row(uid)["device"] = device
+    for uid in await extension_service.connection(db):
+        row(uid)["extension"] = "connected"
+    for uid, mins in (await extension_service.minutes_on_sites(db, list(out) or [0], t0, t1)).items():
+        row(uid)["site_minutes"] = mins
     return out
 
 
@@ -161,7 +166,7 @@ async def overview(db: AsyncSession, u: User, start: date, end: date) -> dict:
         Screenshot.user_id == u.id, Screenshot.taken_at >= t0, Screenshot.taken_at < t1))
     return {"user": {"id": u.id, "name": u.name, "email": u.email, "role": u.role},
             "from": start, "to": end, "today": await att.today(db, u),
-            "extension": "not_connected",  # Phase C: the browser extension
+            "extension": await extension_service.is_connected(db, u.id),
             "totals": {**counts, "days_present": sum(1 for a in days if a.check_in_at),
                        "hours": round(sum(att.hours(a) for a in days), 2),
                        "break_minutes": sum(_mins(b.started_at, b.ended_at or now) for b in breaks),

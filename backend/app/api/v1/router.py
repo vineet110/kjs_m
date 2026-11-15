@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, koko, monitor, public, tasks, work
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, ext, files, harvest, koko, monitor, public, tasks, work
 from app.core.modules import area
 
 api_router = APIRouter()
@@ -23,6 +23,8 @@ api_router.include_router(content.router, prefix="/content", tags=["Website cont
                           dependencies=area("website_admin"))
 api_router.include_router(work.router, prefix="/work", tags=["Work pages"], dependencies=area("monitoring"))
 api_router.include_router(monitor.router, prefix="/monitor", tags=["Monitoring"], dependencies=area("monitoring"))
+# The browser extension: its own device key, no login cookie (each route checks the area itself)
+api_router.include_router(ext.router, prefix="/ext", tags=["Browser extension"])
 api_router.include_router(chat.router, prefix="/chat", tags=["Chat"], dependencies=area("chat"))
 # The live connection has no Request, so a route dependency would break it: it checks the area itself
 api_router.include_router(chat.ws_router, prefix="/chat", tags=["Chat"])
