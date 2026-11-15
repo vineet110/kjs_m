@@ -88,19 +88,28 @@ function LoginInner() {
     };
     try {
       if (tab === 'login') {
-        // 1. Firebase checks the password. 2. Only a verified email may log in (anyone can make a Firebase
-        // account with someone else's email). 3. Our API turns Firebase's proof into the normal session.
+        // 1. Firebase checks the password. 2. Our API turns Firebase's proof into the normal session, and decides
+        // whether a verified email is needed first (anyone can make a Firebase account with someone else's email).
         const { user } = await signInWithEmailAndPassword(auth, email, password);
-        if (!user.emailVerified) {
-          await sendEmailVerification(user, backToLogin()).catch(() => undefined); // a fresh link, also for admin-made accounts
-          await leaveFirebase();
-          setNotice(`Please verify your email first: we sent a link to ${email}. Open it, then log in again.`);
-          return;
-        }
         const idToken = await user.getIdToken();
         await serverReady().catch(async (e) => { await leaveFirebase(); throw e; });
-        const me = await api<Me>('/auth/login', { method: 'POST', body: { id_token: idToken }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true })
-          .finally(leaveFirebase); // from here on, our session cookie is the login
+        // The server decides whether a verified email is needed (config/app.ini require_verified_email).
+        // Only when it says so is a verify email sent: fewer emails, so Firebase's daily limit isn't hit.
+        let me: Me;
+        try {
+          me = await api<Me>('/auth/login', { method: 'POST', body: { id_token: idToken }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true });
+        } catch (err) {
+          if (err instanceof ApiFailure && err.body.code === 'email_not_verified' && !user.emailVerified) {
+            const sent = await sendEmailVerification(user, backToLogin()).then(() => true, () => false); // also for admin-made accounts
+            setNotice(sent
+              ? `Please verify your email first: we sent a link to ${email}. Open it, then log in again.`
+              : `Please verify your email first. We couldn't send the link just now (too many tries): please try again in an hour.`);
+            return;
+          }
+          throw err;
+        } finally {
+          await leaveFirebase(); // from here on, our session cookie is the login
+        }
         forgetAccount(); // also if this tab opened the login page without leaving the portal first
         const to = safeNext(next) ?? (me.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
         setPageOpening(true);
@@ -119,12 +128,14 @@ function LoginInner() {
           if (!(err instanceof FirebaseError) || err.code !== 'auth/email-already-in-use') throw err;
           user = (await signInWithEmailAndPassword(auth, email, password).catch(() => { throw err; })).user;
         }
-        if (!user.emailVerified) await sendEmailVerification(user, backToLogin()).catch(() => undefined);
+        const emailSent = user.emailVerified || await sendEmailVerification(user, backToLogin()).then(() => true, () => false);
         const idToken = await user.getIdToken();
         await serverReady().catch(async (e) => { await leaveFirebase(); throw e; });
         await api('/auth/signup', { method: 'POST', body: { id_token: idToken, name: f.name, phone: f.phone } })
           .finally(leaveFirebase);
-        setNotice(`Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`);
+        setNotice(emailSent
+          ? `Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`
+          : 'Account created. An admin will approve your account. (The verify email could not be sent just now.)');
         setTab('login');
       }
     } catch (err) {

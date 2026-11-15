@@ -25,10 +25,49 @@ async def _user(email: str) -> User:
         return await db.scalar(select(User).where(User.email == email))
 
 
-async def test_unverified_email_cannot_log_in(client):
+@pytest.fixture
+def verified_rule(monkeypatch):
+    """verified_rule(True/False): config/app.ini require_verified_email for one test (the repo file may differ)."""
+    from app.core.config import ini
+
+    def set_(on: bool):
+        monkeypatch.setenv("KJS__APP__REQUIRE_VERIFIED_EMAIL", "true" if on else "false")
+        ini.reload_now()
+    set_(True)  # the safe default unless a test says otherwise
+    yield set_
+    monkeypatch.undo()
+    ini.reload_now()
+
+
+async def test_unverified_email_cannot_log_in(client, verified_rule):
     await make_user("e@kjsindia.com")
     r = await client.post(LOGIN, json={"id_token": id_token("e@kjsindia.com", verified=False)}, headers=HDR)
     assert r.status_code == 403 and r.json()["code"] == "email_not_verified"
+
+
+async def test_switch_off_lets_an_approved_unverified_account_in(client, verified_rule):
+    """require_verified_email = false (temporary, while verify emails fail): a signed-up and approved account
+    logs in without a verified email. Approval still guards it: a pending one is still refused."""
+    verified_rule(False)
+    await make_user("e@kjsindia.com")  # linked to its Firebase uid, active (= signed up and approved)
+    r = await client.post(LOGIN, json={"id_token": id_token("e@kjsindia.com", verified=False)}, headers=HDR)
+    assert r.status_code == 200, r.text
+    await make_user("new@kjsindia.com", status="pending")
+    r = await client.post(LOGIN, json={"id_token": id_token("new@kjsindia.com", verified=False)}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "pending_approval"
+
+
+async def test_switch_off_never_links_an_old_account_without_a_verified_email(client, verified_rule):
+    """Anyone can make a Firebase account with the admin's email. Unverified, it must not take over the
+    old (pre-Firebase) admin account, even with the switch off."""
+    verified_rule(False)
+    async with AsyncSessionLocal() as db:  # the first admin, made before Firebase (no firebase_uid yet)
+        db.add(User(name="Boss", email="boss@kjsindia.com", password_hash=None, firebase_uid=None,
+                    role="admin", status="active", permissions=[]))
+        await db.commit()
+    r = await client.post(LOGIN, json={"id_token": id_token("boss@kjsindia.com", verified=False)}, headers=HDR)
+    assert r.status_code == 403 and r.json()["code"] == "email_not_verified"
+    assert (await _user("boss@kjsindia.com")).firebase_uid is None
 
 
 async def test_firebase_account_without_staff_account_is_told_to_sign_up(client):
@@ -45,7 +84,7 @@ async def test_signup_takes_the_email_from_the_token_not_the_form(client):
     assert await _user("boss@kjsindia.com") is None
 
 
-async def test_old_employee_account_is_linked_then_approved_again(client):
+async def test_old_employee_account_is_linked_then_approved_again(client, verified_rule):
     await make_user("old@kjsindia.com", linked=False, permissions=["leads.view", "leads.view_all"])
     # Signing up again with the same email doesn't make a second account
     r = await client.post(SIGNUP, json={"id_token": id_token("old@kjsindia.com"), "name": "Old", "phone": "+91 98765 43210"},
@@ -72,7 +111,7 @@ async def test_old_employee_account_is_linked_then_approved_again(client):
     await login(client, "old@kjsindia.com")
 
 
-async def test_old_admin_account_stays_active_when_linked(client):
+async def test_old_admin_account_stays_active_when_linked(client, verified_rule):
     # Nobody could approve the first admin, so an admin keeps working after linking
     async with AsyncSessionLocal() as db:
         db.add(User(name="Boss", email="boss@kjsindia.com", password_hash="old", firebase_uid=None,
