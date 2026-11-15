@@ -135,6 +135,14 @@ class MonitoringIni(BaseModel):
     idle_warn_minutes: int = Field(15, ge=1, le=240)  # no activity this long = idle (shorter pauses never count)
     idle_admin_minutes: int = Field(30, ge=1, le=480)  # admins are told once per idle period
     gap_alert_minutes: int = Field(5, ge=0, le=120)  # screen sharing off this long (while checked in) = alert
+    # Browser extension (Phase C)
+    send_minutes: int = Field(5, ge=1, le=60)  # the extension sends what it saw this often
+    pair_code_minutes: int = Field(10, ge=1, le=60)  # a "Connect extension" code works this long, once
+    connected_minutes: int = Field(15, ge=5, le=240)  # heard from in this long = "Extension connected"
+    never_record: list[str] = Field(default_factory=list)  # domains never recorded (banks), e.g. hdfcbank.com
+    store_query: bool = False  # false: addresses saved without ?query and #fragment (tokens, OTPs, searches)
+    outcome_min_minutes: int = Field(5, ge=1, le=60)  # a site's time in one hour this long = ask for the outcome
+    sites_keep_days: int = Field(90, ge=7, le=730)  # site visits older than this are deleted
 
     @model_validator(mode="after")
     def idle_order(self):
@@ -201,7 +209,7 @@ class Config(BaseModel):
 
 # file name -> section it fills
 FILES = {name: f"{name}.ini" for name in Config.model_fields}
-LIST_FIELDS = {"thresholds", "channels", "allowed_types"}
+LIST_FIELDS = {"thresholds", "channels", "allowed_types", "never_record"}
 
 
 # ---------- Loading ----------
