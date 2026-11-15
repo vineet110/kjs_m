@@ -3,18 +3,19 @@
 // person: base = "/work/12") and My work (own data: base = "/work/me"). The server decides whose data it is;
 // this screen only shows it. Range limit and page size come from config/monitoring.ini (the server checks).
 import { useCallback, useEffect, useState } from 'react';
-import { addDays, EmptyState, fmtDay, Pill, todayIST } from './ui';
+import { addDays, EmptyState, fmtDay, fmtIST, Pill, todayIST } from './ui';
 import StatTile from './StatTile';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 import {
-  api, type MonthView, type ScreenshotDay, type Task, type Timeline, type TimelineItem, type TimelineKind, type WorkOverview,
+  api, ApiFailure, type ExtensionDevice, type MonthView, type ScreenshotDay, type SitesView, type Task, type Timeline, type TimelineItem, type TimelineKind, type WorkOverview,
 } from '@/lib/api';
 
-type Tab = 'overview' | 'timeline' | 'screenshots' | 'tasks' | 'attendance';
+type Tab = 'overview' | 'timeline' | 'screenshots' | 'sites' | 'tasks' | 'attendance';
 const TABS: { id: Tab; label: string; admin?: boolean }[] = [
   { id: 'overview', label: 'Overview' }, { id: 'timeline', label: 'Timeline' },
   { id: 'screenshots', label: 'Screenshots', admin: true },
+  { id: 'sites', label: 'Sites' },
   { id: 'tasks', label: 'Tasks' }, { id: 'attendance', label: 'Attendance' },
 ];
 
@@ -53,6 +54,7 @@ export default function WorkView({ base, onPerson, admin = false }: { base: stri
       {tab === 'overview' && <Overview url={`${base}/overview?${range}`} onPerson={onPerson} />}
       {tab === 'timeline' && <WorkTimeline url={`${base}/timeline?${range}`} />}
       {tab === 'screenshots' && admin && <Screenshots base={base} />}
+      {tab === 'sites' && <Sites url={`${base}/sites?${range}`} canWrite={!admin} devicesUrl={admin ? `${base}/devices` : null} />}
       {tab === 'tasks' && <Tasks url={`${base}/tasks?${range}`} />}
       {tab === 'attendance' && <Attendance base={base} />}
     </div>
@@ -297,5 +299,132 @@ function Screenshots({ base }: { base: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Sites (from the browser extension): top sites, the hours that need an outcome, and the visits.
+ * canWrite: the person's own page (My activity) writes outcomes; admins only read them. */
+function Sites({ url, canWrite, devicesUrl }: { url: string; canWrite: boolean; devicesUrl: string | null }) {
+  const { data, err, load } = useLoad<SitesView>(url);
+  if (err) return <LoadError error={err} onRetry={load} />;
+  if (!data) return <Loading />;
+  const empty = data.top.length === 0;
+  const max = Math.max(1, ...data.top.map((t) => t.minutes));
+  return (
+    <div className="space-y-5">
+      {devicesUrl && <Devices url={devicesUrl} />}
+      {empty && (
+        <EmptyState title="No sites in this period"
+          text="Sites come from the KJS browser extension while the person is checked in. If it isn't connected (or is under maintenance), nothing shows here." />
+      )}
+      {!empty && (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+          <section className="card space-y-3 p-4">
+            <h2 className="font-semibold">Top sites</h2>
+            {data.top.map((t) => (
+              <div key={t.domain} className="text-sm">
+                <div className="flex justify-between gap-2"><span className="truncate">{t.domain}</span><b>{t.minutes} min</b></div>
+                <div className="mt-1 h-2 rounded bg-slate-100"><div className="h-2 rounded bg-ink" style={{ width: `${(t.minutes / max) * 100}%` }} /></div>
+              </div>
+            ))}
+            <p className="text-xs text-slate-500">Incognito windows and &quot;never record&quot; sites (banks) are not recorded.</p>
+          </section>
+          <section className="card space-y-3 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold">Visits and outcomes</h2>
+              <span className="text-xs text-slate-500">Outcome asked for {data.outcome_min_minutes}+ min on one site in an hour</span>
+            </div>
+            {data.blocks.length === 0 && <p className="text-sm text-slate-500">No long visits in this period.</p>}
+            <ul className="divide-y">
+              {data.blocks.map((b) => <Block key={b.id} b={b} canWrite={canWrite} onSaved={load} />)}
+            </ul>
+          </section>
+        </div>
+      )}
+      {!empty && data.visits.length > 0 && (
+        <details className="card p-4">
+          <summary className="cursor-pointer font-semibold">All visits ({data.visits.length})</summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="text-xs font-semibold text-slate-600">
+                <tr><th className="py-2 pr-3">Time</th><th className="py-2 pr-3">Site</th><th className="py-2 pr-3">Page title</th><th className="py-2">Min</th></tr>
+              </thead>
+              <tbody className="divide-y">
+                {data.visits.map((v, n) => (
+                  <tr key={n}>
+                    <td className="py-2 pr-3 text-slate-600">{fmtDay(v.day)} {v.time}</td>
+                    <td className="py-2 pr-3">{v.domain}</td>
+                    <td className="max-w-xs truncate py-2 pr-3" title={v.url}>{v.title || v.url}</td>
+                    <td className="py-2">{v.minutes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function Block({ b, canWrite, onSaved }: { b: SitesView['blocks'][number]; canWrite: boolean; onSaved: () => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function save() {
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/monitor/sites/blocks/${b.id}/outcome`, { method: 'POST', body: { outcome: text } });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof ApiFailure ? e.message : 'Could not save.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <li className="space-y-2 py-3">
+      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_3.5rem] gap-2 text-sm">
+        <span className="text-slate-500">{fmtDay(b.day)} {b.hour}</span>
+        <b className="truncate">{b.domain}</b>
+        <b className="text-right">{b.minutes}m</b>
+      </div>
+      {b.outcome ? (
+        <p className="ml-0 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 sm:ml-24"><b>Outcome:</b> {b.outcome}</p>
+      ) : canWrite ? (
+        <div className="space-y-2 sm:ml-24">
+          <label htmlFor={`out-${b.id}`} className="block text-sm font-semibold">What was the outcome of these {b.minutes} minutes?</label>
+          <textarea id={`out-${b.id}`} rows={2} value={text} maxLength={2000} onChange={(e) => setText(e.target.value)}
+            placeholder="e.g. Found 3 buyers for twill, added them as leads" className="input" />
+          <button className="btn-dark py-1 text-xs" disabled={busy || !text.trim()} onClick={save}>Save outcome</button>
+          {err && <p role="alert" className="text-xs text-red-700">{err}</p>}
+        </div>
+      ) : (
+        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 sm:ml-24">No outcome written yet.</p>
+      )}
+    </li>
+  );
+}
+
+/** The person's connected computers; an admin can switch one off (its key stops working at once). */
+function Devices({ url }: { url: string }) {
+  const { data, err, load } = useLoad<ExtensionDevice[]>(url);
+  if (err) return <LoadError error={err} onRetry={load} />;
+  if (!data) return null;
+  if (data.length === 0) return <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">No computer connected yet: the extension isn&apos;t installed or connected.</p>;
+  return (
+    <ul className="card divide-y text-sm">
+      {data.map((d) => (
+        <li key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-2">
+          <span className="font-medium">{d.name || 'Browser'}</span>
+          <span className="text-slate-500">{d.last_seen_at ? `last heard ${fmtIST(d.last_seen_at)}` : 'never heard from'}</span>
+          {d.disabled ? <Pill value="rejected" label="Switched off" /> : (
+            <button className="btn-ghost ml-auto py-1 text-xs text-red-700"
+              onClick={() => api(`/work/devices/${d.id}/disable`, { method: 'POST' }).then(load).catch(load)}>Switch off</button>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

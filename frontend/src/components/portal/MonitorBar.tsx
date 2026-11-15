@@ -62,7 +62,7 @@ export default function MonitorBar() {
           </span>
         )}
         <span className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">Extension not connected</span>
+          <span className="text-xs text-slate-500">{st.extension === 'connected' ? 'Extension connected' : 'Extension not connected'}</span>
           {!st.on_break && sharing !== 'sharing' && sharing !== 'phone' && sharing !== 'unsupported' && (
             <button disabled={busy} onClick={() => run(startSharing)} className="btn-dark py-1 text-xs">Share screen</button>
           )}

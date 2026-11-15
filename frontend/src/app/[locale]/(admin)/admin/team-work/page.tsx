@@ -18,6 +18,7 @@ const COLS: Col[] = [
   { key: 'outcomes', label: 'Outcomes', all: true }, { key: 'tasks_done', label: 'Tasks done' }, { key: 'chat', label: 'Chat', all: true },
   { key: 'break_minutes', label: 'Break (min)' }, { key: 'idle_minutes', label: 'Idle now (min)', all: true },
   { key: 'sharing', label: 'Screen' }, { key: 'device', label: 'Device', all: true },
+  { key: 'site_minutes', label: 'Sites (min)', all: true }, { key: 'extension', label: 'Extension' },
 ];
 const SHARING: Record<string, string> = { started: 'Shared', stopped: 'Stopped', refused: 'Refused' };
 const ROSTER_LABEL: Record<string, string> = { upcoming: 'Yet to check in', leave: 'On leave' };
@@ -113,6 +114,8 @@ export default function TeamWorkPage() {
                             label={r.on_break ? 'On break' : r.idle_minutes ? `Idle ${r.idle_minutes}m` : r.check_in && !r.check_out && day === todayIST() ? 'Checked in' : ROSTER_LABEL[r.state]} />
                         ) : c.key === 'sharing' ? (
                           r.sharing ? <Pill value={r.sharing === 'started' ? 'ok' : 'overdue'} label={SHARING[r.sharing]} /> : '–'
+                        ) : c.key === 'extension' ? (
+                          r.extension === 'connected' ? <Pill value="ok" label="Connected" /> : <span className="text-xs text-slate-500">Not connected</span>
                         ) : c.key === 'idle_minutes' ? (
                           r.extension === 'not_connected' ? <span className="text-xs text-slate-500">No extension</span> : (r.idle_minutes || '–')
                         ) : (

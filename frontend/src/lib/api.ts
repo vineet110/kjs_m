@@ -298,7 +298,7 @@ export type WorkCounts = { calls: number; emails: number; notes: number; outcome
 export type TeamWorkRow = WorkCounts & {
   user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number;
   on_break: boolean; break_minutes: number; idle_minutes: number; sharing: 'started' | 'stopped' | 'refused' | null;
-  device: 'laptop' | 'phone' | null; extension: 'connected' | 'not_connected';
+  device: 'laptop' | 'phone' | null; extension: 'connected' | 'not_connected'; site_minutes: number;
 };
 export type TeamWork = {
   day: string; rows: TeamWorkRow[]; refresh_seconds: number;
@@ -323,6 +323,14 @@ export type MonitorState = {
   last_screenshot_at: string | null;
   config: { screenshot_minutes: number; image_quality: number; max_screenshot_kb: number; break_minutes_per_day: number; idle_warn_minutes: number };
 };
+export type SitesView = {
+  top: { domain: string; minutes: number }[];
+  per_day: { day: string; sites: { domain: string; minutes: number }[] }[];
+  blocks: { id: number; domain: string; hour: string; day: string; minutes: number; outcome: string; outcome_at: string | null }[];
+  visits: { time: string; day: string; domain: string; url: string; title: string; minutes: number }[];
+  outcome_min_minutes: number;
+};
+export type ExtensionDevice = { id: number; name: string; created_at: string; last_seen_at: string | null; disabled: boolean };
 export type ScreenshotDay = {
   day: string; screenshots: { id: number; taken_at: string; time: string; size_kb: number; source: string }[];
   gaps: { from: string; to: string | null; state: 'stopped' | 'refused' }[];
