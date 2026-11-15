@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState, useTransition } from 'react';
 import Spinner from '@/components/ui/Spinner';
 import { PhoneInput } from '@/components/public/CountryPicker';
-import { api, ApiFailure, type Me } from '@/lib/api';
+import { api, ApiFailure, SERVER_WAKING, type Me } from '@/lib/api';
+import { serverAwake, waitForServer } from '@/lib/server-wake';
 import { forgetAccount } from '@/lib/portal-session';
 import { safeNext } from '@/lib/safe-url';
 import { asset } from '@/lib/assets';
@@ -53,6 +54,8 @@ function LoginInner() {
   const [bye, setBye] = useState(false);
   // A new person may log in on this tab: the portal must not show the previous person, even for a moment
   useEffect(() => forgetAccount(), []);
+  // Wake the API now (it sleeps when unused): it wakes while the person types, so the login is quick
+  useEffect(() => { void serverAwake(); }, []);
   useEffect(() => {
     if (params.get('bye') !== '1') return;
     setBye(true);
@@ -77,6 +80,12 @@ function LoginInner() {
     const email = String(f.email || '').trim();
     const password = String(f.password || '');
     const auth = firebaseAuth();
+    // Wait for our API while Firebase checks the password (both at once). If it was asleep, say why it's slow.
+    const awake = waitForServer({ onWaiting: () => setNotice('Waking up the server: the first login after a quiet spell can take up to 2 minutes. Please keep this page open.') });
+    const serverReady = async () => {
+      if (!(await awake)) throw new ApiFailure(503, { code: 'server_waking', message: SERVER_WAKING, details: {}, request_id: null });
+      setNotice('');
+    };
     try {
       if (tab === 'login') {
         // 1. Firebase checks the password. 2. Only a verified email may log in (anyone can make a Firebase
@@ -89,6 +98,7 @@ function LoginInner() {
           return;
         }
         const idToken = await user.getIdToken();
+        await serverReady().catch(async (e) => { await leaveFirebase(); throw e; });
         const me = await api<Me>('/auth/login', { method: 'POST', body: { id_token: idToken }, timeoutMs: LOGIN_TIMEOUT_MS, safeToRepeat: true })
           .finally(leaveFirebase); // from here on, our session cookie is the login
         forgetAccount(); // also if this tab opened the login page without leaving the portal first
@@ -111,12 +121,14 @@ function LoginInner() {
         }
         if (!user.emailVerified) await sendEmailVerification(user, backToLogin()).catch(() => undefined);
         const idToken = await user.getIdToken();
+        await serverReady().catch(async (e) => { await leaveFirebase(); throw e; });
         await api('/auth/signup', { method: 'POST', body: { id_token: idToken, name: f.name, phone: f.phone } })
           .finally(leaveFirebase);
         setNotice(`Account created. Open the link we emailed to ${email} to verify it. An admin will then approve your account.`);
         setTab('login');
       }
     } catch (err) {
+      setNotice(''); // not "waking up" any more: the error says what happened
       if (err instanceof ApiFailure) {
         const fields = Object.values(err.body.details || {}).join(' ');
         setError(fields ? `${err.message} ${fields}` : err.message);
