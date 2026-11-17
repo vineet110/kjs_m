@@ -45,6 +45,10 @@ class AppIni(BaseModel):
     lead_file_reads_per_hour: int = Field(60, ge=1)  # Excel / CSV files read into the lead form, per person
     login_failures_per_ip: int = Field(100, ge=1)  # wrong passwords per network per 15 min (all emails)
     signups_per_ip_per_hour: int = Field(30, ge=1)  # the office shares one address: go-live day
+    # false = staff may log in before verifying their email (TEMPORARY, while Firebase's verify emails fail).
+    # Admin approval still guards every new account, and an old account is never linked by email without
+    # a verified email (that would let anyone take over e.g. the first admin).
+    require_verified_email: bool = True
     jobs_enabled: bool = True
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat

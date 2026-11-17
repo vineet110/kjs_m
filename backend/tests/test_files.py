@@ -112,7 +112,8 @@ async def test_approvals_inbox_sections_follow_permissions(client):
     await make_user("new@kjsindia.com", status="pending")
     await login(client, "e@kjsindia.com")
     assert (await client.get("/api/v1/admin/approvals")).json() == {"signups": None, "approved": None, "rejected": None,
-                                                                        "regularizations": None, "file_deletes": None}
+                                                                        "regularizations": None, "file_deletes": None,
+                                                                        "email_checks_off": None}
     await make_user("admin@kjsindia.com", role="admin")
     await login(client, "admin@kjsindia.com")
     inbox = (await client.get("/api/v1/admin/approvals")).json()

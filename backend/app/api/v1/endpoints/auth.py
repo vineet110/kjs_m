@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import CSRF_HEADER, current_user, visitor_keys
 from app.core.errors import AppError
@@ -26,8 +27,10 @@ def _me(user: User) -> MeOut:
 async def signup(data: SignupIn, request: Request, db: AsyncSession = Depends(get_db)):
     """After the browser made the Firebase account (and asked Firebase to send the verify-email link)."""
     await auth_service.signup(db, data.id_token, data.name, data.phone, *visitor_keys(request))
-    return {"status": "pending",
-            "message": "Account created. Verify your email (we sent a link), then an admin will approve it."}
+    verify = cfg().app.require_verified_email  # false: no verify email is sent (config/app.ini)
+    return {"status": "pending", "verify_email": verify,
+            "message": "Account created. Verify your email (we sent a link), then an admin will approve it."
+            if verify else "Account created. An admin will approve it."}
 
 
 @router.post("/login", response_model=MeOut)

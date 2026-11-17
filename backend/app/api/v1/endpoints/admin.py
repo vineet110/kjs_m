@@ -190,6 +190,8 @@ async def approvals(user: User = Depends(current_user), db: AsyncSession = Depen
         "regularizations": await attendance_service.list_regularizations(db, status="pending")
         if "attendance.manage" in perms and visible(user, "attendance") else None,
         "file_deletes": await file_service.delete_requests(db, user) if "files.approve" in perms else None,
+        # config/app.ini require_verified_email = false: a sign-up's email is NOT proven to be theirs
+        "email_checks_off": (not cfg().app.require_verified_email) if staff else None,
     }
 
 
