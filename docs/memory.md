@@ -355,6 +355,14 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     `/admin/complaints`. The page path is saved, never a full link; the audit row never has the text.
     Migration 0026. Guesses: `backlog.md` A100-A103.
 
+55. 17 Nov. Email checks are OFF until our own server (Vineet, PR #87): `config/app.ini`
+    `require_verified_email = false`, because Firebase's "verify your email" emails fail. No more Firebase or
+    Render work; it resumes on the VPS (`backlog.md` R68). An account made through sign-up and approved by an
+    admin logs in without a verified email; linking an OLD account still needs one. Accepted risks: someone
+    can sign up with a colleague's email (the admin calls the person before approving); old accounts can't
+    link until email works. The admin `vineet@kjsindia.com` was marked verified by hand (Firebase Admin SDK,
+    `email_verified=True`) and is linked.
+
 
 
 ---------------------------------------------------------------------------------------------------

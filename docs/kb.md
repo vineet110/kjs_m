@@ -1951,6 +1951,56 @@ Sections:
    Where  `frontend/src/app/[locale]/healthz/route.ts`, `deploy/deploy.sh`, `frontend/Dockerfile`.
 
 
+### VPS (virtual private server) / node
+
+   What   A slice of a big physical machine in a provider's data centre, rented by the month or hour. You get
+          root access like your own server; the provider handles power, hardware and the network. E2E calls
+          it a "node". Options compared: `backlog.md` R59, R69.
+
+
+### vCPU (shared / dedicated)
+
+   What   A share of a real processor. Usually 2 vCPUs = 1 physical core (hyper-threading). Shared: other
+          customers use the same cores, so speed can dip (cheaper). Dedicated: the cores are only yours.
+          Not a GPU (a graphics chip for AI and video; we don't need one).
+
+
+### RAM / swap
+
+   What   RAM = the server's working memory. When it runs out, Linux kills a program (often Postgres).
+          Swap = disk space used as spare RAM: slow, but stops a short peak from crashing the site.
+          Our guess: about 2–3 GB on a normal day, 4–5 GB while building the website.
+
+
+### Snapshot / saved image
+
+   What   A copy of the whole server disk at one moment. Take one before a risky change. On E2E a snapshot
+          becomes a saved image to start a NEW node from (no in-place rollback). Not a replacement for our
+          own database backups.
+
+
+### IOPS
+
+   What   Disk reads / writes per second. Higher = a faster database on busy days.
+
+
+### Security group
+
+   What   The provider's firewall around a server: which ports and addresses may come in or go out. With a
+          Cloudflare Tunnel, no web port needs to be open.
+
+
+### Region / data centre
+
+   What   Where the server physically is. Closer to the users = faster pages (E2E: Delhi or Chennai).
+
+
+### Egress (outgoing data)
+
+   What   Data the server sends out (pages, files, videos). Some providers charge per GB. E2E VMs: free.
+          R2: free.
+
+
 
 
 

@@ -10,6 +10,22 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 16–17 Nov 2026 (own server research, email checks parked, Vineet)
+
+1. (V) vCPU is not GPU. A web app needs CPU, RAM and disk; GPUs are for AI and video work.
+
+2. (V) Before buying a server, ask how upgrades work: on E2E, E1 to C3 means a new server and a move.
+
+3. (V) A switch that turns a safety check off for everyone is risky to turn back on: everyone approved
+   while it was off gets locked out. A per-person flag is safer.
+
+4. (V) When a feature is stuck on the wrong platform, park it with a written "resume here" list instead of
+   patching it twice.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 13–14 Nov 2026 (Firebase login, Kunal; lead files, imports, complaints, Nishita)
 
 1. (K) "It imports" doesn't catch a missing name inside a function: scan changed files for names you removed.
