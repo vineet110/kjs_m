@@ -2,9 +2,26 @@
 
 2 or 3 lines a day, in your own words. Newest at the top.
 
-Tag who wrote it: (V) Vineet, (T) teammate.
+Tag who wrote it: (V) Vineet, (T) teammate, (K) Kunal.
 
 A word you don't know? Look it up in `../kb.md` (Ctrl + F).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 13–14 Nov 2026 (Firebase login, Kunal; lead files, imports, complaints, Nishita)
+
+1. (K) "It imports" doesn't catch a missing name inside a function: scan changed files for names you removed.
+
+2. (K) Check CI after every push. Our CI was red on #77 from the first push and nobody saw it.
+
+3. (T) A file must be what its name says: check the inside (start and end markers), not the extension.
+
+4. (T) A merged PR whose base branch was never deleted lands in that branch, not `main`. Check the base
+   before merging a stacked PR.
+
+5. (T) After every pull, compare `alembic current` with `alembic heads`: a 500 can just be an old local DB.
 
 
 

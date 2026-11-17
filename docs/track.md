@@ -164,6 +164,35 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          check. Neon at 0026. Decision: `memory.md` 51.
 
 
+4t. Staff login through Firebase + forgot password by email (Kunal): merged in PR #77 (14 Nov)
+
+   i.    Firebase checks the password, we keep our own session. Sign-up needs an admin's approval as before.
+         A reset or password change ends other sessions. Migrations 0024, 0025. Decision: `memory.md` 52.
+   ii.   Follow-ups: `backlog.md` R61-R65.
+
+
+4u. Lead files + fill a lead from Excel / CSV (Nishita): merged in PR #74 (13 Nov)
+
+   i.    Files tab on a lead (same file system as boards), every upload checked to be a real, whole file
+         (`file_check.py`). "Fill from Excel / CSV" on the new-lead form, with a same-person check before saving.
+         `defusedxml` added. Decision: `memory.md` 53.
+
+
+4v. Bulk import + Extra Info for leads (Nishita): merged in PR #78 (13 Nov)
+
+   i.    Each row of an Excel / CSV file becomes a lead (max 500, all or none). Columns we have no field for
+         go to "Extra Info" after Add / Reject. Migration 0022. Decision: `memory.md` 53.
+
+
+4w. Spinner on buttons that wait for the backend (Nishita): merged in PR #79 (14 Nov)
+
+
+4x. Complaints, "Report a problem" (Nishita): merged in PR #80 (14 Nov)
+
+   i.    Header button on every portal page, admins read them at `/admin/complaints`. Migration 0026.
+         Decision: `memory.md` 54. Guesses: `backlog.md` A100-A103. Follow-ups: R66, R67.
+
+
 4c. Whole-repo code review (29 Oct): `codeReview.md`
 
    i.    ✅ CR1 fixed and merged (PR #13, 3 Nov): `restore.sh` can no longer empty the database and say
@@ -282,6 +311,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 11. 10 Nov: KJS Chat phase 1 (#55), Lead Harvester (#53) and its security fix (#62), phase switches (#58,
     #60), sidebar names (#63) merged. Neon migrated to 0020. 27 local and 47 GitHub merged branches deleted.
 
-12. 13 Nov: employee management and live updates merged (#76, migration 0023).
+12. 13 Nov: employee management and live updates merged (#76, migration 0023). Lead files + Excel / CSV (#74),
+    bulk import + Extra Info (#78, migration 0022) merged.
 
-13. 14 Nov: Firebase login (#77) and complaints (#80) merged, then review fixes (#81). Neon migrated to 0026.
+13. 14 Nov: Firebase login (#77), button spinners (#79) and complaints (#80) merged, then review fixes (#81).
+    Neon migrated to 0026.

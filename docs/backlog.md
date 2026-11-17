@@ -1006,6 +1006,20 @@ A99. A disabled person stays in their chats  🟢
    i.    Their live tabs close at once and they can't log in; removing them would break their DMs.
 
 
+### Complaints (14 Nov, PR #80)
+
+A100. Who reads complaints: people with `staff.approve` (admins)  🟢
+
+
+A101. No status (open / done) on a complaint yet  🟢
+
+
+A102. No rate limit on filing complaints  🟢 (only logged-in staff can file)
+
+
+A103. The complaints page lists the newest 200 only  🟢
+
+
 
 
 
@@ -1775,3 +1789,57 @@ R60. Chat before going live  🟠
    ii.   On deploy to our own server: reload nginx (the chat WebSocket block).
    iii.  Accepted: edits to older messages show after a reload. Phase 3 "typing…": raise the 20-frames limit
          between session checks, or the page's own typing events will close the socket.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 19. Firebase login, lead files and complaints follow-ups (13–14 Nov)
+
+
+R61. Rotate the Firebase service-account key  🔴 before going live
+
+   i.    It was pasted in a chat once. Firebase > Project settings > Service accounts: delete the key, generate
+         a new one, put it in the root `.env` (`FIREBASE_SERVICE_ACCOUNT`) and on Render.
+
+
+R62. Firebase console settings  🟠
+
+   i.    Password policy: minimum 10 (the pages ask for 10, Firebase's default is 6), "require update on
+         sign-in" if offered. It is for the whole project: first confirm no other app uses it.
+   ii.   Separate dev project for local + Playwright (decided, Kunal): new project `kjs-dev`, Email/Password
+         on, `localhost` in Authorized domains, policy min 10. Web app values into `frontend/.env.local` and
+         `frontend/.env.e2e.local` (`NEXT_PUBLIC_FIREBASE_*`), a service-account key into backend `.env`, then
+         `python -m app.seed`. Never put the dev values on Vercel / Render.
+
+
+R63. Playwright suite after Firebase  🟠
+
+   i.    Login now goes through Firebase: the K/V/S test accounts need Firebase accounts with verified emails.
+
+
+R64. Email verification rules (point 4 of the #77 review)  🟠 after testing
+
+   i.    Approve refuses an unverified email (Approvals shows "email not verified").
+   ii.   A verified person replaces an unverified *pending* sign-up with the same email (audit keeps the old one).
+
+
+R65. Drop `users.password_hash`  🟢 once every old account is linked to Firebase
+
+   i.    The old scrypt helpers in `core/security.py` are marked LEGACY (tests only) and go with it.
+
+
+R66. Logo size warning (Next.js "width or height modified")  🟢 cosmetic
+
+   i.    Our `width` / `height` don't match `Kjs.png` (536×136). Use real proportions: `PortalShell.tsx`
+         120×28 -> 110×28, `SiteHeader.tsx` + `SiteFooter.tsx` 140×32 -> 126×32, `employee/login/page.tsx`
+         160×36 -> 142×36.
+
+
+R67. Not done yet  🟢
+
+   i.    Notification emails (PR `feat/notification-emails`, waiting; don't merge yet). Then send each new
+         complaint to `developer_email` in `config/complaints.ini`.
+   ii.   Tesseract (read leads from images; Vineet agreed to `pytesseract` + the Dockerfile change): own branch.
+   iii.  Browser click-through not done for lead files, Excel / CSV, bulk import, Extra Info, spinners,
+         complaints. `scripts/e2e/api_e2e.py` updated but not run.

@@ -171,7 +171,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 11. 23 Oct. Neon for development, company server later (D15). Files on Cloudflare R2 (D16).
 
 12. 23 Oct. Passwords with scrypt (built into Python). Sessions are random tokens stored in the database, not JWT.
-    Zero new packages.
+    Zero new packages. Passwords replaced by Firebase on 14 Nov (decision 52); sessions unchanged.
 
 13. 23 Oct. Neon CLI, Neon Auth and Neon storage are NOT used. Only the connection string.
 
@@ -283,7 +283,8 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 43. 9 Nov. Rate limits count a whole IPv6 /64 as one visitor. The per-network login limit counts only wrong
     passwords (100 per 15 min); sign-ups 30 per network per hour (`config/app.ini`). A network where the
     person logged in during the last 30 days can't be locked by strangers: every login writes an
-    `auth.login_ok` audit row (hashed network), and the check reads it.
+    `auth.login_ok` audit row (hashed network), and the check reads it. Since Firebase (decision 52) it
+    counts bad sign-in tokens; wrong passwords are blocked by Firebase.
 
 44. 9 Nov. A feature switched off in `config/features.ini` also refuses its API (404 `feature_off`).
     Disabling an account gives its open batch's unfinished buyers back (batch "returned"). The offer and
@@ -331,6 +332,28 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     build on the same migration: the one merged second changes its `down_revision` before merging (check
     `alembic heads` = one). Accepted on purpose (Vineet): `password_changed()` does not check
     `email_verified` like `login()` does. Firebase password policy: at least 10, enforced in the console.
+
+52. 13–14 Nov. Staff log in through Firebase Authentication (Kunal, PR #77). The browser signs in with
+    Firebase and sends its ID token to `POST /auth/login`; the API checks it (`core/firebase.py`,
+    firebase-admin) and starts the usual `kjs_session`, then the browser signs out of Firebase. Roles,
+    permissions and approval are unchanged. We never store passwords; forgot password is Firebase's own email.
+    Old accounts are not imported: signing up again with the same email links the old row (history kept).
+    A password change or reset ends other sessions (`users.firebase_valid_after`, checked at most every
+    5 min in `session_user()`; Google down = nobody logged out). Google errors = 503, never 500. Email
+    verification rules are off for now (Kunal: add after testing). Local and Playwright use a separate
+    Firebase project, never the live one. Migrations 0024, 0025.
+
+53. 13 Nov. Lead files and reading leads from files (Nishita, PRs #74, #78): leads use the same file system
+    as order boards and products. Every upload must really be what its name says and be whole
+    (`services/file_check.py`, Python's own tools; error `file_broken`). Excel / CSV is read as values only
+    (no formulas, `defusedxml`), with row, column and cell limits, and never logged. Bulk import saves all
+    ticked rows or none, max 500 rows (more = refused, never cut). File columns we have no field for go to
+    `leads.extra` ("Extra Info", migration 0022) only after the person picks Add.
+
+54. 14 Nov. Complaints ("Report a problem", Nishita, PR #80): staff report a bug, issue or suggestion from any
+    portal page; saved in the database only (no email yet). Admins with `staff.approve` read them at
+    `/admin/complaints`. The page path is saved, never a full link; the audit row never has the text.
+    Migration 0026. Guesses: `backlog.md` A100-A103.
 
 
 
@@ -427,14 +450,32 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 14 Nov 2026 (review fixes for #77 and #80, Vineet, PR #81 merged 14 Nov)
+1. 13–14 Nov 2026 (Firebase login, Kunal, PR #77 merged 14 Nov)
+
+   i.    Three review rounds. Fixed: approve re-enables the Firebase account, Google errors 401/503 never 500,
+         a reset ends old sessions, half-finished sign-ups, double clicks, a Profile password change that
+         logged you out after 5 min. Decision 52.
+   ii.   Lessons: "it imports" doesn't catch a missing name inside a function; CI had been red since the first
+         push, check it after every push (logs need a GitHub sign-in).
+
+
+2. 13–14 Nov 2026 (lead files, Excel / CSV, bulk import, Extra Info, spinners, complaints, Nishita,
+   PRs #74, #78, #79, #80 merged 13–14 Nov)
+
+   i.    #72 was merged then reverted (#73); #74 = #72 again + filling a lead from Excel / CSV.
+   ii.   #75 merged into `feat/lead-files-excel`, not `main` (the old branch was never deleted), so #78
+         carried bulk import + Extra Info to `main`. Decisions 53, 54.
+   iii.  Spinner inside 12 buttons that wait for the backend (#79), no new dependency.
+
+
+3. 14 Nov 2026 (review fixes for #77 and #80, Vineet, PR #81 merged 14 Nov)
 
    i.    #77 (0024, 0025) and #80 (0026) both built on 0023: two migration heads. 0026 now builds on 0025.
    ii.   Render had already deployed both, but Neon was at 0023 (logins at risk): Neon upgraded to 0026 at once.
    iii.  Also: the complaint upload error lists only picture types; the session check allows 10 s clock skew.
 
 
-2. 13 Nov 2026 (employee management and live updates, Vineet, PR #76 merged 13 Nov)
+4. 13 Nov 2026 (employee management and live updates, Vineet, PR #76 merged 13 Nov)
 
    i.    Reject with reason, per-person permissions, job titles, Manage employees tabs, `/employee/updates`.
          Migration renumbered 0021 -> 0023 after #78's 0022. Decision 50.
@@ -442,7 +483,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
          Set-Content (broke ✕ ☰ … and added byte-order marks); use Python or the editor.
 
 
-3. 10 Nov 2026 (KJS Chat, harvester security, Vineet, PRs #55 and #62 merged 10 Nov)
+5. 10 Nov 2026 (KJS Chat, harvester security, Vineet, PRs #55 and #62 merged 10 Nov)
 
    i.    Chat built in 5 planned days (decision 48), 3 review rounds. Second round lesson: fix the one shared
          rule, not the place the bug showed; tests that copy the reported case miss the next one.
