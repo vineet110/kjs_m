@@ -316,3 +316,6 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 13. 14 Nov: Firebase login (#77), button spinners (#79) and complaints (#80) merged, then review fixes (#81).
     Neon migrated to 0026.
+
+14. 16–17 Nov: email checks switched off and parked until our own server (#87, decision 55, backlog R68).
+    Own-server research: E2E Networks as a paid option next to the Oracle free VM (backlog R69).

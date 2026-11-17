@@ -1822,6 +1822,7 @@ R64. Email verification rules (point 4 of the #77 review)  🟠 after testing
 
    i.    Approve refuses an unverified email (Approvals shows "email not verified").
    ii.   A verified person replaces an unverified *pending* sign-up with the same email (audit keeps the old one).
+   iii.  Parked until our own server, together with the #87 review findings: R68.
 
 
 R65. Drop `users.password_hash`  🟢 once every old account is linked to Firebase
@@ -1843,3 +1844,58 @@ R67. Not done yet  🟢
    ii.   Tesseract (read leads from images; Vineet agreed to `pytesseract` + the Dockerfile change): own branch.
    iii.  Browser click-through not done for lead files, Excel / CSV, bulk import, Extra Info, spinners,
          complaints. `scripts/e2e/api_e2e.py` updated but not run.
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 20. Email checks and own server (16–17 Nov)
+
+
+R68. Email checks, parked until our own server  🔴 before going live (Vineet)
+
+   i.    Why parked: decision 55. First make email work on the VPS, then this list.
+   ii.   Review findings on #87:
+         a. `auth.py:30`: an old account (no `firebase_uid`) that signs up again gets `verify_email = false`,
+            but its login always needs a verified email, so it is stuck. Fix: `true` whenever the row has no
+            `firebase_uid`.
+         b. `config/app.ini:24`: off in the shared ini = off on every server. Fix: ini `true`; off on one
+            server only with `KJS__APP__REQUIRE_VERIFIED_EMAIL=false`.
+         c. `auth_service.py:94`: one global switch. Turning it on locks out everyone approved while it was off.
+         d. `employee/login/page.tsx:115`: an unverified person waits for the server to wake (up to 2 minutes)
+            before hearing "please verify".
+         e. `page.tsx:32`: a generic error shows inside brackets; "try again in an hour" contradicts "wait a
+            few minutes" for the same `auth/too-many-requests`.
+         f. `page.tsx:154`: a failed verify email shows in the green success box.
+         g. `tests/conftest.py:63`: `monkeypatch.undo()` also undoes other fixtures' patches; every test
+            reloads the config twice.
+         h. `tests/test_firebase_login.py:28`: `verified_rule` repeats the conftest fixture; 3 tests ask for it
+            and never use it.
+         i. `admin/approvals/page.tsx:72`: the "checks are off" banner doesn't say WHICH sign-ups are unverified.
+   iii.  Plan, first PR: a, b, g, h. Set the env var on the server BEFORE the deploy, then log in with an
+         unverified test account to check.
+   iv.   Plan, second PR: column `email_confirmed_by_admin` (next free migration number; check open PRs). The
+         migration sets it true for everyone already active, so nobody is locked out. Approvals: a required
+         tick "I confirmed this email belongs to this person" for unverified sign-ups, saved by `approve()` and
+         in the audit log; show verified / unverified per sign-up (i). Login: `email_verified OR
+         email_confirmed_by_admin`. Then remove the global switch and the env var. Run `alembic upgrade head`
+         right after merging, with BOTH database URLs set (decision 38).
+   v.    Later: d, e, f. Undo the admin's hand verify if ever needed: `email_verified=False`.
+
+
+R69. Hosting: E2E Networks as a paid option next to the Oracle free VM (R59)  🟠 decide (Vineet, Nishita, KJS)
+
+   i.    R59 (Oracle) stays the plan until this is decided. E2E: Indian company, INR + GST invoices, Delhi or
+         Chennai, our `deploy/` setup runs unchanged.
+   ii.   Plans (17 Nov, before 18% GST): E1LC-2.6GB = 2 shared vCPU, 6 GB, ₹894 a month for compute; its disk
+         (150 GB default, 75–2,400 GB) is billed separately (price per GB unknown) and it has no public IPv4
+         (Reserved IP ₹199 a month). C3.8GB = 4 vCPU (≥ 2.8 GHz), 8 GB, 100 GB NVMe, public IPv4, ₹3,422 a month.
+   iii.  E1 -> C3 is not an in-place upgrade (new node + move). Upgrades inside one family work (node off).
+         No downgrades.
+   iv.   Sales answers (17 Nov): outgoing data free; 1 Gbps; scheduled snapshots, charged on data used,
+         restore = new node; no backup by default; Security Groups; web console; monitoring + alerts;
+         Ubuntu 24.04; root access; 99.9% SLA; IPv6 only in Delhi; email + phone support, about 30 minutes.
+   v.    Still to ask: E1 disk price per GB; can an E1 node without a public IP reach the internet (Docker
+         pulls, Cloudflare Tunnel); trial credits; where snapshots are stored.
+   vi.   Keep R2 for site pictures and the off-site backup either way. Trial: `deploy.sh`, `docker stats`,
+         `test-restore.sh`, then choose.
