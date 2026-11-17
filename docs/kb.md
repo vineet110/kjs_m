@@ -1479,6 +1479,26 @@ Sections:
    Where  `CLOCK_SKEW_SECONDS` (10 s) in `backend/app/core/firebase.py`, used in `deps.py`.
 
 
+### ID token
+
+   What   A short-lived signed proof of who you are, made by Firebase after you sign in. Our API checks the
+          signature with Google's public keys, so nobody can fake one.
+   Where  `POST /auth/login` -> `backend/app/core/firebase.py`.
+
+
+### Email verification
+
+   What   Proof that the inbox is really yours (you click a link sent to it). Needed because anyone can make
+          a Firebase account with someone else's email.
+
+
+### Fresh sign-in (auth_time)
+
+   What   The time you last typed your password. Risky actions, like changing it, need one from the last
+          few minutes, so a stolen session alone isn't enough.
+   Where  `/auth/password` (5 minutes).
+
+
 ### WebRTC / TURN
 
    What   WebRTC: how browsers send voice and video to each other. TURN: a relay server needed when they
