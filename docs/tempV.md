@@ -60,3 +60,14 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 6. Smaller follow-ups found (backlog later): contacts list capped at 5,000; `/leads/import` (JSON) has no rate
    limit; no `openGraph` / `metadataBase`; audit page shows newest 500 only; `staff.approve` also opens Reports,
    Settings and Complaints; dead stub `auto_assign_service.py`; logout without the CSRF header.
+
+7. Vineet's decisions (18 Nov), for `backlog.md` at the next fold:
+
+   i.    Email checks stay off for launch; an admin approves every sign-up (R68 option a).
+   ii.   Koko stays on Groq's free tier for launch; replace later (R52).
+   iii.  Launch without a leads export.
+   iv.   Non-coffee text: ignored for now (the dynamic UI work will cover it).
+   v.    NEW backlog item, before go-live (after UAT): when an employee is disabled, their open leads
+         (new / contacted) go back to unassigned, with a note on each lead and one audit row; closed leads
+         keep their owner. Place: `auth_service.set_status`, next to `return_open_batch`. Until then an
+         admin reassigns by hand ("Any owner" filter in All Enquiries). Auto-assign left as it is.
