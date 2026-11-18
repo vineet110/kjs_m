@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { buttonForSource } from '@/lib/insights';
 import EnquiryForm from './EnquiryForm';
 
 type Props = React.ComponentProps<typeof EnquiryForm> & { label: string; className?: string; onOpen?: () => void; onClose?: () => void };
@@ -16,7 +17,8 @@ export default function EnquiryButton({ label, className = 'btn-gold', onOpen, o
   };
   return (
     <>
-      <button onClick={() => { onOpen?.(); setOpen(true); }} className={className}>{label}</button>
+      {/* data-track: counted in Website insights (price sheet, spec sheet, sample / quote) */}
+      <button onClick={() => { onOpen?.(); setOpen(true); }} className={className} data-track={buttonForSource(form.source) ?? undefined}>{label}</button>
       {open &&
         createPortal(
           <div

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { CountrySelect, PhoneInput } from '@/components/public/CountryPicker';
 import { savedPhoneOk } from '@/lib/countries';
 import { api, ApiFailure } from '@/lib/api';
+import { track } from '@/lib/insights';
 import Spinner from '@/components/ui/Spinner';
 
 export type LeadSource = 'enquiry_form' | 'price_sheet' | 'spec_pdf' | 'sample' | 'quote' | 'configurator';
@@ -96,6 +97,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         /* private window: just ask again next time */
       }
       setState('done');
+      track({ kind: 'click', path: window.location.pathname, button: 'send_enquiry' }); // Website insights
       onSent?.();
     } catch (err) {
       setError(err instanceof ApiFailure ? err.message : 'Could not send. Please WhatsApp us instead.');

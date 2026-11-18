@@ -68,6 +68,7 @@ export type ApiError = { code: string; message: string; details: Record<string, 
 import { cache } from 'react';
 import { log, newRequestId } from './logger';
 import { moduleOff } from './modules';
+import type { InsightsConfig } from './insights';
 
 // ---------- Server side (server components): talk to FastAPI directly ----------
 const INTERNAL = process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000';
@@ -288,6 +289,7 @@ export type Board = BoardSummary & {
 export type PublicConfig = {
   site_name: string;
   features: { koko: boolean; offers_ticker: boolean; configurator: boolean; partners: boolean; gated_actions: boolean; whatsapp_button: boolean; connect_popup?: boolean };
+  insights?: InsightsConfig; // Website insights tracker (config/site_insights.ini); missing on an older API
 };
 export type Offer = { id: number; text: string; link: string };
 /** Koko's catalogue card: on the first reply on a product or category page (from the database, not the AI). */
@@ -303,6 +305,12 @@ export type PublicFile = { id: number; name: string; content_type: string; url: 
 export async function features(): Promise<PublicConfig['features']> {
   const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
   return c?.features ?? { koko: true, offers_ticker: false, configurator: false, partners: true, gated_actions: true, whatsapp_button: true, connect_popup: true };
+}
+
+/** The website's visitor tracker settings. null (API down or older API) = no tracking. */
+export async function insightsConfig(): Promise<InsightsConfig | null> {
+  const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
+  return c?.insights ?? null;
 }
 
 /** Editable website text (Admin > Website). Falls back to the given text if the API is down. */

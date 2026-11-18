@@ -50,7 +50,7 @@ export default function Configurator({ products }: { products: P[] }) {
         <div><label className="label" htmlFor="c-market">Market</label><input id="c-market" value={choice.market} onChange={set('market')} placeholder="e.g. UAE" className="input" /></div>
       </div>
       <p className="rounded-lg bg-gold/10 p-3 text-sm">Indicative price: our sales team sends it with your quote, usually within one working day.</p>
-      <button className="btn-gold w-full">Next: send to sales</button>
+      <button className="btn-gold w-full" data-track="configurator">Next: send to sales</button>
     </form>
   );
 }

@@ -5,11 +5,13 @@ import KokoChatWidget from '@/components/public/KokoChatWidget';
 import OffersTicker from '@/components/public/OffersTicker';
 import SiteFooter from '@/components/public/SiteFooter';
 import SiteHeader from '@/components/public/SiteHeader';
+import SiteTracker from '@/components/public/SiteTracker';
 import WhatsAppButton from '@/components/public/WhatsAppButton';
-import { features } from '@/lib/api';
+import { features, insightsConfig } from '@/lib/api';
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const f = await features(); // on/off switches from config/features.ini
+  const insights = await insightsConfig(); // Website insights tracker (config/site_insights.ini)
   return (
     <>
       <JsonLd data={organizationLd} />
@@ -22,6 +24,7 @@ export default async function PublicLayout({ children }: { children: React.React
       {f.koko && <KokoChatWidget />}
       {/* On unless switched off (an older API without the switch still shows it) */}
       {f.connect_popup !== false && <ConnectPopup />}
+      <SiteTracker config={insights} />
     </>
   );
 }
