@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Category } from '@/lib/api';
-import { matchesSearch, searchEntry } from '@/lib/catalogue';
+import { isUploaded, matchesSearch, searchEntry } from '@/lib/catalogue';
 import { startNavigationProgress } from '../NavigationProgress';
 import { useCatalogue } from './CatalogueContext';
 
@@ -80,7 +80,7 @@ export default function HomeSearch({ categories }: { categories: Category[] }) {
             matches.map((p) => (
               <Link key={p.slug} href={`/products/${p.slug}`} className="flex items-center gap-3 px-4 py-2 hover:bg-paper">
                 {p.image ? (
-                  <Image src={p.image} alt="" width={56} height={42} className="h-10 w-14 rounded object-cover" />
+                  <Image src={p.image} unoptimized={isUploaded(p.image)} alt="" width={56} height={42} className="h-10 w-14 rounded object-cover" />
                 ) : (
                   <span className="h-10 w-14 rounded bg-paper" />
                 )}

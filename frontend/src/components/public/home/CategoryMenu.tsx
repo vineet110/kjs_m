@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { Category } from '@/lib/api';
-import { SUBCATEGORIES } from '@/lib/catalogue';
+import { isUploaded, SUBCATEGORIES } from '@/lib/catalogue';
 import { useCatalogue } from './CatalogueContext';
 import { asset } from '@/lib/assets';
 
@@ -111,7 +111,7 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
                   {inActive.slice(0, 12).map((p) => (
                     <Link key={p.slug} href={`/products/${p.slug}`} className="group text-center">
                       {p.image ? (
-                        <Image src={p.image} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
+                        <Image src={p.image} unoptimized={isUploaded(p.image)} alt={p.name} width={140} height={105} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform group-hover:scale-105" />
                       ) : (
                         <span className="block aspect-[4/3] w-full rounded-lg bg-paper" />
                       )}

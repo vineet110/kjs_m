@@ -220,11 +220,21 @@ test('asset: unchanged without an address, and for anything that is not a site p
 // ---------- offer badge (UI step 6): "Up to X% OFF", only when staff set an offer ----------
 const assetsSource = readFileSync(join(SRC, 'assets.ts'), 'utf8').replace(/export /g, '');
 const catalogueLib = await load('catalogue', '', assetsSource);
-const { offerLabel, toHomeProduct, imageOf } = catalogueLib;
+const { offerLabel, toHomeProduct, imageOf, isUploaded } = catalogueLib;
 
 test('imageOf: own site paths only (served from public/ when no R2 address is set)', () => {
   assert.equal(imageOf({ image_path: '/images/products/x.jpg' }), '/images/products/x.jpg');
   for (const bad of ['', 'https://evil.example/x.jpg', '//evil.example/x.jpg']) assert.equal(imageOf({ image_path: bad }), null, bad);
+});
+
+test('imageOf: the image path first, else the uploaded photo, never an outside address', () => {
+  const photo = '/api/v1/public/files/7';
+  assert.equal(imageOf({ image_path: '/images/products/x.jpg', photo_url: photo }), '/images/products/x.jpg');
+  assert.equal(imageOf({ image_path: '', photo_url: photo }), photo);
+  assert.equal(imageOf({ image_path: '', photo_url: null }), null);
+  assert.equal(imageOf({ image_path: '', photo_url: 'https://evil.example/x.jpg' }), null);
+  assert.equal(isUploaded(photo), true);
+  assert.equal(isUploaded('/images/products/x.jpg'), false);
 });
 
 test('offerLabel: "Up to X% OFF" for a set offer, nothing otherwise', () => {

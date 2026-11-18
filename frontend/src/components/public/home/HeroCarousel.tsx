@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { isUploaded } from '@/lib/catalogue';
 
 export type Slide = { eyebrow: string; title: string; text: string; href: string; cta: string; images: string[]; tone: string };
 
@@ -52,6 +53,7 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
                 <Image
                   key={src}
                   src={src}
+                  unoptimized={isUploaded(src)} // uploaded photos: the API may redirect to storage
                   alt=""
                   width={320}
                   height={240}

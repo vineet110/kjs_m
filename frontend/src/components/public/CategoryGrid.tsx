@@ -9,6 +9,7 @@ import Link from 'next/link';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
 import { asset } from '@/lib/assets';
+import { isUploaded } from '@/lib/catalogue';
 
 const TONES = [
   'from-[#5B3420] to-[#2E1A10]',
@@ -59,6 +60,7 @@ export default function CategoryGrid({ categories, images = {} }: { categories: 
                     src={image}
                     alt=""
                     fill
+                    unoptimized={isUploaded(image)}
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     className="object-cover opacity-60 transition-transform duration-700 ease-out motion-safe:group-hover:scale-110"
                   />

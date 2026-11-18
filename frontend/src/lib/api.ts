@@ -7,6 +7,7 @@ export type Product = {
   id: number; slug: string; name: string; description: string; pack_formats: string; moq: string;
   image_path: string; private_label: boolean; is_best_seller: boolean; category_slug: string; category_name: string;
   offer_percent: number | null; // "Up to X% OFF" badge; null = no offer
+  photo_url?: string | null; // first photo uploaded with "Show on website" (Admin > Products > Photos & files)
 };
 
 export type Lead = {

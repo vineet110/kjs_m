@@ -11,7 +11,7 @@ import EnquiryButton from '@/components/public/EnquiryButton';
 import OfferBadge from '@/components/public/OfferBadge';
 import Reveal from '@/components/public/Reveal';
 import type { Category } from '@/lib/api';
-import type { CatalogueItem, HomeProduct } from '@/lib/catalogue';
+import { isUploaded, type CatalogueItem, type HomeProduct } from '@/lib/catalogue';
 import { addToEnquiryList, cleanEnquiryList, readEnquiryList, rememberViewed, saveEnquiryList, useHistory } from '@/lib/history';
 import { useCatalogue } from './CatalogueContext';
 import HomeProductCard from './HomeProductCard';
@@ -182,7 +182,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
         >
           <div className="grid max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl md:grid-cols-2">
             <div className="relative aspect-[4/3] bg-paper md:aspect-auto">
-              {quick.image && <Image src={quick.image} alt={quick.name} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" />}
+              {quick.image && <Image src={quick.image} unoptimized={isUploaded(quick.image)} alt={quick.name} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" />}
             </div>
             <div className="flex flex-col p-6">
               <div className="flex items-start justify-between gap-4">
@@ -233,7 +233,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
         <div className="fixed inset-x-0 bottom-20 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-xl items-center lg:bottom-5 lg:w-[calc(100%-9rem)] gap-3 rounded-full border border-slate-200 bg-white py-2 pl-3 pr-2 shadow-2xl">
           <div className="hidden -space-x-3 sm:flex">
             {inEnquiry.filter((p) => p.image).slice(0, 4).map((p) => (
-              <Image key={p.slug} src={p.image!} alt="" width={40} height={30} className="h-8 w-10 rounded-md object-cover ring-2 ring-white" />
+              <Image key={p.slug} src={p.image!} unoptimized={isUploaded(p.image!)} alt="" width={40} height={30} className="h-8 w-10 rounded-md object-cover ring-2 ring-white" />
             ))}
           </div>
           <p className="min-w-0 flex-1 truncate text-sm">

@@ -35,11 +35,16 @@ export const SUBCATEGORIES: Record<string, string[]> = {
   confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
 };
 
-/** A picture from our own site folder (served from R2 when set, see lib/assets.ts), or null
- *  (empty, or an outside address Next.js would refuse). */
-export function imageOf(p: Pick<Product, 'image_path'>): string | null {
-  return p.image_path.startsWith('/') && !p.image_path.startsWith('//') ? asset(p.image_path) : null;
+/** A picture from our own site folder (served from R2 when set, see lib/assets.ts), else the first photo
+ *  uploaded in Admin > Products, else null (empty, or an outside address Next.js would refuse). */
+export function imageOf(p: Pick<Product, 'image_path'> & Partial<Pick<Product, 'photo_url'>>): string | null {
+  if (p.image_path.startsWith('/') && !p.image_path.startsWith('//')) return asset(p.image_path);
+  return p.photo_url?.startsWith('/api/') ? p.photo_url : null;
 }
+
+/** An uploaded photo (served by our API, maybe a redirect to storage): the browser loads it as it is,
+ *  like the product page does, instead of through Next.js's picture resizing. */
+export const isUploaded = (src: string): boolean => src.startsWith('/api/');
 
 /** What the home page needs per product: small, with the item list already read.
  *  Sent to the browser once (see components/public/home/CatalogueContext.tsx). */

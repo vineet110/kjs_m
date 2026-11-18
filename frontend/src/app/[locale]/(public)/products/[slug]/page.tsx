@@ -8,7 +8,7 @@ import GatedActions from '@/components/public/GatedActions';
 import OfferBadge from '@/components/public/OfferBadge';
 import TrackView from '@/components/public/TrackView';
 import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
-import { imageOf, summary } from '@/lib/catalogue';
+import { imageOf, isUploaded, summary } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Next 15+: params arrive as a Promise.
@@ -58,7 +58,7 @@ export default async function ProductPage({ params }: Props) {
       <div className="grid gap-8 md:grid-cols-2">
         <div className="card relative flex aspect-square items-center justify-center overflow-hidden bg-paper">
           {mainImage ? (
-            <Image src={mainImage} alt={p.name} fill className="object-contain" sizes="(max-width: 768px) 100vw, 50vw" unoptimized={!ownImage} />
+            <Image src={mainImage} alt={p.name} fill className="object-contain" sizes="(max-width: 768px) 100vw, 50vw" unoptimized={isUploaded(mainImage)} />
           ) : (
             <span className="text-slate-400">{p.category_name}</span>
           )}

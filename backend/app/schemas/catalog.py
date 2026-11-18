@@ -25,6 +25,7 @@ class ProductOut(BaseModel):
     category_slug: str
     category_name: str
     is_active: bool = True
+    photo_url: str | None = None  # first photo uploaded with "Show on website"; cards use it without an image_path
 
 
 def _no_dot_dot(v: str) -> str:

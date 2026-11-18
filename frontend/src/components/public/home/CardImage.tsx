@@ -5,6 +5,7 @@
 // fallback). Fills its parent, which must be `relative` with a set size.
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
+import { isUploaded } from '@/lib/catalogue';
 
 export default function CardImage({ src, alt }: { src: string; alt: string }) {
   const img = useRef<HTMLImageElement>(null);
@@ -18,6 +19,7 @@ export default function CardImage({ src, alt }: { src: string; alt: string }) {
       src={src}
       alt={alt}
       fill
+      unoptimized={isUploaded(src)}
       sizes="(max-width: 768px) 50vw, 25vw"
       onLoad={() => setPending(false)}
       onError={() => setPending(false)}

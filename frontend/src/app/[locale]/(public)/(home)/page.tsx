@@ -13,7 +13,7 @@ import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
-import { toHomeProduct, visibleCategories, type HomeProduct } from '@/lib/catalogue';
+import { isUploaded, toHomeProduct, visibleCategories, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
@@ -189,7 +189,7 @@ export default async function HomePage() {
                   {withImage.some((p) => p.categorySlug === c.slug) ? (
                     <div className="grid grid-cols-2 gap-1.5">
                       {withImage.filter((p) => p.categorySlug === c.slug).slice(0, 4).map((p) => (
-                        <Image key={p.slug} src={p.image!} alt="" width={160} height={120} className="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-[1.04]" />
+                        <Image key={p.slug} src={p.image!} unoptimized={isUploaded(p.image!)} alt="" width={160} height={120} className="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-[1.04]" />
                       ))}
                     </div>
                   ) : (
