@@ -2170,3 +2170,56 @@ R102. `npm audit`: Firebase 13 pulls in `@grpc/grpc-js` alerts  🟢
 R103. `npm audit`: Tailwind 3 build tools (chokidar, micromatch, picomatch, fast-glob)  🟢
 
    i.    Build and dev only, not on the live site. Fix is Tailwind 4: a major upgrade, its own PR.
+
+---------------------------------------------------------------------------------------------------
+
+## 26. Coffee-only follow-ups (18 Nov, PRs #93, #97, #99)
+
+Coffee-only plan done: photo upload when adding a product (#93), Show/Hide per category in Admin (#97,
+migration 0030), the site follows the switches (#99). Decisions 58, 59 in `memory.md`.
+
+
+R104. A product with a name over 60 characters can't get a photo  🟠 own PR (Nishita)
+
+   i.    `files.owner_id` is 60 characters (model and migration 0006); product slugs can be 110. The upload
+         fails when the file row is saved, after the product is already saved. Was true before #93.
+   ii.   Fix: a migration that widens `owner_id` (or cap the slug at 60). One head check first.
+
+
+R105. Menu and search thumbnails download the full uploaded photo  🟢 later
+
+   i.    Uploaded photos load `unoptimized` (with R2 the file address redirects, which the image optimizer
+         can't follow), so a 140 px thumbnail can pull a 25 MB original.
+   ii.   Fix: resized copies of public product photos, and `photo_url` pointing at them.
+
+
+R106. Add product photo: small gaps  🟢 later
+
+   i.    An empty or non-image file isn't flagged in the browser (the server still checks the type).
+   ii.   "Photo didn't upload": after a dropped connection the photo may already be saved; say "check Photos &
+         files before trying again".
+   iii.  The test PNG in `test_files.py` is not a complete image (signature and end only).
+
+
+R107. Category visibility read in two steps  🟢 later (raised in both #97 review rounds)
+
+   i.    Public lists read the hidden categories in one query and the rows in another: a switch in between
+         gives one mixed answer. The 60 s page cache covers it. Fix: the parent rule as one SQL query.
+   ii.   Admin > All Products: an older reload finishing after a newer one can show old switches for a moment
+         (the product list has the same pattern). Fix: keep only the latest reload's answer.
+
+
+R108. Every category hidden  🟢 later (Vineet's #5 on #99)
+
+   i.    The footer, Google company description and Koko then name the full range (an empty list reads as
+         "no data"). Fix: an empty list means "no product areas"; Koko sends every product question to sales.
+
+
+R109. Coffee-only known limits  🟢 later
+
+   i.    The second banner's coffee text is in the code, not in Admin > Website.
+   ii.   The coffee products for the banner pictures and "Popular" are a fixed list in the code; a new coffee
+         product shows there only if ticked Best seller.
+   iii.  Only "coffee-only" is a mode; another single-category site needs a small code change.
+   iv.   The default page title in `app/[locale]/layout.tsx` names every area (pages without their own title).
+   v.    The normal Google home title is 68 characters (Google shows about 60).
