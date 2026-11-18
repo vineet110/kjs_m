@@ -3,8 +3,9 @@
 // List View (Timeline Graphic Bar), Tabular View, Calendar View, Overtime View, Regularization, Reports, Shifts.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, fmtDay, Msg, Pill, todayIST } from '@/components/portal/ui';
-import { api, ApiFailure, type Holiday, type LeaveRequest, type MonthView, type Regularization, type Shift, type Today, type Week } from '@/lib/api';
+import { api, ApiFailure, type Holiday, type MonitorState, type LeaveRequest, type MonthView, type Regularization, type Shift, type Today, type Week } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
+import { attendanceChanged, onCheckedIn, onCheckedOut } from '@/lib/monitor';
 import LoadError from '@/components/ui/LoadError';
 
 type ActiveNav = 'list' | 'tabular' | 'calendar' | 'overtime' | 'leaves' | 'regularization' | 'reports' | 'shifts';
@@ -84,6 +85,29 @@ export default function AttendancePage() {
     return () => clearInterval(t);
   }, []);
 
+  // Breaks are saved on the server (/monitor/break): admins see them, and the limit is in
+  // config/monitoring.ini. The label (tea, lunch) is only shown here.
+  useEffect(() => {
+    api<MonitorState>('/monitor/state').then((m) => {
+      if (m.on_break && m.break_started_at) {
+        setBreakStatus((cur) => cur ?? 'Break');
+        setBreakTimer(Math.max(0, Math.floor((Date.now() - new Date(m.break_started_at).getTime()) / 1000)));
+      }
+    }).catch(() => {});
+  }, []);
+
+  async function breakAction(label: string | null) {
+    setShowBreakMenu(false);
+    try {
+      await api(label ? '/monitor/break/start' : '/monitor/break/end', { method: 'POST' });
+      setBreakStatus(label);
+      setBreakTimer(0);
+      attendanceChanged();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof ApiFailure ? e.message : 'Could not save the break.' });
+    }
+  }
+
   // Break timer
   useEffect(() => {
     if (!breakStatus) return;
@@ -122,13 +146,16 @@ export default function AttendancePage() {
       if (!isCheckedIn) {
         await api('/attendance/check-in', { method: 'POST' });
         setMsg({ ok: true, text: todayData.check_in ? 'Checked in again successfully!' : 'Checked in successfully!' });
+        onCheckedIn().catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : 'Screen sharing failed.' }));
       } else {
         await api('/attendance/check-out', { method: 'POST', body: { notes: notes.trim() || null } });
+        onCheckedOut();
         setMsg({ ok: true, text: 'Checked out successfully!' });
         setNotes('');
         setBreakStatus(null);
       }
       loadWorkspace();
+      attendanceChanged();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof ApiFailure ? e.message : 'Punch action failed.' });
     } finally {
@@ -376,11 +403,7 @@ export default function AttendancePage() {
               <div className="absolute right-0 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg z-20 text-xs">
                 {breakStatus ? (
                   <button
-                    onClick={() => {
-                      setBreakStatus(null);
-                      setBreakTimer(0);
-                      setShowBreakMenu(false);
-                    }}
+                    onClick={() => breakAction(null)}
                     className="w-full text-left px-3 py-1.5 text-rose-600 font-semibold hover:bg-rose-50"
                   >
                     ⏹ End Break
@@ -388,31 +411,19 @@ export default function AttendancePage() {
                 ) : (
                   <>
                     <button
-                      onClick={() => {
-                        setBreakStatus('Tea Break');
-                        setBreakTimer(0);
-                        setShowBreakMenu(false);
-                      }}
+                      onClick={() => breakAction('Tea Break')}
                       className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-100"
                     >
                       ☕ Tea Break (15m)
                     </button>
                     <button
-                      onClick={() => {
-                        setBreakStatus('Lunch Break');
-                        setBreakTimer(0);
-                        setShowBreakMenu(false);
-                      }}
+                      onClick={() => breakAction('Lunch Break')}
                       className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-100"
                     >
                       🍱 Lunch Break (45m)
                     </button>
                     <button
-                      onClick={() => {
-                        setBreakStatus('Break');
-                        setBreakTimer(0);
-                        setShowBreakMenu(false);
-                      }}
+                      onClick={() => breakAction('Break')}
                       className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-100"
                     >
                       ⏸ Personal Break

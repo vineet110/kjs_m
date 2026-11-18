@@ -297,3 +297,38 @@ export type Task = {
   overdue: boolean; completed_at: string | null; created_at: string;
 };
 export type TaskStats = { total: number; done: number; pending: number; overdue: number };
+
+// ----- Work pages (Team work / My work): /work/... -----
+export type WorkCounts = { calls: number; emails: number; notes: number; outcomes: number; tasks_done: number; chat: number };
+export type TeamWorkRow = WorkCounts & {
+  user_id: number; name: string; is_available: boolean; state: string; check_in: string | null; check_out: string | null; hours: number;
+  on_break: boolean; break_minutes: number; idle_minutes: number; sharing: 'started' | 'stopped' | 'refused' | null;
+  device: 'laptop' | 'phone' | null; extension: 'connected' | 'not_connected';
+};
+export type TeamWork = {
+  day: string; rows: TeamWorkRow[]; refresh_seconds: number;
+  summary: { people: number; checked_in_now: number; checked_out: number; not_in: number; on_break: number; idle_now: number };
+};
+export type WorkOverview = {
+  user: { id: number; name: string; email: string; role: string }; from: string; to: string; today: Today;
+  extension: 'connected' | 'not_connected';
+  totals: WorkCounts & { days_present: number; hours: number; break_minutes: number; idle_minutes: number; screenshots: number };
+};
+export type TimelineKind = 'call' | 'email' | 'note' | 'outcome' | 'task' | 'chat' | 'attendance' | 'break' | 'idle' | 'screen';
+export type TimelineItem = {
+  kind: TimelineKind; at: string; day: string; time: string; title: string; text: string;
+  lead_id?: number; task_id?: number; channel_id?: number;
+};
+export type Timeline = { items: TimelineItem[]; next_before: string | null };
+// ----- Monitoring (Phase B): /monitor/state, /work/{id}/screenshots -----
+export type MonitorState = {
+  checked_in: boolean; on_break: boolean; break_started_at: string | null; break_minutes_today: number;
+  extension: 'connected' | 'not_connected';
+  idle: { id: number; started_at: string; minutes: number; reason: string } | null;
+  last_screenshot_at: string | null;
+  config: { screenshot_minutes: number; image_quality: number; max_screenshot_kb: number; break_minutes_per_day: number; idle_warn_minutes: number };
+};
+export type ScreenshotDay = {
+  day: string; screenshots: { id: number; taken_at: string; time: string; size_kb: number; source: string }[];
+  gaps: { from: string; to: string | null; state: 'stopped' | 'refused' }[];
+};

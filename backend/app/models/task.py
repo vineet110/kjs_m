@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -11,6 +11,7 @@ class Task(Base, TimestampMixin):
     lead, board (order-board step template) or batch (auto-assign)."""
 
     __tablename__ = "tasks"
+    __table_args__ = (Index("ix_tasks_assignee_completed", "assignee_id", "completed_at"),)  # timeline (0027)
 
     title: Mapped[str] = mapped_column(String(200))
     notes: Mapped[str] = mapped_column(Text, default="")

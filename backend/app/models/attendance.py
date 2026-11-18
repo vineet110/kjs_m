@@ -19,6 +19,8 @@ class Attendance(Base, TimestampMixin):
     total_seconds: Mapped[int] = mapped_column(Integer, server_default="0", default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="present")  # present | late | leave | half_day
     source: Mapped[str] = mapped_column(String(20), default="punch")  # punch | regularized
+    device: Mapped[str | None] = mapped_column(String(10))  # laptop | phone, set at check-in (0028)
+    break_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # over the break limit: told once
 
     punches: Mapped[list["AttendancePunch"]] = relationship(
         "AttendancePunch",
