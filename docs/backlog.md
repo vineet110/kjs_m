@@ -27,6 +27,8 @@ Sections in this file:
    11. Speed
    12. Home page ideas waiting for a decision
    13. Whole-repo code review (29 Oct)
+   14 to 24: images, follow-ups by date, security, tooling, scaling, config per feature
+   25. Go-live review follow-ups (18 Nov)
 
 
 
@@ -1167,6 +1169,9 @@ R3. SLA due times are worked out live  🟢
 R4. Re-opening a lead to "new" keeps its old escalation level  🟢
 
    i.    It shows "overdue" at once and doesn't alert again.
+   ii.   18 Nov (go-live review): a plain reset was dropped. The resolve timer counts from `created_at`, so a
+         reopened old lead would alert at once, on every reopen. Needs a product decision first: should a reopen
+         start a new resolve timer?
 
 
 R5. Some lists make one database query per row (N+1)  🟢
@@ -1728,12 +1733,13 @@ R53. `config/storage.ini` allowed_types can only remove file types  🟢 after g
    ii.   Files are stored as uploaded (no conversion). Found in the config walkthrough (PR #56).
 
 
-R52. Koko on Groq's free tier fits only a few messages a minute  🔴 before real traffic (Vineet / KJS decide)
+R52. Koko on Groq's free tier fits only a few messages a minute  🟠 after launch (decided 18 Nov)
 
    i.    Free tier: 8,000 tokens a minute for the whole site. One Koko message is about 3,000 tokens (prompt about
          2,000 after PR #50, plus the chat and the reply), so about 2–3 messages a minute; more get the fallback.
    ii.   Fix: a paid Groq tier (much higher limits, low cost), or another provider (`llm.py`, decision D4).
    iii.  Before PR #50 every message failed (413: all 72 products, about 8,300 tokens). See A92.
+   iv.   18 Nov, Vineet: launch on the free tier; replace it later. The tester brief lists the fallback as expected.
 
 
 R51. `scripts/e2e/login_e2e.mjs` is unsteady  🟢 after go-live (Nishita)
@@ -1852,9 +1858,10 @@ R67. Not done yet  🟢
 ## 20. Email checks and own server (16–17 Nov)
 
 
-R68. Email checks, parked until our own server  🔴 before going live (Vineet)
+R68. Email checks, parked until our own server  🟠 after launch (decided 18 Nov)
 
    i.    Why parked: decision 55. First make email work on the VPS, then this list.
+         18 Nov, Vineet: checks stay off for the launch; an admin approves every sign-up.
    ii.   Review findings on #87:
          a. `auth.py:30`: an old account (no `firebase_uid`) that signs up again gets `verify_email = false`,
             but its login always needs a verified email, so it is stuck. Fix: `true` whenever the row has no
@@ -1955,7 +1962,7 @@ R76. Production does not insist on R2 storage  🟢
    i.    `production_problems()` (`core/config/__init__.py:73`) should refuse `STORAGE_DRIVER` other than r2.
 
 
-R90. Next.js 16.4.3 has a known security vulnerability  🟠 (next PR, Vineet's OK given 18 Nov)
+R90. Next.js 16.4.3 has a known security vulnerability  ✅ 18 Nov (PR #94, 16.4.6)
 
    i.    `next build` warns about it (18 Nov). Upgrade `next` (and `eslint-config-next` if present), then
          typecheck, `npm test`, build, and a live check of login and the portal.
@@ -2096,3 +2103,70 @@ R96. Health check can say "stuck" after `job_timeout_seconds` is lowered mid-job
 
    i.    `jobs/runner.py loop_is_alive()` uses the new timeout; the running job keeps the one it started with.
    ii.   Fix: remember the running job's timeout and use the larger of the two.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 25. Go-live review follow-ups (18 Nov, PRs #95, #96)
+
+Review of the basic release (dashboard, leads, employees, website, reports and settings): no security hole, no
+broken main flow. Fixed in #95: only an admin creates accounts, overview lead numbers need `leads.view_all`,
+"Load more" on lead lists (`config/leads.ini` page sizes), task tick error, holidays out of the attendance switch,
+report labels, sitemap. #96: chat, order boards, batches, harvester off; attendance admin only.
+Tester brief (private artifact, Vineet shares it): "KJS Basic Release: Tester Brief".
+
+
+R97. VPS-day steps found in the review  🔴 before go-live (Vineet)
+
+   i.    nginx `connect-src` (`deploy/nginx/security-headers.conf:17`) blocks Firebase: add
+         `https://identitytoolkit.googleapis.com https://securetoken.googleapis.com`, or staff can't log in.
+         Also the final image domain there (R48).
+   ii.   Jobs are off in `config/app.ini`: turn them on for that server only (`KJS__APP__JOBS_ENABLED=true`).
+         First close or clean the old test leads, or the first SLA check sends a pile of alerts.
+   iii.  Check every `KJS__*` value is in bounds before the first start (R91).
+   iv.   Secrets (B9, B14, R50.ii, R61), Firebase authorized domain, backups and the restore drill (R50).
+
+
+R98. A disabled employee's open leads stay assigned to them  🔴 before go-live (after UAT)
+
+   i.    Decided 18 Nov: on disable, their new / contacted leads go back to unassigned, with a note on each
+         lead and one audit row; closed leads keep their owner.
+   ii.   Place: `auth_service.set_status`, next to `return_open_batch`. Auto-assign stays as it is.
+   iii.  Until then an admin reassigns by hand ("Any owner" filter in All Enquiries).
+
+
+R99. No leads export  ✅ 18 Nov (decided: launch without one)
+
+   i.    The only export is attendance (`attendance.py`). A leads export is a new feature if KJS asks.
+
+
+R100. Website text and SEO fields  🟢 (covered by the dynamic UI work)
+
+   i.    Non-coffee words hard-coded: home page (line 66), layout title, private-label description, search
+         placeholder, JSON-LD, Koko's prompt. Ignored for now (Vineet, 18 Nov).
+   ii.   Admin > Website "Products: page title / description" (`seo.products.*`) are saved but never read
+         (`products/page.tsx` has a fixed title).
+
+
+R101. Small findings from the go-live review  🟢
+
+   i.    Contacts list and contact page stop at 5,000 leads (`lead_service.py`).
+   ii.   `POST /employee/leads/import` (JSON save) has no rate limit; the preview has one.
+   iii.  No `metadataBase`, canonical or `openGraph`: shared links show no preview.
+   iv.   Audit page shows the newest 500 rows, no filter or paging.
+   v.    `staff.approve` also opens Reports, Settings, Complaints and config reload: a broad permission.
+   vi.   `services/auto_assign_service.py` is a dead stub (fake numbers, nothing calls it): delete it.
+   vii.  `/auth/logout` doesn't need the CSRF header (another site could log someone out; low impact).
+   viii. Any employee can hand over an unassigned lead without taking it (works around backlog A8). Decide.
+   ix.   Reports: tasks are grouped by name (two people with one name merge); attendance "leave" counts as present.
+
+
+R102. `npm audit`: Firebase 13 pulls in `@grpc/grpc-js` alerts  🟢
+
+   i.    npm's "fix" is a downgrade to Firebase 9 (wrong). Check whether a newer Firebase fixes it; we use only
+         Firebase Auth in the browser.
+
+
+R103. `npm audit`: Tailwind 3 build tools (chokidar, micromatch, picomatch, fast-glob)  🟢
+
+   i.    Build and dev only, not on the live site. Fix is Tailwind 4: a major upgrade, its own PR.
