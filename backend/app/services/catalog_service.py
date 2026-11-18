@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.core.permissions import effective_permissions
 from app.models.catalog import Category, Product
+from app.models.file import StoredFile
 from app.models.user import User
 from app.schemas.catalog import CategoryOut, ProductIn, ProductOut
 from app.services import audit_service, file_service
@@ -22,13 +23,27 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:110]
 
 
-def _product_out(p: Product, c: Category) -> ProductOut:
+def _product_out(p: Product, c: Category, photo_url: str | None = None) -> ProductOut:
     return ProductOut(
         id=p.id, slug=p.slug, name=p.name, description=p.description, pack_formats=p.pack_formats,
         moq=p.moq, image_path=p.image_path, private_label=p.private_label,
         is_best_seller=p.is_best_seller, offer_percent=p.offer_percent, category_slug=c.slug, category_name=c.name,
-        is_active=p.is_active,
+        is_active=p.is_active, photo_url=photo_url,
     )
+
+
+async def _first_photos(db: AsyncSession, slugs: list[str]) -> dict[str, str]:
+    """The first photo uploaded with "Show on website" ticked, per product slug. The cards use it when the
+    product has no image path (a photo uploaded in Admin > Products). Same address the product page uses."""
+    if not slugs:
+        return {}
+    rows = await db.execute(
+        select(StoredFile.owner_id, func.min(StoredFile.id))
+        .where(StoredFile.owner_type == "product", StoredFile.owner_id.in_(slugs), StoredFile.is_public.is_(True),
+               StoredFile.deleted_at.is_(None), StoredFile.content_type.like("image/%"))
+        .group_by(StoredFile.owner_id)
+    )
+    return {slug: f"/api/v1/public/files/{file_id}" for slug, file_id in rows.all()}
 
 
 async def list_categories(db: AsyncSession) -> list[CategoryOut]:
@@ -76,7 +91,9 @@ async def list_products(
         q = q.where(Category.slug.in_([category_slug, *SUBCATEGORIES.get(category_slug, [])]))
     if best_sellers:
         q = q.where(Product.is_best_seller)
-    return [_product_out(p, c) for p, c in (await db.execute(q)).all()]
+    rows = (await db.execute(q)).all()
+    photos = await _first_photos(db, [p.slug for p, _ in rows])
+    return [_product_out(p, c, photos.get(p.slug)) for p, c in rows]
 
 
 async def get_product(db: AsyncSession, slug: str) -> ProductOut:
@@ -89,7 +106,8 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
     ).first()
     if row is None:
         raise AppError(404, "not_found", "Product not found.")
-    return _product_out(*row)
+    p, c = row
+    return _product_out(p, c, (await _first_photos(db, [p.slug])).get(p.slug))
 
 
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:

@@ -189,3 +189,34 @@ async def test_a_failed_save_leaves_no_stored_copy(client, monkeypatch):
     assert kept
     with pytest.raises(StorageError):  # gone from storage
         storage().get(kept[0])
+
+
+PNG = ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")
+
+
+async def test_cards_get_the_first_public_photo_of_a_product(client):
+    """A product added with a photo (Admin > Products > Add) has no image path: the lists and the product
+    give the first photo marked "show on website", so the cards show a picture. Private photos and spec
+    sheets never become the card picture."""
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Photo Coffee"}, headers=HDR)).json()
+    await _upload(client, owner_id=p["slug"], file=PNG)  # not public
+    await _upload(client, owner_id=p["slug"], public=True)  # public, but a PDF
+    first = (await _upload(client, owner_id=p["slug"], file=PNG, public=True)).json()["id"]
+    await _upload(client, owner_id=p["slug"], file=PNG, public=True)  # a second photo: not the card one
+    client.cookies.clear()
+    url = f"/api/v1/public/files/{first}"
+    listed = {x["slug"]: x for x in (await client.get("/api/v1/public/products")).json()}
+    assert listed[p["slug"]]["photo_url"] == url
+    assert (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["photo_url"] == url
+    assert (await client.get(url)).status_code == 200  # the address really serves the picture
+
+
+async def test_a_product_without_public_photos_has_no_card_photo(client):
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Plain Coffee"}, headers=HDR)).json()
+    await _upload(client, owner_id=p["slug"], file=PNG)  # private only
+    client.cookies.clear()
+    assert (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["photo_url"] is None

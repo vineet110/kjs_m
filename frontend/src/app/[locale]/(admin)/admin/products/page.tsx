@@ -3,7 +3,7 @@
 // No prices yet (backlog I3).
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import FileList from '@/components/portal/FileList';
+import FileList, { uploadOne } from '@/components/portal/FileList';
 import { useToast } from '@/components/portal/Toast';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type Category, type Product } from '@/lib/api';
@@ -39,7 +39,7 @@ export default function AdminProducts() {
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const f = Object.fromEntries(new FormData(form));
+    const { photo, ...f } = Object.fromEntries(new FormData(form));
     const body: Record<string, unknown> = {
       ...f, private_label: f.private_label === 'on', is_best_seller: f.is_best_seller === 'on',
       offer_percent: f.offer_percent ? Number(f.offer_percent) : null, // empty = no offer
@@ -62,8 +62,20 @@ export default function AdminProducts() {
         toast(`Saved "${f.name}". The website shows it within a minute`);
         setEditing(null);
       } else {
-        await api('/admin/products', { method: 'POST', body });
+        const added = await api<Product>('/admin/products', { method: 'POST', body });
         setMsg(null);
+        // The photo needs the product to exist first (it's filed under the product's slug), so it goes
+        // up after the product is saved, ticked "Show on website". If it fails, the product stays saved.
+        if (photo instanceof File && photo.size > 0) {
+          try {
+            await uploadOne('product', added.slug, photo, true);
+          } catch (err) {
+            toast(`Added "${f.name}", but the photo didn't upload${err instanceof ApiFailure ? ` (${err.message})` : ''}. Add it from Photos & files`, 'error');
+            form.reset();
+            load();
+            return;
+          }
+        }
         toast(`Added "${f.name}". It is live on the website within a minute`);
       }
       form.reset();
@@ -99,7 +111,12 @@ export default function AdminProducts() {
         <div><label className="label">Pack formats</label><input name="pack_formats" defaultValue={e?.pack_formats} className="input" placeholder="Stick pack 18 g, Pouch 1 kg" /></div>
         <div><label className="label">Minimum order</label><input name="moq" defaultValue={e?.moq} className="input" placeholder="100,000 units" /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea name="description" defaultValue={e?.description} rows={3} className="input" /></div>
-        <div><label className="label">Image path (optional; or upload a photo below)</label><input name="image_path" defaultValue={e?.image_path} className="input" placeholder="/images/products/coffee-stick.jpg" /></div>
+        {e ? (
+          // Old products keep their picture path; new photos go in through "Photos & files" below
+          <div><label className="label">Image path (optional; or upload a photo in Photos & files)</label><input name="image_path" defaultValue={e.image_path} className="input" placeholder="/images/products/coffee-stick.jpg" /></div>
+        ) : (
+          <div><label className="label" htmlFor="photo">Photo (optional; shown on the website)</label><input id="photo" name="photo" type="file" accept="image/*" className="input" /></div>
+        )}
         <div>
           <label className="label" htmlFor="offer_percent">Offer % (optional): shows &quot;Up to X% OFF&quot;</label>
           <input id="offer_percent" name="offer_percent" type="number" min={1} max={90} step={1} defaultValue={e?.offer_percent ?? ''} className="input" placeholder="Leave empty for no offer" />
