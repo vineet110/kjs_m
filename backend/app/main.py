@@ -17,6 +17,7 @@ from app.core.logs import RequestContextMiddleware, setup_logging
 from app.jobs import runner
 from app.services import (  # noqa: F401  (importing them registers their background jobs)
     assign_service, board_service, file_service, harvest_service, lead_service, notification_service,
+    site_insights_service,
 )
 
 setup_logging()
@@ -32,6 +33,12 @@ async def lifespan(_: FastAPI):
     log.info("app.started", extra={"env": settings.APP_ENV, "jobs": list(runner.JOBS)})
     # Tests run jobs directly (runner.run_job), never on a timer.
     task = None if settings.APP_ENV == "test" else asyncio.create_task(runner.loop())
+    if settings.APP_ENV != "test":
+        # Old visitor events go even while background jobs are off (app.ini jobs_enabled). Never blocks start-up.
+        try:
+            await site_insights_service.cleanup_at_start()
+        except Exception:
+            log.exception("site_insights.cleanup_at_start_failed")
     if task:
         task.add_done_callback(_loop_ended)
     yield

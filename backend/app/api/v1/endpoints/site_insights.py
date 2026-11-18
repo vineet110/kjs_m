@@ -1,13 +1,13 @@
 """Website insights.
 
 - public_router: the website's tracker sends what visitors do (no login). Always answers 204, even when
-  nothing is saved (staff, robots, area off), so the website never shows an error for it.
+  nothing is saved (staff, robots, area off, over a rate limit), so the website never shows an error for it.
 - router: Reports > Website insights (permission insights.view, area site_insights).
 """
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -28,7 +28,7 @@ MAX_EVENTS_HARD = 100
 
 class EventIn(BaseModel):
     kind: Literal["page", "search", "click"]
-    # The website page, a path like /en/products/x (never a full link to another site)
+    # The website page, a path like /products/x (never a full link to another site)
     path: str = Field(max_length=300, pattern=r"^/([^/\s]\S*)?$")
     referrer: str | None = Field(default=None, max_length=500)  # page: the site the visitor came from
     query: str | None = Field(default=None, max_length=200)  # search: the words typed
@@ -39,13 +39,8 @@ class EventIn(BaseModel):
 class EventsIn(BaseModel):
     visit_id: str = Field(pattern=r"^[A-Za-z0-9-]{8,40}$")  # random per browser tab, made by the website
     events: list[EventIn] = Field(min_length=1, max_length=MAX_EVENTS_HARD)
-
-    @field_validator("events")
-    @classmethod
-    def not_too_many(cls, v: list[EventIn]) -> list[EventIn]:
-        if len(v) > cfg().site_insights.max_events_per_send:
-            raise ValueError(f"At most {cfg().site_insights.max_events_per_send} events at a time.")
-        return v
+    # More than max_events_per_send (site_insights.ini) are not refused: the extra ones are dropped, so a page
+    # still running older settings loses only those, not the whole batch.
 
 
 @public_router.post("/events", status_code=204)

@@ -196,14 +196,15 @@ BUTTON_NAME = r"^[a-z][a-z0-9_]{1,39}$"  # a tracked button's name: add_to_enqui
 
 
 class SiteInsightsIni(BaseModel):
-    """Website insights: what visitors view, search and click (anonymous; no cookie, no IP, no name)."""
+    """Website insights: what visitors view, search and click (no cookie, no IP; see site_insights_service)."""
     keep_days: int = Field(180, ge=30, le=730)  # older visitor events are deleted
-    cleanup_every_hours: int = Field(6, ge=1, le=168)  # how often that delete runs (on a send or a report)
-    default_days: int = Field(30, ge=1, le=365)  # range shown when the report opens
+    cleanup_every_hours: int = Field(6, ge=1, le=168)  # how often that delete runs
+    default_days: int = Field(30, ge=1, le=365)  # range shown when the report opens (at most keep_days)
     day_choices: list[int] = Field(default_factory=lambda: [7, 30, 90])  # buttons above the report
     top_n: int = Field(10, ge=3, le=50)  # rows in each "top" list
     max_events_per_send: int = Field(20, ge=1, le=100)  # events in one request from a browser
-    sends_per_minute: int = Field(30, ge=1, le=600)  # requests per visitor network per minute
+    sends_per_minute_per_visit: int = Field(20, ge=5, le=600)  # one tab sends about 6 a minute
+    sends_per_minute_per_network: int = Field(600, ge=30, le=10000)  # many visitors can share one network
     send_every_seconds: int = Field(10, ge=2, le=120)  # how often a browser sends what it collected
     search_pause_ms: int = Field(1500, ge=300, le=10000)  # typing pause before a search is recorded
     min_search_chars: int = Field(2, ge=1, le=10)  # shorter searches are not recorded
@@ -211,6 +212,10 @@ class SiteInsightsIni(BaseModel):
     buttons: list[str] = Field(default_factory=lambda: [
         "add_to_enquiry", "spec_sheet", "price_sheet", "whatsapp", "call", "send_enquiry", "configurator",
         "sample_quote"])
+    # Website pages counted by their address. Product and category pages count when the product or category
+    # exists. Any other address is saved as "other" (it could carry anything, like an email).
+    pages: list[str] = Field(default_factory=lambda: [
+        "/", "/products", "/categories", "/contact", "/partners", "/private-label"])
     # Visitors whose browser name contains one of these words are robots and are not counted
     bot_words: list[str] = Field(default_factory=lambda: [
         "bot", "crawl", "spider", "slurp", "headless", "lighthouse", "preview", "curl", "wget", "python",
@@ -230,6 +235,23 @@ class SiteInsightsIni(BaseModel):
         if bad or not v:
             raise ValueError(f"button names must be lowercase words joined by _ (bad: {bad})")
         return v
+
+    @field_validator("pages")
+    @classmethod
+    def pages_ok(cls, v: list[str]) -> list[str]:
+        bad = [p for p in v if not re.match(r"^/[a-z0-9\-/]*$", p)]
+        if bad:
+            raise ValueError(f"pages must be addresses like /contact (bad: {bad})")
+        return [p.rstrip("/") or "/" for p in v]
+
+    @model_validator(mode="after")
+    def ranges_fit_keep_days(self):
+        # A range longer than the days kept would show an error every time the report opens
+        if self.default_days > self.keep_days:
+            raise ValueError("default_days must be at most keep_days")
+        if not any(d <= self.keep_days for d in self.day_choices):
+            raise ValueError("at least one of day_choices must be at most keep_days")
+        return self
 
     @field_validator("bot_words")
     @classmethod
@@ -257,7 +279,9 @@ class ModulesIni(BaseModel):
     audit: ModuleLevel = "on"
     chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
     lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
-    site_insights: ModuleLevel = "on"  # Website insights tab on Reports; off = visitors are not recorded
+    # Website insights tab on Reports; off = visitors are not recorded. Off when the line is missing, so a
+    # modules.ini with analytics = off and no site_insights line stays valid (it needs analytics).
+    site_insights: ModuleLevel = "off"
 
     @field_validator("*", mode="before")
     @classmethod
