@@ -80,3 +80,6 @@ login_ip_limiter = RateLimiter(limit=lambda: cfg().app.login_failures_per_ip, wi
 signup_limiter = RateLimiter(limit=lambda: cfg().app.signups_per_ip_per_hour, window_seconds=3600)
 # Chat messages per person (not per IP): stops a stuck key or a script flooding a channel.
 chat_send_limiter = RateLimiter(limit=lambda: cfg().chat.send_per_minute, window_seconds=60)
+# Website insights: sends per visit and per network per minute (config/site_insights.ini)
+insights_visit_limiter = RateLimiter(limit=lambda: cfg().site_insights.sends_per_minute_per_visit, window_seconds=60)
+insights_network_limiter = RateLimiter(limit=lambda: cfg().site_insights.sends_per_minute_per_network, window_seconds=60)

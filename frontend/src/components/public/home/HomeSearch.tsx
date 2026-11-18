@@ -3,9 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Category } from '@/lib/api';
 import { isUploaded, matchesSearch, searchEntry } from '@/lib/catalogue';
+import { cancelSearch, trackSearch } from '@/lib/insights';
 import { startNavigationProgress } from '../NavigationProgress';
 import { useCatalogue } from './CatalogueContext';
 
@@ -17,10 +18,17 @@ export default function HomeSearch({ categories, coffee = false }: { categories:
   const [open, setOpen] = useState(false);
 
   const index = useMemo(() => products.map((p) => ({ p, entry: searchEntry(p) })), [products]);
-  const matches = useMemo(
-    () => index.filter(({ p, entry }) => (!cat || p.categorySlug === cat) && matchesSearch(entry, q)).map(({ p }) => p).slice(0, 6),
+  const found = useMemo(
+    () => index.filter(({ p, entry }) => (!cat || p.categorySlug === cat) && matchesSearch(entry, q)).map(({ p }) => p),
     [q, cat, index],
   );
+  const matches = found.slice(0, 6);
+  // Website insights: what was searched and how many products it found (recorded after a typing pause)
+  useEffect(() => {
+    if (q.trim()) trackSearch(q, found.length);
+    else cancelSearch(); // cleared before the pause ended: nothing is recorded
+  }, [q, found.length]);
+  useEffect(() => cancelSearch, []); // the search box closed (another page): forget a waiting search
 
   function submit(e: React.FormEvent) {
     e.preventDefault();

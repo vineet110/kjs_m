@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, koko, public, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, koko, public, site_insights, tasks
 from app.core.modules import area
 
 api_router = APIRouter()
@@ -8,6 +8,9 @@ api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(public.router, prefix="/public", tags=["Public"])
+api_router.include_router(site_insights.public_router, prefix="/public/insights", tags=["Public"])  # no login
+api_router.include_router(site_insights.router, prefix="/admin/site-insights", tags=["Website insights"],
+                          dependencies=area("site_insights"))
 api_router.include_router(koko.router, prefix="/koko", tags=["Koko AI"])
 api_router.include_router(employee.router, prefix="/employee", tags=["Employee"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])  # areas set per route

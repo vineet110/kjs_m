@@ -53,7 +53,9 @@ def write(path, text):
 
 # ---------- The file ----------
 def test_all_on_by_default(config_dir):
-    assert all(getattr(ini.cfg().modules, a) == "on" for a in AREAS)
+    # site_insights is off when its line is missing: it needs analytics, which a file may switch off
+    assert all(getattr(ini.cfg().modules, a) == "on" for a in AREAS if a != "site_insights")
+    assert ini.cfg().modules.site_insights == "off"
 
 
 def test_values_any_case(config_dir):

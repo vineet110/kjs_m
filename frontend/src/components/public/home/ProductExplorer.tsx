@@ -150,6 +150,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
                   <EnquiryButton label="Get quote" source="quote" productSlug={p.slug} title={`Quote for ${p.name}`} className="btn-gold flex-1 !px-2 !py-1.5 text-xs" />
                   <button
                     onClick={() => toggle(p.slug)}
+                    data-track={inList ? undefined : 'add_to_enquiry'} // Website insights: adding only
                     aria-pressed={inList}
                     className={`btn !px-2 !py-1.5 text-xs ${inList ? 'border border-forest bg-forest/10 text-forest' : 'border border-slate-300 text-slate-700 hover:border-gold'}`}
                     title={inList ? 'Remove from enquiry list' : 'Add to enquiry list'}
@@ -215,7 +216,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
               <p className="mt-3 text-xs text-slate-500">Prices and minimum order quantities on request. Available as private label in your pack design.</p>
               <div className="mt-auto flex flex-wrap gap-2 pt-5">
                 <EnquiryButton label="Get quote" source="quote" productSlug={quick.slug} title={`Quote for ${quick.name}`} />
-                <button onClick={() => toggle(quick.slug)} className="btn-ghost">
+                <button onClick={() => toggle(quick.slug)} className="btn-ghost" data-track={list.includes(quick.slug) ? undefined : 'add_to_enquiry'}>
                   {list.includes(quick.slug) ? '✓ In enquiry list' : '+ Add to enquiry list'}
                 </button>
                 <Link href={`/products/${quick.slug}`} className="btn px-2 text-slate-700 hover:text-ink">Full details →</Link>

@@ -68,4 +68,13 @@ async def test_public_config_endpoint_has_no_secrets(client):
     r = await client.get("/api/public/config")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"site_name", "features"} and "koko" in body["features"]
+    assert set(body) == {"site_name", "features", "insights"} and "koko" in body["features"]
+    # insights: only the website tracker's timings and button names (site_insights.ini), nothing private
+    assert set(body["insights"]) == {"on", "send_every_seconds", "max_events_per_send", "search_pause_ms",
+                                     "min_search_chars", "buttons"}
+
+
+async def test_public_config_says_when_insights_are_off(client, monkeypatch):
+    monkeypatch.setenv("KJS__MODULES__SITE_INSIGHTS", "off")
+    ini.reload_now()
+    assert (await client.get("/api/public/config")).json()["insights"]["on"] is False

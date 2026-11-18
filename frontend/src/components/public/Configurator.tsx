@@ -3,6 +3,7 @@
 // then sends it to sales (a lead with source "configurator"). No price until KJS gives price bands.
 import { useState } from 'react';
 import EnquiryForm from './EnquiryForm';
+import { track } from '@/lib/insights';
 
 type P = { slug: string; name: string; formats: string; category: string };
 const PACKS = ['Stick pack', 'Sachet', 'Pouch', 'Jar', 'Bulk bag', 'Not sure yet'];
@@ -33,7 +34,15 @@ export default function Configurator({ products }: { products: P[] }) {
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setStep('send'); }} className="space-y-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        // Website insights: counted only here, once the browser has accepted the form (not on a refused click)
+        track({ kind: 'click', path: window.location.pathname, button: 'configurator' });
+        setStep('send');
+      }}
+      className="space-y-3"
+    >
       <h2 className="text-xl font-bold">Build your product</h2>
       <div>
         <label className="label" htmlFor="c-product">Product</label>
