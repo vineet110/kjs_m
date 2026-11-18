@@ -1022,6 +1022,29 @@ A102. No rate limit on filing complaints  🟢 (only logged-in staff can file)
 A103. The complaints page lists the newest 200 only  🟢
 
 
+### Website insights (18 Nov, PR #100)
+
+A104. No consent banner for Website insights  🟠 KJS (or a lawyer) to confirm
+
+   i.    No cookie, no IP saved, only known pages and the referring site's name: we think one line in the privacy
+         notice is enough under the DPDP Act. Search words are kept as typed (phone numbers and emails hidden).
+
+
+A105. A "visit" is one browser tab  🟢
+
+   i.    A random id in sessionStorage, gone when the tab closes. One person in two tabs = two visits.
+
+
+A106. A search is recorded after a 1.5 s typing pause  🟢
+
+   i.    "cof" then "coffee" can be two searches; a search cleared before the pause is not recorded.
+
+
+A107. Ad blockers may block the tracker  🟢
+
+   i.    Real numbers are a little higher than the report shows; the screen says so.
+
+
 
 
 
@@ -1406,10 +1429,12 @@ R32. Best sellers row  🟠 needs KJS
          ticked. Still needs KJS to say which products really sell best before anyone ticks them on the live site.
 
 
-R33. Frequently searched  🟢 needs a decision
+R33. Frequently searched  🟢 needs a decision (the data exists since 18 Nov)
 
    i.    The site does not record searches. A: "Popular searches" picked by the admin (frontend only).
          B: record anonymous search words and show the top ones (backend change, new table).
+   ii.   18 Nov (PR #100): searches are now recorded for Reports > Website insights (decision 60 in
+         `memory.md`). Showing "popular searches" on the website itself is still this open decision.
 
 
 ---------------------------------------------------------------------------------------------------
@@ -2223,3 +2248,30 @@ R109. Coffee-only known limits  🟢 later
    iii.  Only "coffee-only" is a mode; another single-category site needs a small code change.
    iv.   The default page title in `app/[locale]/layout.tsx` names every area (pages without their own title).
    v.    The normal Google home title is 68 characters (Google shows about 60).
+
+
+---------------------------------------------------------------------------------------------------
+
+## 27. Website insights follow-ups (18 Nov, PR #100)
+
+Reports > Website insights: decision 60 in `memory.md`. Guesses: A104-A107.
+
+
+R110. Chart values can only be read with a mouse  🟢 later (CodeRabbit on #100)
+
+   i.    The exact number of a bar shows on hover only: keyboard and phone users can't read it. Same for the
+         Business charts, so one small PR for every chart (`components/portal/charts.tsx`), for example a
+         hidden table for screen readers and values on tap.
+
+
+R111. Privacy notice line for Website insights  🟠 when the privacy notice is written
+
+   i.    Say that the site counts page views, searches and button clicks without cookies or IP addresses, and
+         keeps them 180 days. Depends on A104.
+
+
+R112. Linked product -> enquiry funnel  🟢 dropped for now (Vineet, 18 Nov)
+
+   i.    The first version counted the 3 steps separately, so a step could be bigger than the one before; the
+         panel was removed. Linking them needs the order of each visit's events. Same numbers today: "Pages
+         viewed" and "Most clicked buttons".
