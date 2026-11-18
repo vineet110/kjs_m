@@ -382,7 +382,7 @@ async def list_messages(db: AsyncSession, user: User, channel_id: int, *, before
     3. after=X: the ones just after X (catching up after a dropped connection).
     has_more: there are more in that direction."""
     await _membership(db, channel_id, user.id)
-    limit = max(1, min(limit, cfg().chat.page_max))  # config/chat.ini
+    limit = max(1, limit)  # the route already keeps it at most chat.ini page_max
     q = (select(ChatMessage, User.name).join(User, User.id == ChatMessage.sender_id)
          .where(ChatMessage.channel_id == channel_id))
     if after is not None:

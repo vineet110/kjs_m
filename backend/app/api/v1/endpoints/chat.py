@@ -113,8 +113,13 @@ async def unread_total(user: User = Depends(current_user), db: AsyncSession = De
 async def list_messages(channel_id: int, before: int | None = None, after: int | None = None,
                         limit: int = Query(default=50, ge=1),
                         user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    if limit > cfg().chat.page_max:  # config/chat.ini, read now (a Query bound would be fixed at start)
-        raise AppError(422, "limit_too_big", f"Ask for at most {cfg().chat.page_max} messages at a time.")
+    page_max = cfg().chat.page_max  # config/chat.ini, read now (a Query bound would be fixed at start)
+    if limit > page_max:
+        if after is None:
+            raise AppError(422, "limit_too_big", f"Ask for at most {page_max} messages at a time.")
+        # Catch-up after a dropped connection: a tab opened before page_max was lowered still asks for the
+        # old number. Cap it (has_more tells the page to ask again) instead of losing the missed messages.
+        limit = page_max
     return await chat_service.list_messages(db, user, channel_id, before=before, after=after, limit=limit)
 
 

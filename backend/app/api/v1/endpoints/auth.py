@@ -26,7 +26,7 @@ def _me(user: User) -> MeOut:
 def portal_limits() -> dict[str, int]:
     """Limits the portal pages check before sending (the server checks them again)."""
     c = cfg()
-    return {"chat_body_max": c.chat.body_max,
+    return {"chat_body_max": c.chat.body_max, "chat_page_max": c.chat.page_max,
             "complaint_min_title_words": c.complaints.min_title_words,
             "complaint_min_description_words": c.complaints.min_description_words}
 

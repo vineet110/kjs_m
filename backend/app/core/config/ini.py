@@ -92,7 +92,7 @@ class SlaIni(BaseModel):
 class AssignIni(BaseModel):
     batch_size: int = Field(20, ge=1, le=500)
     max_batches_per_day: int = Field(3, ge=1)
-    import_max_mb: int = Field(10, ge=1, le=50)  # one Excel / CSV file of leads to auto-assign
+    import_max_mb: int = Field(10, ge=1, le=25)  # one Excel / CSV file to auto-assign; nginx caps at 26 MB
     import_max_rows: int = Field(5000, ge=10, le=50000)
     work_start: str = Field("09:30", pattern=HHMM)
     work_end: str = Field("18:30", pattern=HHMM)
@@ -137,7 +137,7 @@ class LoggingIni(BaseModel):
 
 
 class StorageIni(BaseModel):
-    max_upload_mb: int = Field(25, ge=1, le=500)
+    max_upload_mb: int = Field(25, ge=1, le=25)  # nginx caps uploads at 26 MB: raise both together
     allowed_types: list[str] = Field(default_factory=lambda: [
         "pdf", "png", "jpg", "jpeg", "webp", "xlsx", "xls", "docx", "doc", "csv", "txt", "zip",
         "pptx", "ppt", "gif", "heic", "mp4", "mov"])
@@ -159,7 +159,7 @@ class ChatIni(BaseModel):
 class LeadsIni(BaseModel):
     """Lead limits other than the SLA minutes (those are in sla.ini)."""
     due_soon_minutes: int = Field(5, ge=0, le=120)  # a lead shows "due soon" this close to its target
-    file_max_mb: int = Field(10, ge=1, le=50)  # one Excel / CSV file read into the lead form or imported
+    file_max_mb: int = Field(10, ge=1, le=25)  # one Excel / CSV file read or imported; nginx caps at 26 MB
     file_preview_rows: int = Field(50, ge=1, le=500)  # rows shown to pick one lead from a file
     import_max_rows: int = Field(500, ge=1, le=5000)  # bulk import: each row becomes a lead
 

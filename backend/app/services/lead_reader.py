@@ -95,8 +95,8 @@ def _table(filename: str, data: bytes, max_rows: int) -> tuple[list[list[str]], 
         raise AppError(422, "file_type", "Old Excel files (.xls) can't be read. In Excel, use Save As > .xlsx.")
     if ext not in ("xlsx", "csv"):
         raise AppError(422, "file_type", "Please choose an Excel (.xlsx) or CSV file.")
-    max_mb = cfg().leads.file_max_mb
-    if len(data) > max_bytes():
+    max_mb = cfg().leads.file_max_mb  # read once: the check and the message use the same value
+    if len(data) > max_mb * 1024 * 1024:
         raise AppError(413, "too_big", f"Max {max_mb} MB for a file to read.")
     if not data or not file_check.is_valid(ext, data):
         raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file.")

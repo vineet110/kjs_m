@@ -64,14 +64,14 @@ async def read_lead_file(file: UploadFile = File(...), user: User = Depends(requ
 
 
 class ImportIn(BaseModel):
-    leads: list[InternalLeadIn] = Field(min_length=1, max_length=5000)  # the real cap: leads.ini import_max_rows
+    leads: list[InternalLeadIn] = Field(min_length=1)  # at most leads.ini import_max_rows (checked first, below)
     extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)  # for the audit log
 
-    @field_validator("leads")
+    @field_validator("leads", mode="before")  # before each row is parsed: a huge list is refused at once
     @classmethod
-    def not_too_many(cls, v: list) -> list:
+    def not_too_many(cls, v):
         limit = cfg().leads.import_max_rows
-        if len(v) > limit:
+        if isinstance(v, list) and len(v) > limit:
             raise ValueError(f"At most {limit} leads in one import.")
         return v
 

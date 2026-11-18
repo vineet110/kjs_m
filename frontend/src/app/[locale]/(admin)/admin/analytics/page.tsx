@@ -17,6 +17,7 @@ type Data = {
   // attendance, boards: null when that portal area is switched off (config/modules.ini)
   attendance: { day: string; present: number; late: number }[] | null;
   tasks_done: { name: string; done: number }[];
+  attendance_days?: number; tasks_days?: number; // config/analytics.ini
   boards: { active: Record<string, number>; finished: Record<string, number> } | null;
   koko: { chats: number; buyer_chats: number; leads: number };
 };
@@ -71,7 +72,7 @@ export default function Analytics() {
           <Columns data={d.leads_per_week.map((w) => ({ label: fmtDay(w.week), value: w.count }))} />
         </Panel>
         {d.attendance && (
-          <Panel title="Attendance, last 14 days">
+          <Panel title={`Attendance, last ${d.attendance_days ?? 14} days`}>
             <Legend items={[['Present', C1], ['Late', C2]]} />
             <StackedColumns data={d.attendance.map((a) => ({ label: fmtDay(a.day), a: a.present, b: a.late }))} />
           </Panel>
@@ -79,7 +80,7 @@ export default function Analytics() {
         <Panel title="Leads by source"><Bars data={toRows(d.leads_by_source)} /></Panel>
         <Panel title="Leads by status"><Bars data={toRows(d.leads_by_status)} /></Panel>
         <Panel title="Lead outcomes"><Bars data={toRows(d.leads_by_outcome)} /></Panel>
-        <Panel title="Tasks done per person (30 days)"><Bars data={d.tasks_done.map((t) => ({ label: t.name, value: t.done }))} /></Panel>
+        <Panel title={`Tasks done per person (${d.tasks_days ?? 30} days)`}><Bars data={d.tasks_done.map((t) => ({ label: t.name, value: t.done }))} /></Panel>
       </div>
     </div>
   );

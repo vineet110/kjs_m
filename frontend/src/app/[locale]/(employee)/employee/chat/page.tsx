@@ -185,10 +185,10 @@ function ChatPageInner() {
     if (!id) return;
     const last = lastIdRef.current;
     // 1. New messages since the last one we have. Skipped while the chat is still loading (last = 0):
-    //    "after 0" would fetch the OLDEST 100. 2. The newest 50 again: edits and deletes made while the
+    //    "after 0" would fetch the OLDEST page (chat.ini page_max). 2. The newest 50 again: edits and deletes made while the
     //    connection was down only show this way (their live events were lost).
     Promise.all([
-      last ? api<ChatPage>(`/chat/channels/${id}/messages?after=${last}&limit=100`) : Promise.resolve(null),
+      last ? api<ChatPage>(`/chat/channels/${id}/messages?after=${last}&limit=${me.limits?.chat_page_max ?? 100}`) : Promise.resolve(null),
       api<ChatPage>(`/chat/channels/${id}/messages`),
     ])
       .then(([missed, newest]) => {
@@ -206,7 +206,7 @@ function ChatPageInner() {
         setMessages((list) => [...missed.messages, ...newest.messages].reduce(upsert, list));
       })
       .catch(() => undefined);
-  }, [soon]);
+  }, [soon, me.limits?.chat_page_max]);
 
   const socket = useChatSocket(onEvent, onConnect);
   // Without a live connection (on Vercel, until server push), the portal's 30-second check notices new

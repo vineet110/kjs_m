@@ -22,8 +22,9 @@ router = APIRouter()
 def _check_dates(start: date, deadline: date) -> None:
     if deadline < start:
         raise ValueError("The deadline must be on or after the start date.")
-    if (deadline - start).days > cfg().boards.max_days:  # config/boards.ini
-        raise ValueError("A board can run at most 2 years.")
+    max_days = cfg().boards.max_days  # config/boards.ini
+    if (deadline - start).days > max_days:
+        raise ValueError(f"A board can run at most {max_days} days.")
 
 
 class StepIn(BaseModel):

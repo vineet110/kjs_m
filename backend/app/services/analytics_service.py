@@ -80,6 +80,7 @@ async def summary(db: AsyncSession) -> dict:
         "leads_by_source": by_source, "leads_by_status": by_status, "leads_by_outcome": by_outcome,
         "sla": {"answered": len(answered), "on_time": on_time, "breaches": breaches or 0},
         "attendance": attendance, "tasks_done": tasks_done,
+        "attendance_days": a_cfg.attendance_days, "tasks_days": a_cfg.tasks_days,  # for the panel titles
         "boards": {"active": states, "finished": {k or "Unknown": v for k, v in finished.items()}},
         "koko": {"chats": chats or 0, "buyer_chats": chat_buyers or 0, "leads": by_source.get("koko", 0)},
     }

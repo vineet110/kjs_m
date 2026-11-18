@@ -33,7 +33,10 @@ def test_list_keys_come_from_the_field_types():
 
 
 @pytest.mark.parametrize("key, bad", [("chat__body_max", 0), ("leads__import_max_rows", -1),
-                                      ("boards__max_days", 999999), ("complaints__min_title_words", 0)])
+                                      ("boards__max_days", 999999), ("complaints__min_title_words", 0),
+                                      # uploads: nginx stops anything over 26 MB, so more can never work
+                                      ("assign__import_max_mb", 26), ("leads__file_max_mb", 26),
+                                      ("storage__max_upload_mb", 26)])
 def test_a_value_that_would_break_a_feature_is_refused(monkeypatch, key, bad):
     before = ini.reload_now().model_dump()
     _set(monkeypatch, key, bad)
@@ -48,7 +51,8 @@ def test_koko_http_timeout_cannot_exceed_the_whole_call(monkeypatch):
 async def test_me_sends_the_portal_limits(client, monkeypatch):
     await make_user("e@kjsindia.com")
     me = (await login(client, "e@kjsindia.com")).json()
-    assert me["limits"] == {"chat_body_max": 4000, "complaint_min_title_words": 3, "complaint_min_description_words": 15}
+    assert me["limits"] == {"chat_body_max": 4000, "chat_page_max": 100, "complaint_min_title_words": 3,
+                            "complaint_min_description_words": 15}
     _set(monkeypatch, "chat__body_max", 500)
     assert (await client.get("/api/v1/auth/me")).json()["limits"]["chat_body_max"] == 500
 
@@ -69,3 +73,43 @@ async def test_complaint_word_minimum_applies_live(client, monkeypatch):
     _set(monkeypatch, "complaints__min_title_words", 6)
     r = await client.post("/api/v1/complaints", json=GOOD, headers=HDR)  # its title has 4 words
     assert r.status_code == 422 and "at least 6 words" in r.text
+
+
+async def test_chat_catch_up_is_capped_but_a_normal_page_too_big_is_refused(client, monkeypatch):
+    ids = await _team("asha", "ravi")
+    await login(client, "asha@kjsindia.com")
+    cid = (await _channel(client, member_ids=[ids["ravi"]]))["id"]
+    first = (await _send(client, cid, "msg 0")).json()["id"]
+    for i in range(1, 13):
+        await _send(client, cid, f"msg {i}")
+    _set(monkeypatch, "chat__page_max", 10)
+    url = f"/api/v1/chat/channels/{cid}/messages"
+    assert (await client.get(f"{url}?limit=100")).status_code == 422  # a normal load: refused
+    r = await client.get(f"{url}?after={first}&limit=100")  # an open tab catching up with the old number
+    assert r.status_code == 200 and len(r.json()["messages"]) == 10 and r.json()["has_more"]
+
+
+def test_board_message_names_the_configured_days(monkeypatch):
+    from datetime import date
+
+    from app.api.v1.endpoints.boards import _check_dates
+    _set(monkeypatch, "boards__max_days", 30)
+    with pytest.raises(ValueError, match="at most 30 days"):
+        _check_dates(date(2026, 1, 1), date(2026, 3, 1))
+
+
+async def test_analytics_sends_its_window_sizes(client, monkeypatch):
+    await make_user("admin@kjsindia.com", role="admin")
+    await login(client, "admin@kjsindia.com")
+    _set(monkeypatch, "analytics__attendance_days", 7)
+    a = (await client.get("/api/v1/admin/analytics")).json()
+    assert a["attendance_days"] == 7 and len(a["attendance"]) == 7 and a["tasks_days"] == 30
+
+
+async def test_a_huge_lead_import_is_refused_before_its_rows_are_read(client, monkeypatch):
+    await make_user("e@kjsindia.com", permissions=["leads.view"])
+    await login(client, "e@kjsindia.com")
+    _set(monkeypatch, "leads__import_max_rows", 1)
+    r = await client.post("/api/v1/employee/leads/import", json={"leads": [{}, {}]}, headers=HDR)
+    # broken rows, but the count is checked first: one clear message, not one error per row
+    assert r.status_code == 422 and "At most 1 leads" in r.text
