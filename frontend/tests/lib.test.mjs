@@ -220,7 +220,31 @@ test('asset: unchanged without an address, and for anything that is not a site p
 // ---------- offer badge (UI step 6): "Up to X% OFF", only when staff set an offer ----------
 const assetsSource = readFileSync(join(SRC, 'assets.ts'), 'utf8').replace(/export /g, '');
 const catalogueLib = await load('catalogue', '', assetsSource);
-const { offerLabel, toHomeProduct, imageOf, isUploaded } = catalogueLib;
+const { offerLabel, toHomeProduct, imageOf, isUploaded, coffeeOnly, focusText, rangeText } = catalogueLib;
+
+const cat = (slug, name = slug) => ({ id: 1, slug, name, description: '', product_count: 1 });
+
+test('coffeeOnly: Coffee is the only top-level category the public sees', () => {
+  assert.equal(coffeeOnly([cat('coffee')]), true);
+  assert.equal(coffeeOnly([cat('coffee'), cat('wafers')]), true, 'a subcategory alone never shows (its parent is hidden)');
+  assert.equal(coffeeOnly([cat('coffee'), cat('health-drinks')]), false);
+  assert.equal(coffeeOnly([cat('coffee'), cat('confectionery'), cat('wafers')]), false);
+  for (const none of [[], null, undefined]) assert.equal(coffeeOnly(none), false, 'no list (API down): the full site');
+});
+
+test('focusText: the coffee version when coffee-only and it exists, else the normal one', () => {
+  const t = { 'home.hero_text': 'Wafers and more', 'coffee.home.hero_text': 'Instant coffee' };
+  assert.equal(focusText(t, 'home.hero_text', true), 'Instant coffee');
+  assert.equal(focusText(t, 'home.hero_text', false), 'Wafers and more');
+  assert.equal(focusText({ 'seo.home.title': 'KJS' }, 'seo.home.title', true), 'KJS');
+});
+
+test('rangeText: the visible top-level categories in words, or the full range without a list', () => {
+  assert.equal(rangeText([cat('coffee', 'Coffee')]), 'coffee');
+  assert.equal(rangeText([cat('coffee', 'Coffee'), cat('health-drinks', 'Health drinks'), cat('wafers', 'Wafers')]), 'coffee and health drinks');
+  assert.equal(rangeText([cat('coffee', 'Coffee'), cat('tea', 'Tea'), cat('confectionery', 'Confectionery')]), 'coffee, tea and confectionery');
+  assert.equal(rangeText(null), 'coffee, tea, health drinks and confectionery');
+});
 
 test('imageOf: own site paths only (served from public/ when no R2 address is set)', () => {
   assert.equal(imageOf({ image_path: '/images/products/x.jpg' }), '/images/products/x.jpg');

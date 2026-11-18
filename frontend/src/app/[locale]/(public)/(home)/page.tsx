@@ -13,17 +13,24 @@ import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
-import { isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
+import { coffeeOnly, focusText, isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await texts();
-  return { title: { absolute: t['seo.home.title'] ?? 'KJS India' }, description: t['seo.home.description'] };
+  // Categories down: the normal title and description, never an error page
+  const [t, categories] = await Promise.all([texts(), serverGet<Category[]>('/public/categories').catch(() => null)]);
+  const coffee = coffeeOnly(categories);
+  return {
+    title: { absolute: focusText(t, 'seo.home.title', coffee) ?? 'KJS India' },
+    description: focusText(t, 'seo.home.description', coffee),
+  };
 }
 
 // "Popular" shows the products marked best seller in Admin > Products; these until any are marked
 const POPULAR_FALLBACK = ['gofrey-crispy-x2', 'pacho-mellow', 'petit-beurre-biscuits', 'maxi-cream-wafers', 'wafer-time'];
+// While Coffee is the only category shown (Admin > Products > Categories): the coffee products
+const COFFEE = ['agglomerated-instant-coffee', 'spray-dried-instant-coffee', 'freeze-dried-instant-coffee', 'coffee-3-in-1-premix'];
 
 const STEPS = [
   { title: 'Send your requirement', text: 'Product, pack size, volume and destination. One form, or the enquiry list.' },
@@ -39,6 +46,8 @@ export default async function HomePage() {
     texts(),
   ]);
   const cats = categories ?? []; // the API leaves out hidden categories (Admin > Products > Categories)
+  // Coffee-only: Coffee is the only category shown. The texts, pictures and lists below follow it.
+  const coffee = coffeeOnly(categories);
   const all = productList ?? [];
   // One small list for the browser (shared by search, menu and product range)
   const products = all.map(toHomeProduct);
@@ -55,30 +64,40 @@ export default async function HomePage() {
       // The headline and text editable in Admin > Website
       eyebrow: 'Co-manufacturing · Hyderabad, India',
       title: t['home.hero_title'] ?? SITE.tagline,
-      text: t['home.hero_text'] ?? '', // the backend always sends one (its default lives in content_service.TEXTS)
+      text: focusText(t, 'home.hero_text', coffee) ?? '', // the backend always sends one (content_service.TEXTS)
       href: '#range',
       cta: 'Explore the range',
-      images: pick(['gofrey-crispy-x2', 'pacho-chocolate-bar', 'bigy-mellow']),
+      images: pick(coffee ? COFFEE.slice(0, 3) : ['gofrey-crispy-x2', 'pacho-chocolate-bar', 'bigy-mellow']),
       tone: 'from-[#FDF0D9] via-[#F8DDAE] to-[#F1C47C]',
     },
-    {
-      eyebrow: 'Confectionery catalogue',
-      title: 'Chocolate bars, wafers and biscuits for your brand',
-      text: products.length
-        ? `${products.length} product families and ${itemCount} items, made and packed in Hyderabad for retailers, distributors and importers.`
-        : 'Made and packed in Hyderabad for retailers, distributors and importers.',
-      href: '#range',
-      cta: 'See all products',
-      images: pick(['pitaro-sandwich-biscuits', 'wafer-time', 'extreme4-dark']),
-      tone: 'from-[#FBEDEA] via-[#F4D3CD] to-[#E9B4AB]',
-    },
+    coffee
+      ? {
+          eyebrow: 'Coffee catalogue',
+          title: 'Instant coffee for your brand',
+          text: 'Agglomerated, spray-dried and freeze-dried coffee in 10% to 100% blends: stick packs, jars, tins, pouches, or bulk in 20, 50 and 250 kg.',
+          href: '#range',
+          cta: 'See the coffee range',
+          images: pick([COFFEE[3], COFFEE[0], COFFEE[2]]),
+          tone: 'from-[#FBEDEA] via-[#F4D3CD] to-[#E9B4AB]',
+        }
+      : {
+          eyebrow: 'Confectionery catalogue',
+          title: 'Chocolate bars, wafers and biscuits for your brand',
+          text: products.length
+            ? `${products.length} product families and ${itemCount} items, made and packed in Hyderabad for retailers, distributors and importers.`
+            : 'Made and packed in Hyderabad for retailers, distributors and importers.',
+          href: '#range',
+          cta: 'See all products',
+          images: pick(['pitaro-sandwich-biscuits', 'wafer-time', 'extreme4-dark']),
+          tone: 'from-[#FBEDEA] via-[#F4D3CD] to-[#E9B4AB]',
+        },
     {
       eyebrow: 'Private label',
       title: 'Your brand on our proven recipes',
       text: `Pick a product, choose the pack and weight, and launch faster with the co-manufacturer trusted by ${SITE.trustedBy.join(', ')}.`,
       href: '/private-label',
       cta: 'Build your private label',
-      images: pick(['maxi-big-wafers-chocolate', 'lupita-duble', 'peti-latte-2in1']),
+      images: pick(coffee ? [COFFEE[1], COFFEE[2], COFFEE[3]] : ['maxi-big-wafers-chocolate', 'lupita-duble', 'peti-latte-2in1']),
       tone: 'from-[#EEF5EF] via-[#D9EADC] to-[#B7D5BE]',
     },
   ];
@@ -87,7 +106,7 @@ export default async function HomePage() {
   // "Best sellers" section: every product really ticked in Admin > Products (no fallback list, no cut-off;
   // `products` is `all` mapped, so the same index is the same product)
   const bestSellerCards = products.filter((_, i) => all[i].is_best_seller);
-  const popular = (bestSellers.length ? bestSellers : POPULAR_FALLBACK)
+  const popular = (bestSellers.length ? bestSellers : coffee ? COFFEE : POPULAR_FALLBACK)
     .map((s) => products.find((p) => p.slug === s))
     .filter((p): p is HomeProduct => !!p)
     .slice(0, 6);
@@ -109,7 +128,7 @@ export default async function HomePage() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5">
           <div className="grid items-center gap-3 md:grid-cols-[1fr_auto]">
-            <HomeSearch categories={cats} />
+            <HomeSearch categories={cats} coffee={coffee} />
             <EnquiryButton label="Request for quotation" source="quote" title="Request for quotation" className="btn-dark rounded-full !py-3" />
           </div>
           {popular.length > 0 && (

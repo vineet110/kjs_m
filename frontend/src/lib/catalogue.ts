@@ -1,7 +1,7 @@
 // Catalogue products keep their item list inside the description, one line per item:
 // "• Item 801 (variant): 25 g, 24 pieces per box, 6 per case" (written by backend/app/seed_catalogue.py).
 // These helpers read it back so cards can show variants and item numbers.
-import type { Product } from './api';
+import type { Category, Product } from './api';
 import { asset } from './assets';
 
 export type CatalogueItem = { no: string; variant: string; weight: string; pieces: string; perCase: string };
@@ -29,6 +29,28 @@ export function summary(description: string): string {
 export const SUBCATEGORIES: Record<string, string[]> = {
   confectionery: ['chocolate-bars', 'wafers', 'biscuits', 'marshmallow-cakes'],
 };
+
+const CHILD_SLUGS = new Set(Object.values(SUBCATEGORIES).flat());
+const topLevel = (cats: Category[] | null | undefined): Category[] => (cats ?? []).filter((c) => !CHILD_SLUGS.has(c.slug));
+
+/** The site follows the category switches (Admin > Products): coffee-only when Coffee is the only top-level
+ *  category the public sees. No list (API down) = the full site. */
+export function coffeeOnly(cats: Category[] | null | undefined): boolean {
+  const top = topLevel(cats);
+  return top.length === 1 && top[0].slug === 'coffee';
+}
+
+/** A text from Admin > Website: its coffee version ("coffee." + key) when coffee-only and one is set. */
+export function focusText(t: Record<string, string>, key: string, coffee: boolean): string | undefined {
+  return (coffee ? t[`coffee.${key}`] : undefined) ?? t[key];
+}
+
+/** The range in words for the footer and Google: "coffee, health drinks and confectionery". */
+export function rangeText(cats: Category[] | null | undefined): string {
+  const names = topLevel(cats).map((c) => c.name.toLowerCase());
+  if (names.length === 0) return 'coffee, tea, health drinks and confectionery';
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
 
 /** A picture from our own site folder (served from R2 when set, see lib/assets.ts), else the first photo
  *  uploaded in Admin > Products, else null (empty, or an outside address Next.js would refuse). */

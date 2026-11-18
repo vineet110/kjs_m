@@ -224,3 +224,19 @@ async def test_switched_off_features_refuse_their_api(client, monkeypatch):
                "email": "r@example.com", "phone": "+91 98765 43210", "message": "Interested", "consent": True}
     r = await client.post("/api/v1/public/partners", json=partner, headers=HDR)
     assert r.status_code == 404, r.text
+
+
+async def test_coffee_versions_of_the_home_texts_are_public_with_defaults(client):
+    """The site uses them while Coffee is the only category shown (Admin > Products); editable in Admin > Website."""
+    t = (await client.get("/api/v1/public/texts")).json()
+    for key in ("coffee.home.hero_text", "coffee.seo.home.title", "coffee.seo.home.description"):
+        assert "coffee" in t[key].lower(), key
+        assert not any(w in t[key].lower() for w in ("wafer", "chocolate", "biscuit")), key
+
+
+def test_google_descriptions_fit_what_google_shows():
+    """Google shows about 160 characters of a description; the default texts stay within it."""
+    from app.services.content_service import TEXTS
+    for key, (_, default) in TEXTS.items():
+        if key.endswith("seo.home.description") or key.endswith("seo.products.description"):
+            assert len(default) <= 160, f"{key}: {len(default)} characters"

@@ -87,13 +87,14 @@ export default function CategoryMenu({ categories }: { categories: Category[] })
               );
             })}
           </ul>
-          {/* Fills the space under a short list: a picture of our chocolate bars, linking to them */}
-          <Link href="/categories/confectionery" className="group relative mx-3 mb-1 mt-auto block overflow-hidden rounded-lg pt-3">
+          {/* Fills the space under a short list: a picture of our chocolate bars, linking to them.
+              Only while Confectionery is shown (Admin > Products): a hidden category's page is a 404. */}
+          {categories.some((c) => c.slug === 'confectionery') && <Link href="/categories/confectionery" className="group relative mx-3 mb-1 mt-auto block overflow-hidden rounded-lg pt-3">
             <Image src={asset('/images/categories/confectionery.jpg')} alt="KJS India chocolate bars" width={400} height={250} className="aspect-[4/3] w-full rounded-lg object-cover transition-transform duration-500 group-hover:scale-105" />
             <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-ink/85 to-transparent px-3 pb-2.5 pt-8 text-sm font-semibold text-white">
               Chocolate bars & wafers <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-1">→</span>
             </span>
-          </Link>
+          </Link>}
         </div>
 
         {active && (

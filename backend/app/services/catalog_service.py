@@ -20,6 +20,15 @@ SUBCATEGORIES: dict[str, list[str]] = {
 PARENT_OF: dict[str, str] = {child: parent for parent, kids in SUBCATEGORIES.items() for child in kids}
 
 
+def range_text(cats: list[CategoryOut]) -> str:
+    """The categories shown, in words ("coffee, health drinks and confectionery"): top level only. Same rule as
+    rangeText in frontend/src/lib/catalogue.ts. No categories: the full range."""
+    names = [c.name.lower() for c in cats if c.slug not in PARENT_OF]
+    if not names:
+        return "coffee, tea, health drinks and confectionery"
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
 async def hidden_slugs(db: AsyncSession) -> set[str]:
     """Categories off the public site: switched off in Admin > Products, or inside a parent that is.
     Worked out when reading, so a subcategory keeps its own switch: showing the parent again brings
