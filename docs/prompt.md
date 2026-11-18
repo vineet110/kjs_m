@@ -66,6 +66,31 @@ Project rules, and ready-made prompts to copy and paste.
 
 10. Visitor text (chat, forms, emails) given to Koko is data, never instructions.
 
+11. Tunable numbers and switches live in `config/<feature>.ini`, never as constants in the code (added 18 Nov).
+
+   i.    One file per feature, all in the repo-root `config/` folder (the VPS mounts it; edits apply in about
+         3 seconds, no deploy). Shared values (timezone, office hours, rate limits) stay in `app.ini`.
+   ii.   Every key has a default (today's value) and min/max bounds that refuse a value that would break the
+         feature. A bad value is refused and the last good config stays.
+   iii.  Read it with `cfg().<feature>.<key>` when you use it. Never copy it into a module constant.
+   iv.   Not in ini: secrets (`.env`), and security limits (zip-bomb sizes, sign-in windows, redirect caps):
+         a typo must never weaken a security check.
+   v.    A limit the frontend also checks comes from `/auth/me` `limits`; the frontend keeps only a fallback.
+
+12. We stay on Postgres (JSONB, `ON CONFLICT`, advisory locks are fine inside services). No layer for other
+    kinds of database (backlog R86).
+
+13. New feature checklist (one feature `x`):
+
+   i.    `models/x.py`, `services/x_service.py`, `api/v1/endpoints/x.py`, `tests/test_x*.py`.
+   ii.   `config/x.ini` + an `XIni` class and a `Config` field in `backend/app/core/config/ini.py`.
+   iii.  A portal area in `config/modules.ini` + `AREA_PAGES` (`app/core/modules.py`) + `frontend/src/lib/modules.ts`.
+   iv.   A permission key in `app/core/permissions.py`; tests for the allowed AND the forbidden user.
+   v.    Admin actions write an audit row (`audit_service.record`) in the same transaction.
+   vi.   Migration: the next free number (check `alembic/versions/` AND open PRs; 0027-0029 are taken by the
+         monitoring PRs). Say in the PR that `alembic upgrade head` must run after merging.
+   vii.  Notes in your temp file; new terms for `kb.md` listed there.
+
 
 
 ---------------------------------------------------------------------------------------------------
