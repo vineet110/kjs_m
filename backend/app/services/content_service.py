@@ -31,6 +31,16 @@ TEXTS: dict[str, tuple[str, str]] = {
     "seo.home.description": ("Home: description (Google)",
                              "Co-manufacturer of chocolate bars, wafers, biscuits and marshmallow confectionery, "
                              "plus coffee and tea in stick packs. Private label, export, FSSC 22000 certified."),
+    # Coffee-only versions: used while Coffee is the only category shown (Admin > Products > Categories)
+    "coffee.home.hero_text": ("Coffee only: text under the headline",
+                              "Agglomerated, spray-dried and freeze-dried instant coffee, made and packed for your "
+                              "brand. Trusted by global leaders like Nestlé, Unilever, Mayora."),
+    "coffee.seo.home.title": ("Coffee only: home page title (Google)",
+                              "KJS India | Instant Coffee Manufacturing and Private Label"),
+    "coffee.seo.home.description": ("Coffee only: home description (Google)",
+                                    "Co-manufacturer of agglomerated, spray-dried and freeze-dried instant coffee and "
+                                    "3-in-1 premix: stick packs, jars, tins, pouches and bulk. Private label, export, "
+                                    "FSSC 22000 certified."),
     "seo.products.title": ("Products: page title (Google)", "Products | KJS India"),
     "seo.products.description": ("Products: description (Google)",
                                  "Coffee, tea, health drink and confectionery products for private label and export."),

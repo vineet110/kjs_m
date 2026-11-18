@@ -212,3 +212,21 @@ async def test_prompt_asks_for_plain_text_and_stays_small(client, catalogue, see
     """Koko's **bold** showed as stars; and the prompt is now about half, so more chats fit in Groq's minute."""
     await client.post(CHAT, json=ask("chocolate wafers biscuits coffee tea cakes", "/categories/confectionery"), headers=HDR)
     assert "no markdown" in seen[0] and len(seen[0]) <= 8_000
+
+
+async def test_koko_names_only_the_categories_shown(client, catalogue):
+    """Coffee-only (Admin > Products: the rest hidden): Koko's own description of KJS names coffee only, and
+    the full range again once everything is shown."""
+    from sqlalchemy import update
+    from app.models.catalog import Category
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Category).where(Category.slug != "coffee").values(is_active=False))
+        await db.commit()
+        cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
+    prompt = koko_service.build_prompt("", ["hello"], None, cats, prods)
+    assert "(coffee; private label" in prompt and "confectionery" not in prompt.lower()
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Category).values(is_active=True))
+        await db.commit()
+        cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
+    assert "confectionery" in koko_service.build_prompt("", ["hello"], None, cats, prods)

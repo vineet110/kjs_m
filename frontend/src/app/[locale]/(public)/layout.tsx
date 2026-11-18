@@ -6,17 +6,20 @@ import OffersTicker from '@/components/public/OffersTicker';
 import SiteFooter from '@/components/public/SiteFooter';
 import SiteHeader from '@/components/public/SiteHeader';
 import WhatsAppButton from '@/components/public/WhatsAppButton';
-import { features } from '@/lib/api';
+import { features, serverGet, type Category } from '@/lib/api';
+import { rangeText } from '@/lib/catalogue';
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
-  const f = await features(); // on/off switches from config/features.ini
+  // on/off switches from config/features.ini; the categories shown (Admin > Products) for the range in words
+  const [f, categories] = await Promise.all([features(), serverGet<Category[]>('/public/categories').catch(() => null)]);
+  const range = rangeText(categories);
   return (
     <>
-      <JsonLd data={organizationLd} />
+      <JsonLd data={organizationLd(range)} />
       {f.offers_ticker && <OffersTicker />}
       <SiteHeader showPartners={f.partners} showPrivateLabel />
       <main className="site-public min-h-[60vh]">{children}</main>
-      <SiteFooter />
+      <SiteFooter range={range} />
       <HoverGrowSides />
       {f.whatsapp_button && <WhatsAppButton />}
       {f.koko && <KokoChatWidget />}
