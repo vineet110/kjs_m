@@ -51,16 +51,21 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Migration 0030 hides Tea; `app.seed` / `seed_catalogue` create Tea hidden on a new database
   (`HIDDEN_AT_START`). `HIDDEN_CATEGORIES` removed from `frontend/src/lib/catalogue.ts`.
 
-- After merging: run `alembic upgrade head` (0030) as soon as the merge is deployed. Until then the new
-  site shows Tea (the frontend list is gone and the database still says Tea is on).
+- Run `alembic upgrade head` (0030) BEFORE the new code serves visitors. 0030 only changes data (Tea off),
+  and the old code works with it, so it can run first. Deploying the code first shows Tea until it runs
+  (the frontend list is gone and the database still says Tea is on).
 
-- Migration order with the monitoring PRs (0027-0029):
+- Migration order with the monitoring PRs (0027-0029): the migration that merges later always follows
+  the current single head on main.
 
-   i.    0030 merges first: set 0027's `down_revision` to '0030' (0028 -> 0027 and 0029 -> 0028 stay).
+   i.    0030 merges first: the next monitoring migration to merge (0027) follows '0030'.
 
-   ii.   The monitoring PRs merge first: set 0030's `down_revision` to '0029'.
+   ii.   Some monitoring migrations merged first (e.g. only 0027): 0030 follows the newest of them ('0027'),
+         and the next monitoring migration (0028) then follows '0030'.
 
-   iii.  Either way, `alembic heads` must show one head before `alembic upgrade head`.
+   iii.  All three merged first: 0030 follows '0029'.
+
+   iv.   Every time: `alembic heads` must show one head before `alembic upgrade head`.
 
 - To make the site coffee-only: Hide Confectionery, Health drinks and Instant drink powders (Tea is already hidden). Next: PR 2
   (home page text and pictures follow the switches).
@@ -78,4 +83,9 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
          (the product list has the same pattern). Fix: keep only the latest reload's answer.
 
    ii.   Public lists read the hidden categories in one query and the products in another; a switch in
-         between gives one mixed answer (the 60 s page cache hides it anyway). Fix: one SQL query.
+         between gives one mixed answer (the 60 s page cache hides it anyway). Fix: one SQL query
+         (the parent rule as SQL). Raised twice by CodeRabbit (#97 rounds 1 and 2).
+
+- Review round 2 (CodeRabbit) fixed: admin list's switch and "visible" from the same rows (test first);
+  neutral "Added / Saved" messages; after a switch only the categories reload (an error no longer
+  replaces the page and loses an unsaved edit); migration notes above.

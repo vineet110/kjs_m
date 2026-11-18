@@ -175,3 +175,17 @@ async def test_category_page_is_404_when_the_list_has_no_match(client, monkeypat
     monkeypatch.setattr(catalog_service, "list_categories", empty_list)  # as if Wafers was hidden at that moment
     r = await client.get("/api/v1/public/categories/wafers")
     assert r.status_code == 404 and r.json()["code"] == "not_found"
+
+
+async def test_admin_list_switch_and_visibility_come_from_the_same_rows(client, monkeypatch):
+    """`visible` is worked out from the rows the list returns, not from a second read (a switch in between
+    could give is_active false with visible true)."""
+    cats = await _catalogue()
+    await _editor(client)
+    await _switch(client, cats["coffee"], False)
+
+    async def stale(db):
+        return set()  # a second read taken before Coffee was hidden
+    monkeypatch.setattr(catalog_service, "hidden_slugs", stale)
+    admin = {c["slug"]: c for c in (await client.get("/api/v1/admin/categories")).json()}
+    assert admin["coffee"]["is_active"] is False and admin["coffee"]["visible"] is False

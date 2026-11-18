@@ -36,6 +36,11 @@ export default function AdminProducts() {
     api<AdminCategory[]>('/admin/categories').then(setCats).catch(setLoadErr);
     api<Row[]>('/admin/products').then(setProducts).catch(setLoadErr);
   }, []);
+  // After a category switch: only the categories, and a failure is a message, not the error page
+  // (that would unmount the product form and lose an unsaved edit)
+  const reloadCategories = () =>
+    api<AdminCategory[]>('/admin/categories').then(setCats)
+      .catch(() => toast('Could not refresh the categories. Reload the page to see the latest.', 'error'));
   useEffect(() => {
     load();
   }, [load]);
@@ -63,7 +68,7 @@ export default function AdminProducts() {
         }
         await api(`/admin/products/${editing.id}`, { method: 'PATCH', body: changed });
         setMsg(null);
-        toast(`Saved "${f.name}". The website shows it within a minute`);
+        toast(`Saved "${f.name}". The website shows it within a minute if its category is shown`);
         setEditing(null);
       } else {
         const added = await api<Product>('/admin/products', { method: 'POST', body });
@@ -82,9 +87,8 @@ export default function AdminProducts() {
             return;
           }
         }
-        toast(catVisible(added.category_slug)
-          ? `Added "${f.name}". It is live on the website within a minute`
-          : `Added "${f.name}". Its category is hidden, so it shows on the website once the category is shown`);
+        // Not from `cats`: it was read when this save started and may be out of date by now
+        toast(`Added "${f.name}". The website shows it within a minute if its category is shown`);
         load();
         return;
       }
@@ -105,11 +109,11 @@ export default function AdminProducts() {
       toast(now.visible ? `${c.name} is shown on the website within a minute`
         : now.is_active && parent ? `${c.name} is switched on, but stays hidden while ${parent.name} is hidden`
         : `${c.name} is hidden on the website within a minute`);
-      load();
+      reloadCategories();
     } catch (err) {
       toast(err instanceof ApiFailure ? err.message : 'Could not change it. Please try again.', 'error');
       // The connection dropped after sending: the change may be saved. Reload so the button shows what is saved.
-      if (err instanceof ApiFailure && err.body.code === 'unconfirmed') load();
+      if (err instanceof ApiFailure && err.body.code === 'unconfirmed') reloadCategories();
     }
   }
 

@@ -25,6 +25,11 @@ async def hidden_slugs(db: AsyncSession) -> set[str]:
     Worked out when reading, so a subcategory keeps its own switch: showing the parent again brings
     back only the subcategories that were on."""
     off = set((await db.scalars(select(Category.slug).where(Category.is_active.is_(False)))).all())
+    return _with_children(off)
+
+
+def _with_children(off: set[str]) -> set[str]:
+    """Switched-off slugs plus the subcategories of the switched-off parents."""
     return off | {child for child, parent in PARENT_OF.items() if parent in off}
 
 
@@ -91,8 +96,9 @@ async def admin_categories(db: AsyncSession) -> list[AdminCategoryOut]:
     """Every category, hidden ones too (so they can be shown again), with its own switch and whether the
     public site shows it (a subcategory of a hidden parent is off the site whatever its own switch says)."""
     counts = dict((await db.execute(select(Product.category_id, func.count()).group_by(Product.category_id))).all())
-    hidden = await hidden_slugs(db)
     cats = (await db.scalars(select(Category).order_by(Category.sort_order, Category.name))).all()
+    # From these same rows (not a second read), so a row's switch and "visible" always agree
+    hidden = _with_children({c.slug for c in cats if not c.is_active})
     return [_admin_category_out(c, hidden, counts.get(c.id, 0)) for c in cats]
 
 
