@@ -1899,3 +1899,149 @@ R69. Hosting: E2E Networks as a paid option next to the Oracle free VM (R59)  �
          pulls, Cloudflare Tunnel); trial credits; where snapshots are stored.
    vi.   Keep R2 for site pictures and the off-site backup either way. Trial: `deploy.sh`, `docker stats`,
          `test-restore.sh`, then choose.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 21. Security gaps (18 Nov senior review)
+
+Found in a read-only review of the whole repo. Render / Vercel-only points are left out: we are moving to
+our own VPS. Do these before going live on the VPS unless marked 🟢.
+
+
+R70. Security headers on the VPS  🟠 before going live
+
+   i.    Today only `deploy/nginx/security-headers.conf` sets them (CSP, X-Frame-Options and more).
+   ii.   Add HSTS, and remove `'unsafe-inline'` from the CSP script rule if the frontend allows it.
+   iii.  Check on the VPS: `curl -I https://<site>` shows every header.
+
+
+R71. Koko trusts chat history from the browser  🟠 (raises R1)
+
+   i.    The browser sends the whole history, including Koko's own past replies, so a visitor can fake them
+         (`schemas/lead.py:10`, `koko_service.py:208`).
+   ii.   `summarise_chat` (`koko_service.py:235-249`) puts visitor text into the staff summary without saying
+         "this is data, not instructions": indirect prompt injection aimed at the sales team.
+   iii.  Fix: keep the history on the server (R1.ii); frame the transcript as data in the summary prompt.
+
+
+R72. Rate limits and the Koko budget reset on every restart  🟠 (raises R2)
+
+   i.    Kept in process memory (`core/rate_limit.py:22`, `koko_service.py:26`): a restart or deploy resets
+         the daily AI budget, and two processes would double every limit.
+   ii.   Fix: a small database table (no new service).
+
+
+R73. No dependency scanning  🟠
+
+   i.    Nothing warns about a package with a known hole. Fix: Dependabot + `pip-audit` / `npm audit` in CI
+         (see R78).
+
+
+R74. CSRF header not checked on login, sign-up and logout  🟢
+
+   i.    `deps.py:23,91` checks `x-requested-with` on other writes; `/auth/login`, `/signup`, `/logout` skip it.
+   ii.   Risk is small (login/logout CSRF). Fix: same header check.
+
+
+R75. Lead harvester uses the auto-assign permission  🟢
+
+   i.    `endpoints/harvest.py:34-39` uses `assign.manage`. Give it its own permission, and add harvest runs
+         to the audit log (`harvest.py:160`).
+
+
+R76. Production does not insist on R2 storage  🟢
+
+   i.    `production_problems()` (`core/config/__init__.py:73`) should refuse `STORAGE_DRIVER` other than r2.
+
+
+R77. Firebase web key not restricted  🟢 (Vineet, Firebase console)
+
+   i.    The key is public by design (`frontend/src/lib/firebase.ts:13`). Add API-key restrictions to our
+         domains, or App Check.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 22. Tooling gaps (18 Nov senior review)
+
+
+R78. Dependency updates and audits  🟠
+
+   i.    `.github/dependabot.yml` (pip, npm, GitHub Actions) and a `pip-audit` / `npm audit` CI step.
+   ii.   No new package in the app.
+
+
+R79. Migration checks in CI  🟠
+
+   i.    CI only runs `alembic upgrade head`. Add: exactly one `alembic heads`, and `alembic check` (models
+         match the migrations).
+
+
+R80. Linting in CI  🟠 (new dev tool: ask first)
+
+   i.    No ruff (Python) and no eslint step (frontend). `ci.yml:2` already says so.
+
+
+R81. Error tracking  🟠 (new service: ask first; raises R45)
+
+   i.    Errors only reach the logs. Sentry free tier for backend and frontend.
+
+
+R82. Uptime check on the VPS  🟢 (raises R45)
+
+   i.    A free checker (e.g. UptimeRobot) on `/api/health/ready`; also tells us when the nightly backup fails.
+
+
+R83. Test coverage report  🟢 (new dev tool: ask first)
+
+   i.    pytest-cov report in CI, no pass/fail limit at first.
+
+
+R84. Frontend API types written by hand  🟢
+
+   i.    `frontend/src/lib/api.ts` types can drift from the backend. Later: generate them from OpenAPI.
+
+
+R85. Frontend tests only cover `src/lib`  🟢
+
+   i.    No component tests; the E2E scripts in `scripts/e2e/` run by hand only.
+   ii.   Also: a test that `frontend/src/lib/modules.ts` matches the backend `AREA_PAGES`.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 23. Scaling: before a second API process (18 Nov senior review)
+
+None matters with one API process (`--workers 1` today). Do these before running two (A41).
+
+
+R86. Decision to record: we stay on Postgres  🟢
+
+   i.    We use Postgres features on purpose: JSONB, `ON CONFLICT`, partial unique indexes, advisory locks,
+         `SKIP LOCKED`, the append-only audit trigger.
+   ii.   Moving to another Postgres (Neon, VPS, RDS, Supabase) = change `DATABASE_URL` only. A layer for
+         several kinds of database would cost a lot and give nothing. Fold into `memory.md` decisions.
+
+
+R87. Chat live updates are held in one process  🟢
+
+   i.    `services/chat_hub.py:39,101`: a message sent through process A never reaches people on B.
+   ii.   Fix when scaling: Redis pub/sub, or Postgres NOTIFY over a direct (not pooled) connection.
+
+
+R88. Job lock is released mid-job  🟢
+
+   i.    `jobs/runner.py:82` takes a transaction lock; jobs that commit part-way (`send_emails`, the harvester)
+         run the rest unlocked. Fine with one process.
+   ii.   Fix: a small "job lease" table (job name, held until).
+
+
+R89. Slow queries that grow with data  🟢
+
+   i.    One query per item: `board_service.py:296`, `analytics_service.py:65`, `assign_service.py:225`,
+         `lead_service.py:575`.
+   ii.   Analytics adds up every lead in Python (`analytics_service.py:27`); `sla_check` loads every open lead
+         each run.
+   iii.  Lead duplicate check scans the whole table (`lead_service.py:333`): add an index on the cleaned phone
+         and `lower(email)`.
