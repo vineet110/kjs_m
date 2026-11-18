@@ -29,7 +29,6 @@ from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
 
 log = logging.getLogger(__name__)
-DUE_SOON_MINUTES = 5
 
 
 # ---------- SLA maths (pure functions, unit tested) ----------
@@ -64,7 +63,7 @@ def sla(lead: Lead, now: datetime, holidays: set[date]) -> dict:
     mins = int((due - now).total_seconds() // 60)
     if mins < 0:
         state, label = "overdue", f"{stage} overdue by {_human(-mins)}"
-    elif mins <= DUE_SOON_MINUTES:
+    elif mins <= cfg().leads.due_soon_minutes:
         state, label = "due_soon", f"{stage} in {_human(mins)}"
     else:
         state, label = "ok", f"{stage} in {_human(mins)}"
@@ -340,9 +339,10 @@ async def import_preview(db: AsyncSession, user: User, filename: str, data: byte
     (if anything) and whether the person is already in our leads or appears earlier in the same file."""
     cats = (await db.scalars(select(Category))).all()
     names = {c.slug.lower(): c.slug for c in cats} | {c.name.lower(): c.slug for c in cats}
-    out = await asyncio.to_thread(lead_reader.read, filename, data, names, lead_reader.MAX_IMPORT_ROWS)
+    max_rows = cfg().leads.import_max_rows
+    out = await asyncio.to_thread(lead_reader.read, filename, data, names, max_rows)
     if out["more_rows"]:  # never cut silently: they would think every row was imported
-        raise AppError(422, "too_many_rows", f"This file has more than {lead_reader.MAX_IMPORT_ROWS} rows. "
+        raise AppError(422, "too_many_rows", f"This file has more than {max_rows} rows. "
                                              "Please split it into smaller files.")
     row_keys = [set(_match_keys(Lead(phone=r["fields"]["phone"], email=r["fields"]["email"])))
                 for r in out["leads"]]

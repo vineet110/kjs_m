@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.models.user import User
@@ -16,14 +17,14 @@ from app.services import board_service
 from app.services.calendar_service import holiday_set
 
 router = APIRouter()
-MAX_BOARD_DAYS = 730  # an order runs at most 2 years: far-away dates would make the day-by-day plan very slow
 
 
 def _check_dates(start: date, deadline: date) -> None:
     if deadline < start:
         raise ValueError("The deadline must be on or after the start date.")
-    if (deadline - start).days > MAX_BOARD_DAYS:
-        raise ValueError("A board can run at most 2 years.")
+    max_days = cfg().boards.max_days  # config/boards.ini
+    if (deadline - start).days > max_days:
+        raise ValueError(f"A board can run at most {max_days} days.")
 
 
 class StepIn(BaseModel):

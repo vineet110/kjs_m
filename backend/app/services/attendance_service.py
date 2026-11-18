@@ -21,7 +21,6 @@ from app.services import audit_service
 from app.services.calendar_service import CalendarService, holiday_set
 
 
-MAX_SHIFT = timedelta(hours=16)  # longest believable shift for a check-out after midnight
 
 
 def tz() -> ZoneInfo:
@@ -148,7 +147,7 @@ async def check_out(db: AsyncSession, user: User, now: datetime | None = None, n
             last_prev = await _last_punch(db, prev.id)
             punch_start = last_prev.punched_at if last_prev else prev.check_in_at
             is_prev_in = (last_prev.punch_type == "in") if last_prev else (prev.check_out_at is None)
-            if is_prev_in and (now - punch_start < MAX_SHIFT):
+            if is_prev_in and (now - punch_start < timedelta(hours=cfg().attendance.max_shift_hours)):
                 row = prev
     if row is None or row.check_in_at is None:
         raise AppError(409, "not_checked_in", "Please check in first.")
@@ -518,7 +517,6 @@ async def month(db: AsyncSession, user_id: int, year: int, month_num: int, now: 
 
 
 # ---------- Excel Export (Admin Reports) ----------
-MAX_EXPORT_DAYS = 366
 
 
 def _build_excel_workbook(
@@ -666,8 +664,9 @@ async def export_excel(
 ) -> io.BytesIO:
     if end_date < start_date:
         raise AppError(422, "bad_dates", "End date cannot be earlier than start date.")
-    if (end_date - start_date).days > MAX_EXPORT_DAYS:
-        raise AppError(422, "range_too_large", f"Date range cannot exceed {MAX_EXPORT_DAYS} days.")
+    max_days = cfg().attendance.max_export_days
+    if (end_date - start_date).days > max_days:
+        raise AppError(422, "range_too_large", f"Date range cannot exceed {max_days} days.")
 
     # 1. Fetch users
     uq = select(User).where(User.status == "active").order_by(User.name)

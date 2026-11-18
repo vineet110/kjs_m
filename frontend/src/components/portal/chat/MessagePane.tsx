@@ -170,7 +170,7 @@ function MessageRow({ m, me, people, showName, readOnly, onChanged }: {
       )}
       {editing ? (
         <div className="space-y-1 py-1">
-          <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={BODY_MAX} rows={2} className="input" aria-label="Edit message" />
+          <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={me.limits?.chat_body_max ?? BODY_MAX} rows={2} className="input" aria-label="Edit message" />
           <div className="flex gap-2 text-xs">
             <button type="button" onClick={save} className="btn-gold px-3 py-1">Save</button>
             <button type="button" onClick={() => { setEditing(false); setText(m.body); }} className="btn-ghost px-3 py-1">Cancel</button>
@@ -294,7 +294,7 @@ function Composer({ me, people, onSend }: { me: Me; people: ChatPerson[]; onSend
       {err && <p role="alert" className="pb-1 text-xs text-red-600">{err}</p>}
       <div className="flex items-end gap-2">
         <textarea
-          ref={area} value={text} rows={rows} maxLength={BODY_MAX}
+          ref={area} value={text} rows={rows} maxLength={me.limits?.chat_body_max ?? BODY_MAX}
           onChange={(e) => changed(e.target.value)} onKeyDown={onKey}
           placeholder="Type a message. Enter sends, Shift+Enter for a new line, @ to mention."
           aria-label="Message" className="input resize-none"

@@ -2,12 +2,14 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
+from app.core.errors import AppError
 from app.core.rate_limit import lead_file_limiter
 from app.models.user import User
 from app.schemas.lead import MAX_EXTRA, Contact, ExtraName, InternalLeadFormIn, InternalLeadIn, LeadOut
@@ -53,18 +55,35 @@ async def add_internal_lead(data: InternalLeadFormIn, user: User = Depends(requi
     return await lead_service.create_internal(db, user, data)
 
 
+async def _read_upload(file: UploadFile) -> bytes:
+    """The file, checked against ONE size limit (leads.ini file_max_mb, read once for this request)."""
+    limit = lead_reader.max_bytes()
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise AppError(413, "too_big", f"Max {limit // (1024 * 1024)} MB for a file to read.")
+    return data
+
+
 @router.post("/leads/read-file")
 async def read_lead_file(file: UploadFile = File(...), user: User = Depends(require_permission("leads.view")),
                          db: AsyncSession = Depends(get_db)):
     """Read an Excel / CSV file to fill the New internal lead form. Nothing is saved."""
     lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
-    data = await file.read(lead_reader.MAX_BYTES + 1)
+    data = await _read_upload(file)
     return await lead_service.read_lead_file(db, file.filename or "", data)
 
 
 class ImportIn(BaseModel):
-    leads: list[InternalLeadIn] = Field(min_length=1, max_length=lead_reader.MAX_IMPORT_ROWS)
+    leads: list[InternalLeadIn] = Field(min_length=1)  # at most leads.ini import_max_rows (checked first, below)
     extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)  # for the audit log
+
+    @field_validator("leads", mode="before")  # before each row is parsed: a huge list is refused at once
+    @classmethod
+    def not_too_many(cls, v):
+        limit = cfg().leads.import_max_rows
+        if isinstance(v, list) and len(v) > limit:
+            raise ValueError(f"At most {limit} leads in one import.")
+        return v
 
 
 @router.post("/leads/import/preview")
@@ -72,7 +91,7 @@ async def import_preview(file: UploadFile = File(...), user: User = Depends(requ
                          db: AsyncSession = Depends(get_db)):
     """Bulk import, step 1: read every row of an Excel / CSV file and check it. Nothing is saved."""
     lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
-    data = await file.read(lead_reader.MAX_BYTES + 1)
+    data = await _read_upload(file)
     return await lead_service.import_preview(db, user, file.filename or "", data)
 
 

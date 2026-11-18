@@ -8,13 +8,18 @@ import Spinner from '@/components/ui/Spinner';
 import { uploadOne } from './FileList';
 import { Icon } from './icons';
 import { useToast } from './Toast';
+import { useMe } from './PortalShell';
 
-const MIN_TITLE = 3; // words, the same rule as the server
-const MIN_DESCRIPTION = 15;
+// Fallbacks only: the real word minimums come from config/complaints.ini via me.limits
+const MIN_TITLE_DEFAULT = 3;
+const MIN_DESCRIPTION_DEFAULT = 15;
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
 export default function ReportProblem() {
   const toast = useToast();
+  const limits = useMe()?.limits;
+  const MIN_TITLE = limits?.complaint_min_title_words ?? MIN_TITLE_DEFAULT;
+  const MIN_DESCRIPTION = limits?.complaint_min_description_words ?? MIN_DESCRIPTION_DEFAULT;
   const ref = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState('bug');

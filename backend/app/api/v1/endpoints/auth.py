@@ -20,7 +20,15 @@ router = APIRouter()
 def _me(user: User) -> MeOut:
     return MeOut(id=user.id, name=user.name, email=user.email, role=user.role,
                  permissions=sorted(effective_permissions(user.role, user.permissions)),
-                 modules=visible_to(user))
+                 modules=visible_to(user), limits=portal_limits())
+
+
+def portal_limits() -> dict[str, int]:
+    """Limits the portal pages check before sending (the server checks them again)."""
+    c = cfg()
+    return {"chat_body_max": c.chat.body_max, "chat_page_max": c.chat.page_max,
+            "complaint_min_title_words": c.complaints.min_title_words,
+            "complaint_min_description_words": c.complaints.min_description_words}
 
 
 @router.post("/signup", status_code=201)

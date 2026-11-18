@@ -9,6 +9,7 @@ and they and admins (staff.approve) may see it.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.permissions import effective_permissions
 from app.models.complaint import Complaint
 from app.models.file import StoredFile
@@ -16,9 +17,7 @@ from app.models.user import User
 from app.services import audit_service, file_service
 
 KINDS = ("bug", "issue", "suggestion")
-MIN_TITLE_WORDS = 3
-MIN_DESCRIPTION_WORDS = 15
-LIST_LIMIT = 200  # newest first; enough for now (no paging yet)
+# Word minimums and the list size: config/complaints.ini
 
 
 def words(text: str) -> int:
@@ -46,7 +45,7 @@ async def file_complaint(db: AsyncSession, user: User, kind: str, title: str, de
 
 
 async def list_complaints(db: AsyncSession) -> list[dict]:
-    rows = (await db.scalars(select(Complaint).order_by(Complaint.id.desc()).limit(LIST_LIMIT))).all()
+    rows = (await db.scalars(select(Complaint).order_by(Complaint.id.desc()).limit(cfg().complaints.list_limit))).all()
     names = dict((await db.execute(select(User.id, User.name))).all())
     files: dict[str, list[dict]] = {}
     if rows:

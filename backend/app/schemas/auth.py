@@ -33,6 +33,7 @@ class MeOut(BaseModel):
     role: str
     permissions: list[str]
     modules: dict[str, bool] = {}  # portal area -> can this person use it (config/modules.ini)
+    limits: dict[str, int] = {}  # limits the portal checks as you type, from config/*.ini (no copies in the frontend)
 
 
 class UserOut(BaseModel):

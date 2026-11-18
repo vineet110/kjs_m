@@ -27,7 +27,7 @@ export type ChatEvent =
   | { type: 'read'; channel_id: number; message_id: number }
   | { type: 'channel.changed'; channel_id: number };
 
-export const BODY_MAX = 4000;
+export const BODY_MAX = 4000; // fallback only: the real limit is me.limits.chat_body_max (config/chat.ini)
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
