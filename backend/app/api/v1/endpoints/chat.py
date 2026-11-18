@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, origin_allowed, ws_user
+from app.core.errors import AppError
 from app.core.modules import visible_by_id
 from app.models.user import User
 from app.services import chat_hub, chat_service
@@ -110,8 +111,10 @@ async def unread_total(user: User = Depends(current_user), db: AsyncSession = De
 
 @router.get("/channels/{channel_id}/messages")
 async def list_messages(channel_id: int, before: int | None = None, after: int | None = None,
-                        limit: int = Query(default=50, ge=1, le=500),  # the service caps it at chat.ini page_max
+                        limit: int = Query(default=50, ge=1),
                         user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if limit > cfg().chat.page_max:  # config/chat.ini, read now (a Query bound would be fixed at start)
+        raise AppError(422, "limit_too_big", f"Ask for at most {cfg().chat.page_max} messages at a time.")
     return await chat_service.list_messages(db, user, channel_id, before=before, after=after, limit=limit)
 
 

@@ -28,3 +28,6 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 
 7. When monitoring (#83-#85) comes back: rebase on this; `MonitoringIni` joins the others, and its
    `never_record` must stay typed `list[str]` (list keys now come from the field types).
+
+8. Seen on 18 Nov: `next build` warns that Next.js 16.4.3 has a known security vulnerability. Not from this
+   PR. Upgrading is a dependency change: ask, then add to backlog section 21 at the next fold.
