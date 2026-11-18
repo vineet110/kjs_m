@@ -36,6 +36,8 @@ def modules(monkeypatch):
 
 @pytest.fixture
 def config_dir(tmp_path, monkeypatch):
+    for a in AREAS:  # these tests read the file itself, not conftest's "all on"
+        monkeypatch.delenv(f"KJS__MODULES__{a.upper()}", raising=False)
     monkeypatch.setattr(ini, "CONFIG_DIR", tmp_path)
     ini.reload_now()
     yield tmp_path
