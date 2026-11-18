@@ -85,3 +85,15 @@ async def test_confectionery_includes_its_subcategories(client):
     assert len(listed) == cats["confectionery"] and {p["category_slug"] for p in listed} <= set(subs)
     # A subcategory still lists only its own products
     assert len((await client.get("/api/v1/public/products?category=wafers")).json()) == cats["wafers"]
+
+
+async def test_a_fresh_database_starts_with_tea_hidden(client):
+    """Migration 0030 hides Tea on existing databases; the seeds create it hidden on a new one, and a second
+    run doesn't switch it back on."""
+    async with AsyncSessionLocal() as db:
+        await add_catalogue(db)
+    async with AsyncSessionLocal() as db:
+        await add_catalogue(db)
+        tea = await db.scalar(select(Category).where(Category.slug == "tea"))
+    assert tea is not None and tea.is_active is False
+    assert "tea" not in {c["slug"] for c in (await client.get("/api/v1/public/categories")).json()}

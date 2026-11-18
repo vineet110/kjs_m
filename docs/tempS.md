@@ -34,3 +34,58 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
          message could say "check Photos & files before trying again".
 
    v.    Test PNG in `test_files.py` is not a complete image (signature + end only).
+
+## Category Show/Hide switch (PR 1 of the coffee-only plan, branch feat/category-switch)
+
+- Admin > Products: "Categories on the website" list with Show/Hide per category
+  (`GET/PATCH /admin/categories`, permission `catalog.edit`, area `website_admin`, audit `category.updated`).
+
+- Hiding a parent (Confectionery) hides its subcategories on the site, worked out when reading
+  (`catalog_service.hidden_slugs`); their own switch stays, so showing the parent brings back only the ones that were on.
+
+- Product pages of a hidden category now answer 404 (before, only the category page did).
+
+- Admin > Products form lists every category (from `/admin/categories`), so editing a product of a hidden
+  category doesn't move it to another category.
+
+- Migration 0030 hides Tea; `app.seed` / `seed_catalogue` create Tea hidden on a new database
+  (`HIDDEN_AT_START`). `HIDDEN_CATEGORIES` removed from `frontend/src/lib/catalogue.ts`.
+
+- Run `alembic upgrade head` (0030) BEFORE the new code serves visitors. 0030 only changes data (Tea off),
+  and the old code works with it, so it can run first. Deploying the code first shows Tea until it runs
+  (the frontend list is gone and the database still says Tea is on).
+
+- Migration order with the monitoring PRs (0027-0029): the migration that merges later always follows
+  the current single head on main.
+
+   i.    0030 merges first: the next monitoring migration to merge (0027) follows '0030'.
+
+   ii.   Some monitoring migrations merged first (e.g. only 0027): 0030 follows the newest of them ('0027'),
+         and the next monitoring migration (0028) then follows '0030'.
+
+   iii.  All three merged first: 0030 follows '0029'.
+
+   iv.   Every time: `alembic heads` must show one head before `alembic upgrade head`.
+
+- To make the site coffee-only: Hide Confectionery, Health drinks and Instant drink powders (Tea is already hidden). Next: PR 2
+  (home page text and pictures follow the switches).
+
+- New term for kb.md: "visible" category = its own switch on and its parent's switch on.
+
+- Review round 1 (CodeRabbit) fixed: Edit waits for the category list; View link only for a visible
+  category; honest messages (product added to a hidden category, subcategory switched on under a hidden
+  parent); reload after an unconfirmed switch; row lock + reply built before commit in the switch;
+  category route answers 404 from one read.
+
+- For backlog.md:
+
+   i.    Admin > Products: an older reload finishing after a newer one can show old switches for a moment
+         (the product list has the same pattern). Fix: keep only the latest reload's answer.
+
+   ii.   Public lists read the hidden categories in one query and the products in another; a switch in
+         between gives one mixed answer (the 60 s page cache hides it anyway). Fix: one SQL query
+         (the parent rule as SQL). Raised twice by CodeRabbit (#97 rounds 1 and 2).
+
+- Review round 2 (CodeRabbit) fixed: admin list's switch and "visible" from the same rows (test first);
+  neutral "Added / Saved" messages; after a switch only the categories reload (an error no longer
+  replaces the page and loses an unsaved edit); migration notes above.

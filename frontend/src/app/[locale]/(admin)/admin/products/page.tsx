@@ -1,12 +1,13 @@
 'use client';
-// Products: add, edit, hide/show, and upload photos / spec sheets (tick "Show on website").
+// Products: show/hide whole categories, add, edit, hide/show products, and upload photos / spec sheets
+// (tick "Show on website").
 // No prices yet (backlog I3).
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import FileList, { uploadOne } from '@/components/portal/FileList';
 import { useToast } from '@/components/portal/Toast';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
-import { api, ApiFailure, type Category, type Product } from '@/lib/api';
+import { api, ApiFailure, type AdminCategory, type Product } from '@/lib/api';
 import LoadError from '@/components/ui/LoadError';
 
 type Row = Product & { is_active: boolean };
@@ -19,19 +20,27 @@ function same(a: unknown, b: unknown) {
 }
 
 export default function AdminProducts() {
-  const [cats, setCats] = useState<Category[]>([]);
+  // Every category, hidden ones too: a product in a hidden category can still be edited without moving it
+  const [cats, setCats] = useState<AdminCategory[]>([]);
   const [products, setProducts] = useState<Row[]>([]);
   const [editing, setEditing] = useState<Row | null>(null);
   const [filesFor, setFilesFor] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
+  // On the public site? Unknown until the categories have loaded: then no (no View link to a page that may 404)
+  const catVisible = (slug: string) => cats.some((c) => c.slug === slug && c.visible);
 
   const load = useCallback(() => {
     setLoadErr(null);
-    api<Category[]>('/public/categories').then(setCats).catch(setLoadErr);
+    api<AdminCategory[]>('/admin/categories').then(setCats).catch(setLoadErr);
     api<Row[]>('/admin/products').then(setProducts).catch(setLoadErr);
   }, []);
+  // After a category switch: only the categories, and a failure is a message, not the error page
+  // (that would unmount the product form and lose an unsaved edit)
+  const reloadCategories = () =>
+    api<AdminCategory[]>('/admin/categories').then(setCats)
+      .catch(() => toast('Could not refresh the categories. Reload the page to see the latest.', 'error'));
   useEffect(() => {
     load();
   }, [load]);
@@ -59,7 +68,7 @@ export default function AdminProducts() {
         }
         await api(`/admin/products/${editing.id}`, { method: 'PATCH', body: changed });
         setMsg(null);
-        toast(`Saved "${f.name}". The website shows it within a minute`);
+        toast(`Saved "${f.name}". The website shows it within a minute if its category is shown`);
         setEditing(null);
       } else {
         const added = await api<Product>('/admin/products', { method: 'POST', body });
@@ -78,7 +87,8 @@ export default function AdminProducts() {
             return;
           }
         }
-        toast(`Added "${f.name}". It is live on the website within a minute`);
+        // Not from `cats`: it was read when this save started and may be out of date by now
+        toast(`Added "${f.name}". The website shows it within a minute if its category is shown`);
         load();
         return;
       }
@@ -86,6 +96,24 @@ export default function AdminProducts() {
       load();
     } catch (err) {
       setMsg({ ok: false, text: err instanceof ApiFailure ? err.message : 'Could not save.' });
+    }
+  }
+
+  async function toggleCategory(c: AdminCategory) {
+    // Only the switch is sent. Subcategories keep their own switch: they follow the parent on the website.
+    try {
+      // The reply says whether the website really shows it: a subcategory switched on stays hidden
+      // while its parent is hidden
+      const now = await api<AdminCategory>(`/admin/categories/${c.id}`, { method: 'PATCH', body: { is_active: !c.is_active } });
+      const parent = cats.find((x) => x.slug === now.parent);
+      toast(now.visible ? `${c.name} is shown on the website within a minute`
+        : now.is_active && parent ? `${c.name} is switched on, but stays hidden while ${parent.name} is hidden`
+        : `${c.name} is hidden on the website within a minute`);
+      reloadCategories();
+    } catch (err) {
+      toast(err instanceof ApiFailure ? err.message : 'Could not change it. Please try again.', 'error');
+      // The connection dropped after sending: the change may be saved. Reload so the button shows what is saved.
+      if (err instanceof ApiFailure && err.body.code === 'unconfirmed') reloadCategories();
     }
   }
 
@@ -106,6 +134,21 @@ export default function AdminProducts() {
   return (
     <div className="space-y-6">
       <PageTitle title="All Products" sub="Changes show on the website within a minute." />
+      <div className="card divide-y">
+        <h2 className="p-3 font-semibold">Categories on the website</h2>
+        {cats.map((c) => {
+          const parent = cats.find((x) => x.slug === c.parent);
+          return (
+            <div key={c.id} className={`flex flex-wrap items-center gap-2 p-3 text-sm ${c.parent ? 'pl-8' : ''}`}>
+              <span className="font-medium">{c.name}</span>
+              <span className="text-slate-500">· {c.product_count} product{c.product_count === 1 ? '' : 's'}</span>
+              {!c.is_active && <Pill value="off" label="hidden" />}
+              {c.is_active && !c.visible && parent && <Pill value="off" label={`hidden with ${parent.name}`} />}
+              <button onClick={() => toggleCategory(c)} className="ml-auto text-xs underline">{c.is_active ? 'Hide' : 'Show'}</button>
+            </div>
+          );
+        })}
+      </div>
       <form key={e?.id ?? 'new'} onSubmit={save} className="card grid gap-3 p-5 md:grid-cols-2">
         <h2 className="font-semibold md:col-span-2">{e ? `Edit: ${e.name}` : 'Add a product'}</h2>
         <div><label className="label">Category</label>
@@ -144,11 +187,13 @@ export default function AdminProducts() {
               <span className="font-medium">{p.name}</span>
               <span className="text-slate-500">· {p.category_name}{p.is_best_seller ? ' · best seller' : ''}{p.offer_percent ? ` · up to ${p.offer_percent}% off` : ''}</span>
               {!p.is_active && <Pill value="off" label="hidden" />}
+              {p.is_active && cats.some((c) => c.slug === p.category_slug && !c.visible) && <Pill value="off" label="category hidden" />}
               <span className="ml-auto flex gap-3 text-xs">
-                <button onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="underline">Edit</button>
+                {/* Not before the categories load: the form's category list would be empty and save the wrong one */}
+                <button disabled={cats.length === 0} onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="underline disabled:opacity-50">Edit</button>
                 <button onClick={() => setFilesFor(filesFor === p.slug ? null : p.slug)} className="underline">Photos & files</button>
                 <button onClick={() => toggleHidden(p)} className="underline">{p.is_active ? 'Hide' : 'Show'}</button>
-                {p.is_active && <Link href={`/products/${p.slug}`} target="_blank" className="underline">View</Link>}
+                {p.is_active && catVisible(p.category_slug) && <Link href={`/products/${p.slug}`} target="_blank" className="underline">View</Link>}
               </span>
             </div>
             {filesFor === p.slug && <FileList ownerType="product" ownerId={p.slug} publicToggle />}

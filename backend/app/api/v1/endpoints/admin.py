@@ -16,7 +16,7 @@ from app.models.audit import AuditLog
 from app.models.catalog import Category, Product
 from app.models.user import User
 from app.schemas.auth import ApproveIn, JobTitleIn, PermissionsIn, RejectIn, UserCreateIn, UserOut, UserPatchIn
-from app.schemas.catalog import ProductIn, ProductOut, ProductPatchIn
+from app.schemas.catalog import AdminCategoryOut, CategoryPatchIn, ProductIn, ProductOut, ProductPatchIn
 from app.schemas.lead import LeadOut
 from app.services import (analytics_service, attendance_service, audit_service, auth_service, calendar_service,
                           catalog_service, file_service, job_title_service, lead_service)
@@ -133,6 +133,21 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
 ):
     return await catalog_service.create_product(db, user, data)
+
+
+@router.get("/categories", response_model=list[AdminCategoryOut], dependencies=area("website_admin"))
+async def all_categories(_: User = Depends(require_permission("catalog.edit")), db: AsyncSession = Depends(get_db)):
+    return await catalog_service.admin_categories(db)
+
+
+@router.patch("/categories/{category_id}", response_model=AdminCategoryOut, dependencies=area("website_admin"))
+async def switch_category(
+    category_id: int, data: CategoryPatchIn,
+    user: User = Depends(require_permission("catalog.edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Show or hide a category on the website (with its subcategories and products)."""
+    return await catalog_service.set_category_active(db, user, category_id, data.is_active)
 
 
 @router.get("/products", response_model=list[ProductOut], dependencies=area("website_admin"))

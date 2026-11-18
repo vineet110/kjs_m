@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.models.catalog import Category, Product
-from app.seed import CATEGORIES as BASE_CATEGORIES
+from app.seed import CATEGORIES as BASE_CATEGORIES, HIDDEN_AT_START
 
 # slug, name, description, sort order. Added next to the original four categories.
 CATALOGUE_CATEGORIES = [
@@ -293,7 +293,8 @@ async def add_catalogue(db: AsyncSession) -> None:
     # hasn't run yet, the coffee catalogue products would otherwise have no category to go in.
     for slug, name, desc, order in [*BASE_CATEGORIES, *CATALOGUE_CATEGORIES]:
         if slug not in existing_cats:
-            existing_cats[slug] = Category(slug=slug, name=name, description=desc, sort_order=order, is_active=True)
+            existing_cats[slug] = Category(slug=slug, name=name, description=desc, sort_order=order,
+                                           is_active=slug not in HIDDEN_AT_START)
             db.add(existing_cats[slug])
     await db.flush()  # gives the new categories their ids
 

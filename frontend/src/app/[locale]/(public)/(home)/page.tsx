@@ -13,7 +13,7 @@ import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import { serverGet, texts, type Category, type Product } from '@/lib/api';
-import { isUploaded, toHomeProduct, visibleCategories, type HomeProduct } from '@/lib/catalogue';
+import { isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
@@ -38,7 +38,7 @@ export default async function HomePage() {
     serverGet<Product[]>('/public/products'),
     texts(),
   ]);
-  const cats = visibleCategories(categories); // without the hidden ones (Tea, for now)
+  const cats = categories ?? []; // the API leaves out hidden categories (Admin > Products > Categories)
   const all = productList ?? [];
   // One small list for the browser (shared by search, menu and product range)
   const products = all.map(toHomeProduct);

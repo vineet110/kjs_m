@@ -20,6 +20,9 @@ CATEGORIES = [
     ("health-drinks", "Health drinks", "Malt, cocoa and nutritional drink powders, blended in our ribbon blenders.", 3),
     ("confectionery", "Confectionery", "Cocoa-based and speciality confectionery, with ball milling for smooth texture.", 4),
 ]
+# Created hidden (no products yet). Shown again in Admin > Products > Categories. Migration 0030 does the same
+# for databases that already have Tea.
+HIDDEN_AT_START = {"tea"}
 
 
 async def main() -> None:
@@ -28,7 +31,8 @@ async def main() -> None:
         added = 0
         for slug, name, desc, order in CATEGORIES:
             if slug not in existing:
-                db.add(Category(slug=slug, name=name, description=desc, sort_order=order, is_active=True))
+                db.add(Category(slug=slug, name=name, description=desc, sort_order=order,
+                                is_active=slug not in HIDDEN_AT_START))
                 added += 1
         await db.commit()
         print(f"categories: {added} added, {len(existing)} already there")
