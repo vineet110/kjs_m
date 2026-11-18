@@ -17,3 +17,5 @@ from app.models.harvest import HarvestRun, HarvestSource  # noqa: F401
 from app.models.chat import ChatChannel, ChatMember, ChatMessage  # noqa: F401
 from app.models.job_title import JobTitle  # noqa: F401
 from app.models.complaint import Complaint  # noqa: F401
+from app.models.monitor import Break, IdlePeriod, Screenshot, ShareEvent  # noqa: F401
+from app.models.extension import ExtensionDevice, ExtensionPairCode, SiteBlock, SiteVisit  # noqa: F401

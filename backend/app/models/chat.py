@@ -43,7 +43,8 @@ class ChatMessage(Base):
     """One message. Deleting only sets deleted_at (shown as "message deleted")."""
 
     __tablename__ = "chat_messages"
-    __table_args__ = (Index("ix_chat_messages_channel_id_id", "channel_id", "id"),)
+    __table_args__ = (Index("ix_chat_messages_channel_id_id", "channel_id", "id"),
+                      Index("ix_chat_messages_sender_created", "sender_id", "created_at"))  # timeline (0027)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     channel_id: Mapped[int] = mapped_column(ForeignKey("chat_channels.id", ondelete="CASCADE"))

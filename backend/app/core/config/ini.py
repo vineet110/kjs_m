@@ -126,6 +126,35 @@ class StorageIni(BaseModel):
         "pptx", "ppt", "gif", "heic", "mp4", "mov"])
 
 
+class MonitoringIni(BaseModel):
+    """Team work / My work (and, later, screenshots, idle and sites)."""
+    max_range_days: int = Field(31, ge=1, le=366)  # longest date range one page may ask for
+    timeline_page_size: int = Field(200, ge=20, le=1000)  # timeline items per "Load more"
+    team_refresh_seconds: int = Field(30, ge=10, le=600)  # how often Team work reloads itself
+    screenshot_minutes: int = Field(15, ge=1, le=240)  # one screenshot every N minutes while checked in
+    keep_days: int = Field(30, ge=1, le=365)  # screenshots older than this are deleted (files and rows)
+    image_quality: int = Field(60, ge=10, le=95)  # JPEG quality the browser uses (lower = smaller files)
+    max_screenshot_kb: int = Field(600, ge=50, le=5000)  # bigger uploads are refused
+    break_minutes_per_day: int = Field(60, ge=0, le=480)  # admins are told once a day when someone goes over
+    idle_warn_minutes: int = Field(15, ge=1, le=240)  # no activity this long = idle (shorter pauses never count)
+    idle_admin_minutes: int = Field(30, ge=1, le=480)  # admins are told once per idle period
+    gap_alert_minutes: int = Field(5, ge=0, le=120)  # screen sharing off this long (while checked in) = alert
+    # Browser extension (Phase C)
+    send_minutes: int = Field(5, ge=1, le=60)  # the extension sends what it saw this often
+    pair_code_minutes: int = Field(10, ge=1, le=60)  # a "Connect extension" code works this long, once
+    connected_minutes: int = Field(15, ge=5, le=240)  # heard from in this long = "Extension connected"
+    never_record: list[str] = Field(default_factory=list)  # domains never recorded (banks), e.g. hdfcbank.com
+    store_query: bool = False  # false: addresses saved without ?query and #fragment (tokens, OTPs, searches)
+    outcome_min_minutes: int = Field(5, ge=1, le=60)  # a site's time in one hour this long = ask for the outcome
+    sites_keep_days: int = Field(90, ge=7, le=730)  # site visits older than this are deleted
+
+    @model_validator(mode="after")
+    def idle_order(self):
+        if self.idle_admin_minutes < self.idle_warn_minutes:
+            raise ValueError("idle_admin_minutes must not be less than idle_warn_minutes")
+        return self
+
+
 class ComplaintsIni(BaseModel):
     developer_email: str = ""  # gets new complaints by email, once email is set up (not used yet)
 
@@ -150,6 +179,7 @@ class ModulesIni(BaseModel):
     audit: ModuleLevel = "on"
     chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
     lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
+    monitoring: ModuleLevel = "on"  # Team work (admin) and My work (employee)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -178,11 +208,12 @@ class Config(BaseModel):
     storage: StorageIni = StorageIni()
     modules: ModulesIni = ModulesIni()
     complaints: ComplaintsIni = ComplaintsIni()
+    monitoring: MonitoringIni = MonitoringIni()
 
 
 # file name -> section it fills
 FILES = {name: f"{name}.ini" for name in Config.model_fields}
-LIST_FIELDS = {"thresholds", "channels", "allowed_types"}
+LIST_FIELDS = {"thresholds", "channels", "allowed_types", "never_record"}
 
 
 # ---------- Loading ----------

@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.core.storage import R2Storage, StorageError
 
 FILES, DELETED, DB = "files/", "deleted/", "db/"
+SKIP = ("screenshots/",)  # app-bucket folders never copied (monitoring screenshots)
 
 
 def backup_bucket() -> R2Storage:
@@ -58,7 +59,9 @@ def sync_files(src, dst, today: date, keep_days: int) -> dict:
     """Make files/ in the backup bucket match the app bucket, without ever losing a copy: an upload
     that is gone from the app bucket (approved delete, or a mistake) moves to deleted/<today>/."""
     have = {o["key"][len(FILES):]: o for o in dst.list(FILES)}
-    live = {o["key"]: o for o in src.list("")}
+    # Screenshots are not backed up: they must be gone after keep_days (config/monitoring.ini), and a copy
+    # here would keep them KEEP days longer in deleted/.
+    live = {o["key"]: o for o in src.list("") if not o["key"].startswith(SKIP)}
     copied = moved = 0
     replaced = 0
     for key, o in live.items():
