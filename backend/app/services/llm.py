@@ -16,9 +16,11 @@ class LLMUnavailable(Exception):
 
 
 # The whole call, not each step: nginx gives up after 60 s, and a visitor who sees an error resubmits
-# (a duplicate lead). After 25 s we answer "please use the form / WhatsApp" instead.
-TOTAL_TIMEOUT_SECONDS = 25
-HTTP_TIMEOUT = httpx.Timeout(20, connect=5)
+# (a duplicate lead). After koko.ini timeout_seconds (25) we answer "please use the form / WhatsApp" instead.
+
+
+def _http_timeout() -> httpx.Timeout:
+    return httpx.Timeout(cfg().koko.http_timeout_seconds, connect=5)
 
 
 async def chat(system: str, messages: list[dict], max_tokens: int | None = None) -> str:
@@ -34,7 +36,7 @@ async def chat(system: str, messages: list[dict], max_tokens: int | None = None)
     else:
         raise LLMUnavailable(f"LLM provider '{provider}' is not configured")
     try:
-        return await asyncio.wait_for(call, TOTAL_TIMEOUT_SECONDS)
+        return await asyncio.wait_for(call, cfg().koko.timeout_seconds)
     except asyncio.TimeoutError as e:
         log.warning("llm.call_failed", extra={"provider": provider, "reason": "total timeout"})
         raise LLMUnavailable("timeout") from e
@@ -50,7 +52,7 @@ async def _openai_compatible(url: str, key: str, system: str, messages: list[dic
         "temperature": cfg().koko.temperature,
     }
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout()) as client:
             r = await client.post(url, json=payload, headers={"Authorization": f"Bearer {key}"})
         r.raise_for_status()
         return (r.json()["choices"][0]["message"]["content"] or "").strip()
@@ -63,7 +65,7 @@ async def _anthropic(system: str, messages: list[dict], max_tokens: int) -> str:
     if not settings.ANTHROPIC_API_KEY:
         raise LLMUnavailable("missing API key")
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout()) as client:
             r = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 json={"model": settings.LLM_MODEL, "system": system, "messages": messages,

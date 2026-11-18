@@ -32,7 +32,6 @@ JobFn = Callable[[AsyncSession], Awaitable[dict | None]]
 JOBS: dict[str, JobFn] = {}
 ANY_TIME: set[str] = set()  # jobs that also run outside jobs_hours (e.g. emails)
 JOB_MODULE: dict[str, str] = {}  # job -> portal area (config/modules.ini)
-JOB_TIMEOUT_SECONDS = 300  # a stuck job is cancelled, so it can't block every other job forever
 last_tick: float | None = None  # time.monotonic() of the last finished loop round (health check)
 
 
@@ -40,7 +39,7 @@ def loop_is_alive() -> bool:
     """False when the jobs loop has stopped or is stuck (SLA alerts and emails would silently stop)."""
     if last_tick is None:
         return True  # not started yet (or disabled in tests)
-    allowed = 3 * cfg().app.jobs_interval_seconds + JOB_TIMEOUT_SECONDS * max(1, len(JOBS))
+    allowed = 3 * cfg().app.jobs_interval_seconds + cfg().app.job_timeout_seconds * max(1, len(JOBS))
     return time.monotonic() - last_tick < allowed
 
 
@@ -83,7 +82,7 @@ async def run_job(name: str) -> dict | None:
             if not got:
                 log.info("job.skipped_locked", extra={"job": name, "job_run_id": run_id})
                 return None
-            result = await asyncio.wait_for(JOBS[name](db), timeout=JOB_TIMEOUT_SECONDS) or {}
+            result = await asyncio.wait_for(JOBS[name](db), timeout=cfg().app.job_timeout_seconds) or {}
             await db.commit()
         log.info("job.finished", extra={"job": name, "job_run_id": run_id, **result})
         return result

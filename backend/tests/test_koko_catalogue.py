@@ -5,7 +5,7 @@ import pytest
 from app.core.database import AsyncSessionLocal
 from app.seed_catalogue import add_catalogue
 from app.services import catalog_service, koko_service, llm
-from app.services.koko_service import PROMPT_LIMIT
+from app.core.config.ini import cfg
 
 HDR = {"x-requested-with": "kjs"}
 CHAT = "/api/v1/koko/chat"
@@ -95,7 +95,7 @@ async def test_prompt_stays_small_with_the_whole_catalogue(client, catalogue, se
     for page, question in (("/categories/confectionery", "hi"), ("/", "coffee tea wafers biscuits chocolate cakes"),
                            (f"/products/{products[0]['slug']}", "Do you make private label sticks?")):
         await client.post(CHAT, json=ask(question, page), headers=HDR)
-    assert len(seen) == 3 and all(len(p) <= PROMPT_LIMIT for p in seen), [len(p) for p in seen]
+    assert len(seen) == 3 and all(len(p) <= cfg().koko.prompt_limit for p in seen), [len(p) for p in seen]
     # Every category is still named, so Koko knows the whole range exists
     cats = (await client.get("/api/v1/public/categories")).json()
     assert all(f"- Category: {c['name']}" in seen[1] for c in cats)
@@ -108,7 +108,7 @@ async def test_prompt_stays_small_even_with_long_facts(client, catalogue, seen):
     long_facts = "KJS fact line about our factory.\n" * 125  # about 4,100 characters (today: about 2,700)
     cat = next(c for c in cats if c.slug == "confectionery")
     prompt = koko_service.build_prompt(long_facts, ["wafers biscuits chocolate"], cat, cats, prods)
-    assert len(prompt) <= PROMPT_LIMIT and "- Product:" in prompt  # fewer products, but still some
+    assert len(prompt) <= cfg().koko.prompt_limit and "- Product:" in prompt  # fewer products, but still some
 
 
 async def test_coffee_question_on_the_home_page_gets_the_coffee_products(client, catalogue, seen):

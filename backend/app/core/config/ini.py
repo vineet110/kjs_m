@@ -2,7 +2,10 @@
 
 Secrets and per-environment values stay in .env (see __init__.py). Everything a person
 may want to tune (SLA minutes, batch sizes, rate limits, log levels, feature on/off)
-lives in the repo-root config/ folder, one file per area.
+lives in the repo-root config/ folder, one file per feature (chat.ini, leads.ini, ...).
+A new feature gets its own file and class here; no tunable numbers as constants in the code.
+Security limits (zip-bomb sizes, sign-in windows, redirect caps) stay in code on purpose:
+a typo in an ini must never weaken a security check.
 
 How to read a value:  cfg().sla.respond_minutes
 Always call cfg() at the moment you need the value. Never copy it into a module-level
@@ -18,6 +21,7 @@ import logging
 import os
 import threading
 import time
+import typing
 from pathlib import Path
 from typing import Callable, Literal
 
@@ -39,7 +43,6 @@ HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"  # 24-hour time like 09:30. A typo ("09.30")
 class AppIni(BaseModel):
     site_name: str = "KJS India"
     timezone: str = "Asia/Kolkata"
-    page_size: int = Field(50, ge=1, le=500)
     lead_rate_per_hour: int = Field(5, ge=1)  # enquiries per IP per hour
     koko_rate_per_hour: int = Field(40, ge=1)  # chat messages per IP per hour
     lead_file_reads_per_hour: int = Field(60, ge=1)  # Excel / CSV files read into the lead form, per person
@@ -52,6 +55,7 @@ class AppIni(BaseModel):
     jobs_enabled: bool = True
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat
+    job_timeout_seconds: int = Field(300, ge=30, le=1800)  # a stuck job is cancelled after this
     shift_start: str = Field("09:30", pattern=HHMM)  # IST; check-in after shift_start + late_after_minutes = late
     shift_end: str = Field("18:30", pattern=HHMM)
     late_after_minutes: int = Field(15, ge=0)
@@ -88,6 +92,8 @@ class SlaIni(BaseModel):
 class AssignIni(BaseModel):
     batch_size: int = Field(20, ge=1, le=500)
     max_batches_per_day: int = Field(3, ge=1)
+    import_max_mb: int = Field(10, ge=1, le=50)  # one Excel / CSV file of leads to auto-assign
+    import_max_rows: int = Field(5000, ge=10, le=50000)
     work_start: str = Field("09:30", pattern=HHMM)
     work_end: str = Field("18:30", pattern=HHMM)
 
@@ -107,6 +113,17 @@ class KokoIni(BaseModel):
     temperature: float = Field(0.3, ge=0, le=2)
     max_tokens: int = Field(700, ge=50, le=4000)
     daily_limit: int = Field(2000, ge=0, le=100000)  # AI calls per day for ALL visitors together (cost cap)
+    prompt_products: int = Field(8, ge=1, le=30)  # products given to the AI per message
+    card_products: int = Field(6, ge=1, le=20)  # products on the catalogue card
+    prompt_limit: int = Field(8000, ge=2000, le=60000)  # characters of system prompt (about 2,000 tokens)
+    timeout_seconds: int = Field(25, ge=5, le=55)  # whole AI call; nginx gives up at 60 s
+    http_timeout_seconds: int = Field(20, ge=5, le=55)  # one HTTP request to the AI provider
+
+    @model_validator(mode="after")
+    def timeout_order(self):
+        if self.http_timeout_seconds > self.timeout_seconds:
+            raise ValueError("http_timeout_seconds must not be more than timeout_seconds")
+        return self
 
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -128,6 +145,48 @@ class StorageIni(BaseModel):
 
 class ComplaintsIni(BaseModel):
     developer_email: str = ""  # gets new complaints by email, once email is set up (not used yet)
+    min_title_words: int = Field(3, ge=1, le=20)
+    min_description_words: int = Field(15, ge=1, le=100)
+    list_limit: int = Field(200, ge=50, le=2000)  # newest first on /admin/complaints (no paging yet)
+
+
+class ChatIni(BaseModel):
+    send_per_minute: int = Field(30, ge=1, le=600)  # messages one person may send per minute
+    page_max: int = Field(100, ge=10, le=500)  # most messages one request may ask for
+    body_max: int = Field(4000, ge=100, le=20000)  # characters in one message
+
+
+class LeadsIni(BaseModel):
+    """Lead limits other than the SLA minutes (those are in sla.ini)."""
+    due_soon_minutes: int = Field(5, ge=0, le=120)  # a lead shows "due soon" this close to its target
+    file_max_mb: int = Field(10, ge=1, le=50)  # one Excel / CSV file read into the lead form or imported
+    file_preview_rows: int = Field(50, ge=1, le=500)  # rows shown to pick one lead from a file
+    import_max_rows: int = Field(500, ge=1, le=5000)  # bulk import: each row becomes a lead
+
+
+class AttendanceIni(BaseModel):
+    max_shift_hours: int = Field(16, ge=8, le=24)  # longest believable shift (check-out after midnight)
+    max_export_days: int = Field(366, ge=7, le=1100)  # longest date range for the Excel export
+
+
+class NotificationsIni(BaseModel):
+    email_attempts: int = Field(3, ge=1, le=10)  # tries before an email is marked failed
+    email_time_budget_seconds: int = Field(120, ge=10, le=280)  # per run, so SLA and alert jobs aren't held up
+    stuck_retry_minutes: int = Field(15, ge=5, le=1440)  # an email left "sending" by a crash is retried after
+
+
+class HarvestIni(BaseModel):
+    http_timeout_seconds: int = Field(30, ge=5, le=120)  # one request to a lead source
+
+
+class BoardsIni(BaseModel):
+    max_days: int = Field(730, ge=30, le=1830)  # longest order (start to deadline); longer = slow day plan
+
+
+class AnalyticsIni(BaseModel):
+    attendance_days: int = Field(14, ge=7, le=90)  # attendance chart
+    tasks_days: int = Field(30, ge=7, le=365)  # tasks done per person
+    top_people: int = Field(15, ge=5, le=100)  # people shown in "tasks done"
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
@@ -178,11 +237,30 @@ class Config(BaseModel):
     storage: StorageIni = StorageIni()
     modules: ModulesIni = ModulesIni()
     complaints: ComplaintsIni = ComplaintsIni()
+    chat: ChatIni = ChatIni()
+    leads: LeadsIni = LeadsIni()
+    attendance: AttendanceIni = AttendanceIni()
+    notifications: NotificationsIni = NotificationsIni()
+    harvest: HarvestIni = HarvestIni()
+    boards: BoardsIni = BoardsIni()
+    analytics: AnalyticsIni = AnalyticsIni()
 
 
 # file name -> section it fills
 FILES = {name: f"{name}.ini" for name in Config.model_fields}
-LIST_FIELDS = {"thresholds", "channels", "allowed_types"}
+
+
+def _list_fields() -> set[str]:
+    """Keys written as a comma list in the ini ("a, b, c"): every field typed list[...]."""
+    out = set()
+    for section in Config.model_fields.values():
+        for name, field in section.annotation.model_fields.items():
+            if typing.get_origin(field.annotation) is list:
+                out.add(name)
+    return out
+
+
+LIST_FIELDS = _list_fields()
 
 
 # ---------- Loading ----------

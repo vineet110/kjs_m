@@ -2,10 +2,11 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.core.rate_limit import lead_file_limiter
@@ -58,13 +59,21 @@ async def read_lead_file(file: UploadFile = File(...), user: User = Depends(requ
                          db: AsyncSession = Depends(get_db)):
     """Read an Excel / CSV file to fill the New internal lead form. Nothing is saved."""
     lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
-    data = await file.read(lead_reader.MAX_BYTES + 1)
+    data = await file.read(lead_reader.max_bytes() + 1)
     return await lead_service.read_lead_file(db, file.filename or "", data)
 
 
 class ImportIn(BaseModel):
-    leads: list[InternalLeadIn] = Field(min_length=1, max_length=lead_reader.MAX_IMPORT_ROWS)
+    leads: list[InternalLeadIn] = Field(min_length=1, max_length=5000)  # the real cap: leads.ini import_max_rows
     extra_rejected: list[ExtraName] = Field(default_factory=list, max_length=MAX_EXTRA)  # for the audit log
+
+    @field_validator("leads")
+    @classmethod
+    def not_too_many(cls, v: list) -> list:
+        limit = cfg().leads.import_max_rows
+        if len(v) > limit:
+            raise ValueError(f"At most {limit} leads in one import.")
+        return v
 
 
 @router.post("/leads/import/preview")
@@ -72,7 +81,7 @@ async def import_preview(file: UploadFile = File(...), user: User = Depends(requ
                          db: AsyncSession = Depends(get_db)):
     """Bulk import, step 1: read every row of an Excel / CSV file and check it. Nothing is saved."""
     lead_file_limiter.check(f"user:{user.id}", "Too many files read in an hour. Please try again later.")
-    data = await file.read(lead_reader.MAX_BYTES + 1)
+    data = await file.read(lead_reader.max_bytes() + 1)
     return await lead_service.import_preview(db, user, file.filename or "", data)
 
 

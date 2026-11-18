@@ -9,7 +9,7 @@ Two layouts are understood:
   - a card: column A names the field, column B holds the value ("Phone | +91 98480 12345").
 
 Safety: the file must pass `file_check` (real, whole, no zip bomb); only cell values are read, never formulas
-(`data_only`); at most MAX_ROWS rows, MAX_COLS columns and MAX_CELL characters per cell are read.
+(`data_only`); at most `max_rows` rows, MAX_COLS columns and MAX_CELL characters per cell are read.
 """
 import csv
 import io
@@ -18,13 +18,12 @@ from datetime import date, datetime
 
 from openpyxl import load_workbook
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.schemas.lead import InternalLeadIn
 from app.services import file_check
 
-MAX_BYTES = 10 * 1024 * 1024
-MAX_ROWS = 50  # leads shown to pick from (one file fills one lead)
-MAX_IMPORT_ROWS = 500  # bulk import: each row becomes a lead
+# File size and row limits: config/leads.ini (file_max_mb, file_preview_rows, import_max_rows)
 MAX_COLS = 50
 MAX_CELL = 500  # characters kept from a cell we have no field for
 MAX_SCAN = 20_000  # lines looked at, empty ones included (Excel can pad a sheet with thousands of empty rows)
@@ -96,8 +95,9 @@ def _table(filename: str, data: bytes, max_rows: int) -> tuple[list[list[str]], 
         raise AppError(422, "file_type", "Old Excel files (.xls) can't be read. In Excel, use Save As > .xlsx.")
     if ext not in ("xlsx", "csv"):
         raise AppError(422, "file_type", "Please choose an Excel (.xlsx) or CSV file.")
-    if len(data) > MAX_BYTES:
-        raise AppError(413, "too_big", "Max 10 MB for a file to read.")
+    max_mb = cfg().leads.file_max_mb
+    if len(data) > max_bytes():
+        raise AppError(413, "too_big", f"Max {max_mb} MB for a file to read.")
     if not data or not file_check.is_valid(ext, data):
         raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file.")
     if ext == "xlsx":
@@ -152,9 +152,17 @@ def _lead(pairs: list[tuple[str, str]], categories: dict[str, str]) -> dict:
     return {"fields": fields, "extra": extra}
 
 
-def read(filename: str, data: bytes, categories: dict[str, str], max_rows: int = MAX_ROWS) -> dict:
+def max_bytes() -> int:
+    """Biggest file read (config/leads.ini file_max_mb)."""
+    return cfg().leads.file_max_mb * 1024 * 1024
+
+
+def read(filename: str, data: bytes, categories: dict[str, str], max_rows: int | None = None) -> dict:
     """The file's leads, ready for the form. `categories`: name or slug (lower case) -> slug.
-    `max_rows`: rows returned at most (MAX_ROWS to pick one, MAX_IMPORT_ROWS for a bulk import)."""
+    `max_rows`: rows returned at most (leads.ini file_preview_rows to pick one, import_max_rows for a
+    bulk import)."""
+    if max_rows is None:
+        max_rows = cfg().leads.file_preview_rows
     table, unsure = _table(filename, data, max_rows)
     if not table:
         raise AppError(422, "empty", "This file has no data.")

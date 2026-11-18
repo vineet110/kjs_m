@@ -43,12 +43,11 @@ FALLBACK = (
 )
 
 
-PROMPT_PRODUCTS = 8  # products given to the AI per message
-CARD_PRODUCTS = 6  # products on the catalogue card
+# Products per message / on the card and the prompt size: config/koko.ini
 PRODUCT_TEXT = 200  # characters of each product's description given to the AI
-# Characters of system prompt: about 2,000 tokens. With the chat and the reply, one message is about 3,000 tokens,
-# so Groq's free 8,000 tokens a minute fits a few messages a minute for the whole site (a paid tier fits far more).
-PROMPT_LIMIT = 8_000
+# koko.ini prompt_limit = 8000 characters of system prompt: about 2,000 tokens. With the chat and the reply, one
+# message is about 3,000 tokens, so Groq's free 8,000 tokens a minute fits a few messages a minute for the whole
+# site (a paid tier fits far more).
 QUESTIONS = 3  # the visitor's last few messages are read for product words, so follow-ups keep their topic
 # Words that say nothing about which product is meant
 STOP = set("""a an and are as at be but by can do does for from have hi hello how i in is it me my of on or our
@@ -120,7 +119,7 @@ def _featured(items: list[ProductOut]) -> list[ProductOut]:
 
 def pick_products(questions: list[str], cat: CategoryOut | None, viewed: ProductOut | None,
                   prods: list[ProductOut]) -> list[ProductOut]:
-    """The products the AI gets, most important first, at most PROMPT_PRODUCTS:
+    """The products the AI gets, most important first, at most koko.ini prompt_products:
     1. the product the visitor is looking at,
     2. products their messages name (newest message first; within one message, most matching words first),
     3. the page's category (sales' picks first)."""
@@ -132,7 +131,7 @@ def pick_products(questions: list[str], cat: CategoryOut | None, viewed: Product
         picked += sorted((p for p in prods if scores.get(p.slug) and p not in picked), key=lambda p: -scores[p.slug])
     if cat:
         picked += [p for p in _featured([p for p in prods if _in_category(p, cat)]) if p not in picked]
-    return picked[:PROMPT_PRODUCTS]
+    return picked[:cfg().koko.prompt_products]
 
 
 def _catalogue_text(cats: list[CategoryOut], picked: list[ProductOut]) -> str:
@@ -149,7 +148,7 @@ def _catalogue_text(cats: list[CategoryOut], picked: list[ProductOut]) -> str:
 
 
 def catalogue_card(cat: CategoryOut | None, prods: list[ProductOut], viewed: ProductOut | None = None) -> KokoCatalogue | None:
-    """Up to CARD_PRODUCTS of the page's category: the product being viewed first, then sales' picks, mixed kinds."""
+    """Up to koko.ini card_products of the page's category: the product being viewed first, then sales' picks, mixed kinds."""
     if cat is None:
         return None
     items = ([viewed] if viewed else []) + _featured([p for p in prods if _in_category(p, cat) and p != viewed])
@@ -157,7 +156,7 @@ def catalogue_card(cat: CategoryOut | None, prods: list[ProductOut], viewed: Pro
         return None
     return KokoCatalogue(category_name=cat.name, category_slug=cat.slug,
                          products=[KokoCardProduct(name=p.name, slug=p.slug, image_path=p.image_path)
-                                   for p in items[:CARD_PRODUCTS]])
+                                   for p in items[:cfg().koko.card_products]])
 
 
 def system_prompt(catalogue: str, facts: str) -> str:
@@ -190,14 +189,15 @@ RULES (follow strictly):
 
 def build_prompt(facts: str, questions: list[str], cat: CategoryOut | None, cats: list[CategoryOut],
                  prods: list[ProductOut], viewed: ProductOut | None = None) -> str:
-    """The system prompt, kept under PROMPT_LIMIT: if long facts push it over, fewer products go in
+    """The system prompt, kept under koko.ini prompt_limit: if long facts push it over, fewer products go in
     (the least important ones: pick_products puts the most important first)."""
     picked = pick_products(questions, cat, viewed, prods)
+    limit = cfg().koko.prompt_limit
     prompt = system_prompt(_catalogue_text(cats, picked), facts)
-    while len(prompt) > PROMPT_LIMIT and picked:
+    while len(prompt) > limit and picked:
         picked = picked[:-1]
         prompt = system_prompt(_catalogue_text(cats, picked), facts)
-    if len(prompt) > PROMPT_LIMIT:
+    if len(prompt) > limit:
         log.warning("koko.prompt_too_long", extra={"chars": len(prompt)})  # the facts alone: shorten them
     return prompt
 

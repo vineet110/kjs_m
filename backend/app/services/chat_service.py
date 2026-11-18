@@ -27,14 +27,13 @@ from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.core.rate_limit import chat_send_limiter
 from app.models.chat import ChatChannel, ChatMember, ChatMessage
 from app.models.user import User
 from app.services import audit_service, notification_service
 from app.services.chat_hub import hub
-
-PAGE_MAX = 100  # most messages one request may ask for
 
 
 def dm_key(a: int, b: int) -> str:
@@ -383,7 +382,7 @@ async def list_messages(db: AsyncSession, user: User, channel_id: int, *, before
     3. after=X: the ones just after X (catching up after a dropped connection).
     has_more: there are more in that direction."""
     await _membership(db, channel_id, user.id)
-    limit = max(1, min(limit, PAGE_MAX))
+    limit = max(1, min(limit, cfg().chat.page_max))  # config/chat.ini
     q = (select(ChatMessage, User.name).join(User, User.id == ChatMessage.sender_id)
          .where(ChatMessage.channel_id == channel_id))
     if after is not None:

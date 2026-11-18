@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.models.user import User
 from app.services import complaint_service
-from app.services.complaint_service import MIN_DESCRIPTION_WORDS, MIN_TITLE_WORDS, words
+from app.services.complaint_service import words
 
 router = APIRouter()
 
@@ -26,15 +27,17 @@ class ComplaintIn(BaseModel):
     @field_validator("title")
     @classmethod
     def title_words(cls, v: str) -> str:
-        if words(v) < MIN_TITLE_WORDS:
-            raise ValueError(f"Write at least {MIN_TITLE_WORDS} words in the title.")
+        need = cfg().complaints.min_title_words
+        if words(v) < need:
+            raise ValueError(f"Write at least {need} words in the title.")
         return v
 
     @field_validator("description")
     @classmethod
     def description_words(cls, v: str) -> str:
-        if words(v) < MIN_DESCRIPTION_WORDS:
-            raise ValueError(f"Write at least {MIN_DESCRIPTION_WORDS} words in the description.")
+        need = cfg().complaints.min_description_words
+        if words(v) < need:
+            raise ValueError(f"Write at least {need} words in the description.")
         return v
 
 

@@ -34,7 +34,9 @@ export type Colleague = { id: number; name: string };
 export type Notice = { id: number; kind: string; title: string; body: string; link: string; read: boolean; created_at: string };
 
 /** `modules`: portal area -> can this person use it (config/modules.ini, see lib/modules.ts). */
-export type Me = { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[]; modules?: Record<string, boolean> };
+// limits: from config/*.ini via /auth/me, so the portal never keeps its own copy of a server limit
+export type PortalLimits = { chat_body_max: number; complaint_min_title_words: number; complaint_min_description_words: number };
+export type Me = { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[]; modules?: Record<string, boolean>; limits?: PortalLimits };
 
 export type ApiError = { code: string; message: string; details: Record<string, unknown>; request_id: string | null };
 

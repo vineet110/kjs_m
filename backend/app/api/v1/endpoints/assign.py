@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, require_permission
 from app.core.errors import AppError
@@ -12,7 +13,6 @@ from app.models.user import User
 from app.services import assign_service
 
 router = APIRouter()
-MAX_IMPORT_BYTES = 10 * 1024 * 1024
 
 
 @router.get("/overview")
@@ -23,9 +23,10 @@ async def overview(_: User = Depends(require_permission("assign.manage")), db: A
 @router.post("/import", status_code=201)
 async def import_records(file: UploadFile = File(...), default_category: str = Form(""),
                          user: User = Depends(require_permission("assign.manage")), db: AsyncSession = Depends(get_db)):
-    data = await file.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise AppError(413, "too_big", "Max 10 MB per import.")
+    max_mb = cfg().assign.import_max_mb  # config/assign.ini
+    data = await file.read(max_mb * 1024 * 1024 + 1)
+    if len(data) > max_mb * 1024 * 1024:
+        raise AppError(413, "too_big", f"Max {max_mb} MB per import.")
     return await assign_service.import_records(db, user, file.filename or "import", data, default_category)
 
 

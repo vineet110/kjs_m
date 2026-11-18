@@ -33,12 +33,12 @@ from pathlib import Path
 
 import httpx
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 
 ENV_PREFIX = "HARVEST_"
 ENV_NAME_RE = re.compile(r"^HARVEST_[A-Z0-9_]{1,60}$")
 MAX_REDIRECTS = 5
-HTTP_TIMEOUT_SECONDS = 30.0
 CONNECT_TIMEOUT_SECONDS = 10.0  # per address tried
 MAX_ADDRESS_TRIES = 3  # a host's checked addresses, IPv4 first (servers often have no IPv6 route)
 ENV_FILES = ("../.env", ".env")  # the same files app settings read (app/core/config), same order
@@ -177,7 +177,7 @@ async def safe_get(url: str, headers: dict[str, str] | None = None, *, api_key: 
     first_host = (urllib.parse.urlsplit(url).hostname or "").lower()
     headers = dict(headers or {})
     current, previous_scheme = url, None
-    timeout = httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)
+    timeout = httpx.Timeout(cfg().harvest.http_timeout_seconds, connect=CONNECT_TIMEOUT_SECONDS)
     # trust_env=False: no system proxy (HTTPS_PROXY…): we must connect to the address we checked ourselves
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
         for _ in range(MAX_REDIRECTS + 1):

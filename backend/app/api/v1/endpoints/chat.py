@@ -6,10 +6,11 @@ import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.config.ini import cfg
 from app.core.database import get_db
 from app.core.deps import current_user, origin_allowed, ws_user
 from app.core.modules import visible_by_id
@@ -38,8 +39,16 @@ class ChannelPatch(BaseModel):
 
 
 class MessageIn(BaseModel):
-    body: str = Field(min_length=1, max_length=4000)  # plain text; the page never shows it as HTML
+    body: str = Field(min_length=1, max_length=20000)  # plain text; the page never shows it as HTML
     mention_ids: list[int] = Field(default_factory=list, max_length=50)
+
+    @field_validator("body")
+    @classmethod
+    def body_max(cls, v: str) -> str:
+        limit = cfg().chat.body_max  # config/chat.ini, read now so a change applies live
+        if len(v) > limit:
+            raise ValueError(f"A message can be at most {limit} characters.")
+        return v
 
 
 class ReadIn(BaseModel):
@@ -101,7 +110,7 @@ async def unread_total(user: User = Depends(current_user), db: AsyncSession = De
 
 @router.get("/channels/{channel_id}/messages")
 async def list_messages(channel_id: int, before: int | None = None, after: int | None = None,
-                        limit: int = Query(default=50, ge=1, le=chat_service.PAGE_MAX),
+                        limit: int = Query(default=50, ge=1, le=500),  # the service caps it at chat.ini page_max
                         user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     return await chat_service.list_messages(db, user, channel_id, before=before, after=after, limit=limit)
 

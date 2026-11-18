@@ -177,11 +177,12 @@ async def test_mail_server_down_costs_one_try_not_fifty(client, monkeypatch):
 
 # ---------- Batches and imports ----------
 async def test_import_refuses_more_rows_than_allowed(client, monkeypatch):
-    from app.services import assign_service
-    monkeypatch.setattr(assign_service, "MAX_ROWS", 3)
+    from app.core.config import ini
+    monkeypatch.setenv("KJS__ASSIGN__IMPORT_MAX_ROWS", "10")  # config/assign.ini (10 is its lowest value)
+    ini.reload_now()
     await make_user("boss@kjsindia.com", permissions=["leads.view", "assign.manage"])
     await login(client, "boss@kjsindia.com")
-    csv = "Company,Category\n" + "".join(f"Firm {i},coffee\n" for i in range(4))
+    csv = "Company,Category\n" + "".join(f"Firm {i},coffee\n" for i in range(11))
     r = await client.post("/api/v1/assign/import", files={"file": ("big.csv", csv.encode(), "text/csv")}, headers=HDR)
     assert r.status_code == 422 and r.json()["code"] == "too_many_rows"
 

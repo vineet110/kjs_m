@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.models.attendance import Attendance
 from app.models.content import KokoChat
 from app.models.lead import Lead
@@ -44,20 +45,21 @@ async def summary(db: AsyncSession) -> dict:
     # the number of people told about it).
     breaches = sum(1 for x in leads if x.escalation_level > 0)
 
-    # Attendance: last 14 days, present vs late
-    start = today - timedelta(days=13)
+    a_cfg = cfg().analytics  # config/analytics.ini
+    # Attendance: last attendance_days days, present vs late
+    start = today - timedelta(days=a_cfg.attendance_days - 1)
     att = dict()
     for day, status, n in (await db.execute(select(Attendance.day, Attendance.status, func.count())
                                             .where(Attendance.day >= start).group_by(Attendance.day, Attendance.status))).all():
         att.setdefault(day.isoformat(), {"present": 0, "late": 0})[status if status in ("present", "late") else "present"] += n
     attendance = [{"day": (start + timedelta(days=i)).isoformat(), **att.get((start + timedelta(days=i)).isoformat(), {"present": 0, "late": 0})}
-                  for i in range(14)]
+                  for i in range(a_cfg.attendance_days)]
 
-    # Tasks done per person (last 30 days)
+    # Tasks done per person (last tasks_days days, top_people people)
     tasks_done = [{"name": n, "done": c} for n, c in (await db.execute(
         select(User.name, func.count()).join(Task, Task.assignee_id == User.id)
-        .where(Task.status == "done", Task.completed_at >= now - timedelta(days=30))
-        .group_by(User.name).order_by(func.count().desc()).limit(15))).all()]
+        .where(Task.status == "done", Task.completed_at >= now - timedelta(days=a_cfg.tasks_days))
+        .group_by(User.name).order_by(func.count().desc()).limit(a_cfg.top_people))).all()]
 
     # Order boards by state
     boards = (await db.scalars(select(OrderBoard).where(OrderBoard.status == "active"))).all()

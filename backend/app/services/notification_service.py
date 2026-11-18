@@ -90,8 +90,7 @@ def _close(conn: smtplib.SMTP | None) -> None:
             pass
 
 
-MAX_EMAIL_ATTEMPTS = 3
-EMAIL_TIME_BUDGET_SECONDS = 120  # stop early so the other jobs (SLA, alerts) aren't held up
+# Tries, time per run and the stuck-email wait: config/notifications.ini
 # Visitor text reaches staff inboxes from our own address, so say clearly that it isn't ours.
 VISITOR_TEXT_NOTE = ("\n\n--\nThis alert may include text typed by a website visitor. "
                      "Don't open links or attachments you didn't expect.")
@@ -101,10 +100,11 @@ VISITOR_TEXT_NOTE = ("\n\n--\nThis alert may include text typed by a website vis
 async def send_emails(db: AsyncSession) -> dict:
     """Each email is saved as sent the moment it goes out (commit per email), so a crash or restart
     never sends the same email twice. A failed send is retried on the next runs, up to 3 tries."""
-    # Rows left in "sending" by a crash 15+ minutes ago go back in the queue.
+    n_cfg = cfg().notifications
+    # Rows left in "sending" by a crash 15+ minutes ago (stuck_retry_minutes) go back in the queue.
     await db.execute(update(Notification)
                      .where(Notification.email_status == "sending",
-                            Notification.updated_at < datetime.now(timezone.utc) - timedelta(minutes=15))
+                            Notification.updated_at < datetime.now(timezone.utc) - timedelta(minutes=n_cfg.stuck_retry_minutes))
                      .values(email_status="pending"))
     rows = (await db.execute(
         select(Notification, User).join(User, User.id == Notification.user_id)
@@ -125,7 +125,7 @@ async def send_emails(db: AsyncSession) -> dict:
         for n, u in rows:
             if n.email_status != "sending":
                 continue
-            if server_down or time.monotonic() - started > EMAIL_TIME_BUDGET_SECONDS:
+            if server_down or time.monotonic() - started > n_cfg.email_time_budget_seconds:
                 n.email_status = "pending"  # not tried: back in the queue for the next run
                 await db.commit()
                 continue
@@ -152,7 +152,7 @@ async def send_emails(db: AsyncSession) -> dict:
                 _close(conn)
                 conn = None  # the connection may be broken: open a fresh one for the next email
                 n.email_attempts += 1
-                n.email_status = "failed" if n.email_attempts >= MAX_EMAIL_ATTEMPTS else "pending"
+                n.email_status = "failed" if n.email_attempts >= n_cfg.email_attempts else "pending"
                 failed += 1
                 log.warning("email.failed", extra={"notification_id": n.id, "attempt": n.email_attempts,
                                                    "reason": f"{type(e).__name__}: {str(e)[:200]}"})
