@@ -11,7 +11,7 @@ export type Area =
 const AREA_PAGES: Record<Area, string[]> = {
   batches: ['/employee/batches', '/admin/auto-assign'],
   order_boards: ['/employee/order-boards', '/admin/order-boards'],
-  attendance: ['/employee/attendance', '/admin/team-attendance', '/admin/holidays'],
+  attendance: ['/employee/attendance', '/admin/team-attendance'], // not Holidays: lead SLA needs them (always on)
   website_admin: ['/admin/products', '/admin/website', '/admin/koko'],
   analytics: ['/admin/analytics'],
   alerts: ['/admin/alerts'],

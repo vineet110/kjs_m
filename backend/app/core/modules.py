@@ -27,7 +27,8 @@ AREAS = tuple(ModulesIni.model_fields)
 AREA_PAGES = {
     "batches": ("/employee/batches", "/admin/auto-assign"),
     "order_boards": ("/employee/order-boards", "/admin/order-boards"),
-    "attendance": ("/employee/attendance", "/admin/team-attendance", "/admin/holidays"),
+    # Holidays are not here: lead SLA deadlines need them even when attendance is off (always on)
+    "attendance": ("/employee/attendance", "/admin/team-attendance"),
     "website_admin": ("/admin/products", "/admin/website", "/admin/koko"),
     "analytics": ("/admin/analytics",),
     "alerts": ("/admin/alerts",),

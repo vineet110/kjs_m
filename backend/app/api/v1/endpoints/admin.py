@@ -265,16 +265,17 @@ class HolidayOut(HolidayIn):
     model_config = {"from_attributes": True}
 
 
-@router.get("/holidays", response_model=list[HolidayOut], dependencies=area("attendance"))
+# Holidays: no module switch. Lead SLA deadlines skip them, so they stay editable when attendance is off.
+@router.get("/holidays", response_model=list[HolidayOut])
 async def holidays(year: int, _: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.list_holidays(db, year)
 
 
-@router.post("/holidays", response_model=HolidayOut, status_code=201, dependencies=area("attendance"))
+@router.post("/holidays", response_model=HolidayOut, status_code=201)
 async def add_holiday(data: HolidayIn, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.add_holiday(db, user, data.day, data.name)
 
 
-@router.delete("/holidays/{holiday_id}", status_code=204, dependencies=area("attendance"))
+@router.delete("/holidays/{holiday_id}", status_code=204)
 async def remove_holiday(holiday_id: int, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     await calendar_service.remove_holiday(db, user, holiday_id)

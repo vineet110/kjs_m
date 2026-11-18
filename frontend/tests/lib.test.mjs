@@ -416,7 +416,7 @@ const { areaOfPath, canSee } = await load('modules');
 test('areaOfPath finds the area of a portal page, with or without a language prefix', () => {
   assert.equal(areaOfPath('/employee/order-boards'), 'order_boards');
   assert.equal(areaOfPath('/en/employee/order-boards/ABC1'), 'order_boards');
-  assert.equal(areaOfPath('/admin/holidays?year=2026'), 'attendance');
+  assert.equal(areaOfPath('/admin/holidays?year=2026'), null); // always on: lead SLA needs holidays
   assert.equal(areaOfPath('/admin/auto-assign'), 'batches');
   assert.equal(areaOfPath('/admin/koko'), 'website_admin');
   assert.equal(areaOfPath('/employee/order-boardsX'), null); // whole page names only
