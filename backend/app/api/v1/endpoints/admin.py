@@ -28,11 +28,13 @@ router = APIRouter()
 async def stats(user: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
     users = dict((await db.execute(select(User.status, func.count()).group_by(User.status))).all())
     shop = visible(user, "website_admin")  # null = that area is hidden (config/modules.ini)
-    leads = await lead_service.counts(db)
-    this_week, last_week = await lead_service.weekly_counts(db)
+    # Company-wide lead numbers only for people who may see every lead; null = the tiles are hidden
+    see_leads = "leads.view_all" in effective_permissions(user.role, user.permissions)
+    leads = await lead_service.counts(db) if see_leads else {}
+    this_week, last_week = await lead_service.weekly_counts(db) if see_leads else (None, None)
     return {
-        "leads_total": sum(leads.values()),
-        "leads_new": leads.get("new", 0),
+        "leads_total": sum(leads.values()) if see_leads else None,
+        "leads_new": leads.get("new", 0) if see_leads else None,
         "leads_this_week": this_week,
         "leads_last_week": last_week,
         "staff_pending": users.get("pending", 0),

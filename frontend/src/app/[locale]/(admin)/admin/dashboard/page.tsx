@@ -13,7 +13,8 @@ import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
 type Stats = {
-  leads_total: number; leads_new: number; leads_this_week: number; leads_last_week: number;
+  // null: this person can't see every lead (no leads.view_all), so the lead tiles are hidden
+  leads_total: number | null; leads_new: number | null; leads_this_week: number | null; leads_last_week: number | null;
   // null: All Products is switched off (config/modules.ini)
   staff_pending: number; staff_active: number; products: number | null; categories: number | null;
 };
@@ -64,7 +65,7 @@ export default function AdminDashboard() {
   // One short line under the greeting: what needs attention, or "all caught up"
   const todo = [
     stats.staff_pending > 0 && `${plural(stats.staff_pending, 'person is', 'people are')} waiting for approval`,
-    stats.leads_new > 0 && `${plural(stats.leads_new, 'new lead', 'new leads')} to look at`,
+    !!stats.leads_new && `${plural(stats.leads_new, 'new lead', 'new leads')} to look at`,
   ].filter(Boolean);
   const summary = todo.length ? `${todo.join(' and ')}.` : 'All caught up. Nothing needs you right now ✨';
 
@@ -105,10 +106,14 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatTile label="New leads" value={stats.leads_new} icon="inbox" tone="blue" href={leadsHref} alert={stats.leads_new > 0} hint="Not contacted yet" />
-        <StatTile label="Leads this week" value={stats.leads_this_week} icon="chart" tone="violet" href={leadsHref}
-          trend={{ now: stats.leads_this_week, before: stats.leads_last_week }} />
-        <StatTile label="All leads" value={stats.leads_total} icon="list" tone="slate" href={leadsHref} hint="Since the start" />
+        {stats.leads_total !== null && (
+          <>
+            <StatTile label="New leads" value={stats.leads_new ?? 0} icon="inbox" tone="blue" href={leadsHref} alert={!!stats.leads_new} hint="Not contacted yet" />
+            <StatTile label="Leads this week" value={stats.leads_this_week ?? 0} icon="chart" tone="violet" href={leadsHref}
+              trend={{ now: stats.leads_this_week ?? 0, before: stats.leads_last_week ?? 0 }} />
+            <StatTile label="All leads" value={stats.leads_total} icon="list" tone="slate" href={leadsHref} hint="Since the start" />
+          </>
+        )}
         <StatTile label="Waiting for approval" value={stats.staff_pending} icon="clock" tone="gold" href="#approvals"
           alert={stats.staff_pending > 0} hint={stats.staff_pending ? 'New staff sign-ups' : 'No one waiting'} />
         <StatTile label="Active staff" value={stats.staff_active} icon="users" tone="green" href="#staff" hint="Approved accounts" />
