@@ -29,7 +29,17 @@ def test_missing_files_use_the_defaults(tmp_path, monkeypatch):
 
 
 def test_list_keys_come_from_the_field_types():
-    assert {"thresholds", "channels", "allowed_types"} <= ini.LIST_FIELDS
+    assert {("alerts", "thresholds"), ("alerts", "channels"), ("storage", "allowed_types")} <= ini.LIST_FIELDS
+    assert ini._is_list(list[str] | None) and not ini._is_list(str)
+
+
+def test_a_list_key_is_split_only_in_its_own_file(monkeypatch):
+    """`channels` is a list in alerts.ini; the same name in another file must stay as written."""
+    monkeypatch.setattr(ini, "LIST_FIELDS", {("alerts", "channels")})
+    monkeypatch.setenv("KJS__ALERTS__CHANNELS", "in_app, email")
+    monkeypatch.setenv("KJS__APP__CHANNELS", "a, b")
+    raw = ini._read_raw()
+    assert raw["alerts"]["channels"] == ["in_app", "email"] and raw["app"]["channels"] == "a, b"
 
 
 @pytest.mark.parametrize("key, bad", [("chat__body_max", 0), ("leads__import_max_rows", -1),

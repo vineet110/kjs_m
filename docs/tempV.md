@@ -31,3 +31,21 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 
 8. Seen on 18 Nov: `next build` warns that Next.js 16.4.3 has a known security vulnerability. Not from this
    PR. Upgrading is a dependency change: ask, then add to backlog section 21 at the next fold.
+
+9. Second review of #91 (18 Nov): fixed list keys per file (`ini.py` `_list_fields`). Left for later (Vineet's
+   call), add to backlog at the next fold:
+
+   i.    🟠 Chat breaks if `chat.ini page_max` is set below 50: loads without `limit` default to 50 and are
+         refused. Fix: default = min(50, page_max), always cap (has_more already asks again), frontend sends no
+         limit. Until then: keep `page_max` at 50 or more.
+   ii.   🟠 One bad value makes the WHOLE config fall back to defaults on first load (e.g. jobs_enabled back
+         on). `storage.max_upload_mb` max went 500 -> 25: a server with 26-500 set (ini or
+         `KJS__STORAGE__MAX_UPLOAD_MB`) loses all its ini values. Check the VPS env before deploying; later:
+         warn instead of refuse for this key, or validate per file.
+   iii.  🟢 `POST /employee/leads/import` (JSON) is under nginx's 1 MB default: ~3000 rows hit it while
+         `import_max_rows` allows 5000. Add it to the 26 MB nginx rule or lower the bound.
+   iv.   🟢 After `body_max` is lowered, older long messages can't be edited (edit reuses `MessageIn`).
+   v.    🟢 Open tabs keep old `me.limits` until reload (server still checks every request).
+   vi.   🟢 Cleanups: MB->bytes in one place (`lead_reader`, `assign.py`); stale comments ("up to 3 tries" in
+         `notification_service.send_emails`, "Missed more than 100" in chat page); `lead_service.sla()` reads
+         `cfg()` per lead (read once per list).

@@ -250,14 +250,19 @@ class Config(BaseModel):
 FILES = {name: f"{name}.ini" for name in Config.model_fields}
 
 
-def _list_fields() -> set[str]:
-    """Keys written as a comma list in the ini ("a, b, c"): every field typed list[...]."""
-    out = set()
-    for section in Config.model_fields.values():
-        for name, field in section.annotation.model_fields.items():
-            if typing.get_origin(field.annotation) is list:
-                out.add(name)
-    return out
+def _is_list(annotation) -> bool:
+    """list[...] or an optional list (list[str] | None)."""
+    if typing.get_origin(annotation) is list:
+        return True
+    return any(typing.get_origin(a) is list for a in typing.get_args(annotation))
+
+
+def _list_fields() -> set[tuple[str, str]]:
+    """(section, key) pairs written as a comma list in the ini ("a, b, c"): every field typed as a list.
+    Per section, so a key with the same name in another file is never split by mistake."""
+    return {(section, name)
+            for section, model in Config.model_fields.items()
+            for name, field in model.annotation.model_fields.items() if _is_list(field.annotation)}
 
 
 LIST_FIELDS = _list_fields()
@@ -290,10 +295,10 @@ def _read_raw() -> dict:
             if len(parts) == 2 and parts[0] in raw:
                 raw[parts[0]][parts[1]] = value
 
-    for values in raw.values():
-        for k in LIST_FIELDS & values.keys():
-            if isinstance(values[k], str):
-                values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
+    for section, k in LIST_FIELDS:
+        values = raw.get(section, {})
+        if isinstance(values.get(k), str):
+            values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
     return raw
 
 
