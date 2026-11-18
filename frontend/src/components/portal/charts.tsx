@@ -42,20 +42,23 @@ export function Bars({ data }: { data: { label: string; value: number }[] }) {
 /** Vertical columns over time, with a hover tooltip and the latest value labelled. `tip`: words before the
  *  label in the tooltip ("Week of"). */
 export function Columns({ data, tip = '' }: { data: { label: string; value: number }[]; tip?: string }) {
-  const [hover, setHover] = useState<number | null>(null);
+  // The hovered bar by its label (a date), not its position: after a range change a stale position could
+  // point past the new data
+  const [hover, setHover] = useState<string | null>(null);
   if (data.every((x) => !x.value)) return <Empty />;
   const max = Math.max(1, ...data.map((x) => x.value));
+  const shown = data.find((x) => x.label === hover); // undefined when that day is not in the data any more
   return (
     <div>
       <div className="relative flex h-40 items-end gap-1 border-b border-slate-200">
-        {data.map((x, i) => (
-          <div key={x.label} className="flex h-full flex-1 items-end justify-center" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <div className="w-full max-w-[28px] rounded-t" style={{ height: `${(x.value / max) * 100}%`, minHeight: x.value ? 3 : 0, background: C1, opacity: hover === null || hover === i ? 1 : 0.5 }} />
+        {data.map((x) => (
+          <div key={x.label} className="flex h-full flex-1 items-end justify-center" onMouseEnter={() => setHover(x.label)} onMouseLeave={() => setHover(null)}>
+            <div className="w-full max-w-[28px] rounded-t" style={{ height: `${(x.value / max) * 100}%`, minHeight: x.value ? 3 : 0, background: C1, opacity: hover === null || hover === x.label ? 1 : 0.5 }} />
           </div>
         ))}
-        {hover !== null && (
+        {shown && (
           <div className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-ink px-2 py-1 text-xs text-white">
-            {tip && `${tip} `}{data[hover].label}: <b>{data[hover].value}</b>
+            {tip && `${tip} `}{shown.label}: <b>{shown.value}</b>
           </div>
         )}
       </div>
@@ -66,21 +69,24 @@ export function Columns({ data, tip = '' }: { data: { label: string; value: numb
 
 /** Two stacked series per day (2px surface gap between segments). */
 export function StackedColumns({ data }: { data: { label: string; a: number; b: number }[] }) {
-  const [hover, setHover] = useState<number | null>(null);
+  // The hovered bar by its label (a date), not its position: after a range change a stale position could
+  // point past the new data
+  const [hover, setHover] = useState<string | null>(null);
   if (data.every((x) => !x.a && !x.b)) return <Empty />;
   const max = Math.max(1, ...data.map((x) => x.a + x.b));
+  const shown = data.find((x) => x.label === hover);
   return (
     <div>
       <div className="relative flex h-40 items-end gap-1 border-b border-slate-200">
-        {data.map((x, i) => (
-          <div key={x.label} className="flex h-full flex-1 flex-col items-center justify-end gap-[2px]" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+        {data.map((x) => (
+          <div key={x.label} className="flex h-full flex-1 flex-col items-center justify-end gap-[2px]" onMouseEnter={() => setHover(x.label)} onMouseLeave={() => setHover(null)}>
             {x.b > 0 && <div className="w-full max-w-[22px] rounded-t" style={{ height: `${(x.b / max) * 100}%`, background: C2 }} />}
             {x.a > 0 && <div className={`w-full max-w-[22px] ${x.b ? '' : 'rounded-t'}`} style={{ height: `${(x.a / max) * 100}%`, background: C1 }} />}
           </div>
         ))}
-        {hover !== null && (
+        {shown && (
           <div className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-ink px-2 py-1 text-xs text-white">
-            {data[hover].label}: {data[hover].a} present · {data[hover].b} late
+            {shown.label}: {shown.a} present · {shown.b} late
           </div>
         )}
       </div>

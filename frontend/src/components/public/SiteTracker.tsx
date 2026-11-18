@@ -8,6 +8,7 @@ import { linkButton, outsideReferrer, startInsights, track, type InsightsConfig 
 export default function SiteTracker({ config }: { config: InsightsConfig | null }) {
   const path = usePathname();
   const first = useRef(true);
+  const on = !!config?.on;
 
   useEffect(() => {
     const stop = startInsights(config);
@@ -27,11 +28,12 @@ export default function SiteTracker({ config }: { config: InsightsConfig | null 
   }, [config]);
 
   useEffect(() => {
-    // Only the first page of a visit says where the visitor came from
+    if (!on) return; // also runs when tracking turns on later, for the page already open
+    // Only the first recorded page of a visit says where the visitor came from
     const referrer = first.current ? outsideReferrer(document.referrer, window.location.host) : undefined;
     first.current = false;
     track({ kind: 'page', path, ...(referrer ? { referrer } : {}) });
-  }, [path]);
+  }, [path, on]);
 
   return null;
 }

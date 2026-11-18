@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { Category } from '@/lib/api';
 import { isUploaded, matchesSearch, searchEntry } from '@/lib/catalogue';
-import { trackSearch } from '@/lib/insights';
+import { cancelSearch, trackSearch } from '@/lib/insights';
 import { startNavigationProgress } from '../NavigationProgress';
 import { useCatalogue } from './CatalogueContext';
 
@@ -26,7 +26,9 @@ export default function HomeSearch({ categories, coffee = false }: { categories:
   // Website insights: what was searched and how many products it found (recorded after a typing pause)
   useEffect(() => {
     if (q.trim()) trackSearch(q, found.length);
+    else cancelSearch(); // cleared before the pause ended: nothing is recorded
   }, [q, found.length]);
+  useEffect(() => cancelSearch, []); // the search box closed (another page): forget a waiting search
 
   function submit(e: React.FormEvent) {
     e.preventDefault();

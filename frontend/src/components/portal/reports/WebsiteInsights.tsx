@@ -1,23 +1,22 @@
 'use client';
 // Reports > Website insights: what website visitors view, search and click (backend site_insights_service).
 // Real numbers only (D6): an empty table shows zeros. Ranges and list sizes come from config/site_insights.ini.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bars, Columns, Panel } from '@/components/portal/charts';
 import { fmtDay } from '@/components/portal/ui';
-import { api } from '@/lib/api';
+import { api, ApiFailure } from '@/lib/api';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
 type Data = {
-  days: number; day_choices: number[]; keep_days: number;
-  totals: { visits: number; page_views: number; product_views: number; searches: number; enquiries_sent: number };
+  days: number; default_days: number; day_choices: number[]; keep_days: number;
+  totals: { visits: number; page_views: number; product_views: number; searches: number; searches_no_results: number; enquiries_sent: number };
   per_day: { day: string; visits: number; views: number }[];
   top_products: { slug: string; name: string; views: number; visits: number }[];
   top_pages: { path: string; views: number }[];
   top_searches: { query: string; count: number; results: number | null }[];
   no_results: { query: string; count: number }[];
   buttons: { button: string; clicks: number }[];
-  funnel: { viewed_product: number; added_to_enquiry: number; sent_enquiry: number };
   sources: { source: string; visits: number }[];
   devices: Record<string, number>;
 };
@@ -33,9 +32,19 @@ export default function WebsiteInsights() {
   const [days, setDays] = useState<number | null>(null); // null = the default range (site_insights.ini)
   const [d, setD] = useState<Data | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
+  const latest = useRef(0); // only the newest request's answer is shown (a slow older one is ignored)
   const load = useCallback(() => {
+    const id = ++latest.current;
     setLoadErr(null);
-    api<Data>(`/admin/site-insights${days ? `?days=${days}` : ''}`).then(setD).catch(setLoadErr);
+    api<Data>(`/admin/site-insights${days ? `?days=${days}` : ''}`)
+      .then((x) => id === latest.current && setD(x))
+      .catch((err) => {
+        if (id !== latest.current) return;
+        // The range is longer than the days now kept (settings changed while the page was open): show the
+        // default range instead of an error that "Try again" can't fix
+        if (days && err instanceof ApiFailure && err.body.code === 'bad_range') setDays(null);
+        else setLoadErr(err);
+      });
   }, [days]);
   useEffect(() => {
     load();
@@ -47,18 +56,16 @@ export default function WebsiteInsights() {
   const tiles = [
     { label: 'Visits', value: t.visits, sub: 'one visit = one browser tab' },
     { label: 'Pages viewed', value: t.page_views, sub: `${t.product_views} of them product pages` },
-    { label: 'Searches', value: t.searches, sub: `${d.no_results.reduce((a, x) => a + x.count, 0)} found nothing` },
+    { label: 'Searches', value: t.searches, sub: `${t.searches_no_results} found nothing` },
     { label: 'Enquiries sent', value: t.enquiries_sent, sub: 'from the website forms' },
   ];
-  const f = d.funnel;
-  const pct = (n: number) => (f.viewed_product ? ` (${Math.round((n / f.viewed_product) * 100)}%)` : '');
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
-          Anonymous: no names, no cookies. Staff and search-engine robots are not counted. Some visitors block
-          trackers, so real numbers are a little higher.
+          No cookies or IP addresses. Phone numbers and emails typed into search are hidden. Staff and
+          search-engine robots are not counted. Some visitors block trackers, so real numbers are a little higher.
         </p>
         <div className="flex gap-1" role="group" aria-label="Date range">
           {d.day_choices.filter((n) => n <= d.keep_days).map((n) => (
@@ -88,13 +95,6 @@ export default function WebsiteInsights() {
         <Panel title="Most viewed products">
           <Bars data={d.top_products.map((p) => ({ label: p.name, value: p.views }))} />
         </Panel>
-        <Panel title="From product to enquiry (visits)">
-          <Bars data={[
-            { label: 'Viewed a product', value: f.viewed_product },
-            { label: `Added to enquiry${pct(f.added_to_enquiry)}`, value: f.added_to_enquiry },
-            { label: `Sent enquiry${pct(f.sent_enquiry)}`, value: f.sent_enquiry },
-          ]} />
-        </Panel>
         <Panel title="Top searches">
           <Bars data={d.top_searches.map((s) => ({ label: s.query, value: s.count }))} />
         </Panel>
@@ -112,7 +112,7 @@ export default function WebsiteInsights() {
           <Bars data={Object.entries(d.devices).map(([k, v]) => ({ label: DEVICE[k] ?? k, value: v }))} />
         </Panel>
         <Panel title="Most viewed pages">
-          <Bars data={d.top_pages.map((p) => ({ label: p.path, value: p.views }))} />
+          <Bars data={d.top_pages.map((p) => ({ label: p.path === 'other' ? 'Other pages' : p.path, value: p.views }))} />
         </Panel>
       </div>
     </div>

@@ -678,48 +678,95 @@ test('insights: phone and WhatsApp links count without a tag; other links do not
   assert.equal(insights.linkButton(null), null);
 });
 
-test('insights: only a referrer from another site is a source', () => {
-  assert.equal(insights.outsideReferrer('https://www.google.com/', 'kjsindia.com'), 'https://www.google.com/');
+test('insights: only another site counts as a source, and only its address is sent', () => {
+  assert.equal(insights.outsideReferrer('https://www.google.com/search?q=my+name', 'kjsindia.com'), 'https://www.google.com');
   assert.equal(insights.outsideReferrer('https://kjsindia.com/products', 'kjsindia.com'), undefined);
   assert.equal(insights.outsideReferrer('', 'kjsindia.com'), undefined);
   assert.equal(insights.outsideReferrer('not a link', 'kjsindia.com'), undefined);
 });
 
-test('insights: a search is recorded once, when long enough', () => {
+test('insights: a search is recorded once, when long enough, at most 100 characters', () => {
   assert.equal(insights.searchToRecord('  Instant   Coffee ', '', 2), 'instant coffee');
   assert.equal(insights.searchToRecord('instant coffee', 'instant coffee', 2), null); // same as last time
   assert.equal(insights.searchToRecord('a', '', 2), null);
+  assert.equal(insights.searchToRecord('x'.repeat(70000), '', 2).length, 100);
 });
 
-test('insights: events wait until sent, at most max_events_per_send per request; off sends nothing', async () => {
+test('insights: batches keep the size limits; one huge event never blocks the others', () => {
+  const page = (n) => ({ kind: 'page', path: `/p${n}` });
+  assert.deepEqual(insights.batches([1, 2, 3].map(page), 2).map((b) => b.length), [2, 1]);
+  const huge = { kind: 'page', path: '/' + 'x'.repeat(60000) };
+  const out = insights.batches([page(1), huge, page(2)], 20, 48000);
+  assert.deepEqual(out, [[page(1), page(2)]]);
+});
+
+function fakeBrowser() {
   const sent = [];
   const listeners = {};
   globalThis.fetch = async (url, init) => { sent.push({ url, body: JSON.parse(init.body), keepalive: init.keepalive }); return new Response(null, { status: 204 }); };
   globalThis.document = { visibilityState: 'visible', addEventListener: (k, fn) => { listeners[k] = fn; }, removeEventListener: () => {} };
   globalThis.window.addEventListener = () => {};
   globalThis.window.removeEventListener = () => {};
+  globalThis.window.location.pathname = '/';
   globalThis.sessionStorage = { getItem: () => null, setItem: () => {} };
-  const conf = { on: true, send_every_seconds: 60, max_events_per_send: 2, search_pause_ms: 10, min_search_chars: 2, buttons: ['call'] };
+  return { sent, listeners };
+}
+const CONF = { on: true, send_every_seconds: 60, max_events_per_send: 2, search_pause_ms: 10, min_search_chars: 2, buttons: ['call'] };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+test('insights: events wait until sent, at most max_events_per_send per request', () => {
+  const { sent, listeners } = fakeBrowser();
   insights.track({ kind: 'page', path: '/' }); // not started yet: ignored
-  const stop = insights.startInsights(conf);
-  insights.track({ kind: 'page', path: '/' });
-  insights.track({ kind: 'click', path: '/', button: 'made_up' }); // not a counted button: ignored
-  assert.equal(sent.length, 0); // waits for the timer or the tab hiding
-  insights.track({ kind: 'click', path: '/', button: 'call' }); // the queue is full (2): sent now
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].url, '/api/v1/public/insights/events');
-  assert.deepEqual(sent[0].body.events.map((e) => e.kind), ['page', 'click']);
-  assert.match(sent[0].body.visit_id, /^[A-Za-z0-9-]{8,40}$/);
-  assert.equal(sent[0].keepalive, true);
-  insights.track({ kind: 'page', path: '/contact' });
-  document.visibilityState = 'hidden';
-  listeners.visibilitychange(); // tab hidden: sent at once
-  assert.equal(sent.length, 2);
-  stop();
+  const stop = insights.startInsights(CONF);
+  try {
+    insights.track({ kind: 'page', path: '/' });
+    insights.track({ kind: 'click', path: '/', button: 'made_up' }); // not a counted button: ignored
+    assert.equal(sent.length, 0); // waits for the timer or the tab hiding
+    insights.track({ kind: 'click', path: '/', button: 'call' }); // the queue is full (2): sent now
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].url, '/api/v1/public/insights/events');
+    assert.deepEqual(sent[0].body.events.map((e) => e.kind), ['page', 'click']);
+    assert.match(sent[0].body.visit_id, /^[A-Za-z0-9-]{8,40}$/);
+    assert.equal(sent[0].keepalive, false); // a normal request while the visitor is on the page
+    insights.track({ kind: 'page', path: '/contact' });
+    document.visibilityState = 'hidden';
+    listeners.visibilitychange(); // tab hidden: sent at once, able to finish after the page closes
+    assert.equal(sent.length, 2);
+    assert.equal(sent[1].keepalive, true);
+  } finally {
+    stop();
+  }
+});
 
-  insights.startInsights({ ...conf, on: false })();
-  insights.track({ kind: 'page', path: '/' });
-  insights.flush();
-  assert.equal(sent.length, 2);
+test('insights: switched off, nothing is collected or sent', () => {
+  const { sent } = fakeBrowser();
+  const stop = insights.startInsights({ ...CONF, on: false });
+  try {
+    insights.track({ kind: 'page', path: '/' });
+    insights.track({ kind: 'page', path: '/' });
+    insights.flush(true);
+    assert.equal(sent.length, 0);
+  } finally {
+    stop();
+  }
+});
+
+test('insights: a search keeps the page it was typed on; a cleared or abandoned search is not sent', async () => {
+  const { sent } = fakeBrowser();
+  const stop = insights.startInsights({ ...CONF, max_events_per_send: 1 });
+  try {
+    insights.trackSearch('wafers', 4);
+    window.location.pathname = '/products/wafer'; // a result opened before the pause ended
+    await wait(30);
+    assert.deepEqual(sent.map((x) => x.body.events[0]), [{ kind: 'search', path: '/', query: 'wafers', results: 4 }]);
+    insights.trackSearch('instant cof', 0);
+    insights.cancelSearch(); // the box was cleared
+    await wait(30);
+    assert.equal(sent.length, 1);
+    insights.trackSearch('matcha', 0);
+  } finally {
+    stop(); // stopping forgets the waiting search too
+  }
+  await wait(30);
+  assert.equal(sent.length, 1);
 });

@@ -79,6 +79,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
     setFromQuick(quick);
     setState('sending');
     setError('');
+    const page = window.location.pathname; // before sending: the visitor may move on while it is on its way
     try {
       await api('/public/leads', {
         method: 'POST',
@@ -87,7 +88,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
           quantity: extra.quantity ?? '',
           message: [extraMessage, extra.message].filter(Boolean).join('\n'),
           consent: true, website: extra.website ?? '', // honeypot
-          product_slug: productSlug, category_slug: categorySlug, source_page: window.location.pathname,
+          product_slug: productSlug, category_slug: categorySlug, source_page: page,
         },
       });
       try {
@@ -97,7 +98,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
         /* private window: just ask again next time */
       }
       setState('done');
-      track({ kind: 'click', path: window.location.pathname, button: 'send_enquiry' }); // Website insights
+      track({ kind: 'click', path: page, button: 'send_enquiry' }); // Website insights
       onSent?.();
     } catch (err) {
       setError(err instanceof ApiFailure ? err.message : 'Could not send. Please WhatsApp us instead.');
