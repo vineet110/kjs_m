@@ -64,6 +64,9 @@ export default function AdminProducts() {
       } else {
         const added = await api<Product>('/admin/products', { method: 'POST', body });
         setMsg(null);
+        // The product is saved: clear the form now, so typing the next product while the photo
+        // uploads isn't wiped when the upload finishes.
+        form.reset();
         // The photo needs the product to exist first (it's filed under the product's slug), so it goes
         // up after the product is saved, ticked "Show on website". If it fails, the product stays saved.
         if (photo instanceof File && photo.size > 0) {
@@ -71,12 +74,13 @@ export default function AdminProducts() {
             await uploadOne('product', added.slug, photo, true);
           } catch (err) {
             toast(`Added "${f.name}", but the photo didn't upload${err instanceof ApiFailure ? ` (${err.message})` : ''}. Add it from Photos & files`, 'error');
-            form.reset();
             load();
             return;
           }
         }
         toast(`Added "${f.name}". It is live on the website within a minute`);
+        load();
+        return;
       }
       form.reset();
       load();

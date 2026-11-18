@@ -201,10 +201,16 @@ async def test_cards_get_the_first_public_photo_of_a_product(client):
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Photo Coffee"}, headers=HDR)).json()
-    await _upload(client, owner_id=p["slug"], file=PNG)  # not public
-    await _upload(client, owner_id=p["slug"], public=True)  # public, but a PDF
-    first = (await _upload(client, owner_id=p["slug"], file=PNG, public=True)).json()["id"]
-    await _upload(client, owner_id=p["slug"], file=PNG, public=True)  # a second photo: not the card one
+    uploads = [
+        await _upload(client, owner_id=p["slug"], file=PNG),  # not public
+        await _upload(client, owner_id=p["slug"], public=True),  # public, but a PDF
+        await _upload(client, owner_id=p["slug"], file=PNG, public=True),  # the card photo
+        await _upload(client, owner_id=p["slug"], file=PNG, public=True),  # a second photo: not the card one
+    ]
+    assert [r.status_code for r in uploads] == [201, 201, 201, 201]
+    assert [r.json()["is_public"] for r in uploads] == [False, True, True, True]
+    first = uploads[2].json()["id"]
+    assert first != uploads[3].json()["id"]
     client.cookies.clear()
     url = f"/api/v1/public/files/{first}"
     listed = {x["slug"]: x for x in (await client.get("/api/v1/public/products")).json()}
@@ -217,6 +223,23 @@ async def test_a_product_without_public_photos_has_no_card_photo(client):
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Plain Coffee"}, headers=HDR)).json()
-    await _upload(client, owner_id=p["slug"], file=PNG)  # private only
+    r = await _upload(client, owner_id=p["slug"], file=PNG)  # private only
+    assert r.status_code == 201 and r.json()["is_public"] is False
     client.cookies.clear()
     assert (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["photo_url"] is None
+
+
+async def test_no_card_photo_when_the_category_is_hidden(client):
+    """The file address answers 404 while the product's category is hidden, so the product must not point at it."""
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Hidden Cat Coffee"}, headers=HDR)).json()
+    assert (await _upload(client, owner_id=p["slug"], file=PNG, public=True)).status_code == 201
+    async with AsyncSessionLocal() as db:
+        cat = await db.scalar(select(Category).where(Category.slug == "coffee"))
+        cat.is_active = False
+        await db.commit()
+    client.cookies.clear()
+    r = await client.get(f"/api/v1/public/products/{p['slug']}")
+    if r.status_code == 200:
+        assert r.json()["photo_url"] is None

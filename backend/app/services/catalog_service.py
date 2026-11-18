@@ -107,7 +107,9 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
     if row is None:
         raise AppError(404, "not_found", "Product not found.")
     p, c = row
-    return _product_out(p, c, (await _first_photos(db, [p.slug])).get(p.slug))
+    # The file address answers 404 while the category is hidden (_product_is_live), so no photo then
+    photo = (await _first_photos(db, [p.slug])).get(p.slug) if c.is_active else None
+    return _product_out(p, c, photo)
 
 
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:
