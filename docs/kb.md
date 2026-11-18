@@ -633,6 +633,24 @@ Sections:
           `cfg()` is how the code reads them, at the moment it needs them.
    Override  An env var like `KJS__SLA__RESPOND_MINUTES=15` beats the file.
    Where  `config/`, `backend/app/core/config/ini.py`, Admin > Settings shows where each value came from.
+   Rule   One file per feature (decision 56). Read the value with `cfg()` when you use it: a copy in a
+          module constant would never change.
+
+
+### Config bounds (min / max on a setting)
+
+   What   The smallest and biggest value a setting may take, e.g. `body_max` 100 to 20,000. A value outside
+          them is refused and the last good config stays, so a typo can't break a feature.
+   Where  `Field(ge=..., le=...)` on each key in `backend/app/core/config/ini.py`.
+
+
+### me.limits
+
+   What   Limits the portal checks while you type (message length, complaint word minimums, chat page size),
+          sent by the server in `/auth/me` from `config/*.ini`. The frontend keeps only a fallback number,
+          so there is one source of truth. An open tab sees a change after a reload; the server checks
+          every request anyway.
+   Where  `portal_limits()` in `backend/app/api/v1/endpoints/auth.py`; `PortalLimits` in `frontend/src/lib/api.ts`.
 
 
 ### Feature flag

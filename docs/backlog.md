@@ -1955,6 +1955,12 @@ R76. Production does not insist on R2 storage  🟢
    i.    `production_problems()` (`core/config/__init__.py:73`) should refuse `STORAGE_DRIVER` other than r2.
 
 
+R90. Next.js 16.4.3 has a known security vulnerability  🟠 (next PR, Vineet's OK given 18 Nov)
+
+   i.    `next build` warns about it (18 Nov). Upgrade `next` (and `eslint-config-next` if present), then
+         typecheck, `npm test`, build, and a live check of login and the portal.
+
+
 R77. Firebase web key not restricted  🟢 (Vineet, Firebase console)
 
    i.    The key is public by design (`frontend/src/lib/firebase.ts:13`). Add API-key restrictions to our
@@ -2016,7 +2022,7 @@ R85. Frontend tests only cover `src/lib`  🟢
 None matters with one API process (`--workers 1` today). Do these before running two (A41).
 
 
-R86. Decision to record: we stay on Postgres  🟢
+R86. Decision to record: we stay on Postgres  ✅ 18 Nov (memory.md decision 57)
 
    i.    We use Postgres features on purpose: JSONB, `ON CONFLICT`, partial unique indexes, advisory locks,
          `SKIP LOCKED`, the append-only audit trigger.
@@ -2045,3 +2051,48 @@ R89. Slow queries that grow with data  🟢
          each run.
    iii.  Lead duplicate check scans the whole table (`lead_service.py:333`): add an index on the cleaned phone
          and `lower(email)`.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 24. Config per feature follow-ups (18 Nov, PR #91 reviews)
+
+Left on purpose by Vineet. None matters with today's values; each one bites only after a config edit.
+
+
+R91. One bad value makes the WHOLE config fall back to defaults on first load  🟠 before the VPS deploy
+
+   i.    `ini.py` validates all files together: one bad key = every file ignored (e.g. `jobs_enabled` back on).
+   ii.   `storage.max_upload_mb` max went 500 -> 25 (#91): a server with 26-500 set (ini or
+         `KJS__STORAGE__MAX_UPLOAD_MB`) loses all its ini values. Check the VPS env before deploying.
+   iii.  Later: validate per file (keep the good files), or warn instead of refuse for that key.
+
+
+R92. Lead import (JSON) is under nginx's 1 MB default  🟢
+
+   i.    `POST /employee/leads/import`: about 3,000 rows hit it, while `leads.ini import_max_rows` allows 5,000.
+   ii.   Fix: add it to the 26 MB nginx rule (`deploy/nginx/default.conf`), or lower the bound.
+
+
+R93. Older long chat messages can't be edited after `body_max` is lowered  🟢
+
+   i.    Edit reuses `MessageIn`. Fix: an edit may keep its old length; only new text must fit.
+
+
+R94. Open tabs keep old `me.limits` until reload  🟢
+
+   i.    The server checks every request, so nothing wrong is saved; the person sees an error instead.
+
+
+R95. Small cleanups from the #91 reviews  🟢
+
+   i.    MB -> bytes in one place (`lead_reader`, `endpoints/assign.py`).
+   ii.   Stale numbers in comments: "up to 3 tries" (`notification_service.send_emails`), "Missed more than
+         100" (employee chat page).
+   iii.  `lead_service.sla()` reads `cfg()` once per lead: read it once per list.
+
+
+R96. Health check can say "stuck" after `job_timeout_seconds` is lowered mid-job  🟢
+
+   i.    `jobs/runner.py loop_is_alive()` uses the new timeout; the running job keeps the one it started with.
+   ii.   Fix: remember the running job's timeout and use the larger of the two.
