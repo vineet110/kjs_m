@@ -18,7 +18,8 @@ import { SITE } from '@/lib/site';
 
 // Title, description and headline are editable in Admin > Website (defaults in content_service.py).
 export async function generateMetadata(): Promise<Metadata> {
-  const [t, categories] = await Promise.all([texts(), serverGet<Category[]>('/public/categories')]);
+  // Categories down: the normal title and description, never an error page
+  const [t, categories] = await Promise.all([texts(), serverGet<Category[]>('/public/categories').catch(() => null)]);
   const coffee = coffeeOnly(categories);
   return {
     title: { absolute: focusText(t, 'seo.home.title', coffee) ?? 'KJS India' },

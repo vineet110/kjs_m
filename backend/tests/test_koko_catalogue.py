@@ -214,19 +214,57 @@ async def test_prompt_asks_for_plain_text_and_stays_small(client, catalogue, see
     assert "no markdown" in seen[0] and len(seen[0]) <= 8_000
 
 
-async def test_koko_names_only_the_categories_shown(client, catalogue):
-    """Coffee-only (Admin > Products: the rest hidden): Koko's own description of KJS names coffee only, and
-    the full range again once everything is shown."""
+async def _koko_prompt(facts: str = "") -> str:
+    async with AsyncSessionLocal() as db:
+        cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
+    return koko_service.build_prompt(facts, ["hello"], None, cats, prods)
+
+
+async def _coffee_only():
+    """Switch every other category off; gives back the ids it switched off (to switch only those back on)."""
+    from sqlalchemy import select, update
+    from app.models.catalog import Category
+    async with AsyncSessionLocal() as db:
+        ids = list((await db.scalars(select(Category.id).where(Category.slug != "coffee", Category.is_active))).all())
+        await db.execute(update(Category).where(Category.id.in_(ids)).values(is_active=False))
+        await db.commit()
+    return ids
+
+
+async def _switch_back_on(ids):
     from sqlalchemy import update
     from app.models.catalog import Category
     async with AsyncSessionLocal() as db:
-        await db.execute(update(Category).where(Category.slug != "coffee").values(is_active=False))
+        await db.execute(update(Category).where(Category.id.in_(ids)).values(is_active=True))
         await db.commit()
-        cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
-    prompt = koko_service.build_prompt("", ["hello"], None, cats, prods)
-    assert "(coffee; private label" in prompt and "confectionery" not in prompt.lower()
-    async with AsyncSessionLocal() as db:
-        await db.execute(update(Category).values(is_active=True))
-        await db.commit()
-        cats, prods = await catalog_service.list_categories(db), await catalog_service.list_products(db)
-    assert "confectionery" in koko_service.build_prompt("", ["hello"], None, cats, prods)
+
+
+def _intro(prompt: str) -> str:
+    """Koko's own description of KJS: the text before the facts."""
+    return prompt.split("KJS FACTS:")[0]
+
+
+async def test_koko_names_only_the_categories_shown(client, catalogue):
+    """Coffee-only (Admin > Products: the rest hidden): Koko's own description of KJS names coffee only, and
+    the full range again once everything is shown. Categories are switched back even if an assert fails."""
+    ids = await _coffee_only()
+    try:
+        intro = _intro(await _koko_prompt())
+        assert "(coffee; private label" in intro and "confectionery" not in intro.lower()
+    finally:
+        await _switch_back_on(ids)
+    assert "confectionery" in _intro(await _koko_prompt())
+
+
+async def test_koko_facts_product_areas_follow_the_switches(client, catalogue):
+    """The facts (kjs_facts.md or Admin > Koko) say {product_areas}: Koko gets the categories shown."""
+    from app.services.content_service import KOKO_FACTS_FILE
+    facts = KOKO_FACTS_FILE.read_text(encoding="utf-8")
+    assert "{product_areas}" in facts  # the default facts use it
+    ids = await _coffee_only()
+    try:
+        prompt = await _koko_prompt(facts)
+        assert "Product areas: coffee." in prompt and "{product_areas}" not in prompt
+    finally:
+        await _switch_back_on(ids)
+    assert "Product areas: coffee, " in await _koko_prompt(facts)

@@ -117,3 +117,20 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Known limits (backlog): the second banner's coffee text is in the code, not in Admin; the coffee
   product list for banner pictures and "Popular" is fixed in the code; only coffee-only is supported
   (another single category needs a small code change).
+
+- Review of #99 (Vineet + CodeRabbit) fixed: home page title no longer fails when the categories API is
+  down; Google descriptions within 160 characters (coffee 150, normal 156; new test); the Koko test switches
+  categories back even when an assert fails and checks Koko's intro on its own; Koko facts say
+  {product_areas}, filled in with the categories shown.
+
+- Sir: if Admin > Koko has its own saved facts, replace the "Product areas: ..." list with {product_areas}
+  once (the default facts file already has it).
+
+- For backlog.md (Vineet's review of #99):
+
+   i.    #5: every category switched off: footer, Google and Koko then name the full range (CodeRabbit:
+         an empty list should mean "no areas", not "all areas").
+
+   ii.   #6-#10: cosmetic and design cleanups from Vineet's review list (list to copy from Vineet).
+
+   iii.  The normal Google home title is 68 characters (Google shows about 60).

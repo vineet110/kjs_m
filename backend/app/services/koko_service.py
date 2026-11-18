@@ -197,6 +197,8 @@ def build_prompt(facts: str, questions: list[str], cat: CategoryOut | None, cats
     picked = pick_products(questions, cat, viewed, prods)
     limit = cfg().koko.prompt_limit
     product_range = catalog_service.range_text(cats)
+    # The facts (kjs_facts.md or Admin > Koko) may say {product_areas}: the categories shown right now
+    facts = facts.replace("{product_areas}", product_range)
     prompt = system_prompt(_catalogue_text(cats, picked), facts, product_range)
     while len(prompt) > limit and picked:
         picked = picked[:-1]
