@@ -10,6 +10,18 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 18 Nov 2026 (coffee-only switch, Nishita)
+
+1. (T) Hide, don't delete: a switch in Admin lets the business change the site without a PR or a deploy.
+
+2. (T) Work out related values from one read. Two reads can disagree if someone changes data in between.
+
+3. (T) A data-only migration can run before the new code is deployed, so the new code never sees old data.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 16–17 Nov 2026 (own server research, email checks parked, Vineet)
 
 1. (V) vCPU is not GPU. A web app needs CPU, RAM and disk; GPUs are for AI and video work.

@@ -270,6 +270,27 @@ Sections:
 
 
 
+### Visible category
+
+   What   A category the public site shows: its own switch is on, and its parent's too (a subcategory
+          inside a hidden Confectionery is hidden whatever its own switch says).
+   Where  Admin > All Products > Categories on the website; `catalog_service.hidden_slugs`.
+
+
+### Coffee-only mode
+
+   What   When Coffee is the only top-level category shown, the home page, Google texts, footer and Koko
+          talk only about coffee. Show the other categories again and the full site comes back.
+   Where  `coffeeOnly` in `frontend/src/lib/catalogue.ts`; texts `coffee.*` in Admin > Website.
+
+
+### {product_areas}
+
+   What   A word in Koko's facts that is filled in with the categories shown right now.
+   Where  `app/knowledge/kjs_facts.md` or Admin > Koko; `koko_service.build_prompt`.
+
+
+
 ===================================================================================================
 
 ## 2. Web basics

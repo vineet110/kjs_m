@@ -319,3 +319,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 14. 16–17 Nov: email checks switched off and parked until our own server (#87, decision 55, backlog R68).
     Own-server research: E2E Networks as a paid option next to the Oracle free VM (backlog R69).
+
+15. 18 Nov: coffee-only switch: photo upload when adding a product (#93), Show/Hide per category (#97,
+    migration 0030, Neon migrated), the site follows the switches (#99). Coffee-only = hide Confectionery,
+    Health drinks and Instant drink powders in Admin.
