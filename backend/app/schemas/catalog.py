@@ -11,6 +11,22 @@ class CategoryOut(BaseModel):
     product_count: int = 0
 
 
+class AdminCategoryOut(BaseModel):
+    """Admin > Products > Categories: every category with its Show/Hide switch."""
+    id: int
+    slug: str
+    name: str
+    is_active: bool  # its own switch
+    visible: bool  # on the public site: its switch is on and its parent's (if any) too
+    parent: str | None = None  # slug of the category it sits inside (SUBCATEGORIES)
+    product_count: int = 0  # its own products, shown or hidden
+
+
+class CategoryPatchIn(BaseModel):
+    """The Show/Hide switch: only is_active. Anything else sent (name, slug) is ignored."""
+    is_active: bool
+
+
 class ProductOut(BaseModel):
     id: int
     slug: str

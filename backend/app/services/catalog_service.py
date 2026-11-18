@@ -8,7 +8,7 @@ from app.core.permissions import effective_permissions
 from app.models.catalog import Category, Product
 from app.models.file import StoredFile
 from app.models.user import User
-from app.schemas.catalog import CategoryOut, ProductIn, ProductOut
+from app.schemas.catalog import AdminCategoryOut, CategoryOut, ProductIn, ProductOut
 from app.services import audit_service, file_service
 
 
@@ -17,6 +17,15 @@ from app.services import audit_service, file_service
 SUBCATEGORIES: dict[str, list[str]] = {
     "confectionery": ["chocolate-bars", "wafers", "biscuits", "marshmallow-cakes"],
 }
+PARENT_OF: dict[str, str] = {child: parent for parent, kids in SUBCATEGORIES.items() for child in kids}
+
+
+async def hidden_slugs(db: AsyncSession) -> set[str]:
+    """Categories off the public site: switched off in Admin > Products, or inside a parent that is.
+    Worked out when reading, so a subcategory keeps its own switch: showing the parent again brings
+    back only the subcategories that were on."""
+    off = set((await db.scalars(select(Category.slug).where(Category.is_active.is_(False)))).all())
+    return off | {child for child, parent in PARENT_OF.items() if parent in off}
 
 
 def slugify(text: str) -> str:
@@ -56,7 +65,7 @@ async def list_categories(db: AsyncSession) -> list[CategoryOut]:
     rows = await db.execute(
         select(Category, func.coalesce(counts.c.n, 0))
         .outerjoin(counts, counts.c.category_id == Category.id)
-        .where(Category.is_active)
+        .where(Category.slug.not_in(await hidden_slugs(db)))
         .order_by(Category.sort_order, Category.name)
     )
     rows = rows.all()
@@ -70,11 +79,40 @@ async def list_categories(db: AsyncSession) -> list[CategoryOut]:
     ]
 
 
-async def get_category(db: AsyncSession, slug: str) -> Category:
-    c = await db.scalar(select(Category).where(Category.slug == slug, Category.is_active))
-    if c is None:
+async def get_category(db: AsyncSession, slug: str, include_hidden: bool = False) -> Category:
+    """include_hidden: Admin > Products, where products of a hidden category can still be added and edited."""
+    c = await db.scalar(select(Category).where(Category.slug == slug))
+    if c is None or (not include_hidden and c.slug in await hidden_slugs(db)):
         raise AppError(404, "not_found", "Category not found.")
     return c
+
+
+async def admin_categories(db: AsyncSession) -> list[AdminCategoryOut]:
+    """Every category, hidden ones too (so they can be shown again), with its own switch and whether the
+    public site shows it (a subcategory of a hidden parent is off the site whatever its own switch says)."""
+    counts = dict((await db.execute(select(Product.category_id, func.count()).group_by(Product.category_id))).all())
+    hidden = await hidden_slugs(db)
+    cats = (await db.scalars(select(Category).order_by(Category.sort_order, Category.name))).all()
+    return [_admin_category_out(c, hidden, counts.get(c.id, 0)) for c in cats]
+
+
+def _admin_category_out(c: Category, hidden: set[str], product_count: int) -> AdminCategoryOut:
+    return AdminCategoryOut(id=c.id, slug=c.slug, name=c.name, is_active=c.is_active, visible=c.slug not in hidden,
+                            parent=PARENT_OF.get(c.slug), product_count=product_count)
+
+
+async def set_category_active(db: AsyncSession, actor: User, category_id: int, is_active: bool) -> AdminCategoryOut:
+    """The Show/Hide switch. Changes only is_active; the audit row goes in the same transaction."""
+    c = await db.get(Category, category_id)
+    if c is None:
+        raise AppError(404, "not_found", "Category not found.")
+    before = c.is_active
+    c.is_active = is_active
+    audit_service.record(db, actor=actor, action="category.updated", entity_type="category", entity_id=c.id,
+                         before={"is_active": before}, after={"is_active": is_active})
+    await db.commit()
+    count = await db.scalar(select(func.count()).select_from(Product).where(Product.category_id == c.id))
+    return _admin_category_out(c, await hidden_slugs(db), count or 0)
 
 
 async def list_products(
@@ -86,7 +124,7 @@ async def list_products(
         .order_by(Product.name)
     )
     if not include_hidden:  # the admin list shows hidden products too, so they can be shown again
-        q = q.where(Product.is_active, Category.is_active)
+        q = q.where(Product.is_active, Category.slug.not_in(await hidden_slugs(db)))
     if category_slug:
         q = q.where(Category.slug.in_([category_slug, *SUBCATEGORIES.get(category_slug, [])]))
     if best_sellers:
@@ -104,16 +142,15 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
             .where(Product.slug == slug, Product.is_active)
         )
     ).first()
-    if row is None:
+    # A product of a hidden category (or of a subcategory of one) is off the site, like the category
+    if row is None or row[1].slug in await hidden_slugs(db):
         raise AppError(404, "not_found", "Product not found.")
     p, c = row
-    # The file address answers 404 while the category is hidden (_product_is_live), so no photo then
-    photo = (await _first_photos(db, [p.slug])).get(p.slug) if c.is_active else None
-    return _product_out(p, c, photo)
+    return _product_out(p, c, (await _first_photos(db, [p.slug])).get(p.slug))
 
 
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:
-    category = await get_category(db, data.category_slug)
+    category = await get_category(db, data.category_slug, include_hidden=True)
     slug = slugify(data.name)
     if await db.scalar(select(func.count()).select_from(Product).where(Product.slug == slug)):
         raise AppError(409, "duplicate", "A product with this name already exists.")
@@ -138,7 +175,7 @@ async def update_product(db: AsyncSession, actor: User, product_id: int, changes
     if p is None:
         raise AppError(404, "not_found", "Product not found.")
     if "category_slug" in changes:
-        category = await get_category(db, changes.pop("category_slug"))
+        category = await get_category(db, changes.pop("category_slug"), include_hidden=True)
         changes["category_id"] = category.id
     else:
         category = await db.get(Category, p.category_id)
@@ -163,7 +200,8 @@ async def _product_files_access(db: AsyncSession, user: User, owner_id: str, act
 
 async def _product_is_live(db: AsyncSession, slug: str) -> bool:
     return bool(await db.scalar(select(Product.id).join(Category, Category.id == Product.category_id)
-                                .where(Product.slug == slug, Product.is_active, Category.is_active)))
+                                .where(Product.slug == slug, Product.is_active,
+                                       Category.slug.not_in(await hidden_slugs(db)))))
 
 
 file_service.register_owner("product", _product_files_access, public=_product_is_live)

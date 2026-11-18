@@ -34,3 +34,27 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
          message could say "check Photos & files before trying again".
 
    v.    Test PNG in `test_files.py` is not a complete image (signature + end only).
+
+## Category Show/Hide switch (PR 1 of the coffee-only plan, branch feat/category-switch)
+
+- Admin > Products: "Categories on the website" list with Show/Hide per category
+  (`GET/PATCH /admin/categories`, permission `catalog.edit`, area `website_admin`, audit `category.updated`).
+
+- Hiding a parent (Confectionery) hides its subcategories on the site, worked out when reading
+  (`catalog_service.hidden_slugs`); their own switch stays, so showing the parent brings back only the ones that were on.
+
+- Product pages of a hidden category now answer 404 (before, only the category page did).
+
+- Admin > Products form lists every category (from `/admin/categories`), so editing a product of a hidden
+  category doesn't move it to another category.
+
+- Migration 0030 hides Tea; `app.seed` / `seed_catalogue` create Tea hidden on a new database
+  (`HIDDEN_AT_START`). `HIDDEN_CATEGORIES` removed from `frontend/src/lib/catalogue.ts`.
+
+- After merging: run `alembic upgrade head` (0030). The monitoring PRs use 0027-0029: whichever merges
+  second points its `down_revision` at the other.
+
+- To make the site coffee-only: Hide Confectionery and Health drinks (Tea is already hidden). Next: PR 2
+  (home page text and pictures follow the switches).
+
+- New term for kb.md: "visible" category = its own switch on and its parent's switch on.

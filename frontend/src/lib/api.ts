@@ -10,6 +10,14 @@ export type Product = {
   photo_url?: string | null; // first photo uploaded with "Show on website" (Admin > Products > Photos & files)
 };
 
+/** Admin > Products > Categories: every category with its Show/Hide switch. */
+export type AdminCategory = {
+  id: number; slug: string; name: string; product_count: number;
+  is_active: boolean; // its own switch
+  visible: boolean; // on the public site (its switch and its parent's are on)
+  parent: string | null; // slug of the category it sits inside
+};
+
 export type Lead = {
   extra?: Record<string, string>; // "Extra Info": file columns we have no field for, kept by choice
   id: number; source: string; name: string; company: string; email: string; phone: string; country: string;
