@@ -89,3 +89,52 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Review round 2 (CodeRabbit) fixed: admin list's switch and "visible" from the same rows (test first);
   neutral "Added / Saved" messages; after a switch only the categories reload (an error no longer
   replaces the page and loses an unsaved edit); migration notes above.
+
+## Home page follows the switches (PR 2 of the coffee-only plan, branch feat/home-follows-switches)
+
+- Built on top of #97 (merged 18 Nov).
+
+- Coffee-only = Coffee is the only top-level category the public sees (`coffeeOnly` in
+  `frontend/src/lib/catalogue.ts`). Then the home page uses coffee banners, pictures, "popular" list and
+  search hint, and the coffee versions of the texts.
+
+- New texts in Admin > Website (`content_service.TEXTS`): `coffee.home.hero_text`, `coffee.seo.home.title`,
+  `coffee.seo.home.description`. Edited like the others; used only while coffee-only.
+
+- Footer, Google company description and Koko's own description name the categories shown
+  (`rangeText` / `catalog_service.range_text`). Koko gets a rule to offer only those areas.
+
+- Menu tile "Chocolate bars & wafers" shows only while Confectionery is shown (its page is a 404 when hidden).
+
+- Loading screen: coffee packs and neutral text (it shows before any data, so it can't follow the switches).
+
+- To do by hand in Admin > Koko: the facts say "Product areas: coffee, tea, health drinks and confectionery"
+  (line 12 of kjs_facts.md). Koko's new rule 7 keeps it to the areas shown, but the facts line could also be edited.
+
+- For backlog.md: the default page title in `app/[locale]/layout.tsx` still names every area (used only by
+  pages without their own title).
+
+- Known limits (backlog): the second banner's coffee text is in the code, not in Admin; the coffee
+  product list for banner pictures and "Popular" is fixed in the code; only coffee-only is supported
+  (another single category needs a small code change).
+
+- Review of #99 (Vineet + CodeRabbit) fixed: home page title no longer fails when the categories API is
+  down; Google descriptions within 160 characters (coffee 150, normal 156; new test); the Koko test switches
+  categories back even when an assert fails and checks Koko's intro on its own; Koko facts say
+  {product_areas}, filled in with the categories shown.
+
+- Facts saved in Admin > Koko before this: the exact old list "Product areas: coffee, tea, health drinks and
+  confectionery." is swapped for the categories shown too (review round 2), so nothing to edit by hand.
+
+- Review round 2 of #99 (CodeRabbit): old facts line swapped (test first); the Koko areas test no longer
+  depends on category order. All categories hidden (Koko should send everything to sales) stays in the
+  backlog with #5.
+
+- For backlog.md (Vineet's review of #99):
+
+   i.    #5: every category switched off: footer, Google and Koko then name the full range (CodeRabbit:
+         an empty list should mean "no areas", not "all areas").
+
+   ii.   #6-#10: cosmetic and design cleanups from Vineet's review list (list to copy from Vineet).
+
+   iii.  The normal Google home title is 68 characters (Google shows about 60).

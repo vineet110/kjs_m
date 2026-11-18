@@ -1,6 +1,7 @@
 # KJS India: facts Koko may use
 
 Source: kjsindia.com (exported 23 Oct 2026). Edit this file when KJS gives new facts (backlog I5).
+The "Product areas" line below is filled in with the categories the website shows now (Admin > All Products).
 Never add prices here until KJS approves them (backlog I3).
 
 ## Company
@@ -9,7 +10,7 @@ Never add prices here until KJS approves them (backlog I3).
 - Address: Plot No. 1 & 2, Phase-III, IDA Pashamylaram, Patancheru (M), Sangareddy (D), Hyderabad, Telangana 502307, India.
 - Phone / WhatsApp: +91 97037 35666. Email: contact@kjsindia.com. Careers: hr@kjsindia.com.
 - Certifications shown on the site: ISO 9001, ISO 14001, FSSC 22000. Sodexo is shown among brand partners.
-- Product areas: coffee, tea, health drinks and confectionery. We sell B2B only: brands, distributors, retailers, importers, private label. Bulk and export orders.
+- Product areas: {product_areas}. We sell B2B only: brands, distributors, retailers, importers, private label. Bulk and export orders.
 
 ## Stick pack factory
 - Stick-pack specialist for single-serve formats.

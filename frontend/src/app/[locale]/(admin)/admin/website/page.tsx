@@ -91,7 +91,7 @@ function Texts() {
 function TextEditor({ row, onSave }: { row: TextRow; onSave: (k: string, v: string | null) => void }) {
   const [v, setV] = useState(row.value);
   useEffect(() => setV(row.value), [row.value]);
-  const isSeo = row.key.startsWith('seo.');
+  const isSeo = /^(coffee.)?seo./.test(row.key); // the coffee-only versions too
   const limit = row.key.endsWith('.title') ? 60 : row.key.endsWith('.description') ? 160 : 0;
   return (
     <div className="card space-y-2 p-4">

@@ -6,11 +6,12 @@ export function JsonLd({ data }: { data: Record<string, unknown> }) {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }} />;
 }
 
-export const organizationLd = {
+/** range: the categories shown, in words (lib/catalogue.ts rangeText). */
+export const organizationLd = (range: string) => ({
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'KJS India Pvt. Ltd.',
-  description: 'Contract manufacturer and private-label partner for coffee, tea, health drinks and confectionery.',
+  description: `Contract manufacturer and private-label partner for ${range}.`,
   foundingDate: String(SITE.since),
   email: SITE.email,
   telephone: SITE.phone,
@@ -22,4 +23,4 @@ export const organizationLd = {
     postalCode: '502307',
     addressCountry: 'IN',
   },
-};
+});

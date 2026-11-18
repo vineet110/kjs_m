@@ -8,7 +8,9 @@
 import Image from 'next/image';
 import { asset } from '@/lib/assets';
 
-const PACKS = ['pacho-chocolate-bar', 'gofrey-crispy-x2', 'lupita-duble', 'maxi-big-wafers-chocolate', 'pitaro-sandwich-biscuits'];
+// Shown before any data arrives, so it can't know which categories are switched on (Admin > Products):
+// coffee packs, which the site shows in every setup
+const PACKS = ['coffee-3-in-1-premix', 'agglomerated-instant-coffee', 'freeze-dried-instant-coffee', 'spray-dried-instant-coffee'];
 
 function Shimmer({ className = '' }: { className?: string }) {
   return (
@@ -41,7 +43,7 @@ export default function Loading() {
                 ))}
               </span>
             </p>
-            <p className="mt-1 text-sm text-slate-700">Chocolate bars, wafers, marshmallow and biscuits, made in Hyderabad</p>
+            <p className="mt-1 text-sm text-slate-700">Made and packed for your brand in Hyderabad</p>
 
             {/* Product packs bobbing in a wave */}
             <div className="mt-8 flex items-end justify-center gap-3 sm:gap-5">
