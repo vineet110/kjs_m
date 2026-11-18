@@ -26,6 +26,7 @@ from app.services import file_check
 # File size and row limits: config/leads.ini (file_max_mb, file_preview_rows, import_max_rows)
 MAX_COLS = 50
 MAX_CELL = 500  # characters kept from a cell we have no field for
+CARD_ROWS = 50  # rows always read, so a "Field | Value" card is found and complete whatever max_rows is
 MAX_SCAN = 20_000  # lines looked at, empty ones included (Excel can pad a sheet with thousands of empty rows)
 
 # Our field (a field of InternalLeadIn) -> column names people actually use. Compared after _norm():
@@ -163,7 +164,7 @@ def read(filename: str, data: bytes, categories: dict[str, str], max_rows: int |
     bulk import)."""
     if max_rows is None:
         max_rows = cfg().leads.file_preview_rows
-    table, unsure = _table(filename, data, max_rows)
+    table, unsure = _table(filename, data, max(max_rows, CARD_ROWS))
     if not table:
         raise AppError(422, "empty", "This file has no data.")
     # Columns really used (Excel pads every row with empty cells up to MAX_COLS)

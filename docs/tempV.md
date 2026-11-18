@@ -35,9 +35,7 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 9. Second review of #91 (18 Nov): fixed list keys per file (`ini.py` `_list_fields`). Left for later (Vineet's
    call), add to backlog at the next fold:
 
-   i.    🟠 Chat breaks if `chat.ini page_max` is set below 50: loads without `limit` default to 50 and are
-         refused. Fix: default = min(50, page_max), always cap (has_more already asks again), frontend sends no
-         limit. Until then: keep `page_max` at 50 or more.
+   i.    ✅ Fixed 18 Nov (CodeRabbit round): no limit sent = min(50, page_max).
    ii.   🟠 One bad value makes the WHOLE config fall back to defaults on first load (e.g. jobs_enabled back
          on). `storage.max_upload_mb` max went 500 -> 25: a server with 26-500 set (ini or
          `KJS__STORAGE__MAX_UPLOAD_MB`) loses all its ini values. Check the VPS env before deploying; later:
@@ -49,3 +47,11 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    vi.   🟢 Cleanups: MB->bytes in one place (`lead_reader`, `assign.py`); stale comments ("up to 3 tries" in
          `notification_service.send_emails`, "Missed more than 100" in chat page); `lead_service.sla()` reads
          `cfg()` per lead (read once per list).
+
+10. CodeRabbit review of #91 (18 Nov): fixed chat default page, job timeout must cover the email budget + 30 s,
+    auto-assign counts only rows with data (refused past 200,000 lines, never a partial import), lead cards
+    read at least 50 rows, one size limit per lead upload. Left for the backlog (Vineet's call):
+
+    i.    🟢 `jobs/runner.py loop_is_alive()`: lowering `job_timeout_seconds` while a long job runs can make
+          the health check say "stuck" for that run (the job keeps the timeout it started with). Fix: remember
+          the running job's timeout and use the larger of it and the config value.

@@ -245,6 +245,15 @@ class Config(BaseModel):
     boards: BoardsIni = BoardsIni()
     analytics: AnalyticsIni = AnalyticsIni()
 
+    @model_validator(mode="after")
+    def job_timeout_covers_email_budget(self):
+        # The jobs loop cancels a job at app.job_timeout_seconds; send_emails stops itself at its own budget.
+        # A shorter timeout would cut a batch mid-send (rows stuck "sending", an email possibly sent twice).
+        if self.app.job_timeout_seconds < self.notifications.email_time_budget_seconds + 30:
+            raise ValueError("app.ini job_timeout_seconds must be at least notifications.ini "
+                             "email_time_budget_seconds + 30")
+        return self
+
 
 # file name -> section it fills
 FILES = {name: f"{name}.ini" for name in Config.model_fields}

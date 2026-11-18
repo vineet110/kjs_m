@@ -33,6 +33,7 @@ from app.services.attendance_service import local_day, tz
 
 log = logging.getLogger(__name__)
 MAX_COLS = 30  # most rows: config/assign.ini import_max_rows
+SCAN_LIMIT = 200_000  # lines looked at, empty ones included; past this the file is refused, never cut
 MAX_UNZIPPED_MB = 60  # an .xlsx is a zip: a small file can unpack to gigabytes ("zip bomb")
 COLUMNS = {  # our field -> header names people actually use
     "company": ("company", "company name", "business", "buyer", "name"),
@@ -48,10 +49,25 @@ LIMITS = {"company": 200, "contact_name": 120, "email": 255, "phone": 40, "count
 
 
 # ---------- Import ----------
+def _non_empty(rows, max_rows: int) -> list[list[str]]:
+    """The header + data rows, skipping empty ones (Excel often carries empty formatted rows, also between
+    real ones). Stops one row past max_rows (the caller refuses the file). Reaching SCAN_LIMIT lines first
+    means we can't know every row is there: refused, never a partial import."""
+    out: list[list[str]] = []
+    for n, row in enumerate(rows):
+        if n >= SCAN_LIMIT:
+            raise AppError(422, "too_many_rows", f"This file has more than {SCAN_LIMIT} lines (empty ones "
+                                                 "included). Please delete the empty rows or split the file.")
+        if any(row):
+            out.append(row)
+            if len(out) > max_rows + 1:  # header + one row too many
+                break
+    return out
+
+
 def read_rows(filename: str, data: bytes) -> list[dict]:
     """Excel (.xlsx) or CSV -> list of {field: text}. The first row must be the headers."""
     max_rows = cfg().assign.import_max_rows  # config/assign.ini
-    read_rows_cap = 2 * max_rows + 1  # header + data, with room for empty rows; more real rows is refused
     name = filename.lower()
     if name.endswith(".xlsx"):
         try:
@@ -62,21 +78,20 @@ def read_rows(filename: str, data: bytes) -> list[dict]:
             raise AppError(422, "bad_file", "This Excel file is too big. Please split it into smaller files.")
         try:
             ws = load_workbook(io.BytesIO(data), read_only=True, data_only=True).active
-            # Read a bounded number of rows and MAX_COLS columns, never the whole sheet. (Twice
-            # max_rows, because Excel files often carry empty formatted rows.)
-            table = [[("" if c is None else str(c)).strip() for c in row]
-                     for row in ws.iter_rows(max_row=read_rows_cap, max_col=MAX_COLS, values_only=True)]
+            table = _non_empty(([("" if c is None else str(c)).strip() for c in row]
+                                for row in ws.iter_rows(max_col=MAX_COLS, values_only=True)), max_rows)
+        except AppError:
+            raise
         except Exception as e:  # openpyxl raises many types for a bad file
             raise AppError(422, "bad_file", "Could not read this Excel file.") from e
     elif name.endswith(".csv"):
         try:
             reader = csv.reader(io.StringIO(data.decode("utf-8-sig", errors="replace")))
-            table = [[c.strip() for c in row[:MAX_COLS]] for _, row in zip(range(read_rows_cap), reader)]
+            table = _non_empty(([c.strip() for c in row[:MAX_COLS]] for row in reader), max_rows)
         except csv.Error as e:
             raise AppError(422, "bad_file", "Could not read this CSV file.") from e
     else:
         raise AppError(422, "bad_file", "Please upload an .xlsx or .csv file.")
-    table = [r for r in table if any(r)]  # ignore empty rows
     if not table:
         return []
     if len(table) - 1 > max_rows:

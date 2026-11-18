@@ -111,10 +111,12 @@ async def unread_total(user: User = Depends(current_user), db: AsyncSession = De
 
 @router.get("/channels/{channel_id}/messages")
 async def list_messages(channel_id: int, before: int | None = None, after: int | None = None,
-                        limit: int = Query(default=50, ge=1),
+                        limit: int | None = Query(default=None, ge=1),
                         user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     page_max = cfg().chat.page_max  # config/chat.ini, read now (a Query bound would be fixed at start)
-    if limit > page_max:
+    if limit is None:  # not sent: 50, or less when chat.ini page_max is lower
+        limit = min(50, page_max)
+    elif limit > page_max:
         if after is None:
             raise AppError(422, "limit_too_big", f"Ask for at most {page_max} messages at a time.")
         # Catch-up after a dropped connection: a tab opened before page_max was lowered still asks for the
