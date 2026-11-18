@@ -1170,7 +1170,46 @@ Sections:
 ### sessionStorage
 
    What   Like localStorage, but only for this browser tab, and gone when the tab closes.
-   Where  The "Let's connect" popup (`kjs-connect`) and the open sidebar (`kjs_menu_open`).
+   Where  The "Let's connect" popup (`kjs-connect`), the open sidebar (`kjs_menu_open`) and the Website
+          insights visit id (`kjs_visit`).
+### Website insights / tracker
+
+   What   A small script on the website that notes what visitors do (pages, searches, button clicks) and sends
+          it to our API every few seconds. Ours keeps no cookie, no IP and no name.
+   Why    To see which products and searches matter to buyers (Reports > Website insights).
+   Where  `frontend/src/lib/insights.ts`, `SiteTracker.tsx`; backend `site_insights_service.py`.
+
+
+### Visit id
+
+   What   A random code made by the browser for one tab, kept in sessionStorage. It lets us count visits
+          without knowing who anyone is.
+
+
+### Referrer
+
+   What   The page a visitor came from (Google, another site). We keep only the site's name, never the full
+          link (it can carry what someone searched for).
+
+
+### Robot (bot)
+
+   What   A program that opens web pages by itself, like Google's crawler. We spot them by their browser name
+          (`bot_words` in `site_insights.ini`) and don't count them.
+
+
+### keepalive (fetch)
+
+   What   An option that lets a browser request finish even after the page is closed. Limited to 64 KB, so
+          our tracker uses it only when the tab is closing.
+
+
+### Funnel
+
+   What   Steps a customer goes through (viewed -> added -> sent), counted to see where people drop off. Each
+          step must count only people who did the step before, or the numbers mislead.
+
+
 ### SheetJS (`xlsx`) / mammoth
 
    What   SheetJS reads Excel and CSV files in the browser; mammoth turns a Word .docx into HTML.
