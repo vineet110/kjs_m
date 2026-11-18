@@ -102,17 +102,21 @@ def _admin_category_out(c: Category, hidden: set[str], product_count: int) -> Ad
 
 
 async def set_category_active(db: AsyncSession, actor: User, category_id: int, is_active: bool) -> AdminCategoryOut:
-    """The Show/Hide switch. Changes only is_active; the audit row goes in the same transaction."""
-    c = await db.get(Category, category_id)
+    """The Show/Hide switch. Changes only is_active; the audit row goes in the same transaction.
+    The row is locked while it is read, so two admins switching at once can't log a change that wasn't made.
+    The reply is built before the commit: if that fails, the switch and its audit row roll back together."""
+    c = await db.get(Category, category_id, with_for_update=True)
     if c is None:
         raise AppError(404, "not_found", "Category not found.")
     before = c.is_active
     c.is_active = is_active
     audit_service.record(db, actor=actor, action="category.updated", entity_type="category", entity_id=c.id,
                          before={"is_active": before}, after={"is_active": is_active})
-    await db.commit()
+    await db.flush()
     count = await db.scalar(select(func.count()).select_from(Product).where(Product.category_id == c.id))
-    return _admin_category_out(c, await hidden_slugs(db), count or 0)
+    out = _admin_category_out(c, await hidden_slugs(db), count or 0)
+    await db.commit()
+    return out
 
 
 async def list_products(

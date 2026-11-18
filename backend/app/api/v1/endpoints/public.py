@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.files import send_file
 from app.core.config.ini import public_config
 from app.core.database import get_db
+from app.core.errors import AppError
 from app.core.deps import visitor_keys
 from app.schemas.catalog import CategoryOut, ProductOut
 from app.schemas.common import Email, OneLine, RequiredPhone
@@ -27,7 +28,8 @@ async def category(slug: str, db: AsyncSession = Depends(get_db)):
     for c in await catalog_service.list_categories(db):
         if c.slug == slug:
             return c
-    await catalog_service.get_category(db, slug)  # raises the standard 404
+    # Not in the list: hidden or unknown. One answer from one read (asking again could find it switched on since)
+    raise AppError(404, "not_found", "Category not found.")
 
 
 @router.get("/products", response_model=list[ProductOut])

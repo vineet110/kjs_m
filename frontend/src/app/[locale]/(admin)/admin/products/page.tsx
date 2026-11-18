@@ -28,6 +28,8 @@ export default function AdminProducts() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
   const toast = useToast();
+  // On the public site? Unknown until the categories have loaded: then no (no View link to a page that may 404)
+  const catVisible = (slug: string) => cats.some((c) => c.slug === slug && c.visible);
 
   const load = useCallback(() => {
     setLoadErr(null);
@@ -80,7 +82,9 @@ export default function AdminProducts() {
             return;
           }
         }
-        toast(`Added "${f.name}". It is live on the website within a minute`);
+        toast(catVisible(added.category_slug)
+          ? `Added "${f.name}". It is live on the website within a minute`
+          : `Added "${f.name}". Its category is hidden, so it shows on the website once the category is shown`);
         load();
         return;
       }
@@ -94,11 +98,18 @@ export default function AdminProducts() {
   async function toggleCategory(c: AdminCategory) {
     // Only the switch is sent. Subcategories keep their own switch: they follow the parent on the website.
     try {
-      await api(`/admin/categories/${c.id}`, { method: 'PATCH', body: { is_active: !c.is_active } });
-      toast(`${c.name} is ${c.is_active ? 'hidden' : 'shown'} on the website within a minute`);
+      // The reply says whether the website really shows it: a subcategory switched on stays hidden
+      // while its parent is hidden
+      const now = await api<AdminCategory>(`/admin/categories/${c.id}`, { method: 'PATCH', body: { is_active: !c.is_active } });
+      const parent = cats.find((x) => x.slug === now.parent);
+      toast(now.visible ? `${c.name} is shown on the website within a minute`
+        : now.is_active && parent ? `${c.name} is switched on, but stays hidden while ${parent.name} is hidden`
+        : `${c.name} is hidden on the website within a minute`);
       load();
     } catch (err) {
       toast(err instanceof ApiFailure ? err.message : 'Could not change it. Please try again.', 'error');
+      // The connection dropped after sending: the change may be saved. Reload so the button shows what is saved.
+      if (err instanceof ApiFailure && err.body.code === 'unconfirmed') load();
     }
   }
 
@@ -174,10 +185,11 @@ export default function AdminProducts() {
               {!p.is_active && <Pill value="off" label="hidden" />}
               {p.is_active && cats.some((c) => c.slug === p.category_slug && !c.visible) && <Pill value="off" label="category hidden" />}
               <span className="ml-auto flex gap-3 text-xs">
-                <button onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="underline">Edit</button>
+                {/* Not before the categories load: the form's category list would be empty and save the wrong one */}
+                <button disabled={cats.length === 0} onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="underline disabled:opacity-50">Edit</button>
                 <button onClick={() => setFilesFor(filesFor === p.slug ? null : p.slug)} className="underline">Photos & files</button>
                 <button onClick={() => toggleHidden(p)} className="underline">{p.is_active ? 'Hide' : 'Show'}</button>
-                {p.is_active && !cats.some((c) => c.slug === p.category_slug && !c.visible) && <Link href={`/products/${p.slug}`} target="_blank" className="underline">View</Link>}
+                {p.is_active && catVisible(p.category_slug) && <Link href={`/products/${p.slug}`} target="_blank" className="underline">View</Link>}
               </span>
             </div>
             {filesFor === p.slug && <FileList ownerType="product" ownerId={p.slug} publicToggle />}

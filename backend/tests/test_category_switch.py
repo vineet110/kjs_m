@@ -153,3 +153,25 @@ async def test_a_product_can_still_be_edited_and_added_in_a_hidden_category(clie
     r = await client.post("/api/v1/admin/products", json={"category_slug": "wafers", "name": "New Wafer"}, headers=HDR)
     assert r.status_code == 201
     assert "new-wafer" not in (await _public(client))[1]
+
+
+async def test_showing_a_subcategory_of_a_hidden_parent_says_it_stays_hidden(client):
+    """The admin page reads `visible` from the reply to say "Wafers stays hidden with Confectionery"."""
+    cats = await _catalogue()
+    await _editor(client)
+    await _switch(client, cats["wafers"], False)
+    await _switch(client, cats["confectionery"], False)
+    r = (await _switch(client, cats["wafers"], True)).json()
+    assert r["is_active"] is True and r["visible"] is False and r["parent"] == "confectionery"
+
+
+async def test_category_page_is_404_when_the_list_has_no_match(client, monkeypatch):
+    """The category route reads the list, then asks again only to raise the 404. If the category is switched
+    on in between, it used to return nothing (a broken reply) instead of the 404."""
+    await _catalogue()
+
+    async def empty_list(db):
+        return []
+    monkeypatch.setattr(catalog_service, "list_categories", empty_list)  # as if Wafers was hidden at that moment
+    r = await client.get("/api/v1/public/categories/wafers")
+    assert r.status_code == 404 and r.json()["code"] == "not_found"

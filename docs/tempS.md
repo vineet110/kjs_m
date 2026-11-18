@@ -51,10 +51,31 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
 - Migration 0030 hides Tea; `app.seed` / `seed_catalogue` create Tea hidden on a new database
   (`HIDDEN_AT_START`). `HIDDEN_CATEGORIES` removed from `frontend/src/lib/catalogue.ts`.
 
-- After merging: run `alembic upgrade head` (0030). The monitoring PRs use 0027-0029: whichever merges
-  second points its `down_revision` at the other.
+- After merging: run `alembic upgrade head` (0030) as soon as the merge is deployed. Until then the new
+  site shows Tea (the frontend list is gone and the database still says Tea is on).
 
-- To make the site coffee-only: Hide Confectionery and Health drinks (Tea is already hidden). Next: PR 2
+- Migration order with the monitoring PRs (0027-0029):
+
+   i.    0030 merges first: set 0027's `down_revision` to '0030' (0028 -> 0027 and 0029 -> 0028 stay).
+
+   ii.   The monitoring PRs merge first: set 0030's `down_revision` to '0029'.
+
+   iii.  Either way, `alembic heads` must show one head before `alembic upgrade head`.
+
+- To make the site coffee-only: Hide Confectionery, Health drinks and Instant drink powders (Tea is already hidden). Next: PR 2
   (home page text and pictures follow the switches).
 
 - New term for kb.md: "visible" category = its own switch on and its parent's switch on.
+
+- Review round 1 (CodeRabbit) fixed: Edit waits for the category list; View link only for a visible
+  category; honest messages (product added to a hidden category, subcategory switched on under a hidden
+  parent); reload after an unconfirmed switch; row lock + reply built before commit in the switch;
+  category route answers 404 from one read.
+
+- For backlog.md:
+
+   i.    Admin > Products: an older reload finishing after a newer one can show old switches for a moment
+         (the product list has the same pattern). Fix: keep only the latest reload's answer.
+
+   ii.   Public lists read the hidden categories in one query and the products in another; a switch in
+         between gives one mixed answer (the 60 s page cache hides it anyway). Fix: one SQL query.
