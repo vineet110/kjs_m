@@ -35,7 +35,23 @@ export type Notice = { id: number; kind: string; title: string; body: string; li
 
 /** `modules`: portal area -> can this person use it (config/modules.ini, see lib/modules.ts). */
 // limits: from config/*.ini via /auth/me, so the portal never keeps its own copy of a server limit
-export type PortalLimits = { chat_body_max: number; chat_page_max: number; complaint_min_title_words: number; complaint_min_description_words: number };
+export type PortalLimits = {
+  chat_body_max: number; chat_page_max: number; complaint_min_title_words: number; complaint_min_description_words: number;
+  leads_page_employee: number; leads_page_admin: number; // leads per page (config/leads.ini)
+};
+
+/** The first `pages` pages of a lead list, joined (newest first, no lead twice). `full`: the last page came back
+ *  full, so there may be more ("Load more"). Re-reading every shown page keeps a refresh up to date. */
+export async function leadPages(path: string, qs: URLSearchParams, pages: number, size: number): Promise<{ rows: Lead[]; full: boolean }> {
+  const all = await Promise.all(Array.from({ length: pages }, (_, i) => {
+    const q = new URLSearchParams(qs);
+    if (i) q.set('offset', String(i * size));
+    return api<Lead[]>(`${path}?${q}`);
+  }));
+  const seen = new Set<number>();
+  const rows = all.flat().filter((l) => !seen.has(l.id) && seen.add(l.id));
+  return { rows, full: all[all.length - 1].length >= size };
+}
 export type Me = { id: number; name: string; email: string; role: 'admin' | 'employee'; permissions: string[]; modules?: Record<string, boolean>; limits?: PortalLimits };
 
 export type ApiError = { code: string; message: string; details: Record<string, unknown>; request_id: string | null };

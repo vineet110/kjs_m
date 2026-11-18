@@ -42,10 +42,12 @@ class LeadTaskIn(BaseModel):
 async def my_leads(
     status: str | None = None,
     source: str | None = Query(None, max_length=30),  # e.g. "koko", "internal"
+    offset: int = Query(0, ge=0),  # next page: offset = leads already shown (page size: config/leads.ini)
     user: User = Depends(require_permission("leads.view")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.list_for(db, user, status, source=source)
+    return await lead_service.list_for(db, user, status, source=source, limit=cfg().leads.employee_page_size,
+                                       offset=offset)
 
 
 @router.post("/leads", response_model=LeadOut, status_code=201)

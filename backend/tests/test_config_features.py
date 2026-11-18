@@ -62,7 +62,8 @@ async def test_me_sends_the_portal_limits(client, monkeypatch):
     await make_user("e@kjsindia.com")
     me = (await login(client, "e@kjsindia.com")).json()
     assert me["limits"] == {"chat_body_max": 4000, "chat_page_max": 100, "complaint_min_title_words": 3,
-                            "complaint_min_description_words": 15}
+                            "complaint_min_description_words": 15, "leads_page_employee": 200,
+                            "leads_page_admin": 500}
     _set(monkeypatch, "chat__body_max", 500)
     assert (await client.get("/api/v1/auth/me")).json()["limits"]["chat_body_max"] == 500
 

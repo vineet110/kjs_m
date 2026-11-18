@@ -107,3 +107,49 @@ async def test_assign_categories_needs_assign_manage(client):
     me = await _uid("e@kjsindia.com")
     r = await client.post(f"/api/v1/assign/staff/{me}/categories", json={"categories": ["coffee"]}, headers=HDR)
     assert r.status_code == 403 and r.json()["details"]["needs"] == "assign.manage"
+
+
+# ---------- Lead lists: pages (config/leads.ini employee_page_size / admin_page_size) ----------
+async def _many_leads(n: int) -> None:
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    async with AsyncSessionLocal() as db:
+        for i in range(n):  # lead 0 is the newest
+            db.add(Lead(source="enquiry_form", name=f"Buyer {i}", phone=f"+91 90000 {i:05d}", consent=True,
+                        consent_at=now, created_at=now - timedelta(minutes=i)))
+        await db.commit()
+
+
+def _page_size(monkeypatch, key: str, value: int) -> None:
+    from app.core.config import ini
+    monkeypatch.setenv(f"KJS__LEADS__{key.upper()}", str(value))
+    ini.reload_now()
+
+
+async def test_employee_reaches_older_unassigned_leads_on_the_next_page(client, monkeypatch):
+    _page_size(monkeypatch, "employee_page_size", 50)
+    await _many_leads(60)
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    first = (await client.get("/api/v1/employee/leads")).json()
+    second = (await client.get("/api/v1/employee/leads?offset=50")).json()
+    assert len(first) == 50 and len(second) == 10
+    assert second[-1]["name"] == "Buyer 59"  # the oldest one is reachable
+    assert not {r["id"] for r in first} & {r["id"] for r in second}  # no lead twice
+
+
+async def test_admin_page_size_comes_from_config(client, monkeypatch):
+    _page_size(monkeypatch, "admin_page_size", 50)
+    await _many_leads(55)
+    await make_user("admin@kjsindia.com", role="admin")
+    me = (await login(client, "admin@kjsindia.com")).json()
+    assert me["limits"]["leads_page_admin"] == 50  # the portal knows when a page is full
+    assert len((await client.get("/api/v1/admin/leads")).json()) == 50
+    assert len((await client.get("/api/v1/admin/leads?offset=50")).json()) == 5
+
+
+def test_page_size_out_of_bounds_is_refused(monkeypatch):
+    from app.core.config import ini
+    monkeypatch.setenv("KJS__LEADS__EMPLOYEE_PAGE_SIZE", "5")  # below 50
+    c = ini.reload_now()
+    assert c.leads.employee_page_size == 200  # refused: the last good value stays

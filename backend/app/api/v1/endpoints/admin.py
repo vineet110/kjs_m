@@ -154,11 +154,11 @@ async def update_product(
 async def all_leads(
     status: str | None = None, owner: int | None = None, sla: str | None = None,
     source: str | None = Query(None, max_length=30),  # e.g. "koko", "internal"
-    offset: int = Query(0, ge=0),  # 500 per page: offset=500 for the next page
+    offset: int = Query(0, ge=0),  # next page: offset = leads already shown (page size: config/leads.ini)
     user: User = Depends(require_permission("leads.view_all")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=500, offset=offset,
+    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=cfg().leads.admin_page_size, offset=offset,
                                        source=source)
 
 

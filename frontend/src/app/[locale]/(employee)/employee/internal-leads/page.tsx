@@ -24,7 +24,7 @@ type FileLead = { fields: Fields; extra: Record<string, string> };
 type SamePerson = { count: number; lead_id: number | null };
 
 export default function InternalLeadsPage() {
-  const { rows, reload, error } = useSourceLeads('internal');
+  const { rows, reload, error, more, loadMore } = useSourceLeads('internal');
   const [open, setOpen] = useState<'add' | 'import' | null>(null); // one panel at a time
   const toggle = (p: 'add' | 'import') => setOpen((now) => (now === p ? null : p));
   return (
@@ -37,7 +37,7 @@ export default function InternalLeadsPage() {
       </PageTitle>
       {open === 'add' && <AddLead onSaved={reload} />}
       {open === 'import' && <ImportLeads onDone={reload} />}
-      <LeadSourceList rows={rows} error={error} onRetry={reload} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
+      <LeadSourceList rows={rows} error={error} onRetry={reload} onMore={more ? loadMore : undefined} empty={{ title: 'No internal leads yet', text: 'Use "+ Add lead" to type in a buyer you spoke to.' }} />
     </div>
   );
 }

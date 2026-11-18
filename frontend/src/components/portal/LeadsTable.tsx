@@ -2,7 +2,7 @@
 // Leads list used by "My day" (own + unassigned) and the admin "All leads" page (everyone's).
 // Each card shows the SLA timer; logging a call/email or marking "contacted" stops the respond timer.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiFailure, type Colleague, type Lead, type LeadNote } from '@/lib/api';
+import { api, ApiFailure, leadPages, type Colleague, type Lead, type LeadNote } from '@/lib/api';
 import { useOnUpdate } from '@/lib/updates';
 import { useMe } from './PortalShell';
 import { fmtIST, Pill } from './ui';
@@ -21,6 +21,11 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const [loadErr, setLoadErr] = useState<unknown>(null);
   const [staffErr, setStaffErr] = useState<unknown>(null);
+  const me = useMe();
+  const size = (admin ? me.limits?.leads_page_admin : me.limits?.leads_page_employee) ?? (admin ? 500 : 200);
+  const [pages, setPages] = useState(1); // "Load more" adds a page; a filter change starts again at 1
+  const [more, setMore] = useState(false);
+  useEffect(() => { setPages(1); }, [status, sla, owner]);
 
   // A failed refresh keeps the list already shown and puts the error with "Try again" above it.
   // Only the newest answer counts: a slower older one (e.g. before a filter change) can't replace it.
@@ -32,10 +37,11 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
     if (status) qs.set('status', status);
     if (admin && sla) qs.set('sla', sla);
     if (admin && owner) qs.set('owner', owner);
-    api<Lead[]>(`${admin ? '/admin/leads' : '/employee/leads'}?${qs}`)
-      .then((r) => { if (mine === latest.current) setLeads(r); })
+    // The SLA filter already looks past one page (server side), so it has no "Load more"
+    leadPages(admin ? '/admin/leads' : '/employee/leads', qs, sla ? 1 : pages, size)
+      .then((r) => { if (mine === latest.current) { setLeads(r.rows); setMore(r.full && !sla); } })
       .catch((e) => { if (mine === latest.current) setLoadErr(e); });
-  }, [status, sla, owner, admin]);
+  }, [status, sla, owner, admin, pages, size]);
   useEffect(() => {
     load();
   }, [load]);
@@ -47,7 +53,7 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
     loadStaff();
   }, [loadStaff]);
   // New leads: reload as soon as the portal's 30-second check sees the number change
-  useOnUpdate(useMe().id, (u) => u.leads?.changed, load); // a lead changed or arrived: reload
+  useOnUpdate(me.id, (u) => u.leads?.changed, load); // a lead changed or arrived: reload
   // SLA timers move: refresh every minute, only while the tab is in front
   useEffect(() => {
     const t = setInterval(() => document.visibilityState === 'visible' && load(), 60_000);
@@ -110,6 +116,7 @@ export default function LeadsTable({ admin = false }: { admin?: boolean }) {
           {open === l.id && <LeadActions lead={l} staff={staff} admin={admin} onDone={load} />}
         </div>
       ))}
+      {more && <button onClick={() => setPages((n) => n + 1)} className="btn-ghost w-full">Load more (older leads)</button>}
     </div>
   );
 }
