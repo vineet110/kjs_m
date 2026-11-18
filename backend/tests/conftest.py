@@ -55,9 +55,14 @@ async def clean_db():
 @pytest.fixture(autouse=True)
 def verified_emails_required(monkeypatch):
     """config/app.ini may have require_verified_email = false for a while (Firebase emails failing): tests
-    run with the safe value unless one says otherwise (test_firebase_login.verified_rule)."""
+    run with the safe value unless one says otherwise (test_firebase_login.verified_rule).
+    Same for config/modules.ini: a release may switch areas off, but every area is tested, so all start "on"
+    (a test switches one off with the `modules` fixture in test_modules.py)."""
     from app.core.config import ini
+    from app.core.modules import AREAS
     monkeypatch.setenv("KJS__APP__REQUIRE_VERIFIED_EMAIL", "true")
+    for a in AREAS:
+        monkeypatch.setenv(f"KJS__MODULES__{a.upper()}", "on")
     ini.reload_now()
     yield
     monkeypatch.undo()
