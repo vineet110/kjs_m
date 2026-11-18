@@ -45,7 +45,7 @@ export default function Analytics() {
   const boards = d.boards;
   const tiles = [
     { label: 'Leads answered on time', value: onTime === null ? '—' : `${onTime}%`, sub: `${d.sla.on_time} of ${d.sla.answered}, last 8 weeks` },
-    { label: 'SLA alerts sent', value: d.sla.breaches, sub: 'last 8 weeks' },
+    { label: 'Leads that went late', value: d.sla.breaches, sub: 'over a time limit, last 8 weeks' }, // escalation_level > 0
     { label: 'Koko chats', value: d.koko.chats, sub: `${d.koko.buyer_chats} looked like buyers · ${d.koko.leads} leads` },
     ...(boards ? [{
       label: 'Active order boards',
@@ -77,9 +77,9 @@ export default function Analytics() {
             <StackedColumns data={d.attendance.map((a) => ({ label: fmtDay(a.day), a: a.present, b: a.late }))} />
           </Panel>
         )}
-        <Panel title="Leads by source"><Bars data={toRows(d.leads_by_source)} /></Panel>
-        <Panel title="Leads by status"><Bars data={toRows(d.leads_by_status)} /></Panel>
-        <Panel title="Lead outcomes"><Bars data={toRows(d.leads_by_outcome)} /></Panel>
+        <Panel title="Leads by source (all time)"><Bars data={toRows(d.leads_by_source)} /></Panel>
+        <Panel title="Leads by status (all time)"><Bars data={toRows(d.leads_by_status)} /></Panel>
+        <Panel title="Lead outcomes (all time)"><Bars data={toRows(d.leads_by_outcome)} /></Panel>
         <Panel title={`Tasks done per person (${d.tasks_days ?? 30} days)`}><Bars data={d.tasks_done.map((t) => ({ label: t.name, value: t.done }))} /></Panel>
       </div>
     </div>
