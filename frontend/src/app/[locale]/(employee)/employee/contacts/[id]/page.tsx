@@ -346,7 +346,15 @@ function Tasks({ lead }: { lead: Lead }) {
     }
   }
   async function done(t: Task, yes: boolean) {
-    await api(`/tasks/${t.id}`, { method: 'PATCH', body: { status: yes ? 'done' : 'todo' } }).catch(() => undefined);
+    // Only the person the task is for (or who made it) may tick it: say so instead of quietly undoing the tick
+    try {
+      await api(`/tasks/${t.id}`, { method: 'PATCH', body: { status: yes ? 'done' : 'todo' } });
+      setMsg(null);
+    } catch (err) {
+      const notYours = err instanceof ApiFailure && err.status === 404; // the server hides tasks you can't change
+      setMsg({ ok: false, text: notYours ? 'Only the person this task is for, or who added it, can tick it.'
+        : err instanceof ApiFailure ? err.message : 'Could not update the task.' });
+    }
     load();
   }
   return (
