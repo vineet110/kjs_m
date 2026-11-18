@@ -19,6 +19,7 @@ PERMISSIONS: dict[str, str] = {
     "content.edit": "Edit website text, offers and Koko knowledge",
     "tasks.assign": "Give tasks to other staff and see everyone's tasks",
     "files.approve": "Approve requests to delete files",
+    "monitor.view": "See Team work: everyone's timeline, screenshots and sites",
 }
 
 EMPLOYEE_DEFAULTS: list[str] = ["leads.view"]

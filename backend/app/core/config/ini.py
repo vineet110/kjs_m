@@ -126,6 +126,13 @@ class StorageIni(BaseModel):
         "pptx", "ppt", "gif", "heic", "mp4", "mov"])
 
 
+class MonitoringIni(BaseModel):
+    """Team work / My work (and, later, screenshots, idle and sites)."""
+    max_range_days: int = Field(31, ge=1, le=366)  # longest date range one page may ask for
+    timeline_page_size: int = Field(200, ge=20, le=1000)  # timeline items per "Load more"
+    team_refresh_seconds: int = Field(30, ge=10, le=600)  # how often Team work reloads itself
+
+
 class ComplaintsIni(BaseModel):
     developer_email: str = ""  # gets new complaints by email, once email is set up (not used yet)
 
@@ -150,6 +157,7 @@ class ModulesIni(BaseModel):
     audit: ModuleLevel = "on"
     chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
     lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
+    monitoring: ModuleLevel = "on"  # Team work (admin) and My work (employee)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -178,6 +186,7 @@ class Config(BaseModel):
     storage: StorageIni = StorageIni()
     modules: ModulesIni = ModulesIni()
     complaints: ComplaintsIni = ComplaintsIni()
+    monitoring: MonitoringIni = MonitoringIni()
 
 
 # file name -> section it fills
