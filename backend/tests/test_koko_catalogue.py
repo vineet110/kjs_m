@@ -267,4 +267,21 @@ async def test_koko_facts_product_areas_follow_the_switches(client, catalogue):
         assert "Product areas: coffee." in prompt and "{product_areas}" not in prompt
     finally:
         await _switch_back_on(ids)
-    assert "Product areas: coffee, " in await _koko_prompt(facts)
+    areas = _areas_line(await _koko_prompt(facts))
+    assert "coffee" in areas and "confectionery" in areas  # all shown again (any order)
+
+
+def _areas_line(prompt: str) -> str:
+    return next(line for line in prompt.splitlines() if line.startswith("- Product areas:")).lower()
+
+
+async def test_facts_saved_in_admin_with_the_old_areas_line_follow_too(client, catalogue):
+    """Facts saved in Admin > Koko before {product_areas} existed still list every area: that exact old list
+    is swapped for the categories shown, the rest of the facts stays as written."""
+    old = "- Product areas: coffee, tea, health drinks and confectionery. We sell B2B only.\n- Our own fact."
+    ids = await _coffee_only()
+    try:
+        prompt = await _koko_prompt(old)
+        assert _areas_line(prompt) == "- product areas: coffee. we sell b2b only." and "- Our own fact." in prompt
+    finally:
+        await _switch_back_on(ids)

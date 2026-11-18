@@ -159,6 +159,10 @@ def catalogue_card(cat: CategoryOut | None, prods: list[ProductOut], viewed: Pro
                                    for p in items[:cfg().koko.card_products]])
 
 
+# The product-areas list in facts saved in Admin > Koko before {product_areas} (kjs_facts.md until 18 Nov)
+OLD_PRODUCT_AREAS = "Product areas: coffee, tea, health drinks and confectionery."
+
+
 def system_prompt(catalogue: str, facts: str, product_range: str) -> str:
     # Rules go AFTER the facts: models follow the most recent instructions best.
     # product_range: the categories shown on the website (Admin > Products switches them)
@@ -197,8 +201,9 @@ def build_prompt(facts: str, questions: list[str], cat: CategoryOut | None, cats
     picked = pick_products(questions, cat, viewed, prods)
     limit = cfg().koko.prompt_limit
     product_range = catalog_service.range_text(cats)
-    # The facts (kjs_facts.md or Admin > Koko) may say {product_areas}: the categories shown right now
-    facts = facts.replace("{product_areas}", product_range)
+    # The facts (kjs_facts.md or Admin > Koko) say {product_areas}: the categories shown right now. Facts saved
+    # in Admin before that have the old full list: that exact list is swapped too, the rest stays as written.
+    facts = facts.replace("{product_areas}", product_range).replace(OLD_PRODUCT_AREAS, f"Product areas: {product_range}.")
     prompt = system_prompt(_catalogue_text(cats, picked), facts, product_range)
     while len(prompt) > limit and picked:
         picked = picked[:-1]

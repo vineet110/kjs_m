@@ -123,8 +123,12 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
   categories back even when an assert fails and checks Koko's intro on its own; Koko facts say
   {product_areas}, filled in with the categories shown.
 
-- Sir: if Admin > Koko has its own saved facts, replace the "Product areas: ..." list with {product_areas}
-  once (the default facts file already has it).
+- Facts saved in Admin > Koko before this: the exact old list "Product areas: coffee, tea, health drinks and
+  confectionery." is swapped for the categories shown too (review round 2), so nothing to edit by hand.
+
+- Review round 2 of #99 (CodeRabbit): old facts line swapped (test first); the Koko areas test no longer
+  depends on category order. All categories hidden (Koko should send everything to sales) stays in the
+  backlog with #5.
 
 - For backlog.md (Vineet's review of #99):
 
