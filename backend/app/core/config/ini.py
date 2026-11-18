@@ -19,6 +19,7 @@ error naming the file and key.
 import configparser
 import logging
 import os
+import re
 import threading
 import time
 import typing
@@ -191,10 +192,55 @@ class AnalyticsIni(BaseModel):
     top_people: int = Field(15, ge=5, le=100)  # people shown in "tasks done"
 
 
+BUTTON_NAME = r"^[a-z][a-z0-9_]{1,39}$"  # a tracked button's name: add_to_enquiry, whatsapp, ...
+
+
+class SiteInsightsIni(BaseModel):
+    """Website insights: what visitors view, search and click (anonymous; no cookie, no IP, no name)."""
+    keep_days: int = Field(180, ge=30, le=730)  # older visitor events are deleted
+    cleanup_every_hours: int = Field(6, ge=1, le=168)  # how often that delete runs (on a send or a report)
+    default_days: int = Field(30, ge=1, le=365)  # range shown when the report opens
+    day_choices: list[int] = Field(default_factory=lambda: [7, 30, 90])  # buttons above the report
+    top_n: int = Field(10, ge=3, le=50)  # rows in each "top" list
+    max_events_per_send: int = Field(20, ge=1, le=100)  # events in one request from a browser
+    sends_per_minute: int = Field(30, ge=1, le=600)  # requests per visitor network per minute
+    send_every_seconds: int = Field(10, ge=2, le=120)  # how often a browser sends what it collected
+    search_pause_ms: int = Field(1500, ge=300, le=10000)  # typing pause before a search is recorded
+    min_search_chars: int = Field(2, ge=1, le=10)  # shorter searches are not recorded
+    # Buttons whose clicks are counted. A button is tagged data-track="<name>" on the website.
+    buttons: list[str] = Field(default_factory=lambda: [
+        "add_to_enquiry", "spec_sheet", "price_sheet", "whatsapp", "call", "send_enquiry", "configurator",
+        "sample_quote"])
+    # Visitors whose browser name contains one of these words are robots and are not counted
+    bot_words: list[str] = Field(default_factory=lambda: [
+        "bot", "crawl", "spider", "slurp", "headless", "lighthouse", "preview", "curl", "wget", "python",
+        "httpclient", "facebookexternalhit"])
+
+    @field_validator("day_choices")
+    @classmethod
+    def day_choices_ok(cls, v: list[int]) -> list[int]:
+        if not v or any(d < 1 or d > 730 for d in v):
+            raise ValueError("day_choices must be 1 to 730 days each")
+        return sorted(set(v))
+
+    @field_validator("buttons")
+    @classmethod
+    def buttons_ok(cls, v: list[str]) -> list[str]:
+        bad = [b for b in v if not re.match(BUTTON_NAME, b)]
+        if bad or not v:
+            raise ValueError(f"button names must be lowercase words joined by _ (bad: {bad})")
+        return v
+
+    @field_validator("bot_words")
+    @classmethod
+    def bot_words_lower(cls, v: list[str]) -> list[str]:
+        return [w.lower() for w in v]
+
+
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
 ModuleLevel = Literal["on", "admin", "off"]
 # area -> areas it needs, switched on at least as far (batches go only to staff who checked in)
-MODULE_NEEDS = {"batches": ("attendance",)}
+MODULE_NEEDS = {"batches": ("attendance",), "site_insights": ("analytics",)}  # insights: a tab on Reports
 
 
 class ModulesIni(BaseModel):
@@ -211,6 +257,7 @@ class ModulesIni(BaseModel):
     audit: ModuleLevel = "on"
     chat: ModuleLevel = "on"  # Chat: channels, groups, direct messages (API and live connection)
     lead_harvester: ModuleLevel = "on"  # Client Schedulers (Lead Harvester) page, API and job
+    site_insights: ModuleLevel = "on"  # Website insights tab on Reports; off = visitors are not recorded
 
     @field_validator("*", mode="before")
     @classmethod
@@ -246,6 +293,7 @@ class Config(BaseModel):
     harvest: HarvestIni = HarvestIni()
     boards: BoardsIni = BoardsIni()
     analytics: AnalyticsIni = AnalyticsIni()
+    site_insights: SiteInsightsIni = SiteInsightsIni()
 
     @model_validator(mode="after")
     def job_timeout_covers_email_budget(self):
@@ -399,7 +447,12 @@ def reload_now() -> Config:
 def public_config() -> dict:
     """Only values that are safe to show in a browser."""
     c = cfg()
-    return {"site_name": c.app.site_name, "features": c.features.model_dump()}
+    s = c.site_insights
+    # The website's visitor tracker: off when the area is off (then nothing is sent at all)
+    insights = {"on": c.modules.site_insights != "off", "send_every_seconds": s.send_every_seconds,
+                "max_events_per_send": s.max_events_per_send, "search_pause_ms": s.search_pause_ms,
+                "min_search_chars": s.min_search_chars, "buttons": s.buttons}
+    return {"site_name": c.app.site_name, "features": c.features.model_dump(), "insights": insights}
 
 
 def effective_with_sources() -> list[dict]:
