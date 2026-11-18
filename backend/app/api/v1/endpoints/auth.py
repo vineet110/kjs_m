@@ -28,7 +28,8 @@ def portal_limits() -> dict[str, int]:
     c = cfg()
     return {"chat_body_max": c.chat.body_max, "chat_page_max": c.chat.page_max,
             "complaint_min_title_words": c.complaints.min_title_words,
-            "complaint_min_description_words": c.complaints.min_description_words}
+            "complaint_min_description_words": c.complaints.min_description_words,
+            "leads_page_employee": c.leads.employee_page_size, "leads_page_admin": c.leads.admin_page_size}
 
 
 @router.post("/signup", status_code=201)

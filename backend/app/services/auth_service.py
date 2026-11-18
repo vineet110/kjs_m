@@ -395,6 +395,8 @@ async def create_user(db: AsyncSession, admin: User, data) -> tuple[User, str]:
     password is returned for the admin to pass on; the person changes it on their Profile page. The
     password is set in Firebase (never stored by us); at the first login Firebase asks them to verify
     their email."""
+    if admin.role != "admin":  # an approver only approves sign-ups; an account made here skips that step
+        raise AppError(403, "forbidden", "Only an admin can create an account.")
     await _check_staff_details(db, admin, None, data)
     if await db.scalar(select(func.count()).select_from(User).where(User.email == data.email)):
         raise AppError(409, "email_taken", "An account with this email already exists.")

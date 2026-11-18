@@ -28,11 +28,13 @@ router = APIRouter()
 async def stats(user: User = Depends(require_permission("staff.approve")), db: AsyncSession = Depends(get_db)):
     users = dict((await db.execute(select(User.status, func.count()).group_by(User.status))).all())
     shop = visible(user, "website_admin")  # null = that area is hidden (config/modules.ini)
-    leads = await lead_service.counts(db)
-    this_week, last_week = await lead_service.weekly_counts(db)
+    # Company-wide lead numbers only for people who may see every lead; null = the tiles are hidden
+    see_leads = "leads.view_all" in effective_permissions(user.role, user.permissions)
+    leads = await lead_service.counts(db) if see_leads else {}
+    this_week, last_week = await lead_service.weekly_counts(db) if see_leads else (None, None)
     return {
-        "leads_total": sum(leads.values()),
-        "leads_new": leads.get("new", 0),
+        "leads_total": sum(leads.values()) if see_leads else None,
+        "leads_new": leads.get("new", 0) if see_leads else None,
         "leads_this_week": this_week,
         "leads_last_week": last_week,
         "staff_pending": users.get("pending", 0),
@@ -152,11 +154,11 @@ async def update_product(
 async def all_leads(
     status: str | None = None, owner: int | None = None, sla: str | None = None,
     source: str | None = Query(None, max_length=30),  # e.g. "koko", "internal"
-    offset: int = Query(0, ge=0),  # 500 per page: offset=500 for the next page
+    offset: int = Query(0, ge=0),  # next page: offset = leads already shown (page size: config/leads.ini)
     user: User = Depends(require_permission("leads.view_all")),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=500, offset=offset,
+    return await lead_service.list_for(db, user, status, owner, sla, all_leads=True, limit=cfg().leads.admin_page_size, offset=offset,
                                        source=source)
 
 
@@ -263,16 +265,17 @@ class HolidayOut(HolidayIn):
     model_config = {"from_attributes": True}
 
 
-@router.get("/holidays", response_model=list[HolidayOut], dependencies=area("attendance"))
+# Holidays: no module switch. Lead SLA deadlines skip them, so they stay editable when attendance is off.
+@router.get("/holidays", response_model=list[HolidayOut])
 async def holidays(year: int, _: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.list_holidays(db, year)
 
 
-@router.post("/holidays", response_model=HolidayOut, status_code=201, dependencies=area("attendance"))
+@router.post("/holidays", response_model=HolidayOut, status_code=201)
 async def add_holiday(data: HolidayIn, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     return await calendar_service.add_holiday(db, user, data.day, data.name)
 
 
-@router.delete("/holidays/{holiday_id}", status_code=204, dependencies=area("attendance"))
+@router.delete("/holidays/{holiday_id}", status_code=204)
 async def remove_holiday(holiday_id: int, user: User = Depends(require_permission("calendar.edit")), db: AsyncSession = Depends(get_db)):
     await calendar_service.remove_holiday(db, user, holiday_id)

@@ -162,6 +162,8 @@ class LeadsIni(BaseModel):
     file_max_mb: int = Field(10, ge=1, le=25)  # one Excel / CSV file read or imported; nginx caps at 26 MB
     file_preview_rows: int = Field(50, ge=1, le=500)  # rows shown to pick one lead from a file
     import_max_rows: int = Field(500, ge=1, le=5000)  # bulk import: each row becomes a lead
+    employee_page_size: int = Field(200, ge=50, le=1000)  # leads per page for an employee (own + unassigned)
+    admin_page_size: int = Field(500, ge=50, le=2000)  # leads per page in All Enquiries (leads.view_all)
 
 
 class AttendanceIni(BaseModel):

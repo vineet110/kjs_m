@@ -173,7 +173,7 @@ async def test_notification_links_to_hidden_areas_are_dropped(client, modules):
 def test_area_of_link():
     assert area_of_link("/employee/order-boards/ABC1") == "order_boards"
     assert area_of_link("/admin/order-boards") == "order_boards"
-    assert area_of_link("/admin/holidays?year=2026") == "attendance"
+    assert area_of_link("/admin/holidays?year=2026") is None  # always on: lead SLA needs holidays
     assert area_of_link("/employee/order-boardsX") is None  # whole page names only
     assert area_of_link("/employee/contacts/3") is None  # leads: always on
     assert link_for(User(role="employee"), "") == ""
@@ -196,6 +196,7 @@ ALWAYS_ON = (
     "/api/v1/admin/stats", "/api/v1/admin/permissions", "/api/v1/admin/users", "/api/v1/admin/leads",
     "/api/v1/admin/sla", "/api/v1/admin/approvals", "/api/v1/admin/config",
     "/api/v1/admin/job-titles",  # part of Manage employees (always on)
+    "/api/v1/admin/holidays",  # lead SLA deadlines skip holidays, so not behind attendance
     "/api/v1/complaints",  # "Report a problem": every staff member, every page
 )
 
@@ -263,3 +264,15 @@ async def test_chat_live_connection_closes_when_chat_is_hidden(modules):
                 assert e.value.code == chat_hub.CLOSE_MODULE_OFF
 
     await asyncio.to_thread(scenario)
+
+
+async def test_holidays_work_with_attendance_off(client, modules):
+    """Lead SLA deadlines skip holidays, so the list stays editable when attendance is switched off."""
+    modules(attendance="off", batches="off")
+    await make_user("admin@kjsindia.com", role="admin")
+    await login(client, "admin@kjsindia.com")
+    r = await client.post("/api/v1/admin/holidays", json={"day": "2026-12-25", "name": "Christmas"}, headers=HDR)
+    assert r.status_code == 201, r.text
+    assert len((await client.get("/api/v1/admin/holidays?year=2026")).json()) == 1
+    me = (await client.get("/api/v1/auth/me")).json()["modules"]
+    assert me["attendance"] is False  # attendance itself is still hidden
