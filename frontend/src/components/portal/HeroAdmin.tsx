@@ -41,10 +41,12 @@ export default function HeroAdmin() {
           </div>
           {!editing && <button onClick={() => setEditing({ ...EMPTY, sort_order: data.slides.length })} className="btn-dark">New slide</button>}
         </div>
-        {editing && <SlideForm draft={editing} hero={data} onDone={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />}
+        {/* key: a different slide always gets a fresh form (never the last one's fields and id) */}
+        {editing && <SlideForm key={editing.id ?? 'new'} draft={editing} hero={data} onDone={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />}
         <div className="card divide-y">
           {data.slides.length === 0 && <p className="p-4 text-sm text-slate-500">No slides yet.</p>}
-          {data.slides.map((s) => <SlideRow key={s.id} s={s} onEdit={() => setEditing({ ...s })} onChange={load} />)}
+          {/* While a form is open the list can't start another edit: save or cancel first */}
+          {data.slides.map((s) => <SlideRow key={s.id} s={s} onEdit={editing ? null : () => setEditing({ ...s })} onChange={load} />)}
         </div>
       </section>
       <Stats hero={data} onChange={load} />
@@ -52,7 +54,7 @@ export default function HeroAdmin() {
   );
 }
 
-function SlideRow({ s, onEdit, onChange }: { s: AdminHeroSlide; onEdit: () => void; onChange: () => void }) {
+function SlideRow({ s, onEdit, onChange }: { s: AdminHeroSlide; onEdit: (() => void) | null; onChange: () => void }) {
   const toast = useToast();
   async function patch(body: Partial<AdminHeroSlide>) {
     try { await api(`/content/hero/slides/${s.id}`, { method: 'PATCH', body }); onChange(); }
@@ -76,7 +78,7 @@ function SlideRow({ s, onEdit, onChange }: { s: AdminHeroSlide; onEdit: () => vo
       </div>
       <Pill value={s.is_active ? 'ok' : 'off'} label={s.is_active ? 'on' : 'off'} />
       <span className="flex gap-3 text-xs">
-        <button onClick={onEdit} className="underline">Edit</button>
+        <button onClick={onEdit ?? undefined} disabled={!onEdit} className="underline disabled:opacity-40 disabled:no-underline">Edit</button>
         <button onClick={() => patch({ is_active: !s.is_active })} className="underline">{s.is_active ? 'Switch off' : 'Switch on'}</button>
         <button onClick={remove} className="text-red-700 underline">Delete</button>
       </span>
@@ -101,11 +103,14 @@ function SlideForm({ draft, hero, onDone, onCancel }: { draft: Draft; hero: Admi
     form.append('file', file);
     try {
       const f = await upload<StoredFile>('/files', form);
-      const ids = [...d.image_ids];
-      const images = [...d.images];
-      ids[slot] = f.id;
-      images[slot] = `/api/v1/public/files/${f.id}`;
-      setD((x) => ({ ...x, image_ids: ids.filter(Boolean), images: images.filter(Boolean) }));
+      // Built from the latest form state, not a copy from before the upload
+      setD((x) => {
+        const ids = [...x.image_ids];
+        const images = [...x.images];
+        ids[slot] = f.id;
+        images[slot] = `/api/v1/public/files/${f.id}`;
+        return { ...x, image_ids: ids.filter(Boolean), images: images.filter(Boolean) };
+      });
     } catch (e) {
       setMsg({ ok: false, text: fail(e, 'Could not upload the picture.') });
     } finally {
@@ -153,7 +158,7 @@ function SlideForm({ draft, hero, onDone, onCancel }: { draft: Draft; hero: Admi
                 {d.images[i] ? <img src={d.images[i]} alt={`Picture ${i + 1}`} className="h-full w-full object-cover" /> : i <= d.images.length ? '+ Add' : ''}
               </label>
               <input id={`h-pic-${i}`} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy || i > d.images.length} onChange={(e) => { addPicture(i, e.target.files?.[0]); e.target.value = ''; }} />
-              {d.images[i] && <button type="button" onClick={() => removePicture(i)} className="text-xs text-red-700 underline">Remove</button>}
+              {d.images[i] && <button type="button" onClick={() => removePicture(i)} disabled={busy} className="text-xs text-red-700 underline disabled:opacity-40">Remove</button>}
             </div>
           ))}
         </div>

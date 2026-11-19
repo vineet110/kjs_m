@@ -104,3 +104,34 @@ async def test_hero_admin_needs_content_edit(client):
     assert (await client.post("/api/v1/content/hero/stats", json={"number": "1", "label": "nope"}, headers=HDR)).status_code == 403
     # Nor can they put pictures in the hero folder
     assert (await _upload(client, _jpeg(100, 100))).status_code == 403
+
+
+async def test_blank_title_or_stat_is_refused_after_cleaning(client):
+    await _editor(client)
+    # "   " passes a min_length check, then becomes "" when cleaned: refused
+    assert (await client.post("/api/v1/content/hero/slides", json={"title": "     "}, headers=HDR)).status_code == 422
+    assert (await client.post("/api/v1/content/hero/stats", json={"number": " ", "label": "    "}, headers=HDR)).status_code == 422
+
+
+async def test_lowered_limit_still_lets_admins_edit_slides_that_are_on(client, monkeypatch):
+    from app.core.config import ini
+    await _editor(client)
+    a = (await client.post("/api/v1/content/hero/slides", json={"title": "First slide"}, headers=HDR)).json()
+    await client.post("/api/v1/content/hero/slides", json={"title": "Second slide"}, headers=HDR)
+    monkeypatch.setenv("KJS__SITE_UI__HERO_MAX_SLIDES", "1")
+    ini.reload_now()
+    # Fixing a typo on a slide that is already on adds nothing: allowed
+    assert (await client.patch(f"/api/v1/content/hero/slides/{a['id']}", json={"title": "First slide, fixed"}, headers=HDR)).status_code == 200
+
+
+async def test_deleted_picture_leaves_no_broken_image(client):
+    from datetime import datetime, timezone
+    from app.core.database import AsyncSessionLocal
+    from app.models.file import StoredFile
+    await _editor(client)
+    fid = (await _upload(client, _jpeg(200, 100))).json()["id"]
+    await client.post("/api/v1/content/hero/slides", json={"title": "With picture", "image_ids": [fid]}, headers=HDR)
+    async with AsyncSessionLocal() as db:  # as if a delete request was approved on the Files page
+        (await db.get(StoredFile, fid)).deleted_at = datetime.now(timezone.utc)
+        await db.commit()
+    assert (await client.get("/api/v1/public/hero")).json()["slides"][0]["images"] == []

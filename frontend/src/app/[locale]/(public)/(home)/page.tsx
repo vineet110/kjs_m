@@ -193,8 +193,8 @@ export default async function HomePage() {
             </div>
             {stats.length > 0 && (
               <div className="card flex flex-1 flex-col justify-center divide-y divide-white/10 border-gold/40 bg-ink p-5 text-white ring-1 ring-gold/30 [&>div:not(:first-child)]:pt-3">
-                {stats.map(([big, small]) => (
-                  <div key={small}>
+                {stats.map(([big, small], i) => (
+                  <div key={i}>{/* by position: two admin numbers may share a label */}
                     {/* Whole numbers count up from 0 with the refresh on (site_ui.ini) */}
                     {on ? <CountUp value={big} className="text-2xl font-extrabold text-gold" /> : <p className="text-2xl font-extrabold text-gold">{big}</p>}
                     <p className="text-xs text-slate-300">{small}</p>

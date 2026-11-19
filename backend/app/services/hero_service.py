@@ -56,11 +56,22 @@ async def _check_images(db: AsyncSession, ids: list[int]) -> list[int]:
     return ids
 
 
+async def _live_ids(db: AsyncSession, slides) -> set[int]:
+    """Picture ids of these slides whose files still exist (a file deleted on the Files page must not leave a
+    broken picture on the home page)."""
+    ids = {i for s in slides for i in s.image_ids}
+    if not ids:
+        return set()
+    return set((await db.scalars(select(StoredFile.id).where(
+        StoredFile.id.in_(ids), StoredFile.deleted_at.is_(None)))).all())
+
+
 # ---------- Read ----------
-def slide_out(s: HeroSlide) -> dict:
+def slide_out(s: HeroSlide, live: set[int] | None = None) -> dict:
+    ids = [i for i in s.image_ids if live is None or i in live]
     return {"id": s.id, "eyebrow": s.eyebrow, "title": s.title, "text": s.text, "cta_text": s.cta_text,
-            "cta_link": s.cta_link, "tone": s.tone, "image_ids": s.image_ids,
-            "images": [image_url(i) for i in s.image_ids], "is_active": s.is_active, "sort_order": s.sort_order}
+            "cta_link": s.cta_link, "tone": s.tone, "image_ids": ids,
+            "images": [image_url(i) for i in ids], "is_active": s.is_active, "sort_order": s.sort_order}
 
 
 def stat_out(s: HeroStat) -> dict:
@@ -71,7 +82,8 @@ async def for_admin(db: AsyncSession) -> dict:
     slides = (await db.scalars(select(HeroSlide).order_by(HeroSlide.sort_order, HeroSlide.id))).all()
     stats = (await db.scalars(select(HeroStat).order_by(HeroStat.sort_order, HeroStat.id))).all()
     s = cfg().site_ui
-    return {"slides": [slide_out(x) for x in slides], "stats": [stat_out(x) for x in stats],
+    live = await _live_ids(db, slides)
+    return {"slides": [slide_out(x, live) for x in slides], "stats": [stat_out(x) for x in stats],
             "tones": list(TONES), "max_slides": s.hero_max_slides, "max_stats": s.hero_max_stats,
             "max_images": MAX_IMAGES}
 
@@ -83,8 +95,9 @@ async def public(db: AsyncSession) -> dict:
                                .order_by(HeroSlide.sort_order, HeroSlide.id).limit(s.hero_max_slides))).all()
     stats = (await db.scalars(select(HeroStat).where(HeroStat.is_active)
                               .order_by(HeroStat.sort_order, HeroStat.id).limit(s.hero_max_stats))).all()
+    live = await _live_ids(db, slides)
     return {
-        "slides": [{k: v for k, v in slide_out(x).items() if k not in ("image_ids", "is_active", "sort_order")}
+        "slides": [{k: v for k, v in slide_out(x, live).items() if k not in ("image_ids", "is_active", "sort_order")}
                    for x in slides],
         "stats": [{"number": x.number, "label": x.label} for x in stats],
     }
@@ -98,6 +111,20 @@ async def _active_count(db: AsyncSession, model, exclude_id: int | None) -> int:
     return await db.scalar(q) or 0
 
 
+def _switching_on(row, row_id: int | None, data: dict) -> bool:
+    """True only when this save adds one more active row: a new active one, or off → on. Editing the text of a
+    slide that is already on never counts, so a lowered limit can't block fixing a typo."""
+    if not row_id:
+        return data.get("is_active", True)
+    return bool(data.get("is_active")) and not row.is_active
+
+
+def _need(data: dict, field: str, min_len: int, what: str) -> None:
+    """Lengths checked after the text is cleaned: "   " passes a min_length check, then becomes ""."""
+    if field in data and len(data[field]) < min_len:
+        raise AppError(422, "too_short", f"The {what} needs at least {min_len} character{'s' if min_len > 1 else ''}.")
+
+
 async def save_slide(db: AsyncSession, user: User, slide_id: int | None, data: dict) -> dict:
     """New slide: every field. Edit: only the fields in `data` change."""
     s = await db.get(HeroSlide, slide_id, with_for_update=True) if slide_id else HeroSlide()
@@ -105,11 +132,11 @@ async def save_slide(db: AsyncSession, user: User, slide_id: int | None, data: d
         raise AppError(404, "not_found", "Slide not found.")
     if "tone" in data and data["tone"] not in TONES:
         raise AppError(422, "bad_tone", "Pick one of the colours shown.", {"tones": list(TONES)})
+    _need(data, "title", 3, "title")
     if "image_ids" in data:
         data["image_ids"] = await _check_images(db, data["image_ids"])
-    will_be_active = data.get("is_active", s.is_active if slide_id else True)
     limit = cfg().site_ui.hero_max_slides
-    if will_be_active and await _active_count(db, HeroSlide, slide_id) >= limit:
+    if _switching_on(s, slide_id, data) and await _active_count(db, HeroSlide, slide_id) >= limit:
         raise AppError(422, "too_many_slides", f"At most {limit} slides can be on. Switch one off first.")
     before = {k: getattr(s, k) for k in data} if slide_id else None
     for k, v in data.items():
@@ -138,9 +165,10 @@ async def save_stat(db: AsyncSession, user: User, stat_id: int | None, data: dic
     s = await db.get(HeroStat, stat_id, with_for_update=True) if stat_id else HeroStat()
     if s is None:
         raise AppError(404, "not_found", "Number not found.")
-    will_be_active = data.get("is_active", s.is_active if stat_id else True)
+    _need(data, "number", 1, "number")
+    _need(data, "label", 2, "label")
     limit = cfg().site_ui.hero_max_stats
-    if will_be_active and await _active_count(db, HeroStat, stat_id) >= limit:
+    if _switching_on(s, stat_id, data) and await _active_count(db, HeroStat, stat_id) >= limit:
         raise AppError(422, "too_many_stats", f"At most {limit} numbers can be on. Switch one off first.")
     before = {k: getattr(s, k) for k in data} if stat_id else None
     for k, v in data.items():
