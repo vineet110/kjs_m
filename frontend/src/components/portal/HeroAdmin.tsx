@@ -46,7 +46,7 @@ export default function HeroAdmin() {
         <div className="card divide-y">
           {data.slides.length === 0 && <p className="p-4 text-sm text-slate-500">No slides yet.</p>}
           {/* While a form is open the list can't start another edit: save or cancel first */}
-          {data.slides.map((s) => <SlideRow key={s.id} s={s} onEdit={editing ? null : () => setEditing({ ...s })} onChange={load} />)}
+          {data.slides.map((s) => <SlideRow key={s.id} s={s} locked={!!editing} onEdit={() => setEditing({ ...s })} onChange={load} />)}
         </div>
       </section>
       <Stats hero={data} onChange={load} />
@@ -54,7 +54,8 @@ export default function HeroAdmin() {
   );
 }
 
-function SlideRow({ s, onEdit, onChange }: { s: AdminHeroSlide; onEdit: (() => void) | null; onChange: () => void }) {
+/** locked: a slide form is open, so the row can't change anything (the form's Save would undo it) */
+function SlideRow({ s, locked, onEdit, onChange }: { s: AdminHeroSlide; locked: boolean; onEdit: () => void; onChange: () => void }) {
   const toast = useToast();
   async function patch(body: Partial<AdminHeroSlide>) {
     try { await api(`/content/hero/slides/${s.id}`, { method: 'PATCH', body }); onChange(); }
@@ -78,9 +79,9 @@ function SlideRow({ s, onEdit, onChange }: { s: AdminHeroSlide; onEdit: (() => v
       </div>
       <Pill value={s.is_active ? 'ok' : 'off'} label={s.is_active ? 'on' : 'off'} />
       <span className="flex gap-3 text-xs">
-        <button onClick={onEdit ?? undefined} disabled={!onEdit} className="underline disabled:opacity-40 disabled:no-underline">Edit</button>
-        <button onClick={() => patch({ is_active: !s.is_active })} className="underline">{s.is_active ? 'Switch off' : 'Switch on'}</button>
-        <button onClick={remove} className="text-red-700 underline">Delete</button>
+        <button onClick={onEdit} disabled={locked} className="underline disabled:opacity-40 disabled:no-underline">Edit</button>
+        <button onClick={() => patch({ is_active: !s.is_active })} disabled={locked} className="underline disabled:opacity-40 disabled:no-underline">{s.is_active ? 'Switch off' : 'Switch on'}</button>
+        <button onClick={remove} disabled={locked} className="text-red-700 underline disabled:opacity-40 disabled:no-underline">Delete</button>
       </span>
     </div>
   );
@@ -176,10 +177,13 @@ function SlideForm({ draft, hero, onDone, onCancel }: { draft: Draft; hero: Admi
 function Stats({ hero, onChange }: { hero: AdminHero; onChange: () => void }) {
   const toast = useToast();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [adding, setAdding] = useState(false);
   const active = hero.stats.filter((s) => s.is_active).length;
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (adding) return; // a double click must not save the number twice
+    setAdding(true);
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
     try {
@@ -189,6 +193,8 @@ function Stats({ hero, onChange }: { hero: AdminHero; onChange: () => void }) {
       onChange();
     } catch (err) {
       setMsg({ ok: false, text: fail(err, 'Could not save.') });
+    } finally {
+      setAdding(false);
     }
   }
   async function patch(s: AdminHeroStat, body: Partial<AdminHeroStat>) {
@@ -214,7 +220,7 @@ function Stats({ hero, onChange }: { hero: AdminHero; onChange: () => void }) {
         <div><label className="label" htmlFor="s-number">Number</label><input id="s-number" name="number" required maxLength={12} className="input" placeholder="24" /></div>
         <div className="md:col-span-3"><label className="label" htmlFor="s-label">Label</label><input id="s-label" name="label" required minLength={2} maxLength={60} className="input" placeholder="items and pack sizes to choose from" /></div>
         <div><label className="label" htmlFor="s-order">Order</label><input id="s-order" type="number" name="sort_order" defaultValue={hero.stats.length} className="input" /></div>
-        <div className="flex items-end"><button className="btn-dark w-full">Add</button></div>
+        <div className="flex items-end"><button disabled={adding} className="btn-dark w-full">Add</button></div>
         <div className="md:col-span-6"><Msg msg={msg} /></div>
       </form>
       <div className="card divide-y">
