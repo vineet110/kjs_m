@@ -273,6 +273,11 @@ class SiteUiIni(BaseModel):
     dark_follows_system: bool = False  # true = dark website for visitors whose device is in dark mode
     partner_strip: bool = True  # sliding partner and certificate strip
     partner_strip_px_per_second: int = Field(45, ge=10, le=200)  # its speed
+    # Admin > Website > Hero
+    hero_max_slides: int = Field(5, ge=1, le=10)  # slides that can be switched on at once
+    hero_max_stats: int = Field(4, ge=1, le=6)  # numbers in the stats box
+    image_max_px: int = Field(1600, ge=400, le=4000)  # uploaded pictures: longest side after shrinking
+    image_quality: int = Field(82, ge=40, le=95)  # JPEG/WebP quality after shrinking
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody

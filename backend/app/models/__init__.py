@@ -18,3 +18,4 @@ from app.models.chat import ChatChannel, ChatMember, ChatMessage  # noqa: F401
 from app.models.job_title import JobTitle  # noqa: F401
 from app.models.complaint import Complaint  # noqa: F401
 from app.models.site_event import SiteEvent  # noqa: F401
+from app.models.hero import HeroSlide, HeroStat  # noqa: F401

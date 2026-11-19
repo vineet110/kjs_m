@@ -29,6 +29,7 @@ firebase-admin==7.8.0
 phonenumbers==8.13.38
 openpyxl==3.1.5
 defusedxml==0.7.1  # openpyxl uses it by itself: blocks XML tricks hidden in an uploaded Excel file
+Pillow==11.3.0  # shrinks website images on upload (home page hero); approved by Vineet 19 Nov 2026
 
 # Observability
 
