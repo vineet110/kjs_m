@@ -1210,6 +1210,26 @@ Sections:
           step must count only people who did the step before, or the numbers mislead.
 
 
+### site-shell / keep-light
+
+   What   `site-shell` is the website's outer box: dark-mode colours apply only inside it, so the staff portal
+          never turns dark. `keep-light` is a class for blocks that stay light in dark mode (the hero).
+   Where  `frontend/src/app/globals.css`, `app/[locale]/(public)/layout.tsx`.
+
+
+### Pillow
+
+   What   A Python library for pictures. We use it to shrink website uploads, turn phone photos upright and
+          remove hidden data (GPS position, camera).
+   Where  `backend/app/services/image_shrink.py`; limits in `site_ui.ini` (`image_max_px`, `image_quality`).
+
+
+### Lead source `website_offer`
+
+   What   Leads from the "Get your offer" form on the home page: phone and consent only, name optional.
+          Shown as "Website offer" in Leads and Reports.
+
+
 ### SheetJS (`xlsx`) / mammoth
 
    What   SheetJS reads Excel and CSV files in the browser; mammoth turns a Word .docx into HTML.
@@ -2127,6 +2147,8 @@ Sections:
    What   PRs built on top of each other (#35 → #36 → … → #39), each with its own small diff. Merge them in
           order. A fix on an early one is merged down into the later branches.
    Watch  GitHub's "conflicting" flag can be out of date: merge `main` into the first branch locally to check.
+   Watch  Before merging the next PR, change its base to `main` (Edit next to the title). Merged into its old
+          base, it never reaches `main` (19 Nov: #104, fixed by #107).
 
 
 
