@@ -14,7 +14,8 @@ import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import StepsLightUp from '@/components/public/home/StepsLightUp';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
-import { serverGet, siteUi, texts, type Category, type Product } from '@/lib/api';
+import CountUp from '@/components/public/home/CountUp';
+import { publicHero, serverGet, siteUi, texts, type Category, type HeroTone, type Product } from '@/lib/api';
 import { coffeeOnly, focusText, isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
@@ -34,6 +35,13 @@ const POPULAR_FALLBACK = ['gofrey-crispy-x2', 'pacho-mellow', 'petit-beurre-bisc
 // While Coffee is the only category shown (Admin > Products > Categories): the coffee products
 const COFFEE = ['agglomerated-instant-coffee', 'spray-dried-instant-coffee', 'freeze-dried-instant-coffee', 'coffee-3-in-1-premix'];
 
+// Background colours an admin slide can pick (hero_service.TONES): the soft gradients of the built-in slides
+const HERO_TONES: Record<HeroTone, string> = {
+  gold: 'from-[#FDF0D9] via-[#F8DDAE] to-[#F1C47C]',
+  rose: 'from-[#FBEDEA] via-[#F4D3CD] to-[#E9B4AB]',
+  cream: 'from-[#FFF8E1] via-[#FBE7A8] to-[#F2CF6B]',
+};
+
 /** "A, B and C" */
 const listWithAnd = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
@@ -45,11 +53,12 @@ const STEPS = [
 ];
 
 export default async function HomePage() {
-  const [categories, productList, t, ui] = await Promise.all([
+  const [categories, productList, t, ui, hero] = await Promise.all([
     serverGet<Category[]>('/public/categories'),
     serverGet<Product[]>('/public/products'),
     texts(),
     siteUi(),
+    publicHero(), // Admin > Website > Hero; empty = the built-in slides and live counts below
   ]);
   // Look and motion switches (config/site_ui.ini). enabled = false: the home page as it was before.
   const on = ui.enabled;
@@ -68,7 +77,7 @@ export default async function HomePage() {
     const chosen = slugs.map((s) => withImage.find((p) => p.slug === s)).filter((p): p is HomeProduct => !!p);
     return (chosen.length ? chosen : withImage.slice(0, 3)).map((p) => p.image!);
   };
-  const slides: Slide[] = [
+  const builtInSlides: Slide[] = [
     {
       // The headline and text editable in Admin > Website
       eyebrow: 'Co-manufacturing · Hyderabad, India',
@@ -111,6 +120,15 @@ export default async function HomePage() {
       tone: on ? 'from-[#FFF8E1] via-[#FBE7A8] to-[#F2CF6B]' : 'from-[#EEF5EF] via-[#D9EADC] to-[#B7D5BE]',
     },
   ];
+  // The admin's slides (Admin > Website > Hero) replace the built-in ones when any are switched on.
+  // An empty button text or link falls back to "Explore the range" (#range).
+  const slides: Slide[] = hero.slides.length
+    ? hero.slides.map((s) => ({
+        eyebrow: s.eyebrow, title: s.title, text: s.text,
+        href: s.cta_link || '#range', cta: s.cta_text || 'Explore the range',
+        images: s.images, tone: HERO_TONES[s.tone] ?? HERO_TONES.gold,
+      }))
+    : builtInSlides;
 
   const bestSellers = all.filter((p) => p.is_best_seller).map((p) => p.slug);
   // "Best sellers" section: every product really ticked in Admin > Products (no fallback list, no cut-off;
@@ -122,12 +140,17 @@ export default async function HomePage() {
     .slice(0, 6);
   const stocked = cats.filter((c) => c.product_count > 0);
   const onRequest = cats.filter((c) => c.product_count === 0);
-  // Dark stats box: real facts only. It needs the product list (no made-up count if the API is down)
-  const stats = [
-    [String(products.length), 'product families in the catalogue'],
-    [String(itemCount), 'items and pack sizes to choose from'],
-    ['0.9–3 g', 'precise stick-pack fills'],
-  ];
+  // Dark stats box: the admin's numbers (Admin > Website > Hero), else real facts from the catalogue, which
+  // need the product list (no made-up count if the API is down)
+  const stats: [string, string][] = hero.stats.length
+    ? hero.stats.map((s) => [s.number, s.label])
+    : products.length > 0
+      ? [
+          [String(products.length), 'product families in the catalogue'],
+          [String(itemCount), 'items and pack sizes to choose from'],
+          ['0.9–3 g', 'precise stick-pack fills'],
+        ]
+      : [];
 
   return (
     <CatalogueProvider products={products}>
@@ -162,17 +185,18 @@ export default async function HomePage() {
           <HeroCarousel slides={slides} slideSeconds={ui.slide_seconds} line={on} />
           <aside className="hidden flex-col gap-4 lg:flex">
             {/* Without the stats box this card fills the column, so no empty gap under it */}
-            <div className={`card border-t-4 border-t-gold p-5 ring-1 ring-gold/20 ${products.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
+            <div className={`card border-t-4 border-t-gold p-5 ring-1 ring-gold/20 ${stats.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
               <p className="font-semibold">Buying for your brand or store?</p>
               <p className="mt-1 text-xs text-slate-600">Prices, samples and pack options from our sales team.</p>
               <EnquiryButton label="Request a quote" source="quote" title="Request a quote" className="btn-gold mt-4 w-full" />
               <EnquiryButton label="Request a sample" source="sample" title="Request a sample" className="btn-ghost mt-2 w-full" />
             </div>
-            {products.length > 0 && (
+            {stats.length > 0 && (
               <div className="card flex flex-1 flex-col justify-center divide-y divide-white/10 border-gold/40 bg-ink p-5 text-white ring-1 ring-gold/30 [&>div:not(:first-child)]:pt-3">
-                {stats.map(([big, small]) => (
-                  <div key={small}>
-                    <p className="text-2xl font-extrabold text-gold">{big}</p>
+                {stats.map(([big, small], i) => (
+                  <div key={i}>{/* by position: two admin numbers may share a label */}
+                    {/* Whole numbers count up from 0 with the refresh on (site_ui.ini) */}
+                    {on ? <CountUp value={big} className="text-2xl font-extrabold text-gold" /> : <p className="text-2xl font-extrabold text-gold">{big}</p>}
                     <p className="text-xs text-slate-300">{small}</p>
                   </div>
                 ))}

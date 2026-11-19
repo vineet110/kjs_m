@@ -38,7 +38,7 @@ AREA_PAGES = {
     "site_insights": (),  # no page of its own: a tab on Reports (/admin/analytics)
 }
 # Who owns a stored file -> its area (user photos have no area: always on)
-AREA_OF_FILE_OWNER = {"board": "order_boards", "product": "website_admin"}
+AREA_OF_FILE_OWNER = {"board": "order_boards", "product": "website_admin", "website": "website_admin"}
 
 
 def level(area: str) -> str:
