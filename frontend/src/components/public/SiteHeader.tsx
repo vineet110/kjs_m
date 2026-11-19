@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import NavigationProgress from './NavigationProgress';
 import ProgressBar from './ProgressBar';
+import ThemeToggle from './ThemeToggle';
 import { SITE } from '@/lib/site';
 import { asset } from '@/lib/assets';
 
@@ -14,7 +15,14 @@ const NAV = [
   { href: '/contact', label: 'Contact' },
 ];
 
-export default function SiteHeader({ showPartners = true, showPrivateLabel = true }: { showPartners?: boolean; showPrivateLabel?: boolean }) {
+type Props = {
+  showPartners?: boolean;
+  showPrivateLabel?: boolean;
+  /** ☀/☾ button (site_ui.ini theme_toggle); null = no button */
+  theme?: { followSystem: boolean } | null;
+};
+
+export default function SiteHeader({ showPartners = true, showPrivateLabel = true, theme = null }: Props) {
   const nav = NAV.filter((n) => (n.key === 'partners' ? showPartners : n.key === 'private' ? showPrivateLabel : true));
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-ink/95 backdrop-blur">
@@ -30,6 +38,7 @@ export default function SiteHeader({ showPartners = true, showPrivateLabel = tru
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          {theme && <ThemeToggle followSystem={theme.followSystem} />}
           <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn-gold hidden sm:inline-flex">
             Connect with Sales
           </a>

@@ -152,7 +152,7 @@ export default function ConnectPopup() {
         </div>
 
         {/* A WhatsApp-style preview of the message we've drafted for this page */}
-        <div className="bg-[#ECE5DD] px-5 py-4">
+        <div className="keep-light bg-[#ECE5DD] px-5 py-4">{/* WhatsApp look: stays light in dark mode */}
           <div className="flex items-center gap-2 text-xs text-slate-600">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#25D366] text-white"><WhatsAppIcon size={14} /></span>
             <span className="font-semibold text-slate-800">KJS India Sales</span>

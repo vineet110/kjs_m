@@ -36,6 +36,43 @@ body:has([data-loading-screen]) .page-progress { display: block; }
   video[autoplay] { display: none; }
 }
 
+/* ---------- Website dark mode (☀/☾ in the header; site_ui.ini theme_toggle) ----------
+   One colour map for every public page, instead of a "dark:" class in each component: the pages keep their
+   code, and only colours change. Scoped to .site-shell (the public layout), so the staff portal never turns
+   dark. Gold buttons, the dark header and the pastel hero keep their own colours. */
+html.dark .site-shell { color-scheme: dark; background-color: #0F0E0B; color: #EFECE4; }
+html.dark .site-shell :is(.bg-white, .card, .input, .btn-ghost) { background-color: #1A1813; }
+html.dark .site-shell .bg-white\/90 { background-color: rgb(26 24 19 / 0.9); }
+html.dark .site-shell :is(.bg-paper, .hover\:bg-paper:hover) { background-color: #14130F; }
+html.dark .site-shell .bg-slate-50 { background-color: #17150F; }
+html.dark .site-shell .bg-slate-100 { background-color: #221F18; }
+html.dark .site-shell .bg-slate-200 { background-color: #2A271F; }
+html.dark .site-shell :is(.border-slate-100, .border-slate-200, .border-slate-300, .card, .input, .btn-ghost) { border-color: #2D2A21; }
+html.dark .site-shell :is(.ring-slate-200, .ring-black\/5) { --tw-ring-color: #2D2A21; }
+html.dark .site-shell :is(.text-slate-900, .text-slate-800, .input, .btn-ghost) { color: #EFECE4; }
+html.dark .site-shell .text-slate-700 { color: #D6D2C8; }
+html.dark .site-shell .text-slate-600 { color: #B8B3A7; }
+html.dark .site-shell .text-slate-500 { color: #A49F91; }
+html.dark .site-shell .label { color: #B8B3A7; }
+html.dark .site-shell :is(.hover\:text-slate-900:hover, .hover\:text-slate-800:hover, .hover\:text-ink:hover, .group:hover .group-hover\:text-ink, .bg-paper.text-ink) { color: #FFFFFF; }
+html.dark .site-shell :is(.text-gold-dark, .hover\:text-gold-dark:hover, .group:hover .group-hover\:text-gold-dark, .eyebrow) { color: #F2C14E; }
+html.dark .site-shell :is(.text-forest, .hover\:text-forest:hover, .group:hover .group-hover\:text-forest) { color: #F2D27A; }
+html.dark .site-shell .bg-red-50 { background-color: #2A1512; }
+html.dark .site-shell :is(.text-red-700, .text-red-600) { color: #FF8A7A; }
+html.dark .site-shell .bg-emerald-50 { background-color: #10241A; }
+html.dark .site-shell :is(.text-emerald-900, .text-emerald-700) { color: #7FD9A8; }
+html.dark .site-shell .btn-ghost:hover { background-color: #221F18; }
+/* Dark buttons would vanish on the dark page: they turn light (except on the light hero slides) */
+html.dark .site-shell .btn-dark:not(.keep-light *) { background-color: #EFECE4; color: #111714; }
+html.dark .site-shell .btn-dark:not(.keep-light *):hover { background-color: #FFFFFF; }
+/* Blocks that stay light in dark mode (the pastel hero slides): their grey text keeps its light-mode shade */
+html.dark .site-shell .keep-light { color: #111714; }
+html.dark .site-shell .keep-light .eyebrow { color: #A87E14; }
+html.dark .site-shell .keep-light :is(.text-slate-900, .text-slate-800) { color: #1E293B; }
+html.dark .site-shell .keep-light .text-slate-700 { color: #334155; }
+html.dark .site-shell .keep-light .text-slate-600 { color: #475569; }
+html.dark .site-shell .keep-light .text-slate-500 { color: #64748B; }
+
 /* Ask Koko and WhatsApp buttons: a soft ring that fades in and out around them (site_ui.ini glow).
    --glow-s: seconds per pulse, set on the button. The ring takes the button's own shape. */
 .glow-ring { position: relative; }

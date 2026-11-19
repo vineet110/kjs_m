@@ -296,11 +296,13 @@ export type PublicConfig = {
 export type SiteUi = {
   enabled: boolean; slide_seconds: number; glow: boolean; glow_seconds: number;
   reveal_left_to_right: boolean; steps_light_up: boolean; partner_strip: boolean; partner_strip_px_per_second: number;
+  top_strip: boolean; theme_toggle: boolean; dark_follows_system: boolean;
 };
 /** Fallback when the API is down or older: today's look (refresh off), today's 6 s slides. */
 export const SITE_UI_FALLBACK: SiteUi = {
   enabled: false, slide_seconds: 6, glow: false, glow_seconds: 3,
   reveal_left_to_right: false, steps_light_up: false, partner_strip: false, partner_strip_px_per_second: 45,
+  top_strip: false, theme_toggle: false, dark_follows_system: false,
 };
 export type Offer = { id: number; text: string; link: string };
 /** Koko's catalogue card: on the first reply on a product or category page (from the database, not the AI). */

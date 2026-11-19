@@ -267,6 +267,9 @@ class SiteUiIni(BaseModel):
     glow_seconds: int = Field(3, ge=1, le=10)  # seconds per pulse
     reveal_left_to_right: bool = True  # tiles and product cards come in from the left
     steps_light_up: bool = True  # "How it works" steps light up 1 to 4
+    top_strip: bool = True  # thin strip above the header (since 2020, certificates, phone, email)
+    theme_toggle: bool = True  # ☀/☾ button in the header for a dark website
+    dark_follows_system: bool = False  # true = dark website for visitors whose device is in dark mode
     partner_strip: bool = True  # sliding partner and certificate strip
     partner_strip_px_per_second: int = Field(45, ge=10, le=200)  # its speed
 
