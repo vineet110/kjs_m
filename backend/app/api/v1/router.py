@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, hero, koko, public, site_insights, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, hero, koko, public, showcase, site_insights, tasks
 from app.core.modules import area
 
 api_router = APIRouter()
@@ -26,6 +26,9 @@ api_router.include_router(content.router, prefix="/content", tags=["Website cont
                           dependencies=area("website_admin"))
 api_router.include_router(hero.public_router, prefix="/public/hero", tags=["Public"])  # no login
 api_router.include_router(hero.router, prefix="/content/hero", tags=["Website content"],
+                          dependencies=area("website_admin"))
+api_router.include_router(showcase.public_router, prefix="/public", tags=["Public"])  # /brand-partners, /activity: no login
+api_router.include_router(showcase.router, prefix="/content/showcase", tags=["Website content"],
                           dependencies=area("website_admin"))
 api_router.include_router(chat.router, prefix="/chat", tags=["Chat"], dependencies=area("chat"))
 # The live connection has no Request, so a route dependency would break it: it checks the area itself

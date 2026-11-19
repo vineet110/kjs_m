@@ -278,6 +278,10 @@ class SiteUiIni(BaseModel):
     hero_max_stats: int = Field(4, ge=1, le=6)  # numbers in the stats box
     image_max_px: int = Field(1600, ge=400, le=4000)  # uploaded pictures: longest side after shrinking
     image_quality: int = Field(82, ge=40, le=95)  # JPEG/WebP quality after shrinking
+    # Admin > Website > Partner logos and Pop-up activity
+    partners_max: int = Field(12, ge=1, le=40)  # partners that can be on in the sliding strip
+    activity_max_age_days: int = Field(60, ge=1, le=365)  # older activity lines stop showing by themselves
+    activity_public_max: int = Field(100, ge=5, le=500)  # lines the website loads at most
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody

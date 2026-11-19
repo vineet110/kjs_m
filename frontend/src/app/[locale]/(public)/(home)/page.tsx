@@ -8,14 +8,14 @@ import CategoryMenu from '@/components/public/home/CategoryMenu';
 import HeroCarousel, { type Slide } from '@/components/public/home/HeroCarousel';
 import HomeProductCard from '@/components/public/home/HomeProductCard';
 import HomeSearch from '@/components/public/home/HomeSearch';
-import PartnerStrip from '@/components/public/home/PartnerStrip';
+import PartnerStrip, { type StripPartner } from '@/components/public/home/PartnerStrip';
 import ProductExplorer from '@/components/public/home/ProductExplorer';
 import RecommendedProducts from '@/components/public/home/RecommendedProducts';
 import StepsLightUp from '@/components/public/home/StepsLightUp';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
 import CountUp from '@/components/public/home/CountUp';
-import { publicHero, serverGet, siteUi, texts, type Category, type HeroTone, type Product } from '@/lib/api';
+import { brandPartners, publicHero, serverGet, siteUi, texts, type Category, type HeroTone, type Product } from '@/lib/api';
 import { coffeeOnly, focusText, isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
@@ -53,15 +53,19 @@ const STEPS = [
 ];
 
 export default async function HomePage() {
-  const [categories, productList, t, ui, hero] = await Promise.all([
+  const [categories, productList, t, ui, hero, brands] = await Promise.all([
     serverGet<Category[]>('/public/categories'),
     serverGet<Product[]>('/public/products'),
     texts(),
     siteUi(),
     publicHero(), // Admin > Website > Hero; empty = the built-in slides and live counts below
+    brandPartners(), // Admin > Website > Partner logos; empty = the built-in names
   ]);
   // Look and motion switches (config/site_ui.ini). enabled = false: the home page as it was before.
   const on = ui.enabled;
+  // The brands we make for: with logos from Admin, else the built-in names (also used in the banner text)
+  const partners: StripPartner[] = brands.length ? brands : SITE.trustedBy.map((name) => ({ name, logo: null }));
+  const partnerNames = partners.map((p) => p.name);
   const revealFrom = on && ui.reveal_left_to_right ? 'left' : 'auto';
   const cats = categories ?? []; // the API leaves out hidden categories (Admin > Products > Categories)
   // Coffee-only: Coffee is the only category shown. The texts, pictures and lists below follow it.
@@ -112,7 +116,7 @@ export default async function HomePage() {
     {
       eyebrow: 'Private label',
       title: 'Your brand on our proven recipes',
-      text: `Pick a product, choose the pack and weight, and launch faster with the co-manufacturer trusted by ${listWithAnd(SITE.trustedBy)}.`,
+      text: `Pick a product, choose the pack and weight, and launch faster with the co-manufacturer trusted by ${listWithAnd(partnerNames)}.`,
       href: '/private-label',
       cta: 'Build your private label',
       images: pick(coffee ? [COFFEE[1], COFFEE[2], COFFEE[3]] : ['maxi-big-wafers-chocolate', 'lupita-duble', 'peti-latte-2in1']),
@@ -209,7 +213,7 @@ export default async function HomePage() {
       {/* Trust strip: sliding (site_ui.ini partner_strip) or the still row */}
       <section className="border-y border-slate-200 bg-white">
         {on && ui.partner_strip ? (
-          <PartnerStrip certs={SITE.certifications} partners={SITE.trustedBy} pxPerSecond={ui.partner_strip_px_per_second} />
+          <PartnerStrip certs={SITE.certifications} partners={partners} pxPerSecond={ui.partner_strip_px_per_second} />
         ) : (
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-5">
           {/* flex-wrap: on phones the logos go onto two lines instead of making the page scroll sideways */}
@@ -221,7 +225,7 @@ export default async function HomePage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Co-manufacturing partner to</span>
-            {SITE.trustedBy.map((b) => (
+            {partnerNames.map((b) => (
               <span key={b} className="rounded-full border border-gold/50 bg-gold/5 px-3 py-1 text-sm font-semibold text-slate-700">{b}</span>
             ))}
           </div>
