@@ -32,6 +32,14 @@ const config: Config = {
         },
         // Products page, category cards: a gold shine sweeping left to right on hover
         shine: { from: { transform: "translateX(0) skewX(-12deg)" }, to: { transform: "translateX(400%) skewX(-12deg)" } },
+        // Home hero: the striped line filling up while a slide shows (duration from site_ui.ini)
+        heroline: { from: { width: "0%" }, to: { width: "100%" } },
+        // Home partner strip: slide left by one copy of the list (duration set from its width and speed)
+        marquee: { from: { transform: "translateX(0)" }, to: { transform: "translateX(-50%)" } },
+      },
+      backgroundImage: {
+        // Gold-and-charcoal stripes (the hero's loading line)
+        hazard: "repeating-linear-gradient(-45deg, #D9A930 0 8px, #111714 8px 16px)",
       },
       animation: {
         ticker: "ticker 40s linear infinite",
@@ -40,6 +48,8 @@ const config: Config = {
         float: "float 2.2s ease-in-out infinite",
         steam: "steam 2.7s ease-out infinite",
         shine: "shine 0.9s ease-out",
+        heroline: "heroline 6s linear forwards", // duration overridden from site_ui.ini
+        marquee: "marquee 40s linear infinite", // duration overridden from the strip's width and speed
       },
     },
   },

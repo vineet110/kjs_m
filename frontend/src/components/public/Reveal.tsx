@@ -26,6 +26,8 @@ type Props = {
   stagger?: boolean;
   as?: 'div' | 'section' | 'li';
   repeat?: boolean;
+  /** 'left': always comes in from the left (home page, site_ui.ini reveal_left_to_right). Default: from above or below. */
+  from?: 'auto' | 'left';
 };
 // static: as the server rendered it (on screen at load, or motion off). hidden ⇄ fromAbove / fromBelow.
 type State = 'static' | 'hidden' | 'fromAbove' | 'fromBelow';
@@ -156,7 +158,7 @@ function unwatchRepeat(el: Element) {
   inViewObserver?.unobserve(el);
 }
 
-export default function Reveal({ children, className = '', delay = 0, stagger = false, as: Tag = 'div', repeat = false }: Props) {
+export default function Reveal({ children, className = '', delay = 0, stagger = false, as: Tag = 'div', repeat = false, from = 'auto' }: Props) {
   const ref = useRef<HTMLElement>(null);
   const [state, setState] = useState<State>('static');
   const [column, setColumn] = useState(0);
@@ -193,8 +195,8 @@ export default function Reveal({ children, className = '', delay = 0, stagger = 
   const motion = {
     static: '',
     hidden: 'opacity-0 print:opacity-100',
-    fromAbove: `${enter} slide-in-from-top-8`,
-    fromBelow: `${enter} slide-in-from-bottom-8`,
+    fromAbove: `${enter} ${from === 'left' ? 'slide-in-from-left-8' : 'slide-in-from-top-8'}`,
+    fromBelow: `${enter} ${from === 'left' ? 'slide-in-from-left-8' : 'slide-in-from-bottom-8'}`,
   }[state];
   const wait = delay + column * STAGGER_MS;
   return (

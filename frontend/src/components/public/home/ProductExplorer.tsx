@@ -25,7 +25,8 @@ function itemNumbers(items: CatalogueItem[]): string {
   return items.length > 2 ? `${first} +${items.length - 2}` : first;
 }
 
-export default function ProductExplorer({ categories }: { categories: Category[] }) {
+/** revealFrom: 'left' = cards come in from the left (site_ui.ini reveal_left_to_right) */
+export default function ProductExplorer({ categories, revealFrom = 'auto' }: { categories: Category[]; revealFrom?: 'auto' | 'left' }) {
   const products = useCatalogue();
   const [tab, setTab] = useState('all');
   const [shown, setShown] = useState(PAGE);
@@ -118,7 +119,7 @@ export default function ProductExplorer({ categories }: { categories: Category[]
           const inList = list.includes(p.slug);
           return (
             // Cards pop in, row by row, every time they scroll into view (down or up)
-            <Reveal key={p.slug} stagger repeat className="flex">
+            <Reveal key={p.slug} stagger repeat from={revealFrom} className="flex">
               <HomeProductCard
                 p={p}
                 onQuickView={() => { setQuick(p); rememberViewed(p.slug); }}

@@ -23,7 +23,8 @@ const HELLO: Msg = {
   content: 'Hi! I am Koko. Ask me about our stick packs, blending, packaging or private label. I reply in your language.',
 };
 
-export default function KokoChatWidget() {
+/** glowSeconds: a soft pulsing ring around the "Ask Koko" button (site_ui.ini glow); null = no ring */
+export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: number | null }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([HELLO]);
   const [input, setInput] = useState('');
@@ -133,7 +134,11 @@ export default function KokoChatWidget() {
           </form>
         </div>
       ) : (
-        <button onClick={() => setOpen(true)} className="btn-gold rounded-full px-5 py-3 shadow-lg">
+        <button
+          onClick={() => setOpen(true)}
+          className={`btn-gold rounded-full px-5 py-3 shadow-lg ${glowSeconds ? 'glow-ring relative' : ''}`}
+          style={glowSeconds ? ({ '--glow-s': `${glowSeconds}s` } as React.CSSProperties) : undefined}
+        >
           💬 Ask Koko
         </button>
       )}

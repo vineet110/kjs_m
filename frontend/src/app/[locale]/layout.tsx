@@ -31,7 +31,8 @@ export default async function RootLayout({
   if (!LOCALES.includes(locale)) notFound();
   const messages = await getMessages();
   return (
-    <html lang={locale} className={display.variable}>
+    // suppressHydrationWarning: the website's theme script may add class="dark" before React loads
+    <html lang={locale} className={display.variable} suppressHydrationWarning>
       <body className={`${inter.className} bg-paper text-slate-900 antialiased`}>
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>

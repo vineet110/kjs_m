@@ -10,14 +10,16 @@ export function WhatsAppIcon({ size = 26 }: { size?: number }) {
   );
 }
 
-export default function WhatsAppButton() {
+/** glowSeconds: a soft pulsing ring around the button (site_ui.ini glow); null = no ring */
+export default function WhatsAppButton({ glowSeconds = null }: { glowSeconds?: number | null }) {
   return (
     <a
       href={`${SITE.whatsapp}?text=${encodeURIComponent('Hi KJS India, I have an enquiry.')}`}
       target="_blank"
       rel="noopener"
       aria-label="Chat with sales on WhatsApp"
-      className="fixed bottom-5 left-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg hover:scale-105"
+      className={`fixed bottom-5 left-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg hover:scale-105 ${glowSeconds ? 'glow-ring' : ''}`}
+      style={glowSeconds ? ({ '--glow-s': `${glowSeconds}s`, '--glow-color': 'rgba(37,211,102,0.7)' } as React.CSSProperties) : undefined}
     >
       <WhatsAppIcon />
     </a>

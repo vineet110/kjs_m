@@ -259,6 +259,22 @@ class SiteInsightsIni(BaseModel):
         return [w.lower() for w in v]
 
 
+class SiteUiIni(BaseModel):
+    """Home page look and motion (site_ui.ini). Only display settings: everything here is safe for browsers."""
+    enabled: bool = True  # off = the home page stays as it was before the refresh
+    slide_seconds: int = Field(6, ge=3, le=30)  # hero banner: seconds per slide
+    glow: bool = True  # soft pulse around the Ask Koko and WhatsApp buttons
+    glow_seconds: int = Field(3, ge=1, le=10)  # seconds per pulse
+    reveal_left_to_right: bool = True  # tiles and product cards come in from the left
+    steps_light_up: bool = True  # "How it works" steps light up 1 to 4
+    steps_gap_ms: int = Field(450, ge=100, le=2000)  # gap between two steps lighting up
+    top_strip: bool = True  # thin strip above the header (since 2020, certificates, phone, email)
+    theme_toggle: bool = True  # ☀/☾ button in the header for a dark website
+    dark_follows_system: bool = False  # true = dark website for visitors whose device is in dark mode
+    partner_strip: bool = True  # sliding partner and certificate strip
+    partner_strip_px_per_second: int = Field(45, ge=10, le=200)  # its speed
+
+
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
 ModuleLevel = Literal["on", "admin", "off"]
 # area -> areas it needs, switched on at least as far (batches go only to staff who checked in)
@@ -318,6 +334,7 @@ class Config(BaseModel):
     boards: BoardsIni = BoardsIni()
     analytics: AnalyticsIni = AnalyticsIni()
     site_insights: SiteInsightsIni = SiteInsightsIni()
+    site_ui: SiteUiIni = SiteUiIni()
 
     @model_validator(mode="after")
     def job_timeout_covers_email_budget(self):
@@ -476,7 +493,8 @@ def public_config() -> dict:
     insights = {"on": c.modules.site_insights != "off", "send_every_seconds": s.send_every_seconds,
                 "max_events_per_send": s.max_events_per_send, "search_pause_ms": s.search_pause_ms,
                 "min_search_chars": s.min_search_chars, "buttons": s.buttons}
-    return {"site_name": c.app.site_name, "features": c.features.model_dump(), "insights": insights}
+    return {"site_name": c.app.site_name, "features": c.features.model_dump(), "insights": insights,
+            "site_ui": c.site_ui.model_dump()}  # display settings only (site_ui.ini)
 
 
 def effective_with_sources() -> list[dict]:

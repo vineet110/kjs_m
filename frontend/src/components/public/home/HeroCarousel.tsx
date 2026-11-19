@@ -1,5 +1,8 @@
 'use client';
-// The big banner in the middle of the home page. Slides change every 6 seconds and pause on hover.
+// The big banner in the middle of the home page. Slides change every few seconds (site_ui.ini
+// slide_seconds) and pause on hover.
+// With the striped line on, the line drives the slides: when it is full, the next slide shows, and it
+// pauses with the hover, so line and slide never drift apart. "Reduce motion": no line, a plain timer.
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -7,21 +10,28 @@ import { isUploaded } from '@/lib/catalogue';
 
 export type Slide = { eyebrow: string; title: string; text: string; href: string; cta: string; images: string[]; tone: string };
 
-export default function HeroCarousel({ slides }: { slides: Slide[] }) {
+type Props = { slides: Slide[]; slideSeconds?: number; line?: boolean };
+
+export default function HeroCarousel({ slides, slideSeconds = 6, line = false }: Props) {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches), []);
+  const lineDrives = line && !reduced && slides.length > 1;
+  const next = () => setI((n) => (n + 1) % slides.length);
 
   useEffect(() => {
-    if (paused || slides.length < 2) return;
-    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 6000);
+    if (paused || slides.length < 2 || lineDrives) return;
+    const t = setInterval(() => setI((n) => (n + 1) % slides.length), slideSeconds * 1000);
     return () => clearInterval(t);
-  }, [paused, slides.length]);
+  }, [paused, slides.length, lineDrives, slideSeconds]);
 
   return (
     <div
-      className="relative h-full min-h-[360px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      className="keep-light relative h-full min-h-[360px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md" // pastel slides stay light in dark mode
+      // Pause only for a real mouse: a tap on a phone fires "enter" but never "leave", which froze the banner
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}
       aria-roledescription="carousel"
     >
       {slides.map((s, n) => {
@@ -80,6 +90,18 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
           />
         ))}
       </div>
+
+      {/* Striped gold-and-charcoal line along the bottom, filling up while the slide shows */}
+      {lineDrives && (
+        <div className="absolute inset-x-0 bottom-0 z-20 h-[3px] bg-ink/10" aria-hidden="true">
+          <div
+            key={i} // a new slide restarts the line
+            className="h-full w-0 animate-heroline bg-hazard"
+            style={{ animationDuration: `${slideSeconds}s`, animationPlayState: paused ? 'paused' : 'running' }}
+            onAnimationEnd={next}
+          />
+        </div>
+      )}
     </div>
   );
 }
