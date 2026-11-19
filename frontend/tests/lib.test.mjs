@@ -785,7 +785,8 @@ test('talk: activity times read like a person would say them', () => {
   assert.equal(talk.relTime(ago(60 * 24 * 3), now), '3 days ago');
   assert.equal(talk.relTime(ago(60 * 24 * 8), now), 'last week');
   assert.equal(talk.relTime(ago(60 * 24 * 21), now), '3 weeks ago');
-  assert.equal(talk.relTime(ago(60 * 24 * 60), now), 'this year');
+  assert.equal(talk.relTime(ago(60 * 24 * 40), now), 'last month');
+  assert.equal(talk.relTime(ago(60 * 24 * 95), now), '3 months ago');
   assert.equal(talk.relTime('not a date', now), '');
 });
 

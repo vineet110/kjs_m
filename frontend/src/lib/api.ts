@@ -297,7 +297,7 @@ export type SiteUi = {
   enabled: boolean; slide_seconds: number; glow: boolean; glow_seconds: number;
   reveal_left_to_right: boolean; steps_light_up: boolean; partner_strip: boolean; partner_strip_px_per_second: number;
   top_strip: boolean; theme_toggle: boolean; dark_follows_system: boolean; steps_gap_ms: number;
-  // The site talks (PR C); optional: an older API doesn't send them (then nothing talks)
+  // The site talks (PR C); optional: an older API doesn't send them, and then nothing talks (=== true checks)
   talk?: boolean; talk_all_pages?: boolean; typing_search?: boolean; bubble_seconds?: number; idle_seconds?: number;
   phone_koko_seconds?: number; phone_whatsapp_seconds?: number; offer_box?: boolean; popup_times?: number[];
   popup_show_seconds?: number; popup_fade_ms?: number; popups_on_screen?: number; popups_on_screen_phone?: number;

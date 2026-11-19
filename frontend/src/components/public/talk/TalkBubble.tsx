@@ -23,7 +23,7 @@ function boxOf(el: Element): DOMRect {
 
 export default function TalkBubble({ texts, ui }: Props) {
   const here = useTalkPage(!!ui.talk_all_pages);
-  const on = ui.enabled && ui.talk !== false && here;
+  const on = ui.enabled && ui.talk === true && here; // an older API without the switch: silent
   const [shown, setShown] = useState<Shown | null>(null);
   const target = useRef<Element | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -110,7 +110,10 @@ export default function TalkBubble({ texts, ui }: Props) {
     let count: number | null = null;
     const listChanged = (e: Event) => {
       const n = (e as CustomEvent<number>).detail;
-      if (count === 0 && n === 1) nudge(document.activeElement, 'enquiry_added', 'enquiry');
+      // At the button just clicked; Safari doesn't focus buttons, so <body> means: point at Koko instead
+      const clicked = document.activeElement;
+      const at = clicked && clicked !== document.body && clicked !== document.documentElement ? clicked : null;
+      if (count === 0 && n === 1) nudge(at, 'enquiry_added', 'enquiry');
       count = n;
     };
     window.addEventListener('kjs:enquiry-list', listChanged);

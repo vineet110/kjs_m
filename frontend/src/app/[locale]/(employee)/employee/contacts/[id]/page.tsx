@@ -17,6 +17,7 @@ import { api, ApiFailure, type Colleague, type ContactDetail, type Lead, type Le
 const SOURCE: Record<string, string> = {
   enquiry_form: 'Website enquiry', price_sheet: 'Price sheet', spec_pdf: 'Spec sheet', sample: 'Sample request',
   quote: 'Quote request', configurator: 'Private-label tool', koko: 'Koko chat', internal: 'Internal (added by staff)',
+  website_offer: 'Website offer',
 };
 const OUTCOMES = ['quote_sent', 'sample_sent', 'order_won', 'not_interested', 'no_reply', 'spam'];
 const STAGES = [

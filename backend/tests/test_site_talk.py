@@ -36,3 +36,10 @@ async def test_popup_times_must_rise(client, monkeypatch):
     ini.reload_now()
     # Refused: the last good value stays
     assert (await client.get("/api/v1/public/config")).json()["site_ui"]["popup_times"] == [5, 8, 11, 15, 17, 25]
+
+
+async def test_offer_form_is_refused_when_the_box_is_off(client, monkeypatch):
+    from app.core.config import ini
+    monkeypatch.setenv("KJS__SITE_UI__OFFER_BOX", "false")
+    ini.reload_now()
+    assert (await client.post("/api/v1/public/leads", json=OFFER, headers=HDR)).status_code == 404

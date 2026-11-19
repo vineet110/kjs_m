@@ -24,7 +24,7 @@ function shownThisVisit(): number {
 
 export default function OfferDock({ texts, ui }: Props) {
   const here = useTalkPage(!!ui.talk_all_pages);
-  const on = ui.enabled && ui.offer_box !== false && here;
+  const on = ui.enabled && ui.offer_box === true && here; // an older API without the switch: no box
   const path = usePathname() || '/';
   const t = (k: string) => texts[`offer.${k}`] ?? '';
 
@@ -51,10 +51,18 @@ export default function OfferDock({ texts, ui }: Props) {
   const ids = useRef(0);
   const closeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const openRef = useRef(false); // the form is open (read inside timers)
+  const boxRef = useRef<HTMLButtonElement>(null);
   openRef.current = open;
 
   const phoneScreen = () => !window.matchMedia('(hover: hover)').matches || window.innerWidth < 700;
   const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Each pop-up (and each fold) makes the box give a little bump. Animated in place, never re-created, so a
+  // keyboard user's focus on the box stays where it is.
+  useEffect(() => {
+    if (!bump || calm()) return;
+    boxRef.current?.animate?.([{ transform: 'none' }, { transform: 'translateX(5px) scale(1.08)' }, { transform: 'none' }], { duration: 500 });
+  }, [bump]);
 
   // Real activity lines (none: the box still shows, without pop-ups). Loaded after the page, never blocking it.
   useEffect(() => {
@@ -103,10 +111,12 @@ export default function OfferDock({ texts, ui }: Props) {
 
   // ---------- The form ----------
   const disarm = () => { closeTimers.current.forEach(clearTimeout); closeTimers.current = []; setWarn(false); };
-  const fold = useCallback(() => {
+  /** Folds the form back into the box. withWarning: only when it closes by itself, never on ✕ or a click away. */
+  const fold = useCallback((withWarning = false) => {
     disarm();
-    setWarn(true);
+    setWarn(withWarning);
     setFolding(true);
+    hoverForm.current = false; // the form goes away under the mouse: no "leave" event will come
     setTimeout(() => { setOpen(false); setFolding(false); setWarn(false); setTerms(false); setBump((b) => b + 1); }, calm() ? 0 : 900);
   }, []);
   const arm = useCallback(() => {
@@ -115,7 +125,7 @@ export default function OfferDock({ texts, ui }: Props) {
     if (busy) return; // never closes while someone is in it
     const total = (ui.form_open_seconds ?? 14) * 1000;
     const warnAt = total - (ui.form_warn_seconds ?? 4) * 1000;
-    closeTimers.current = [setTimeout(() => setWarn(true), warnAt), setTimeout(fold, total)];
+    closeTimers.current = [setTimeout(() => setWarn(true), warnAt), setTimeout(() => fold(true), total)];
   }, [ui.form_open_seconds, ui.form_warn_seconds, fold]);
   const openForm = () => {
     if (open || somethingOpen()) return;
@@ -146,7 +156,7 @@ export default function OfferDock({ texts, ui }: Props) {
       setPhone(''); setName(''); setNote(''); setExtra(false);
       pops.forEach((p) => fadeOut(p.id));
       disarm();
-      setTimeout(fold, 3000);
+      setTimeout(() => fold(), 3000);
     } catch (err) {
       setError(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp instead.');
     } finally {
@@ -173,7 +183,7 @@ export default function OfferDock({ texts, ui }: Props) {
   return (
     <div id="offer-dock" className="fixed left-0 top-[38%] z-[45] -translate-y-1/2">
       <button
-        key={bump} // each pop-up makes the box give a little bump
+        ref={boxRef}
         type="button"
         onClick={openForm}
         onPointerEnter={hoverOpen}
@@ -223,7 +233,7 @@ export default function OfferDock({ texts, ui }: Props) {
           onBlur={() => setTimeout(() => { if (!formRef.current?.contains(document.activeElement)) arm(); }, 0)}
           className={`absolute left-[calc(100%+6px)] top-1/2 w-[min(290px,calc(100vw-56px))] -translate-y-1/2 rounded-r-xl border border-l-4 border-slate-200 border-l-gold bg-white p-3.5 text-slate-800 shadow-2xl motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-4 ${folding ? 'origin-left transition-all duration-700 motion-safe:scale-x-[0.04] motion-safe:scale-y-[0.2] opacity-0' : ''}`}
         >
-          <button type="button" onClick={fold} aria-label="Close" className="absolute right-2 top-2 text-slate-400 hover:text-slate-700">✕</button>
+          <button type="button" onClick={() => fold()} aria-label="Close" className="absolute right-2 top-2 text-slate-400 hover:text-slate-700">✕</button>
           {warn && !done && <p className="mb-2 rounded-md bg-gold px-2.5 py-1.5 text-xs font-extrabold text-ink motion-safe:animate-pulse">{t('warning')}</p>}
           {done ? (
             <p className="pr-5 text-sm font-semibold">{t('done')}</p>

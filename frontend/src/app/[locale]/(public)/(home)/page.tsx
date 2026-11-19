@@ -165,7 +165,7 @@ export default async function HomePage() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5">
           <div className="grid items-center gap-3 md:grid-cols-[1fr_auto]">
-            <HomeSearch categories={cats} coffee={coffee} typing={on && ui.talk !== false && ui.typing_search !== false} />
+            <HomeSearch categories={cats} coffee={coffee} typing={on && ui.talk === true && ui.typing_search === true} />
             <span data-say="quote" className="contents"><EnquiryButton label="Request for quotation" source="quote" title="Request for quotation" className="btn-dark rounded-full !py-3" /></span>
           </div>
           {popular.length > 0 && (

@@ -1,7 +1,8 @@
 // The site talks (home page refresh, PR C): small helpers for the bubble, the pop-ups and the offer form.
 // Pure functions, so they are tested in tests/lib.test.mjs.
 
-/** "just now", "12 min ago", "2 hours ago", "yesterday", "3 days ago", "last week", "3 weeks ago", "this year". */
+/** "just now", "12 min ago", "2 hours ago", "yesterday", "3 days ago", "last week", "3 weeks ago", "last month",
+ *  "3 months ago". */
 export function relTime(iso: string, now: number = Date.now()): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60_000);
   if (!Number.isFinite(min)) return '';
@@ -14,7 +15,9 @@ export function relTime(iso: string, now: number = Date.now()): string {
   if (d < 7) return `${d} days ago`;
   const w = Math.round(d / 7);
   if (w === 1) return 'last week';
-  return w < 5 ? `${w} weeks ago` : 'this year';
+  if (w < 5) return `${w} weeks ago`;
+  const m = Math.round(d / 30); // never "this year": a line from November read in January is last year
+  return m <= 1 ? 'last month' : `${m} months ago`;
 }
 
 /** When pop-up number n (0, 1, 2 ...) shows, in seconds after the page opened. `times` rise (site_ui.ini
