@@ -290,6 +290,17 @@ export type PublicConfig = {
   site_name: string;
   features: { koko: boolean; offers_ticker: boolean; configurator: boolean; partners: boolean; gated_actions: boolean; whatsapp_button: boolean; connect_popup?: boolean };
   insights?: InsightsConfig; // Website insights tracker (config/site_insights.ini); missing on an older API
+  site_ui?: SiteUi; // Home page look and motion (config/site_ui.ini); missing on an older API
+};
+/** Home page look and motion settings (config/site_ui.ini). */
+export type SiteUi = {
+  enabled: boolean; slide_seconds: number; glow: boolean; glow_seconds: number;
+  reveal_left_to_right: boolean; steps_light_up: boolean; partner_strip: boolean; partner_strip_px_per_second: number;
+};
+/** Fallback when the API is down or older: today's look (refresh off), today's 6 s slides. */
+export const SITE_UI_FALLBACK: SiteUi = {
+  enabled: false, slide_seconds: 6, glow: false, glow_seconds: 3,
+  reveal_left_to_right: false, steps_light_up: false, partner_strip: false, partner_strip_px_per_second: 45,
 };
 export type Offer = { id: number; text: string; link: string };
 /** Koko's catalogue card: on the first reply on a product or category page (from the database, not the AI). */
@@ -311,6 +322,12 @@ export async function features(): Promise<PublicConfig['features']> {
 export async function insightsConfig(): Promise<InsightsConfig | null> {
   const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
   return c?.insights ?? null;
+}
+
+/** Home page look and motion (config/site_ui.ini). API down or older: the old look. */
+export async function siteUi(): Promise<SiteUi> {
+  const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
+  return c?.site_ui ?? SITE_UI_FALLBACK;
 }
 
 /** Editable website text (Admin > Website). Falls back to the given text if the API is down. */

@@ -68,10 +68,19 @@ async def test_public_config_endpoint_has_no_secrets(client):
     r = await client.get("/api/public/config")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"site_name", "features", "insights"} and "koko" in body["features"]
+    assert set(body) == {"site_name", "features", "insights", "site_ui"} and "koko" in body["features"]
+    # site_ui: home page display settings only (site_ui.ini)
+    assert body["site_ui"]["enabled"] is True and body["site_ui"]["slide_seconds"] == 6
     # insights: only the website tracker's timings and button names (site_insights.ini), nothing private
     assert set(body["insights"]) == {"on", "send_every_seconds", "max_events_per_send", "search_pause_ms",
                                      "min_search_chars", "buttons"}
+
+
+async def test_site_ui_refuses_a_bad_value_and_keeps_the_last_good_one(client, monkeypatch):
+    # slide_seconds must be 3 to 30: a typo like 0 must not stop the banner
+    monkeypatch.setenv("KJS__SITE_UI__SLIDE_SECONDS", "0")
+    ini.reload_now()
+    assert (await client.get("/api/public/config")).json()["site_ui"]["slide_seconds"] == 6
 
 
 async def test_public_config_says_when_insights_are_off(client, monkeypatch):
