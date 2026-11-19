@@ -248,7 +248,7 @@ export default function OfferDock({ texts, ui }: Props) {
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  maxLength={20}
+                  maxLength={30} // the server takes 30 characters: a shorter box cut long numbers and saved a wrong one
                   placeholder="Your phone number"
                   aria-label="Phone number"
                   className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-sm font-semibold outline-none"
