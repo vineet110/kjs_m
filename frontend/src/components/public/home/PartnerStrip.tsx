@@ -71,8 +71,11 @@ export default function PartnerStrip({ certs, partners, pxPerSecond }: Props) {
     );
   }
 
+  // Screen readers hear the list once: every repeat (and the whole second copy) is hidden from them
   const copy = (hidden: boolean) => Array.from({ length: repeats }, (_, n) => (
-    <Items key={n} certs={certs} partners={partners} hidden={hidden || n > 0} />
+    <div key={n} className="flex shrink-0 items-center gap-6" aria-hidden={hidden || n > 0 ? true : undefined}>
+      <Items certs={certs} partners={partners} hidden={hidden || n > 0} />
+    </div>
   ));
   return (
     <div
