@@ -326,6 +326,19 @@ export async function insightsConfig(): Promise<InsightsConfig | null> {
   return c?.insights ?? null;
 }
 
+// ---------- Home page hero (Admin > Website > Hero) ----------
+export type HeroTone = 'gold' | 'rose' | 'cream';
+export type PublicHeroSlide = { id: number; eyebrow: string; title: string; text: string; cta_text: string; cta_link: string; tone: HeroTone; images: string[] };
+export type PublicHero = { slides: PublicHeroSlide[]; stats: { number: string; label: string }[] };
+export type AdminHeroSlide = PublicHeroSlide & { image_ids: number[]; is_active: boolean; sort_order: number };
+export type AdminHeroStat = { id: number; number: string; label: string; is_active: boolean; sort_order: number };
+export type AdminHero = { slides: AdminHeroSlide[]; stats: AdminHeroStat[]; tones: HeroTone[]; max_slides: number; max_stats: number; max_images: number };
+
+/** The admin's slides and stats. Empty (or API down): the home page keeps its built-in ones. */
+export async function publicHero(): Promise<PublicHero> {
+  return (await serverGet<PublicHero>('/public/hero').catch(() => null)) ?? { slides: [], stats: [] };
+}
+
 /** Home page look and motion (config/site_ui.ini). API down or older: the old look. */
 export async function siteUi(): Promise<SiteUi> {
   const c = await serverGet<PublicConfig>('/public/config').catch(() => null);
