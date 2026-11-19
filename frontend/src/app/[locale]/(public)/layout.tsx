@@ -7,16 +7,18 @@ import SiteFooter from '@/components/public/SiteFooter';
 import SiteHeader from '@/components/public/SiteHeader';
 import SiteTracker from '@/components/public/SiteTracker';
 import WhatsAppButton from '@/components/public/WhatsAppButton';
-import { features, insightsConfig, serverGet, type Category } from '@/lib/api';
+import { features, insightsConfig, serverGet, siteUi, type Category } from '@/lib/api';
 import { rangeText } from '@/lib/catalogue';
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   // on/off switches from config/features.ini; the categories shown (Admin > Products) for the range in words;
   // the Website insights tracker settings (config/site_insights.ini)
-  const [f, categories, insights] = await Promise.all([
-    features(), serverGet<Category[]>('/public/categories').catch(() => null), insightsConfig(),
+  const [f, categories, insights, ui] = await Promise.all([
+    features(), serverGet<Category[]>('/public/categories').catch(() => null), insightsConfig(), siteUi(),
   ]);
   const range = rangeText(categories);
+  // Soft pulsing ring around the Ask Koko and WhatsApp buttons (config/site_ui.ini)
+  const glow = ui.enabled && ui.glow ? ui.glow_seconds : null;
   return (
     <>
       <JsonLd data={organizationLd(range)} />
@@ -25,8 +27,8 @@ export default async function PublicLayout({ children }: { children: React.React
       <main className="site-public min-h-[60vh]">{children}</main>
       <SiteFooter range={range} />
       <HoverGrowSides />
-      {f.whatsapp_button && <WhatsAppButton />}
-      {f.koko && <KokoChatWidget />}
+      {f.whatsapp_button && <WhatsAppButton glowSeconds={glow} />}
+      {f.koko && <KokoChatWidget glowSeconds={glow} />}
       {/* On unless switched off (an older API without the switch still shows it) */}
       {f.connect_popup !== false && <ConnectPopup />}
       <SiteTracker config={insights} />

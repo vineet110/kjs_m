@@ -12,7 +12,7 @@ export const SITE = {
   email: 'contact@kjsindia.com',
   careers: 'hr@kjsindia.com',
   address: 'Plot No. 1 & 2, Phase-III, IDA Pashamylaram, Patancheru, Sangareddy, Hyderabad, Telangana 502307',
-  trustedBy: ['Nestlé', 'Unilever', 'Mayora'],
+  trustedBy: ['Nestlé', 'Unilever', 'Mayora', "Dr. Reddy's"], // Dr. Reddy's confirmed by Vineet, 19 Nov 2026
   certifications: [
     { name: 'ISO 9001', img: asset('/images/kjs/brand/iso-9001.jpg') },
     { name: 'ISO 14001', img: asset('/images/kjs/brand/14001.jpg') },

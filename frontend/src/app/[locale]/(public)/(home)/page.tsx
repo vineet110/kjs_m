@@ -8,11 +8,13 @@ import CategoryMenu from '@/components/public/home/CategoryMenu';
 import HeroCarousel, { type Slide } from '@/components/public/home/HeroCarousel';
 import HomeProductCard from '@/components/public/home/HomeProductCard';
 import HomeSearch from '@/components/public/home/HomeSearch';
+import PartnerStrip from '@/components/public/home/PartnerStrip';
 import ProductExplorer from '@/components/public/home/ProductExplorer';
 import RecommendedProducts from '@/components/public/home/RecommendedProducts';
+import StepsLightUp from '@/components/public/home/StepsLightUp';
 import Reveal from '@/components/public/Reveal';
 import type { Metadata } from 'next';
-import { serverGet, texts, type Category, type Product } from '@/lib/api';
+import { serverGet, siteUi, texts, type Category, type Product } from '@/lib/api';
 import { coffeeOnly, focusText, isUploaded, toHomeProduct, type HomeProduct } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
@@ -40,11 +42,15 @@ const STEPS = [
 ];
 
 export default async function HomePage() {
-  const [categories, productList, t] = await Promise.all([
+  const [categories, productList, t, ui] = await Promise.all([
     serverGet<Category[]>('/public/categories'),
     serverGet<Product[]>('/public/products'),
     texts(),
+    siteUi(),
   ]);
+  // Look and motion switches (config/site_ui.ini). enabled = false: the home page as it was before.
+  const on = ui.enabled;
+  const revealFrom = on && ui.reveal_left_to_right ? 'left' : 'auto';
   const cats = categories ?? []; // the API leaves out hidden categories (Admin > Products > Categories)
   // Coffee-only: Coffee is the only category shown. The texts, pictures and lists below follow it.
   const coffee = coffeeOnly(categories);
@@ -98,7 +104,8 @@ export default async function HomePage() {
       href: '/private-label',
       cta: 'Build your private label',
       images: pick(coffee ? [COFFEE[1], COFFEE[2], COFFEE[3]] : ['maxi-big-wafers-chocolate', 'lupita-duble', 'peti-latte-2in1']),
-      tone: 'from-[#EEF5EF] via-[#D9EADC] to-[#B7D5BE]',
+      // Yellow instead of green with the refresh on (site_ui.ini)
+      tone: on ? 'from-[#FFF8E1] via-[#FBE7A8] to-[#F2CF6B]' : 'from-[#EEF5EF] via-[#D9EADC] to-[#B7D5BE]',
     },
   ];
 
@@ -149,7 +156,7 @@ export default async function HomePage() {
       <section className="bg-paper bg-[radial-gradient(ellipse_80%_70%_at_50%_0%,rgba(217,169,48,0.16),transparent)]">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:min-h-[480px] lg:grid-cols-[230px_1fr_250px]">
           <CategoryMenu categories={cats} />
-          <HeroCarousel slides={slides} />
+          <HeroCarousel slides={slides} slideSeconds={ui.slide_seconds} line={on} />
           <aside className="hidden flex-col gap-4 lg:flex">
             {/* Without the stats box this card fills the column, so no empty gap under it */}
             <div className={`card border-t-4 border-t-gold p-5 ring-1 ring-gold/20 ${products.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
@@ -172,8 +179,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Trust strip */}
+      {/* Trust strip: sliding (site_ui.ini partner_strip) or the still row */}
       <section className="border-y border-slate-200 bg-white">
+        {on && ui.partner_strip ? (
+          <PartnerStrip certs={SITE.certifications} partners={SITE.trustedBy} pxPerSecond={ui.partner_strip_px_per_second} />
+        ) : (
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-5">
           {/* flex-wrap: on phones the logos go onto two lines instead of making the page scroll sideways */}
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -189,6 +199,7 @@ export default async function HomePage() {
             ))}
           </div>
         </div>
+        )}
       </section>
 
       {/* Top categories */}
@@ -203,7 +214,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stocked.map((c) => (
-              <Reveal key={c.slug} stagger repeat className="flex">
+              <Reveal key={c.slug} stagger repeat from={revealFrom} className="flex">
                 <Link href={`/categories/${c.slug}`} className="card card-lift group w-full overflow-hidden p-3">
                   {withImage.some((p) => p.categorySlug === c.slug) ? (
                     <div className="grid grid-cols-2 gap-1.5">
@@ -216,7 +227,7 @@ export default async function HomePage() {
                     <div className="flex aspect-[2/1] items-center justify-center rounded-md bg-paper text-sm font-semibold text-slate-400">{c.name}</div>
                   )}
                   <div className="flex items-baseline justify-between px-1 pb-1 pt-3">
-                    <h3 className="font-bold group-hover:text-forest">{c.name}</h3>
+                    <h3 className={`font-bold ${on ? 'group-hover:text-gold-dark' : 'group-hover:text-forest'}`}>{c.name}</h3>
                     <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-dark">{c.product_count} product{c.product_count === 1 ? '' : 's'}</span>
                   </div>
                 </Link>
@@ -246,7 +257,7 @@ export default async function HomePage() {
           <h2 id="best-sellers-title" className="title-accent mt-2 text-3xl font-bold">Best sellers</h2>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {bestSellerCards.map((p) => (
-              <Reveal key={p.slug} stagger repeat className="flex">
+              <Reveal key={p.slug} stagger repeat from={revealFrom} className="flex">
                 <HomeProductCard p={p} />
               </Reveal>
             ))}
@@ -256,7 +267,7 @@ export default async function HomePage() {
       )}
 
       {/* Recommended: personal picks from this browser's history, or a mix for first-time visitors */}
-      <RecommendedProducts exclude={bestSellerCards.map((p) => p.slug)} />
+      <RecommendedProducts exclude={bestSellerCards.map((p) => p.slug)} revealFrom={revealFrom} />
 
       {/* Product range */}
       <section id="range" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-14">
@@ -268,7 +279,7 @@ export default async function HomePage() {
           </p>
         </div>
         {products.length > 0 ? (
-          <ProductExplorer categories={cats} />
+          <ProductExplorer categories={cats} revealFrom={revealFrom} />
         ) : (
           <div className="card flex flex-col items-start gap-3 p-6">
             <p className="font-semibold">Our detailed product list is being published.</p>
@@ -284,6 +295,10 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4">
           <p className="eyebrow !text-gold">How it works</p>
           <h2 className="title-accent mt-2 text-3xl font-bold">From enquiry to dispatch in four steps</h2>
+          {/* Steps light up 1 → 4 (site_ui.ini steps_light_up), or the cards as before */}
+          {on && ui.steps_light_up ? (
+            <StepsLightUp steps={STEPS} />
+          ) : (
           <ol className="mt-8 grid gap-4 md:grid-cols-4">
             {STEPS.map((s, i) => (
               <Reveal as="li" key={s.title} delay={i * 120} className="card-lift relative rounded-xl border border-white/10 border-t-4 border-t-gold bg-ink-soft p-5">
@@ -293,6 +308,7 @@ export default async function HomePage() {
               </Reveal>
             ))}
           </ol>
+          )}
         </div>
       </section>
 

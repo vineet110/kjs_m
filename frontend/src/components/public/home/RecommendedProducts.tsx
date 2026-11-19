@@ -30,7 +30,8 @@ const same = (a: Picks, b: Picks) => a.reason === b.reason && sameList(slugs(a),
  * They are left out by recommend() itself, AFTER it reads the visitor's interests (opening a best seller
  * still counts).
  */
-export default function RecommendedProducts({ exclude = [] }: { exclude?: string[] }) {
+/** revealFrom: 'left' = cards come in from the left (site_ui.ini reveal_left_to_right) */
+export default function RecommendedProducts({ exclude = [], revealFrom = 'auto' }: { exclude?: string[]; revealFrom?: 'auto' | 'left' }) {
   const products = useCatalogue();
   const excludeKey = exclude.join(',');
   // Same list object between renders (the effects below depend on it)
@@ -123,7 +124,7 @@ export default function RecommendedProducts({ exclude = [] }: { exclude?: string
       </h2>
       <div className={`mt-6 grid grid-cols-2 gap-3 transition-opacity duration-200 md:grid-cols-4 md:gap-4 ${fading ? 'opacity-0' : 'opacity-100'}`}>
         {picks.products.map((p) => (
-          <Reveal key={p.slug} stagger repeat className="flex">
+          <Reveal key={p.slug} stagger repeat from={revealFrom} className="flex">
             <HomeProductCard p={p} />
           </Reveal>
         ))}
