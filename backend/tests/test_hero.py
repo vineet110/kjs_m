@@ -151,3 +151,15 @@ async def test_hero_edit_and_delete_need_content_edit(client):
     client.cookies.clear()
     await login(client, "web@kjsindia.com")
     assert (await client.delete(f"/api/v1/content/hero/stats/{n['id']}", headers=HDR)).status_code == 204
+
+
+async def test_slide_zero_is_not_found_and_animations_are_refused(client):
+    await _editor(client)
+    assert (await client.patch("/api/v1/content/hero/slides/0", json={"title": "Unexpected slide"}, headers=HDR)).status_code == 404
+    assert (await client.get("/api/v1/content/hero")).json()["slides"] == []
+    frames = [Image.new("RGB", (50, 50), c) for c in ((255, 0, 0), (0, 0, 255))]
+    b = io.BytesIO()
+    frames[0].save(b, "WEBP", save_all=True, append_images=frames[1:], duration=200)
+    r = await client.post("/api/v1/files", data={"owner_type": "website", "owner_id": "hero", "is_public": "true"},
+                          files={"file": ("moving.webp", b.getvalue(), "image/webp")}, headers=HDR)
+    assert r.status_code == 422
