@@ -106,7 +106,7 @@ async def public(db: AsyncSession) -> dict:
 # ---------- Write ----------
 async def _active_count(db: AsyncSession, model, exclude_id: int | None) -> int:
     q = select(func.count()).select_from(model).where(model.is_active)
-    if exclude_id:
+    if exclude_id is not None:
         q = q.where(model.id != exclude_id)
     return await db.scalar(q) or 0
 
@@ -114,7 +114,7 @@ async def _active_count(db: AsyncSession, model, exclude_id: int | None) -> int:
 def _switching_on(row, row_id: int | None, data: dict) -> bool:
     """True only when this save adds one more active row: a new active one, or off → on. Editing the text of a
     slide that is already on never counts, so a lowered limit can't block fixing a typo."""
-    if not row_id:
+    if row_id is None:  # None = a new row (an id of 0 is a wrong id, never "new")
         return data.get("is_active", True)
     return bool(data.get("is_active")) and not row.is_active
 
@@ -127,7 +127,7 @@ def _need(data: dict, field: str, min_len: int, what: str) -> None:
 
 async def save_slide(db: AsyncSession, user: User, slide_id: int | None, data: dict) -> dict:
     """New slide: every field. Edit: only the fields in `data` change."""
-    s = await db.get(HeroSlide, slide_id, with_for_update=True) if slide_id else HeroSlide()
+    s = await db.get(HeroSlide, slide_id, with_for_update=True) if slide_id is not None else HeroSlide()
     if s is None:
         raise AppError(404, "not_found", "Slide not found.")
     if "tone" in data and data["tone"] not in TONES:
@@ -138,11 +138,11 @@ async def save_slide(db: AsyncSession, user: User, slide_id: int | None, data: d
     limit = cfg().site_ui.hero_max_slides
     if _switching_on(s, slide_id, data) and await _active_count(db, HeroSlide, slide_id) >= limit:
         raise AppError(422, "too_many_slides", f"At most {limit} slides can be on. Switch one off first.")
-    before = {k: getattr(s, k) for k in data} if slide_id else None
+    before = {k: getattr(s, k) for k in data} if slide_id is not None else None
     for k, v in data.items():
         setattr(s, k, v)
     s.updated_by = user.id
-    if not slide_id:
+    if slide_id is None:
         db.add(s)
     await db.flush()
     audit_service.record(db, actor=user, action="hero_slide.saved", entity_type="hero_slide", entity_id=s.id,
@@ -162,7 +162,7 @@ async def delete_slide(db: AsyncSession, user: User, slide_id: int) -> None:
 
 
 async def save_stat(db: AsyncSession, user: User, stat_id: int | None, data: dict) -> dict:
-    s = await db.get(HeroStat, stat_id, with_for_update=True) if stat_id else HeroStat()
+    s = await db.get(HeroStat, stat_id, with_for_update=True) if stat_id is not None else HeroStat()
     if s is None:
         raise AppError(404, "not_found", "Number not found.")
     _need(data, "number", 1, "number")
@@ -170,11 +170,11 @@ async def save_stat(db: AsyncSession, user: User, stat_id: int | None, data: dic
     limit = cfg().site_ui.hero_max_stats
     if _switching_on(s, stat_id, data) and await _active_count(db, HeroStat, stat_id) >= limit:
         raise AppError(422, "too_many_stats", f"At most {limit} numbers can be on. Switch one off first.")
-    before = {k: getattr(s, k) for k in data} if stat_id else None
+    before = {k: getattr(s, k) for k in data} if stat_id is not None else None
     for k, v in data.items():
         setattr(s, k, v)
     s.updated_by = user.id
-    if not stat_id:
+    if stat_id is None:
         db.add(s)
     await db.flush()
     audit_service.record(db, actor=user, action="hero_stat.saved", entity_type="hero_stat", entity_id=s.id,
