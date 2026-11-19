@@ -282,6 +282,37 @@ class SiteUiIni(BaseModel):
     partners_max: int = Field(12, ge=1, le=40)  # partners that can be on in the sliding strip
     activity_max_age_days: int = Field(60, ge=1, le=365)  # older activity lines stop showing by themselves
     activity_public_max: int = Field(100, ge=5, le=500)  # lines the website loads at most
+    # The site talks (PR C): hover messages, nudges, the "Get your offer" box and its pop-ups
+    talk: bool = True  # hover messages and nudges
+    talk_all_pages: bool = False  # false = home page only
+    typing_search: bool = True  # example searches type themselves in the search box
+    bubble_seconds: int = Field(5, ge=2, le=20)  # a nudge stays this long
+    idle_seconds: int = Field(20, ge=5, le=300)  # Koko speaks after this long without a move (once per visit)
+    phone_koko_seconds: int = Field(6, ge=2, le=120)  # phones: Koko speaks once after this long
+    phone_whatsapp_seconds: int = Field(16, ge=2, le=300)  # phones: WhatsApp speaks once after this long
+    offer_box: bool = True  # the "Get your offer" box, its pop-ups and form
+    popup_times: list[int] = Field(default_factory=lambda: [5, 8, 11, 15, 17, 25])  # seconds after page load; repeats
+    popup_show_seconds: int = Field(4, ge=1, le=30)  # a pop-up stays this long, then fades
+    popup_fade_ms: int = Field(1800, ge=200, le=5000)  # how slowly it fades
+    popups_on_screen: int = Field(3, ge=1, le=5)  # at most this many at once (computer)
+    popups_on_screen_phone: int = Field(1, ge=1, le=3)  # at most this many at once (phone)
+    popups_per_visit: int = Field(20, ge=1, le=200)  # then they stop for the visit
+    form_open_seconds: int = Field(14, ge=5, le=120)  # an untouched form closes itself after this long
+    form_warn_seconds: int = Field(4, ge=1, le=30)  # "about to slip away" shows this long before
+
+    @field_validator("popup_times")
+    @classmethod
+    def popup_times_ok(cls, v: list[int]) -> list[int]:
+        # Seconds after page load, rising: 5, 8, 11 ... A typo like "5, 3" must not fire two at once
+        if not v or len(v) > 20 or any(t < 1 or t > 600 for t in v) or v != sorted(set(v)):
+            raise ValueError("popup_times must be 1 to 20 rising numbers of seconds (1 to 600)")
+        return v
+
+    @model_validator(mode="after")
+    def warning_fits(self):
+        if self.form_warn_seconds >= self.form_open_seconds:
+            raise ValueError("form_warn_seconds must be less than form_open_seconds")
+        return self
 
 
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody

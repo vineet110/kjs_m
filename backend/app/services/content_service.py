@@ -47,6 +47,25 @@ TEXTS: dict[str, tuple[str, str]] = {
     "partners.intro": ("Partners page: intro",
                        "Sales agents, referral partners, freight forwarders and distributors: refer buyers to KJS India "
                        "and grow with us."),
+    # The website "talks" (home page refresh, PR C): hover messages and nudges, one at a time
+    "talk.sales": ("Talk: hover on Connect with Sales", "Your sample is ready, just a click away."),
+    "talk.whatsapp": ("Talk: hover on WhatsApp", "Chat on WhatsApp and get answers faster."),
+    "talk.koko": ("Talk: hover on Ask Koko", "Ask Koko and get answers faster."),
+    "talk.partner": ("Talk: hover on a partner logo", "You could be our next partner."),
+    "talk.quote": ("Talk: hover on Request for quotation / a quote", "Prices within one working day."),
+    "talk.sample": ("Talk: hover on Request a sample", "Free samples for brands. Just ask."),
+    "talk.product": ("Talk: hover on a product card", "Want a sample of this one?"),
+    "talk.made_to_order": ("Talk: hover on a made-to-order category", "Made to order. Tell us your idea."),
+    "talk.enquiry_added": ("Talk: after the first product is added to the enquiry list", "Nice pick! Add more and get one quote."),
+    "talk.idle": ("Talk: Koko, when the visitor is idle (once per visit)", "Need help choosing a blend? Ask me."),
+    "offer.title": ("Offer form: heading", "Better margins, factory-direct"),
+    "offer.text": ("Offer form: text", "Free sample and a quote in one working day. Just leave your number."),
+    "offer.box": ("Offer box on the left edge", "Get your offer"),
+    "offer.warning": ("Offer form: shown before it closes by itself", "This offer is about to slip away…"),
+    "offer.terms": ("Offer form: quick T&C",
+                    "Our team may contact you by call, SMS or WhatsApp about this enquiry. By clicking Get offer, "
+                    "you agree to this."),
+    "offer.done": ("Offer form: after sending", "Done! Our sales team will call you within one working day."),
     "koko.facts": ("Koko: facts it may use (everything else it won't claim)", ""),
 }
 PUBLIC_KEYS = [k for k in TEXTS if not k.startswith("koko.")]

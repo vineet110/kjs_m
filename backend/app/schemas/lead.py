@@ -13,8 +13,10 @@ class ChatMessage(BaseModel):
 
 class LeadIn(BaseModel):
     # price_sheet / spec_pdf / sample / quote = gated buttons on product pages; configurator = private-label tool
-    source: Literal["enquiry_form", "price_sheet", "spec_pdf", "sample", "quote", "configurator", "koko"] = "enquiry_form"
-    name: OneLine = Field(min_length=2, max_length=120)
+    # website_offer = the "Get your offer" form on the home page: phone required, name optional
+    source: Literal["enquiry_form", "price_sheet", "spec_pdf", "sample", "quote", "configurator", "koko",
+                    "website_offer"] = "enquiry_form"
+    name: OneLine = Field(default="", max_length=120)  # at least 2 characters, except for website_offer
     company: OneLine = Field(default="", max_length=200)
     email: Email | None = None
     phone: RequiredPhone = Field(max_length=30)
@@ -33,6 +35,9 @@ class LeadIn(BaseModel):
     def need_contact(self):
         if not self.consent:
             raise ValueError("Please agree to be contacted.")
+        # Checked after cleaning ("  " becomes ""). The offer form asks only for a phone number.
+        if self.source != "website_offer" and len(self.name) < 2:
+            raise ValueError("Please enter your name.")
         # Same cap as a Koko chat: the chat is summarised by the AI, and a huge one costs a lot.
         if sum(len(m.content) for m in self.chat) > 8000:
             raise ValueError("The conversation is too long.")
