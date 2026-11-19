@@ -400,6 +400,33 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     number in `config/site_insights.ini`. Superset still later (D6): it can read `site_events` as is.
     Backlog section 27, A104-A107.
 
+61. 19 Nov. Home page refresh (Vineet, PRs #103, #107 (= #104), #105, #106, migrations 0032, 0033). Every
+    setting in `config/site_ui.ini`, shared in `/public/config` as `site_ui`; `enabled = false` brings back
+    the old home page.
+    i.    Look (#103): white theme, yellow buttons, 3px striped hero line that drives the slides, home cards
+          come in from the left, steps light up 1 to 4, sliding partner strip (never empty), glow on Ask Koko
+          and WhatsApp, top strip above the dark header. Products page unchanged.
+    ii.   Dark mode on every website page (colours only): one sun/moon button, choice remembered, no white
+          flash. One colour map in `globals.css` inside `.site-shell` (staff portal never dark); `.keep-light`
+          keeps a block light. Light by default (`dark_follows_system = false`).
+    iii.  Hero (#107): Admin > Website > Home banner edits slides (text, button, up to 3 pictures) and stat
+          numbers (count up from 0); tables `hero_slides`, `hero_stats`; public `GET /public/hero`. No admin
+          rows = the built-in hero.
+    iv.   Pictures uploaded for the website (file owner `website`) are shrunk with Pillow (approved, 13.0.0):
+          longest side `image_max_px`, turned upright, GPS and camera data removed, animations refused.
+    v.    Partner logos and pop-up activity (#105): Admin > Website > Partner logos (`brand_partners`, public
+          `/public/brand-partners`; `/public/partners` is the partner application form) and Pop-up activity
+          (`activity_lines`, public `/public/activity`; real times only, older than `activity_max_age_days`
+          hide themselves). Logos sit on a white chip in both themes.
+    vi.   The site talks (#106, home page only): one hover bubble (texts `talk.*` in Admin > Text & SEO),
+          typing search box, and the "Get your offer" box: pop-ups at `popup_times` from page load, capped
+          per visit, one at a time on phones; hovering opens a phone-first form (name, note optional, quick
+          T&C, hidden anti-spam field) that closes itself with a warning. Leads come in as source
+          `website_offer` (shown "Website offer"), refused when `offer_box` is off.
+    vii.  The old "Let's connect" popup stays; the talk layer waits while any popup is open. English only
+          for now; the tables can take a language field later.
+    Backlog section 28, A108-A111.
+
 
 
 ---------------------------------------------------------------------------------------------------
@@ -497,7 +524,18 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 ## 9. Session log (newest first)
 
-1. 18 Nov 2026 (Website insights, Vineet, PR #100 merged 18 Nov)
+1. 19 Nov 2026 (Home page refresh, Vineet, PRs #103, #107, #105, #106 merged 19 Nov)
+
+   i.    Four stacked PRs: look and motion, admin hero, partner logos + pop-up activity, the site talks.
+         Decision 61; backlog section 28.
+   ii.   Each PR: plan, own code review, CodeRabbit round (Pillow raised to 13.0.0 for two advisories).
+   iii.  #104 was merged into its stacked base after #103 had gone to main, so B1 missed main; #107 brought the
+         same branch to main. Lesson: retarget a stacked PR to `main` before merging it (kb: Stacked pull
+         requests).
+   iv.   Migrations 0032, 0033 run on Neon right after the merge.
+
+
+2. 18 Nov 2026 (Website insights, Vineet, PR #100 merged 18 Nov)
 
    i.    Reports > Website insights: what visitors view, search and click. Decision 60; backlog section 27.
    ii.   Two reviews (our code review 10 findings, CodeRabbit 27), fixed in one round; funnel panel dropped.
@@ -505,7 +543,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   Lesson: a "top 10" list cut early also cuts any total worked out from it; count totals separately.
 
 
-2. 18 Nov 2026 (coffee-only switch, Nishita, PRs #93, #97, #99 merged 18 Nov)
+3. 18 Nov 2026 (coffee-only switch, Nishita, PRs #93, #97, #99 merged 18 Nov)
 
    i.    #93: a photo picker in Admin > Products > Add; cards show the first public uploaded photo.
    ii.   #97: Show/Hide per category, migration 0030 (Tea hidden). #99: the site follows the switches.
@@ -515,7 +553,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iv.   To go coffee-only: Hide Confectionery, Health drinks and Instant drink powders in Admin.
 
 
-3. 18 Nov 2026 (config per feature + whole-repo review, Vineet, PRs #90, #91 merged 18 Nov)
+4. 18 Nov 2026 (config per feature + whole-repo review, Vineet, PRs #90, #91 merged 18 Nov)
 
    i.    #90: backlog sections 21-23 (security, tooling, scaling) from a senior review of the whole repo.
    ii.   #91: 7 new ini files (chat, leads, attendance, notifications, harvest, boards, analytics), new keys

@@ -1045,6 +1045,31 @@ A107. Ad blockers may block the tracker  🟢
    i.    Real numbers are a little higher than the report shows; the screen says so.
 
 
+### Home page refresh (19 Nov, PRs #103-#107)
+
+A108. Pop-up times are counted from page load  🟢
+
+   i.    `popup_times` 5, 8, 11, 15, 17, 25 s, then the cycle repeats (30, 33, ...). Max 20 per visit, one at a
+         time on phones (`site_ui.ini`).
+
+
+A109. The offer form closes itself after 14 s untouched  🟢
+
+   i.    Warning 4 s before ("about to slip away"); never while the visitor is typing or hovering.
+
+
+A110. Partner logos are copies from Vineet's folder  🟠 KJS to confirm the partners are OK being shown
+
+   i.    Nestlé, Unilever, Mayora, Dr. Reddy's. The folder also has Nestlé Health Science and CCL: not shown
+         until Vineet says so.
+
+
+A111. Pop-up activity lines are true  🟠 KJS
+
+   i.    The admin types them; the site shows "2 hours ago" from the time entered. No buyer names or company
+         details.
+
+
 
 
 
@@ -2275,3 +2300,36 @@ R112. Linked product -> enquiry funnel  🟢 dropped for now (Vineet, 18 Nov)
    i.    The first version counted the 3 steps separately, so a step could be bigger than the one before; the
          panel was removed. Linking them needs the order of each visit's events. Same numbers today: "Pages
          viewed" and "Most clicked buttons".
+
+
+---------------------------------------------------------------------------------------------------
+
+## 28. Home page refresh follow-ups (19 Nov, PRs #103-#107)
+
+Decision 61 in `memory.md`. Guesses: A108-A111.
+
+
+R113. Hero and showcase settings live in `site_ui.ini`  🟢 later (review on #104-#106)
+
+   i.    The rule is one ini per feature; hero, partner and activity limits share `site_ui.ini`. Split if the
+         file grows.
+
+
+R114. Two editors switching on at the same moment can pass an on-limit by one  🟢 later
+
+   i.    Slides and partners count "switched on" rows before saving; a lock would close the gap.
+
+
+R115. Replaced pictures and logos stay in storage  🟢 later
+
+   i.    The old file is unused but still public. A clean-up job for files with no owner row would fix it.
+
+
+R116. A few fixed numbers in the frontend  🟢 later
+
+   i.    Some animation timings and the 10-15 digit phone check are in the code, not in `site_ui.ini`.
+
+
+R117. Other languages for the hero, logos and pop-ups  🟢 when the site gets a second language (D2)
+
+   i.    Built English only; each table can take a language field.
