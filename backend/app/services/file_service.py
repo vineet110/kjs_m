@@ -26,7 +26,7 @@ from app.core.storage import StorageError, storage
 from app.jobs.runner import job
 from app.models.file import StoredFile
 from app.models.user import User
-from app.services import audit_service, file_check, notification_service
+from app.services import audit_service, file_check, image_shrink, notification_service
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,8 @@ Cleaner = Callable[[str], str]
 CLEANERS: dict[str, Cleaner] = {}
 # owner_type -> the only extensions it takes (e.g. a complaint's screenshot is a picture). Others: allowed_types.
 OWNER_TYPES: dict[str, set[str]] = {}
+# Owners whose pictures are shrunk and cleaned on upload (image_shrink: size, quality, no GPS data)
+SHRINK: set[str] = set()
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -62,8 +64,10 @@ ONLY_FOR = {"heic": {"lead"}}
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
                    approvers: Approvers | None = None, clean: Cleaner | None = None,
-                   types: set[str] | None = None) -> None:
+                   types: set[str] | None = None, shrink: bool = False) -> None:
     OWNERS[owner_type] = check
+    if shrink:
+        SHRINK.add(owner_type)
     if types:
         OWNER_TYPES[owner_type] = types
     if clean:
@@ -139,6 +143,12 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
     if not await asyncio.to_thread(file_check.is_valid, ext, data):
         raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file. "
                        "Please check it and try again.")
+    if owner_type in SHRINK:
+        try:
+            data = await asyncio.to_thread(image_shrink.shrink, ext, data)
+        except image_shrink.NotAPicture as e:
+            raise AppError(422, "file_broken", "This picture can't be opened. Please save it again as JPG, PNG or "
+                           "WebP and try again.") from e
     key = f"{owner_type}/{safe_name(owner_id)}/{uuid.uuid4().hex[:12]}-{safe_name(name)}"
     try:
         await asyncio.to_thread(storage().put, key, data, TYPES[ext])
