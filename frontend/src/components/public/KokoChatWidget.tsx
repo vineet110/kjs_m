@@ -136,7 +136,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className={`btn-gold rounded-full px-5 py-3 shadow-lg ${glowSeconds ? 'glow-ring' : ''}`}
+          className={`btn-gold rounded-full px-5 py-3 shadow-lg ${glowSeconds ? 'glow-ring relative' : ''}`}
           style={glowSeconds ? ({ '--glow-s': `${glowSeconds}s` } as React.CSSProperties) : undefined}
         >
           💬 Ask Koko

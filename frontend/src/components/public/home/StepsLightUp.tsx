@@ -5,9 +5,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Step = { title: string; text: string };
-const STEP_MS = 450; // gap between two steps lighting up
 
-export default function StepsLightUp({ steps }: { steps: Step[] }) {
+/** gapMs: milliseconds between two steps lighting up (site_ui.ini steps_gap_ms) */
+export default function StepsLightUp({ steps, gapMs = 450 }: { steps: Step[]; gapMs?: number }) {
+  const STEP_MS = gapMs;
   const ref = useRef<HTMLOListElement>(null);
   const [lit, setLit] = useState(false);
 

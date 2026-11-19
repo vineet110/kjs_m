@@ -29,8 +29,9 @@ export default function HeroCarousel({ slides, slideSeconds = 6, line = false }:
   return (
     <div
       className="keep-light relative h-full min-h-[360px] overflow-hidden rounded-xl ring-1 ring-gold/40 shadow-md" // pastel slides stay light in dark mode
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      // Pause only for a real mouse: a tap on a phone fires "enter" but never "leave", which froze the banner
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}
       aria-roledescription="carousel"
     >
       {slides.map((s, n) => {

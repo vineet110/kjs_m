@@ -34,6 +34,9 @@ const POPULAR_FALLBACK = ['gofrey-crispy-x2', 'pacho-mellow', 'petit-beurre-bisc
 // While Coffee is the only category shown (Admin > Products > Categories): the coffee products
 const COFFEE = ['agglomerated-instant-coffee', 'spray-dried-instant-coffee', 'freeze-dried-instant-coffee', 'coffee-3-in-1-premix'];
 
+/** "A, B and C" */
+const listWithAnd = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
 const STEPS = [
   { title: 'Send your requirement', text: 'Product, pack size, volume and destination. One form, or the enquiry list.' },
   { title: 'Get quote and samples', text: 'Our sales team replies within one working day with prices and samples.' },
@@ -100,7 +103,7 @@ export default async function HomePage() {
     {
       eyebrow: 'Private label',
       title: 'Your brand on our proven recipes',
-      text: `Pick a product, choose the pack and weight, and launch faster with the co-manufacturer trusted by ${SITE.trustedBy.join(', ')}.`,
+      text: `Pick a product, choose the pack and weight, and launch faster with the co-manufacturer trusted by ${listWithAnd(SITE.trustedBy)}.`,
       href: '/private-label',
       cta: 'Build your private label',
       images: pick(coffee ? [COFFEE[1], COFFEE[2], COFFEE[3]] : ['maxi-big-wafers-chocolate', 'lupita-duble', 'peti-latte-2in1']),
@@ -297,7 +300,7 @@ export default async function HomePage() {
           <h2 className="title-accent mt-2 text-3xl font-bold">From enquiry to dispatch in four steps</h2>
           {/* Steps light up 1 → 4 (site_ui.ini steps_light_up), or the cards as before */}
           {on && ui.steps_light_up ? (
-            <StepsLightUp steps={STEPS} />
+            <StepsLightUp steps={STEPS} gapMs={ui.steps_gap_ms} />
           ) : (
           <ol className="mt-8 grid gap-4 md:grid-cols-4">
             {STEPS.map((s, i) => (

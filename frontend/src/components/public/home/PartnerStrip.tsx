@@ -50,14 +50,16 @@ export default function PartnerStrip({ certs, partners, pxPerSecond }: Props) {
     setMoving(true);
   }, []);
 
+  // Measured again whenever the strip or the list changes size: a resize, and each logo as it loads
+  // (logos load late, and on an in-site page change the window "load" event has long passed)
   useEffect(() => {
-    if (!moving) return;
+    if (!moving || !box.current || !first.current) return;
     measure();
     let t: ReturnType<typeof setTimeout>;
-    const onResize = () => { clearTimeout(t); t = setTimeout(measure, 200); };
-    window.addEventListener('resize', onResize);
-    window.addEventListener('load', measure);
-    return () => { window.removeEventListener('resize', onResize); window.removeEventListener('load', measure); clearTimeout(t); };
+    const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(measure, 100); });
+    ro.observe(box.current);
+    ro.observe(first.current);
+    return () => { ro.disconnect(); clearTimeout(t); };
   }, [moving, measure]);
 
   if (!moving) {
