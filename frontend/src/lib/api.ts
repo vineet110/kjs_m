@@ -339,6 +339,17 @@ export async function publicHero(): Promise<PublicHero> {
   return (await serverGet<PublicHero>('/public/hero').catch(() => null)) ?? { slides: [], stats: [] };
 }
 
+// ---------- Website showcase (Admin > Website > Partner logos, Pop-up activity) ----------
+export type BrandPartner = { name: string; logo: string | null };
+export type AdminBrandPartner = BrandPartner & { id: number; logo_file_id: number | null; is_active: boolean; sort_order: number };
+export type ActivityLine = { text: string; happened_at: string };
+export type AdminActivityLine = ActivityLine & { id: number; is_active: boolean; sort_order: number };
+
+/** The partners in the home page strip. Empty (or API down): the built-in names (lib/site.ts). */
+export async function brandPartners(): Promise<BrandPartner[]> {
+  return (await serverGet<BrandPartner[]>('/public/brand-partners').catch(() => null)) ?? [];
+}
+
 /** Home page look and motion (config/site_ui.ini). API down or older: the old look. */
 export async function siteUi(): Promise<SiteUi> {
   const c = await serverGet<PublicConfig>('/public/config').catch(() => null);

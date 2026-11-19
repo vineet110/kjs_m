@@ -10,9 +10,11 @@ import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Cert = { name: string; img: string };
-type Props = { certs: Cert[]; partners: string[]; pxPerSecond: number };
+/** logo: an uploaded picture (Admin > Website > Partner logos), or null for the name only */
+export type StripPartner = { name: string; logo: string | null };
+type Props = { certs: Cert[]; partners: StripPartner[]; pxPerSecond: number };
 
-function Items({ certs, partners, hidden }: { certs: Cert[]; partners: string[]; hidden?: boolean }) {
+function Items({ certs, partners, hidden }: { certs: Cert[]; partners: StripPartner[]; hidden?: boolean }) {
   return (
     <>
       <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Certified</span>
@@ -20,8 +22,19 @@ function Items({ certs, partners, hidden }: { certs: Cert[]; partners: string[];
         <Image key={c.name} src={c.img} alt={hidden ? '' : c.name} width={80} height={44} className="h-12 w-auto shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1 shadow-sm" />
       ))}
       <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Co-manufacturing partner to</span>
-      {partners.map((b) => (
-        <span key={b} className="shrink-0 whitespace-nowrap rounded-full border border-gold/50 bg-gold/5 px-3 py-1 text-sm font-semibold text-slate-700">{b}</span>
+      {partners.map((p, i) => (
+        <span key={`${p.name}-${i}`} className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-gold/50 bg-gold/5 py-1 pl-1 pr-3 text-sm font-semibold text-slate-700">
+          {p.logo ? (
+            // White chip in both themes (bg-[#FFFFFF], not bg-white): coloured logos stay visible in dark mode
+            <span className="flex h-9 w-12 items-center justify-center rounded-full bg-[#FFFFFF] p-1 ring-1 ring-slate-200">
+              {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, already shrunk by the server */}
+              <img src={p.logo} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
+            </span>
+          ) : (
+            <span className="pl-2" />
+          )}
+          {p.name}
+        </span>
       ))}
     </>
   );

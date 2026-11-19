@@ -9,6 +9,7 @@ import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 import { useToast } from '@/components/portal/Toast';
 import HeroAdmin from '@/components/portal/HeroAdmin';
+import { ActivityAdmin, PartnerLogosAdmin } from '@/components/portal/ShowcaseAdmin';
 
 type TextRow = { key: string; label: string; value: string; changed: boolean };
 type OfferRow = { id: number; text: string; link: string; starts_at: string | null; ends_at: string | null; is_active: boolean; sort_order: number };
@@ -21,9 +22,9 @@ const fromLocal = (v: string) => (v ? new Date(`${v}:00+05:30`).toISOString() : 
 export default function WebsiteAdmin() {
   const me = useMe();
   const canEdit = me.permissions.includes('content.edit');
-  const [tab, setTab] = useState<'texts' | 'hero' | 'offers' | 'partners'>(canEdit ? 'texts' : 'partners');
+  const [tab, setTab] = useState<'texts' | 'hero' | 'logos' | 'activity' | 'offers' | 'partners'>(canEdit ? 'texts' : 'partners');
   const seesPartners = me.permissions.includes('leads.view_all');
-  const tabs = [...(canEdit ? (['texts', 'hero', 'offers'] as const) : []), ...(seesPartners ? (['partners'] as const) : [])];
+  const tabs = [...(canEdit ? (['texts', 'hero', 'logos', 'activity', 'offers'] as const) : []), ...(seesPartners ? (['partners'] as const) : [])];
   // How many partner applications wait for approve / reject: shown on the Partners tab.
   // Asked once here; the Partners list updates it each time it loads.
   const [newPartners, setNewPartners] = useState(0);
@@ -37,7 +38,7 @@ export default function WebsiteAdmin() {
       <div className="flex gap-2 text-sm">
         {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? 'bg-ink text-white' : 'bg-white ring-1 ring-slate-200'}`}>
-            {t === 'texts' ? 'Text & SEO' : t === 'hero' ? 'Home banner' : t === 'offers' ? 'Product offers' : t}
+            {t === 'texts' ? 'Text & SEO' : t === 'hero' ? 'Home banner' : t === 'logos' ? 'Partner logos' : t === 'activity' ? 'Pop-up activity' : t === 'offers' ? 'Product offers' : t}
             {t === 'partners' && newPartners > 0 && (
               <span className="ml-1.5 inline-block min-w-[20px] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white">
                 {newPartners > 99 ? '99+' : newPartners}
@@ -49,6 +50,8 @@ export default function WebsiteAdmin() {
       </div>
       {tab === 'texts' && <Texts />}
       {tab === 'hero' && <HeroAdmin />}
+      {tab === 'logos' && <PartnerLogosAdmin />}
+      {tab === 'activity' && <ActivityAdmin />}
       {tab === 'offers' && <Offers />}
       {tab === 'partners' && <Partners onCount={setNewPartners} />}
     </div>
