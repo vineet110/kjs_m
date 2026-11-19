@@ -9,7 +9,7 @@ import { fmtIST, Pill } from './ui';
 import Loading from '@/components/ui/Loading';
 import LoadError from '@/components/ui/LoadError';
 
-const SOURCE_LABEL: Record<string, string> = { enquiry_form: 'Enquiry', price_sheet: 'Price sheet', koko: 'Koko chat', gated: 'Gated form' };
+const SOURCE_LABEL: Record<string, string> = { enquiry_form: 'Enquiry', price_sheet: 'Price sheet', koko: 'Koko chat', website_offer: 'Website offer', gated: 'Gated form' };
 const OUTCOMES = ['quote_sent', 'sample_sent', 'order_won', 'not_interested', 'no_reply', 'spam'];
 
 export default function LeadsTable({ admin = false }: { admin?: boolean }) {

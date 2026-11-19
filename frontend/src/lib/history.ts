@@ -116,6 +116,10 @@ export function readEnquiryList(): string[] {
 
 export function saveEnquiryList(list: string[]) {
   write(LIST_KEY, list);
+  // Tells the talking bubble (components/public/talk) how many products are in the list now
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('kjs:enquiry-list', { detail: list.length }));
+  }
 }
 
 /** Remember that this visitor opened a product (product page or quick view). */

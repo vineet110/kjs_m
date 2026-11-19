@@ -9,15 +9,19 @@ import SiteTopStrip from '@/components/public/SiteTopStrip';
 import SiteTracker from '@/components/public/SiteTracker';
 import { themeScript } from '@/lib/theme';
 import WhatsAppButton from '@/components/public/WhatsAppButton';
-import { features, insightsConfig, serverGet, siteUi, type Category } from '@/lib/api';
+import OfferDock from '@/components/public/talk/OfferDock';
+import TalkBubble from '@/components/public/talk/TalkBubble';
+import { features, insightsConfig, serverGet, siteUi, texts, type Category } from '@/lib/api';
 import { rangeText } from '@/lib/catalogue';
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   // on/off switches from config/features.ini; the categories shown (Admin > Products) for the range in words;
   // the Website insights tracker settings (config/site_insights.ini)
-  const [f, categories, insights, ui] = await Promise.all([
-    features(), serverGet<Category[]>('/public/categories').catch(() => null), insightsConfig(), siteUi(),
+  const [f, categories, insights, ui, t] = await Promise.all([
+    features(), serverGet<Category[]>('/public/categories').catch(() => null), insightsConfig(), siteUi(), texts(),
   ]);
+  // The site talks (site_ui.ini talk, offer_box): only the talk.* and offer.* texts go to the browser
+  const talkTexts = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('talk.') || k.startsWith('offer.')));
   const range = rangeText(categories);
   // Soft pulsing ring around the Ask Koko and WhatsApp buttons (config/site_ui.ini)
   const glow = ui.enabled && ui.glow ? ui.glow_seconds : null;
@@ -40,6 +44,8 @@ export default async function PublicLayout({ children }: { children: React.React
       {/* On unless switched off (an older API without the switch still shows it) */}
       {f.connect_popup !== false && <ConnectPopup />}
       <SiteTracker config={insights} />
+      <TalkBubble texts={talkTexts} ui={ui} />
+      <OfferDock texts={talkTexts} ui={ui} />
     </div>
   );
 }

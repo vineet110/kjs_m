@@ -165,8 +165,8 @@ export default async function HomePage() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5">
           <div className="grid items-center gap-3 md:grid-cols-[1fr_auto]">
-            <HomeSearch categories={cats} coffee={coffee} />
-            <EnquiryButton label="Request for quotation" source="quote" title="Request for quotation" className="btn-dark rounded-full !py-3" />
+            <HomeSearch categories={cats} coffee={coffee} typing={on && ui.talk !== false && ui.typing_search !== false} />
+            <span data-say="quote" className="contents"><EnquiryButton label="Request for quotation" source="quote" title="Request for quotation" className="btn-dark rounded-full !py-3" /></span>
           </div>
           {popular.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
@@ -192,8 +192,8 @@ export default async function HomePage() {
             <div className={`card border-t-4 border-t-gold p-5 ring-1 ring-gold/20 ${stats.length > 0 ? '' : 'flex flex-1 flex-col justify-center'}`}>
               <p className="font-semibold">Buying for your brand or store?</p>
               <p className="mt-1 text-xs text-slate-600">Prices, samples and pack options from our sales team.</p>
-              <EnquiryButton label="Request a quote" source="quote" title="Request a quote" className="btn-gold mt-4 w-full" />
-              <EnquiryButton label="Request a sample" source="sample" title="Request a sample" className="btn-ghost mt-2 w-full" />
+              <span data-say="quote" className="contents"><EnquiryButton label="Request a quote" source="quote" title="Request a quote" className="btn-gold mt-4 w-full" /></span>
+              <span data-say="sample" className="contents"><EnquiryButton label="Request a sample" source="sample" title="Request a sample" className="btn-ghost mt-2 w-full" /></span>
             </div>
             {stats.length > 0 && (
               <div className="card flex flex-1 flex-col justify-center divide-y divide-white/10 border-gold/40 bg-ink p-5 text-white ring-1 ring-gold/30 [&>div:not(:first-child)]:pt-3">
@@ -270,7 +270,7 @@ export default async function HomePage() {
               Also made to order:{' '}
               {onRequest.map((c, i) => (
                 <span key={c.slug}>
-                  <Link href={`/categories/${c.slug}`} className="font-semibold text-slate-800 hover:text-gold-dark">{c.name}</Link>
+                  <Link href={`/categories/${c.slug}`} data-say="made_to_order" className="font-semibold text-slate-800 hover:text-gold-dark">{c.name}</Link>
                   {i < onRequest.length - 1 ? ', ' : '.'}
                 </span>
               ))}
@@ -289,7 +289,7 @@ export default async function HomePage() {
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {bestSellerCards.map((p) => (
               <Reveal key={p.slug} stagger repeat from={revealFrom} className="flex">
-                <HomeProductCard p={p} />
+                <div data-say="product" className="flex w-full"><HomeProductCard p={p} /></div>
               </Reveal>
             ))}
           </div>
