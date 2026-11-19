@@ -135,3 +135,19 @@ async def test_deleted_picture_leaves_no_broken_image(client):
         (await db.get(StoredFile, fid)).deleted_at = datetime.now(timezone.utc)
         await db.commit()
     assert (await client.get("/api/v1/public/hero")).json()["slides"][0]["images"] == []
+
+
+async def test_hero_edit_and_delete_need_content_edit(client):
+    await _editor(client)
+    s = (await client.post("/api/v1/content/hero/slides", json={"title": "Coffee for you"}, headers=HDR)).json()
+    n = (await client.post("/api/v1/content/hero/stats", json={"number": "24", "label": "items to choose"}, headers=HDR)).json()
+    client.cookies.clear()
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    assert (await client.patch(f"/api/v1/content/hero/slides/{s['id']}", json={"title": "Changed"}, headers=HDR)).status_code == 403
+    assert (await client.delete(f"/api/v1/content/hero/slides/{s['id']}", headers=HDR)).status_code == 403
+    assert (await client.patch(f"/api/v1/content/hero/stats/{n['id']}", json={"label": "changed"}, headers=HDR)).status_code == 403
+    assert (await client.delete(f"/api/v1/content/hero/stats/{n['id']}", headers=HDR)).status_code == 403
+    client.cookies.clear()
+    await login(client, "web@kjsindia.com")
+    assert (await client.delete(f"/api/v1/content/hero/stats/{n['id']}", headers=HDR)).status_code == 204
