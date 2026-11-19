@@ -20,7 +20,7 @@ type Data = {
 };
 
 const LABEL: Record<string, string> = {
-  enquiry_form: 'Enquiry form', price_sheet: 'Price sheet', spec_pdf: 'Spec sheet', sample: 'Sample', quote: 'Quote',
+  enquiry_form: 'Enquiry form', website_offer: 'Website offer', price_sheet: 'Price sheet', spec_pdf: 'Spec sheet', sample: 'Sample', quote: 'Quote',
   configurator: 'Configurator', koko: 'Koko chat', on_track: 'On track', at_risk: 'At risk', late_board: 'Late',
 };
 const nice = (k: string) => LABEL[k] ?? k.replace(/_/g, ' ');

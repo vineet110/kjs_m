@@ -10,12 +10,34 @@ import { cancelSearch, trackSearch } from '@/lib/insights';
 import { startNavigationProgress } from '../NavigationProgress';
 import { useCatalogue } from './CatalogueContext';
 
-export default function HomeSearch({ categories, coffee = false }: { categories: Category[]; coffee?: boolean }) {
+/** typing: example searches (real product names) type themselves in the empty box (site_ui.ini typing_search) */
+export default function HomeSearch({ categories, coffee = false, typing = false }: { categories: Category[]; coffee?: boolean; typing?: boolean }) {
   const products = useCatalogue();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [open, setOpen] = useState(false);
+  const fixedHint = coffee ? 'Search instant coffee, 3-in-1 premix...' : 'Search wafers, chocolate bars, biscuits, coffee...';
+  const [hint, setHint] = useState(fixedHint);
+  const [focused, setFocused] = useState(false);
+
+  // Example searches typing themselves: only while the box is empty and not in use. Off for "reduce motion".
+  useEffect(() => {
+    if (!typing || focused || q || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setHint(fixedHint); return; }
+    const examples = [fixedHint, ...products.slice(0, 4).map((p) => p.name)];
+    let i = 0, j = 0, deleting = false;
+    let t: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const word = examples[i];
+      setHint(word.slice(0, j) + (j < word.length || deleting ? '|' : ''));
+      if (!deleting && j < word.length) { j++; t = setTimeout(tick, 65); return; }
+      if (!deleting) { deleting = true; t = setTimeout(tick, 1600); return; }
+      if (j > 0) { j = Math.max(0, j - 2); t = setTimeout(tick, 25); return; }
+      deleting = false; i = (i + 1) % examples.length; t = setTimeout(tick, 300);
+    };
+    t = setTimeout(tick, 1200);
+    return () => clearTimeout(t);
+  }, [typing, focused, q, products, fixedHint]);
 
   const index = useMemo(() => products.map((p) => ({ p, entry: searchEntry(p) })), [products]);
   const found = useMemo(
@@ -63,9 +85,10 @@ export default function HomeSearch({ categories, coffee = false }: { categories:
         <input
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); setFocused(true); }}
+          onBlur={() => setFocused(false)}
           onClick={() => setOpen(true)} // reopens after Escape (focus never left, so no new focus event)
-          placeholder={coffee ? 'Search instant coffee, 3-in-1 premix...' : 'Search wafers, chocolate bars, biscuits, coffee...'}
+          placeholder={hint}
           className="min-w-0 flex-1 px-4 py-3 text-sm text-slate-900 outline-none"
           aria-label="Search products"
         />

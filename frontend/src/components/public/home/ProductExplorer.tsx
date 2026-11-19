@@ -120,6 +120,7 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
           return (
             // Cards pop in, row by row, every time they scroll into view (down or up)
             <Reveal key={p.slug} stagger repeat from={revealFrom} className="flex">
+              <div data-say="product" className="flex w-full">
               <HomeProductCard
                 p={p}
                 onQuickView={() => { setQuick(p); rememberViewed(p.slug); }}
@@ -160,6 +161,7 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
                   </button>
                 </div>
               </HomeProductCard>
+              </div>
             </Reveal>
           );
         })}

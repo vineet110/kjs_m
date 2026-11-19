@@ -39,7 +39,7 @@ export default function SiteHeader({ showPartners = true, showPrivateLabel = tru
         </nav>
         <div className="flex items-center gap-2">
           {theme && <ThemeToggle followSystem={theme.followSystem} />}
-          <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn-gold hidden sm:inline-flex">
+          <a href={SITE.whatsapp} target="_blank" rel="noopener" className="btn-gold hidden sm:inline-flex" data-say="sales">
             Connect with Sales
           </a>
           <Link href="/employee/login" className="rounded-md px-3 py-2 text-xs text-slate-400 hover:text-white">

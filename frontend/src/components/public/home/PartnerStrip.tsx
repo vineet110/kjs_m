@@ -23,7 +23,7 @@ function Items({ certs, partners, hidden }: { certs: Cert[]; partners: StripPart
       ))}
       <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">Co-manufacturing partner to</span>
       {partners.map((p, i) => (
-        <span key={`${p.name}-${i}`} className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-gold/50 bg-gold/5 py-1 pl-1 pr-3 text-sm font-semibold text-slate-700">
+        <span key={`${p.name}-${i}`} data-say="partner" className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-gold/50 bg-gold/5 py-1 pl-1 pr-3 text-sm font-semibold text-slate-700">
           {p.logo ? (
             // White chip in both themes (bg-[#FFFFFF], not bg-white): coloured logos stay visible in dark mode
             <span className="flex h-9 w-12 items-center justify-center rounded-full bg-[#FFFFFF] p-1 ring-1 ring-slate-200">

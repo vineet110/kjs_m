@@ -770,3 +770,36 @@ test('insights: a search keeps the page it was typed on; a cleared or abandoned 
   await wait(30);
   assert.equal(sent.length, 1);
 });
+
+// ---------- The site talks (lib/talk.ts) ----------
+const talk = await load('talk');
+
+test('talk: activity times read like a person would say them', () => {
+  const now = Date.parse('2026-11-19T12:00:00Z');
+  const ago = (min) => new Date(now - min * 60_000).toISOString();
+  assert.equal(talk.relTime(ago(1), now), 'just now');
+  assert.equal(talk.relTime(ago(12), now), '12 min ago');
+  assert.equal(talk.relTime(ago(60), now), '1 hour ago');
+  assert.equal(talk.relTime(ago(125), now), '2 hours ago');
+  assert.equal(talk.relTime(ago(60 * 26), now), 'yesterday');
+  assert.equal(talk.relTime(ago(60 * 24 * 3), now), '3 days ago');
+  assert.equal(talk.relTime(ago(60 * 24 * 8), now), 'last week');
+  assert.equal(talk.relTime(ago(60 * 24 * 21), now), '3 weeks ago');
+  assert.equal(talk.relTime(ago(60 * 24 * 40), now), 'last month');
+  assert.equal(talk.relTime(ago(60 * 24 * 95), now), '3 months ago');
+  assert.equal(talk.relTime('not a date', now), '');
+});
+
+test('talk: pop-up times count from page load and the pattern repeats', () => {
+  const times = [5, 8, 11, 15, 17, 25];
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => talk.popupAt(times, n)), [5, 8, 11, 15, 17, 25, 30, 33, 36]);
+  assert.equal(talk.popupAt([], 0), Infinity);
+});
+
+test('talk: the offer form takes only phone numbers the server takes', () => {
+  assert.ok(talk.phoneOk('+91 98765 43210'));
+  assert.ok(talk.phoneOk('(040) 2345-6789'));
+  assert.ok(!talk.phoneOk('12345'));
+  assert.ok(!talk.phoneOk('98765 43210 ext'));
+  assert.ok(!talk.phoneOk('1234567890123456'));
+});

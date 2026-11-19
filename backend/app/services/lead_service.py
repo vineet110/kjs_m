@@ -87,6 +87,9 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
     flag = FEATURE_OF_SOURCE.get(data.source)
     if flag and not getattr(cfg().features, flag):
         raise AppError(404, "feature_off", "This form is not available right now.")
+    # The offer box lives in site_ui.ini: switched off there, its form is refused too (not only hidden)
+    if data.source == "website_offer" and not (cfg().site_ui.enabled and cfg().site_ui.offer_box):
+        raise AppError(404, "feature_off", "This form is not available right now.")
     lead_limiter.check(rate_key or ip_hash)
     # The AI summary first, before any database query: an LLM call takes seconds, and holding a
     # database connection that long would starve other requests when several visitors chat.
@@ -101,7 +104,8 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
         category_id = await db.scalar(select(Category.id).where(Category.slug == data.category_slug))
 
     lead = Lead(
-        source=data.source, name=data.name.strip(), company=data.company.strip(),
+        # The offer form asks only for a phone number: a lead with no name still shows something in the lists
+        source=data.source, name=data.name.strip() or "Website visitor (offer form)", company=data.company.strip(),
         email=data.email or "", phone=data.phone.strip(), country=data.country.strip(),
         buyer_type=data.buyer_type, product_id=product_id, category_id=category_id,
         quantity=data.quantity, message=data.message.strip(), chat_summary=summary,

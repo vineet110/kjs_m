@@ -18,6 +18,7 @@ export default function WhatsAppButton({ glowSeconds = null }: { glowSeconds?: n
       target="_blank"
       rel="noopener"
       aria-label="Chat with sales on WhatsApp"
+      data-say="whatsapp"
       className={`fixed bottom-5 left-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg hover:scale-105 ${glowSeconds ? 'glow-ring' : ''}`}
       style={glowSeconds ? ({ '--glow-s': `${glowSeconds}s`, '--glow-color': 'rgba(37,211,102,0.7)' } as React.CSSProperties) : undefined}
     >
