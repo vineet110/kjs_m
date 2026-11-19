@@ -18,19 +18,20 @@ from app.services import audit_service, file_service
 # Background colours a slide can have (the home page maps each to its soft gradient)
 TONES = ("gold", "rose", "cream")
 FILE_OWNER, FILE_ID = "website", "hero"
+FOLDERS = {FILE_ID, "partners"}  # website pictures: the hero's, and partner logos (showcase_service)
 PICTURES = {"jpg", "jpeg", "png", "webp"}
 MAX_IMAGES = 3  # the banner shows three packs side by side
 
 
 # ---------- Pictures ----------
 async def _files_access(db: AsyncSession, user: User, owner_id: str, action: str) -> bool:
-    if owner_id != FILE_ID:
-        return False  # only the hero folder exists
+    if owner_id not in FOLDERS:
+        return False  # only these folders exist
     return action == "read" or "content.edit" in effective_permissions(user.role, user.permissions)
 
 
 async def _always_public(db: AsyncSession, owner_id: str) -> bool:
-    return owner_id == FILE_ID
+    return owner_id in FOLDERS
 
 
 file_service.register_owner(FILE_OWNER, _files_access, public=_always_public, types=PICTURES, shrink=True)
