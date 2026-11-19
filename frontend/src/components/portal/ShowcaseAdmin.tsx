@@ -64,6 +64,7 @@ export function PartnerLogosAdmin() {
     if (busy) return setMsg({ ok: false, text: 'Please wait: the logo is still uploading.' });
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    setBusy(true); // one save at a time: a double click must not add the partner twice
     try {
       await api('/content/showcase/partners', { method: 'POST', body: { name: f.name, logo_file_id: logo?.id ?? null, sort_order: Number(f.sort_order || 0) } });
       setMsg({ ok: true, text: 'Partner added.' });
@@ -72,6 +73,8 @@ export function PartnerLogosAdmin() {
       reload();
     } catch (e2) {
       setMsg({ ok: false, text: fail(e2, 'Could not save.') });
+    } finally {
+      setBusy(false);
     }
   }
   async function patch(p: AdminBrandPartner, body: Partial<AdminBrandPartner>) {
@@ -139,6 +142,7 @@ export function ActivityAdmin() {
   const { data, err, reload } = useAdminList<{ lines: AdminActivityLine[]; max_age_days: number; max_shown: number }>('/content/showcase/activity');
   const toast = useToast();
   const [msg, setMsg] = useState<Note>(null);
+  const [adding, setAdding] = useState(false);
 
   if (err) return <LoadError error={err} onRetry={reload} />;
   if (!data) return <Loading />;
@@ -146,6 +150,8 @@ export function ActivityAdmin() {
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (adding) return; // a double click must not add the line twice
+    setAdding(true);
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
     try {
@@ -155,6 +161,8 @@ export function ActivityAdmin() {
       reload();
     } catch (e2) {
       setMsg({ ok: false, text: fail(e2, 'Could not save.') });
+    } finally {
+      setAdding(false);
     }
   }
   async function patch(a: AdminActivityLine, body: Partial<AdminActivityLine>) {
@@ -176,8 +184,8 @@ export function ActivityAdmin() {
       </p>
       <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
         <div className="md:col-span-3"><label className="label" htmlFor="a-text">What happened</label><input id="a-text" name="text" required minLength={5} maxLength={120} className="input" placeholder="A brand in Dubai requested a sample" /></div>
-        <div className="md:col-span-2"><label className="label" htmlFor="a-when">When (India time)</label><input id="a-when" type="datetime-local" name="happened_at" required max={nowIST()} defaultValue={nowIST()} className="input" /></div>
-        <div className="flex items-end"><button className="btn-dark w-full">Add</button></div>
+        <div className="md:col-span-2"><label className="label" htmlFor="a-when">When (India time)</label><input id="a-when" type="datetime-local" name="happened_at" required defaultValue={nowIST()} className="input" /></div>
+        <div className="flex items-end"><button disabled={adding} className="btn-dark w-full">Add</button></div>
         <div className="md:col-span-6"><Msg msg={msg} /></div>
       </form>
       <div className="card divide-y">
