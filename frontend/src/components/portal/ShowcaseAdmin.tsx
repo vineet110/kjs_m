@@ -60,6 +60,8 @@ export function PartnerLogosAdmin() {
   }
   async function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Enter in the name box while a logo is still uploading: wait, or the logo would land on the next partner
+    if (busy) return setMsg({ ok: false, text: 'Please wait: the logo is still uploading.' });
     const form = e.currentTarget;
     const f = Object.fromEntries(new FormData(form)) as Record<string, string>;
     try {

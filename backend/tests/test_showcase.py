@@ -109,3 +109,21 @@ async def test_showcase_admin_needs_content_edit(client):
     assert (await client.post("/api/v1/content/showcase/partners", json={"name": "Nope"}, headers=HDR)).status_code == 403
     assert (await client.post("/api/v1/content/showcase/activity", json={"text": "Nope nope", "happened_at": _ago(hours=1)}, headers=HDR)).status_code == 403
     assert (await _logo(client)).status_code == 403
+
+
+async def test_edit_and_delete_need_content_edit(client):
+    await _editor(client)
+    p = (await client.post("/api/v1/content/showcase/partners", json={"name": "Nestlé"}, headers=HDR)).json()
+    a = (await client.post("/api/v1/content/showcase/activity", json={"text": "Shipped to Dubai", "happened_at": _ago(hours=3)}, headers=HDR)).json()
+    client.cookies.clear()
+    await make_user("e@kjsindia.com")
+    await login(client, "e@kjsindia.com")
+    assert (await client.patch(f"/api/v1/content/showcase/partners/{p['id']}", json={"name": "X Y"}, headers=HDR)).status_code == 403
+    assert (await client.delete(f"/api/v1/content/showcase/partners/{p['id']}", headers=HDR)).status_code == 403
+    assert (await client.patch(f"/api/v1/content/showcase/activity/{a['id']}", json={"is_active": False}, headers=HDR)).status_code == 403
+    assert (await client.delete(f"/api/v1/content/showcase/activity/{a['id']}", headers=HDR)).status_code == 403
+    # The editor may
+    client.cookies.clear()
+    await login(client, "web@kjsindia.com")
+    assert (await client.delete(f"/api/v1/content/showcase/partners/{p['id']}", headers=HDR)).status_code == 204
+    assert (await client.delete(f"/api/v1/content/showcase/activity/{a['id']}", headers=HDR)).status_code == 204
