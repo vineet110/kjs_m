@@ -1,20 +1,45 @@
 # KJS India Digital Platform (`kjs_m`)
 
-A comprehensive digital enterprise platform designed for **KJS India** featuring:
-- **Public Website with Koko AI**: products, offers ticker, gated price sheet / spec / sample / quote (DPDP Act 2023 consent), partners page, private-label builder, and Koko, an AI assistant that answers only from KJS facts.
-- **Employee Portal**: server-time check-in/out (Mon–Sat working calendar, missed-punch requests), availability switch, tasks, leads with SLA timers, auto-assigned batches, order-board steps, notifications.
-- **Admin Console**: staff approval and permissions, auto-assign with Excel import, order boards (`ABC117-3`) with 50/85/100% alerts, file delete approvals, append-only audit log, team attendance, website/Koko editors, charts from real data.
+The website and staff portal of **KJS India** in one repo:
+
+1. **Public website**
+   - Home page with an admin-editable banner, a sliding strip of certificates and partner logos, and
+     pop-up "recent activity" lines.
+   - Products and categories with photos, partners page, private-label builder, contact.
+   - Gated price sheet / spec / sample / quote with consent (DPDP Act 2023).
+   - Koko, an AI assistant that answers only from KJS facts.
+2. **Employee portal**
+   - Staff login with Firebase (email verification, password reset).
+   - Check-in/out on server time (Mon-Sat calendar, missed-punch requests), availability switch.
+   - Leads with SLA timers, internal leads with files and Excel import, Koko leads, contacts, tasks.
+   - Auto-assigned batches, order boards (members, files, history), team chat, notifications.
+3. **Admin console**
+   - Staff approval and per-person permissions, auto-assign with Excel import, client schedulers.
+   - Order boards (`ABC117-3`) with 50/85/100% alerts, complaints, file delete approvals.
+   - Team attendance, holidays, append-only audit log.
+   - Website editor (texts, home banner, partner logos, pop-up activity, offers) and Koko editor.
+   - Reports from real data, including Site insights.
+
+Areas can be switched on, off or admin-only in `config/modules.ini`, without deleting any data.
 
 ---
 
-## Tech Stack
-- **Frontend**: Next.js 16 (App Router, React 19), TypeScript, Tailwind CSS, next-intl (English at launch)
-- **Backend API**: FastAPI (Python 3.12), SQLAlchemy 2.0 (async), Alembic, Pydantic v2
-- **Database**: PostgreSQL (Neon in development, the company server in production)
-- **Background jobs**: a small loop inside the API process (`backend/app/jobs`), Postgres locks
-- **Files**: local folder in development, Cloudflare R2 in production
-- **Koko AI**: Groq (switchable with `LLM_PROVIDER`)
-- **Production**: Docker Compose + nginx + Cloudflare Tunnel: see [`deploy/README.md`](deploy/README.md)
+## Tech stack
+
+1. **Frontend:** Next.js 16 (App Router, React 19), TypeScript, Tailwind CSS 3, next-intl 4 (English for now).
+   Charts are our own code.
+2. **Backend API:** FastAPI on Python 3.12, SQLAlchemy 2 (async, asyncpg), Alembic, Pydantic v2.
+3. **Database:** PostgreSQL. Neon in development, Postgres 17 on the company server in production.
+4. **Login:** Firebase Authentication checks passwords. The API then starts its own session cookie
+   (`kjs_session`), so roles and permissions stay in our database.
+5. **Background jobs:** a small loop inside the API process (`backend/app/jobs`). No Redis, no Celery.
+6. **Files:** a local folder in development, Cloudflare R2 in production. Site pictures can also be served
+   from R2 (`NEXT_PUBLIC_ASSET_BASE`).
+7. **Koko AI:** Groq (switchable with `LLM_PROVIDER`).
+8. **Email:** plain SMTP. Skipped (only logged) until the SMTP details are in `.env`.
+9. **Production:** Docker Compose + nginx + Cloudflare Tunnel. See [`deploy/README.md`](deploy/README.md).
+
+What you need installed: see [`PREREQUISITES.md`](PREREQUISITES.md).
 
 ---
 
@@ -54,13 +79,14 @@ Remove-Item -Recurse -Force .next-e2e
 npm run build
 ```
 
-## Run it locally (dev, Windows / macOS / Linux)
+## One-time setup (Windows / macOS / Linux)
 
 You need: Node 20+, [uv](https://docs.astral.sh/uv/), Docker Desktop (only for the test database).
 
 ```bash
-# 1. Secrets: copy and fill in (Neon URLs, GROQ_API_KEY, first admin). Never commit .env
+# 1. Secrets: copy and fill in (Neon URLs, GROQ_API_KEY, FIREBASE_SERVICE_ACCOUNT, first admin). Never commit .env
 cp .env.example .env
+#    Frontend Firebase keys (NEXT_PUBLIC_FIREBASE_*) go in frontend/.env.local
 
 # 2. Backend (FastAPI) on http://localhost:8000  (API docs: /docs)
 cd backend
@@ -87,13 +113,36 @@ cd backend && .venv/Scripts/python -m pytest -q
 #      -e TEST_DATABASE_URL=postgresql+asyncpg://kjs_test:kjs_test@127.0.0.1:5432/kjs_test \
 #      kjs-api:test sh -c "pip install -q pytest==8.2.2 pytest-asyncio==0.23.7 freezegun==1.5.1 && python -m pytest -q"
 
-# 5. End-to-end (real servers + real Chrome): see scripts/e2e/README.md
+# 5. Frontend checks: see frontend/CLAUDE.md (typecheck, npm test, npm run build)
+
+# 6. End-to-end (real servers + real Chrome): see scripts/e2e/README.md
 ```
 
-After pulling new code, run `alembic upgrade head` again (new tables). Tunable settings (SLA minutes,
-batch sizes, feature switches, log levels) are in `config/*.ini`: edit and save, they apply within
-seconds without a restart. Secrets stay in `.env`.
+After pulling new code, run `alembic upgrade head` again (new tables). The hosted test site deploys
+`main` on merge but never runs migrations, so whoever merges a PR with a new migration runs it right away.
+
+---
+
+## Settings
+
+1. **Secrets** (passwords, API keys) are only in `.env`, never committed.
+2. **Tunable settings** are in `config/*.ini`, one file per feature. Edit and save: they apply within
+   seconds, without a restart. A typo is refused and the last good settings stay.
+   - `modules.ini`: which areas are on, off or admin-only.
+   - `site_ui.ini`, `site_insights.ini`: Home page look and motion, website visit reports.
+   - `leads.ini`, `sla.ini`, `assign.ini`, `harvest.ini`: leads, SLA timers, auto-assign, Lead Harvester.
+   - `attendance.ini`, `boards.ini`, `chat.ini`, `complaints.ini`: the matching portal areas.
+   - `features.ini`: website switches (Koko, offers ticker, WhatsApp button, connect popup).
+   - `alerts.ini`, `notifications.ini`, `analytics.ini`, `koko.ini`, `storage.ini`, `app.ini`, `logging.ini`:
+     alerts, the bell, reports, Koko, files, site name and timezone, log levels.
 
 How the pieces talk: the browser only calls `localhost:3000`. Next.js proxies `/api/*` to FastAPI,
 so the login cookie is first-party. FastAPI owns all rules (login, permissions, audit log).
 
+---
+
+## Where to read more
+
+1. [`docs/README.md`](docs/README.md): the project docs and the order to read them in.
+2. [`deploy/README.md`](deploy/README.md): setting up and updating the production server.
+3. [`scripts/e2e/README.md`](scripts/e2e/README.md): end-to-end tests.
