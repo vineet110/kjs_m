@@ -1,110 +1,59 @@
-# System & Development Prerequisites — KJS Digital Platform (`kjs_m`)
+# Prerequisites: KJS India Digital Platform (`kjs_m`)
 
-This document outlines everything needed on your machine or cloud server to run, develop, and test the **KJS India Digital Platform**.
-
----
-
-## 1. System Runtime Requirements
-
-| Dependency | Minimum Version | Recommended | Notes |
-| :--- | :--- | :--- | :--- |
-| **Python** | `3.11.x` | `3.12.x` | Required for the FastAPI backend, APScheduler, and background worker. |
-| **Node.js** | `18.17.x` | `20.x` LTS | Required to build and run the Next.js App Router frontend. |
-| **npm** or **pnpm**| `9.x`+ (npm) / `8.x`+ (pnpm)| Latest | Package manager for frontend dependencies. |
-| **Docker Engine** | `24.0.x`+ | Latest | Required to run PostgreSQL 16 (with pgvector) and Apache Superset. |
-| **Docker Compose**| `v2.20.x`+ | Latest | Bundles all multi-container services in `docker-compose.yml`. |
+What you need on your machine to run, develop and test the platform. How to run it: [`README.md`](README.md).
+The production server has its own guide: [`deploy/README.md`](deploy/README.md).
 
 ---
 
-## 2. Infrastructure & Database Dependencies
+## 1. Tools to install
 
-### PostgreSQL 16 with `pgvector`
-The database requires the `vector` extension for storing 384-dimensional vector embeddings for the **Koko AI assistant**.
-- If running via Docker: The provided `docker-compose.yml` uses the official `pgvector/pgvector:pg16` image automatically.
-- If using a standalone PostgreSQL instance:
-  ```sql
-  CREATE EXTENSION IF NOT EXISTS vector;
-  CREATE SCHEMA IF NOT EXISTS analytics;
-  ```
-
-### Apache Superset (Insights & Analytics)
-- Self-hosted container using `apache/superset:3.1.0`.
-- Requires `psycopg2-binary` to connect to PostgreSQL.
-- Embedded inside the Next.js admin console using guest JWT tokens.
+1. **Node.js 20 or newer** (the production image uses Node 22), with npm. Runs the Next.js frontend.
+2. **Python 3.12.** Runs the FastAPI backend.
+3. **[uv](https://docs.astral.sh/uv/).** Creates the backend's `.venv` and installs its packages.
+4. **Docker Desktop.** Only for the throwaway test database (`docker compose --profile test up -d test-db`)
+   and the production-like builds. Day-to-day development does not need it.
+5. **Git**, and on Windows **Git Bash** for the shell scripts.
+6. **Google Chrome.** For the end-to-end tests (`scripts/e2e/README.md`).
 
 ---
 
-## 3. External API Credentials & Services
+## 2. Database
 
-To enable full production functionality, configure the following keys in your `.env` file:
+1. **Development:** PostgreSQL on Neon (cloud). The connection details go in `.env`
+   (`DATABASE_URL`, `MIGRATION_DATABASE_URL`).
+2. **Tests:** a throwaway Postgres in Docker on port 5433. Tests never touch Neon.
+3. **Production:** Postgres 17 in Docker on the company server (`deploy/docker-compose.prod.yml`).
+4. Tables are created and changed only by Alembic migrations: `alembic upgrade head` after pulling new code.
 
-### 1. Anthropic Claude API (Koko AI Assistant)
-- **Used For:** Streaming responses, knowledge base Q&A, and lead capture summaries.
-- **Model:** Claude Haiku-class model.
-- **Config:** `ANTHROPIC_API_KEY=sk-ant-api...`
-- **Recommended Cap:** $20–$50/month.
-
-### 2. Meta WhatsApp Business Cloud API
-- **Used For:** Order board deadline threshold alerts (50%, 85%, 100%) to employees.
-- **Prerequisites:** Meta Business Account verification & 3 pre-approved message templates.
-- **Config:**
-  - `WHATSAPP_API_TOKEN`
-  - `WHATSAPP_PHONE_NUMBER_ID`
-  - `WHATSAPP_BUSINESS_ACCOUNT_ID`
-
-### 3. Transactional Email (Resend or Brevo)
-- **Used For:** Order board deadline emails, document delete approvals, password resets, and visitor enquiries.
-- **Config:**
-  - `RESEND_API_KEY`
-  - `ALERT_FROM_EMAIL=alerts@kjsindia.com`
-
-### 4. Cloudflare Tunnel (Staging & Production)
-- **Used For:** Secure public HTTPS routing without opening firewall ports.
+No extra database extensions are needed.
 
 ---
 
-## 4. How to Run the Project
+## 3. Accounts and keys (`.env`)
 
-### Option A: Using Docker Compose (Recommended)
-This starts all services (PostgreSQL with pgvector, FastAPI, Next.js, Worker, and Superset) in one command:
-```bash
-# 1. Copy environment variables
-cp .env.example .env
+Copy `.env.example` to `.env` and fill it in. `.env` holds secrets: never commit it, never paste it in chat.
+Only the names are listed here.
 
-# 2. Build and launch all containers
-docker compose up -d --build
+1. **Neon (database):** `DATABASE_URL`, `MIGRATION_DATABASE_URL`.
+2. **Firebase Authentication (staff login):** `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON on one
+   line) in `.env`, and `NEXT_PUBLIC_FIREBASE_*` in `frontend/.env.local`. Without it, logins are refused
+   with a clear message.
+3. **Groq (Koko AI):** `GROQ_API_KEY`. `LLM_PROVIDER` picks the provider (`groq`, `anthropic` or `none`).
+4. **First admin:** `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_PASSWORD`, used once by `python -m app.seed`.
+5. **Email (optional):** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`. Empty host =
+   emails are skipped and only logged.
+6. **Files (production):** `STORAGE_DRIVER=r2` and the `R2_*` keys for Cloudflare R2. In development the
+   default is a local folder (`FILE_STORAGE_PATH`).
+7. **Site pictures (production, optional):** `ASSET_BASE_URL` in `deploy/.env`, the public R2 address.
+   It becomes `NEXT_PUBLIC_ASSET_BASE` when the frontend is built. Empty = pictures come from
+   `frontend/public/`.
 
-# 3. Apply database migrations
-docker compose exec backend alembic upgrade head
-```
-
-- **Frontend (Next.js):** [http://localhost:3000](http://localhost:3000)
-- **Backend API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Superset Analytics:** [http://localhost:8088](http://localhost:8088)
+Tunable numbers and feature switches are not in `.env`: they are in `config/*.ini` (see `README.md`).
 
 ---
 
-### Option B: Local Development (Without Docker)
+## 4. Production only
 
-#### 1. Backend Setup:
-```bash
-cd backend
-python -m venv .venv
-
-# Windows activation:
-.venv\Scripts\activate
-# macOS/Linux activation:
-# source .venv/bin/activate
-
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
-
-#### 2. Frontend Setup:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+1. A Linux server (VPS) with Docker and Docker Compose.
+2. A Cloudflare account: the Tunnel (public HTTPS without opening ports) and R2 (files, backups).
+3. Step by step: [`deploy/README.md`](deploy/README.md).
