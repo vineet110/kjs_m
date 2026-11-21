@@ -54,3 +54,8 @@ Read in this order if you are new:
 10. `research/source/master-build-prompt.pdf`
 
    The master plan. Never edit.
+
+
+11. `debugging.md`
+
+   How to find where an error comes from by hand, and how to ask a free AI for help.
