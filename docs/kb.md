@@ -546,7 +546,7 @@ Sections:
 ### Neon
 
    What   A cloud service that hosts Postgres. Free tier. Sleeps after 5 minutes without use.
-   Why    Development database until the company server is ready (D15).
+   Why    Development database (D15). Production uses Postgres on the Hostinger VPS.
    Note   Ours is in Ohio, so it is slow from India (B10).
 
 
@@ -1818,7 +1818,7 @@ Sections:
 
 ### deploy/ folder
 
-   What   Everything needed to run the platform on the company server.
+   What   Everything needed to run the platform on the production VPS.
    Where  `deploy/docker-compose.prod.yml`, `deploy/nginx/default.conf`, `deploy.sh`, `backup.sh`,
           `restore.sh`, `.env.production.example`, and the guide `deploy/README.md`.
 

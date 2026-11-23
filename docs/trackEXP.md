@@ -57,9 +57,10 @@ One website with three parts:
    ⬜ Waiting on KJS.
 
 
-3. November: production setup (KJS server, web address, email, file storage, backups).
+3. November: production setup (our Hostinger server, web address, email, file storage, backups).
+   Live for testing at https://twins.kjsindia.com since 23 Nov.
 
-   🟨 The parts that don't need the server are ready and tested (25 Oct). The rest needs server access and an IT contact.
+   🟨 Live on the Hostinger server; KJS is testing it now. Email, the backup check and real data are still to finish.
 
 
 4. Early December: testing with the KJS team, fixes.
@@ -94,7 +95,8 @@ Status marks: ✅ done, 🟨 in progress, ⬜ not started, ⚠️ at risk
 
 4. Reports: built-in charts from real data at launch.
 
-5. Database and hosting: free cloud database during development; moved to the KJS server later.
+5. Database and hosting: free cloud database during development; production runs on a Hostinger
+   server rented for KJS (live at https://twins.kjsindia.com since 23 Nov).
 
 6. Images and files: Cloudflare storage (R2).
 
@@ -172,7 +174,7 @@ Add changes here, newest at the bottom, like this:
 
 3. 25 Oct
 
-   The setup for the KJS server is ready: it installs the whole system with one command, makes a backup every
+   The setup for the server is ready: it installs the whole system with one command, makes a backup every
    night, and can be updated or rolled back safely. We tested a full "backup, lose data, restore" exercise and
    everything came back. Nothing on the server is open to the internet; visitors arrive through Cloudflare.
    Next: we need the server, an IT contact and the web address to put it live.

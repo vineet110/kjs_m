@@ -100,14 +100,14 @@ Tick `[x]` when a feature works end to end (backend + screen + tests). Source: `
 
 ## Production (needs the server / KJS)
 - [ ] Neon in Singapore or company server Postgres
-- [ ] Company server running the Docker images behind nginx + Cloudflare Tunnel
+- [x] Hostinger VPS running the Docker images behind nginx: https://twins.kjsindia.com (23 Nov)
 - [ ] Domain + DNS + email (SPF/DKIM)
 - [ ] Cloudflare R2 bucket + keys (code ready: set STORAGE_DRIVER=r2 + R2_* in .env)
 - [ ] WhatsApp Business verification + alerts
 - [ ] Rotate Groq key and Neon password
 - [ ] Backups + restore test
 - [ ] Load real data from KJS (products, staff, holidays, Koko FAQs)
-- [ ] UAT with KJS staff
+- [ ] UAT with KJS staff (started 23 Nov)
 - [ ] Go-live Fri 11 Dec
 
 ## Later (Stage 2, 2027)

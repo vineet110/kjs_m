@@ -98,7 +98,7 @@ Status 24 Oct: points 1, 2 and 3 are built and tested on a laptop. Point 4 is th
 3. Admin console: staff and permissions, products, website text and offers, Koko settings, leads, approvals,
    team attendance, holidays, order boards, alerts, auto-assign, charts, audit log, settings.
 
-4. Production: company server, backups, domain, email, file storage.
+4. Production: our own VPS (Hostinger, `memory.md` decision 62), backups, domain, email, file storage.
 
 
 

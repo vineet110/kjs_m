@@ -22,7 +22,7 @@ The production server has its own guide: [`deploy/README.md`](deploy/README.md).
 1. **Development:** PostgreSQL on Neon (cloud). The connection details go in `.env`
    (`DATABASE_URL`, `MIGRATION_DATABASE_URL`).
 2. **Tests:** a throwaway Postgres in Docker on port 5433. Tests never touch Neon.
-3. **Production:** Postgres 17 in Docker on the company server (`deploy/docker-compose.prod.yml`).
+3. **Production:** Postgres 17 in Docker on our Hostinger VPS (`deploy/docker-compose.prod.yml`).
 4. Tables are created and changed only by Alembic migrations: `alembic upgrade head` after pulling new code.
 
 No extra database extensions are needed.

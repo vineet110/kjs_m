@@ -4,7 +4,7 @@ The project's long-term memory: short facts, rules and decisions.
 
 Anyone joining (person or AI) reads this first.
 
-Last updated: 2 Nov 2026.
+Last updated: 23 Nov 2026.
 
 Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
@@ -106,7 +106,8 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 
 3. Database
 
-   i.    PostgreSQL. Neon (free, cloud) during development, in Singapore since 28 Oct (was US). Company server later.
+   i.    PostgreSQL. Neon (free, cloud) during development, in Singapore since 28 Oct (was US). Production: Postgres 17
+         next to the app on the Hostinger VPS (decision 62).
    ii.   Tests use a throwaway Postgres in Docker (port 5433). They never touch Neon.
 
 
@@ -137,9 +138,9 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    ii.   Tunable numbers and feature switches in `config/*.ini`. They apply within seconds, no restart.
 
 
-9. Production (ready in `deploy/`, waiting for the server)
+9. Production: live on a Hostinger VPS at https://twins.kjsindia.com (decision 62)
 
-   i.    Docker Compose on the company server: Postgres 17, API, website, nginx, Cloudflare Tunnel.
+   i.    Docker Compose on the VPS: Postgres 17, API, website, nginx (the setup in `deploy/`).
    ii.   `deploy.sh` to update, `backup.sh` nightly, `restore.sh`. Guide: `deploy/README.md`.
 
 
@@ -426,6 +427,12 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     vii.  The old "Let's connect" popup stays; the talk layer waits while any popup is open. English only
           for now; the tables can take a language field later.
     Backlog section 28, A108-A111.
+
+62. 23 Nov. Production hosting is a Hostinger VPS. Not the company server, not Oracle
+    (R59), not E2E (R69). The platform is deployed at https://twins.kjsindia.com and testing with KJS has
+    started. Checked from outside on 23 Nov: http goes to https, `/healthz` 200, `/api/health/ready` says
+    ready (database ok, jobs ok), nginx answers directly (no Cloudflare in front), and the live CSP already
+    allows the Firebase hosts (R97.i). What is still open on the server: backlog section 29.
 
 
 
@@ -1006,7 +1013,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    i.    Review fixes committed (`ba19e69`) and merged into `main` with `ebfe12a` (pull request #3).
    ii.   Slow admin, portal and Koko: measured. Neon (US) is about 560 ms per query from India, 1.8 s to connect.
          Pages make 3 to 6 queries, so 2 to 3 s per click. Fix for dev: local Docker database (`docker compose up -d db`).
-         Production is fine: Postgres sits next to the app on the KJS server.
+         Production is fine: Postgres sits next to the app on the server.
    iii.  Koko model `openai/gpt-oss-120b` is a thinking model (hidden reasoning tokens). Faster model to be compared.
    iv.   Smart App Control turned off by Vineet. B12 closed; `.venv` Python works again.
    v.    Next.js 14 → 16.4.3, React 19, next-intl 4 on branch `next16` (B13 closed). 14 unused packages removed.

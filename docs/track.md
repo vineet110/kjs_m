@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (30 Oct 2026)
+## 1. Status today (23 Nov 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -203,11 +203,17 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
    iii.  Plan: 5 small code PRs, each with a failing test first (`codeReview.md` section 2, `prompt.md` section 6).
 
 
+4y. Production on Hostinger + testing: live by 23 Nov
+
+   i.    The platform runs on a Hostinger VPS at https://twins.kjsindia.com. Testing with KJS is going on now.
+         Decision: `memory.md` 62. Still to do on the server: `backlog.md` section 29.
+
+
 5. Waiting on
 
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
          (Merge done: PR #3.)
-   ii.   KJS: server + IT contact, domain, real data, SMTP details, R2 keys, WhatsApp verification.
+   ii.   KJS: real data, SMTP details, WhatsApp verification, sign-off after testing. (Server: done, Hostinger.)
    iii.  Vineet + Nishita: the should-fix list CR2–CR11 (CR1 merged 3 Nov).
 
 
@@ -228,9 +234,9 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 2. Production prep that needs no server.  ✅ done 25 Oct
 
-3. Production on the KJS server, real data from KJS: from Mon 9 Nov.
+3. Production on our Hostinger VPS: live at https://twins.kjsindia.com on 23 Nov.  ✅
 
-4. UAT with KJS staff, fixes: early December.
+4. UAT with KJS staff, fixes: started 23 Nov, until early December.
 
 5. Go-live: Fri 11 Dec 2026.
 
@@ -319,6 +325,9 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 14. 16–17 Nov: email checks switched off and parked until our own server (#87, decision 55, backlog R68).
     Own-server research: E2E Networks as a paid option next to the Oracle free VM (backlog R69).
+
+16. 23 Nov: production is live on a Hostinger VPS at https://twins.kjsindia.com (decision 62). Testing with
+    KJS started. Server follow-ups: backlog section 29.
 
 15. 18 Nov: coffee-only switch: photo upload when adding a product (#93), Show/Hide per category (#97,
     migration 0030, Neon migrated), the site follows the switches (#99). Coffee-only = hide Confectionery,
