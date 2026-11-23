@@ -48,7 +48,7 @@ B2. Dev tools on this PC  🟠
    iii.  `make` is optional.
 
 
-B3. Company server, IT contact, SSH access  🟠
+B3. Company server, IT contact, SSH access  ✅ CLOSED 23 Nov (Hostinger VPS, `memory.md` decision 62)
 
    i.    Unknown. Needed for production.
    ii.   Owner: manager / IT.
@@ -694,7 +694,7 @@ A52. Editable website texts  🟢
 
 ### Production setup (25 Oct)
 
-A53. Database on the company server  🟠
+A53. Database on the production server  ✅ (Hostinger VPS, `memory.md` decision 62)
 
    i.    Production runs its own Postgres 17 container (the `db` service), not Neon.
    ii.   If KJS prefers a hosted database, `deploy/README.md` section 6 shows the switch.
@@ -1830,7 +1830,7 @@ R58. `sidebar_e2e.mjs`: "phone: choosing a page closes it" fails  🟢 (test fau
          latest state.
 
 
-R59. Oracle free VM for hosting  🟠 (decided with Nishita and KJS, 10 Nov)
+R59. Oracle free VM for hosting  ✅ CLOSED 23 Nov: we went with Hostinger (`memory.md` decision 62)
 
    i.    Oracle Always Free (ARM), home region Mumbai, Pay As You Go (still free). VM: Ubuntu 24.04,
          2 CPU / 12 GB, 100 GB disk. Our `deploy/` setup runs on it unchanged (`deploy/README.md` section 2).
@@ -1940,7 +1940,8 @@ R68. Email checks, parked until our own server  🟠 after launch (decided 18 No
    v.    Later: d, e, f. Undo the admin's hand verify if ever needed: `email_verified=False`.
 
 
-R69. Hosting: E2E Networks as a paid option next to the Oracle free VM (R59)  🟠 decide (Vineet, Nishita, KJS)
+R69. Hosting: E2E Networks as a paid option next to the Oracle free VM (R59)  ✅ CLOSED 23 Nov: Hostinger
+     (`memory.md` decision 62)
 
    i.    R59 (Oracle) stays the plan until this is decided. E2E: Indian company, INR + GST invoices, Delhi or
          Chennai, our `deploy/` setup runs unchanged.
@@ -2333,3 +2334,39 @@ R116. A few fixed numbers in the frontend  🟢 later
 R117. Other languages for the hero, logos and pop-ups  🟢 when the site gets a second language (D2)
 
    i.    Built English only; each table can take a language field.
+
+
+---------------------------------------------------------------------------------------------------
+
+## 29. Hostinger production follow-ups (23 Nov)
+
+Production is live at https://twins.kjsindia.com (decision 62). Checked from outside on 23 Nov; the rest needs
+someone on the server.
+
+
+R118. The live nginx is ahead of the repo  🟠
+
+   i.    The live CSP allows `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` (R97.i done on
+         the server), but `deploy/nginx/security-headers.conf:17` still says `connect-src 'self'`. A redeploy
+         from the repo would break staff login.
+   ii.   Also live: `nginx/1.26.3` (the repo's image is 1.28) and no Cloudflare in front, while `deploy/README.md`
+         describes a Cloudflare Tunnel.
+   iii.  Fix: copy every change made by hand on the server back into `deploy/`, and write the real Hostinger
+         setup in `deploy/README.md`.
+
+
+R119. Is twins.kjsindia.com the final address?  🟠 decide (Vineet, KJS)
+
+   i.    `robots.txt` allows Google and the sitemap lists `twins.kjsindia.com`, so Google can index the test site
+         now, with test data.
+   ii.   If the final site is another address (e.g. www.kjsindia.com): keep twins out of Google during testing
+         (`Disallow: /` or `noindex`), then set `PUBLIC_BASE_URL` to the final address at go-live.
+
+
+R120. Still to confirm on the server  🔴 before go-live
+
+   i.    Backups: the nightly cron runs, the off-site copy to R2 works, and the restore drill is done (R50).
+   ii.   Every secret pasted in chat rotated on the server (B9, B14, R50.ii, R61).
+   iii.  Jobs really on: "jobs ok" in `/api/health/ready` is also shown when the jobs loop never started
+         (`jobs/runner.py:40`). Check `KJS__APP__JOBS_ENABLED` and that SLA alerts arrive (R97.ii).
+   iv.   HSTS (R70), uptime check and backup-failure alert (R82, R50.iv), SMTP for email (R68).

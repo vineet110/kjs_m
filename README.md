@@ -29,7 +29,8 @@ Areas can be switched on, off or admin-only in `config/modules.ini`, without del
 1. **Frontend:** Next.js 16 (App Router, React 19), TypeScript, Tailwind CSS 3, next-intl 4 (English for now).
    Charts are our own code.
 2. **Backend API:** FastAPI on Python 3.12, SQLAlchemy 2 (async, asyncpg), Alembic, Pydantic v2.
-3. **Database:** PostgreSQL. Neon in development, Postgres 17 on the company server in production.
+3. **Database:** PostgreSQL. Neon in development, Postgres 17 on our Hostinger VPS in production
+   (live at https://twins.kjsindia.com).
 4. **Login:** Firebase Authentication checks passwords. The API then starts its own session cookie
    (`kjs_session`), so roles and permissions stay in our database.
 5. **Background jobs:** a small loop inside the API process (`backend/app/jobs`). No Redis, no Celery.

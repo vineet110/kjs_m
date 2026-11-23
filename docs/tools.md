@@ -53,7 +53,7 @@ Rule: nothing in section 2 is approved. Every new package or service is asked ab
 
 6. Production and network
 
-   i.    Docker and Docker Compose on the company server.
+   i.    Docker and Docker Compose on the production VPS (Hostinger).
    ii.   nginx in front of the API and the website.
    iii.  Cloudflare Tunnel (no open ports on the server).
    iv.   `deploy.sh`, `backup.sh`, `restore.sh`, `test-restore.sh` in `deploy/`.
@@ -139,7 +139,7 @@ Grouped by when we would need them. Each says what problem it solves and where i
 
 4. Server monitoring: Netdata or Prometheus + Grafana
 
-   i.    Problem: we can't see disk, memory and CPU on the company server before they run out.
+   i.    Problem: we can't see disk, memory and CPU on the production VPS before they run out.
    ii.   Netdata is one container with ready dashboards. Start there.
 
 

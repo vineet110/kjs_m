@@ -1,6 +1,6 @@
-# Deploy guide (company server)
+# Deploy guide (production VPS)
 
-How to put the platform on the KJS server, update it, roll back, and back it up.
+How to put the platform on our server (today a Hostinger VPS, https://twins.kjsindia.com), update it, roll back, and back it up.
 
 Every command runs on the server (Linux), from the `deploy/` folder, unless it says otherwise.
 
