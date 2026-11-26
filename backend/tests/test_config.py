@@ -120,3 +120,35 @@ def test_env_problems_names_misspelt_and_out_of_range_values(config_dir, monkeyp
     assert any("KJS__NOPE__X:" in p for p in problems)
     assert any("storage.ini" in p and "max_upload_mb" in p for p in problems)
     assert not any("sla" in p.lower() for p in problems)
+
+
+def test_a_file_with_a_syntax_error_keeps_only_that_file(config_dir, caplog):
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\n")
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = 15\nrespond_minutes = 16\n")  # duplicate key
+    with caplog.at_level(logging.ERROR, logger="app.config"):
+        c = ini.reload_now()
+    assert c.app.jobs_enabled is False and c.sla.respond_minutes == 20
+    assert any("sla.ini" in getattr(r, "reason", "") for r in caplog.records)
+
+
+def test_a_rule_between_files_broken_by_a_bad_file_still_keeps_the_good_files(config_dir):
+    # notifications.ini is bad, so its default email budget (60) comes back, and 60 < 60 + 30 breaks the rule
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\njob_timeout_seconds = 60\n")
+    write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = soon\n")
+    c = ini.reload_now()
+    assert c.app.jobs_enabled is False
+
+
+def test_strict_validation_fails_on_any_bad_file(config_dir):
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")
+    with pytest.raises(ValueError, match="sla.ini"):
+        ini._validate(ini._read_raw(), strict=True)
+    write(config_dir / "sla.ini", "[sla]\nx = 1\nx = 2\n")
+    with pytest.raises(ValueError, match="sla.ini"):
+        ini._validate(ini._read_raw(), strict=True)
+
+
+def test_env_problems_never_raises_on_a_broken_file(config_dir, monkeypatch):
+    write(config_dir / "sla.ini", "[sla]\nx = 1\nx = 2\n")
+    monkeypatch.setenv("KJS__SLA__RESPOND_MINUTES", "7")
+    ini.env_problems()  # no exception

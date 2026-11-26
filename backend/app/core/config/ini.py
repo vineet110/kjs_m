@@ -409,9 +409,15 @@ LIST_FIELDS = _list_fields()
 
 
 # ---------- Loading ----------
+BROKEN = "__broken__"  # raw[BROKEN] = {section: reason}: files that could not even be read (syntax error)
+
+
 def _read_raw() -> dict:
-    """Read every ini file into {section: {key: value}} (strings), then apply env overrides."""
+    """Read every ini file into {section: {key: value}} (strings), then apply env overrides.
+    A file with a syntax error (a duplicate key, a line outside a [section]) is listed in raw[BROKEN]
+    instead of stopping the read, so the other files still apply (R91)."""
     raw: dict[str, dict] = {}
+    broken: dict[str, str] = {}
     for section, filename in FILES.items():
         path = CONFIG_DIR / filename
         values: dict = {}
@@ -421,10 +427,11 @@ def _read_raw() -> dict:
             try:
                 parser.read(path, encoding="utf-8")
             except configparser.Error as e:
-                raise ValueError(f"{filename}: {e}") from e
-            if parser.has_section(section):
+                broken[section] = f"config/{filename}: {e}"
+                parser = None
+            if parser is not None and parser.has_section(section):
                 values.update(parser[section])
-            if section == "logging" and parser.has_section("logging.levels"):
+            if parser is not None and section == "logging" and parser.has_section("logging.levels"):
                 values["levels"] = dict(parser["logging.levels"])
         raw[section] = values
 
@@ -439,6 +446,8 @@ def _read_raw() -> dict:
         values = raw.get(section, {})
         if isinstance(values.get(k), str):
             values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
+    if broken:
+        raw[BROKEN] = broken
     return raw
 
 
@@ -452,29 +461,45 @@ def _reason(e: ValidationError, section: str | None = None) -> str:
     return f"config/{FILES.get(section, section)}:{where} {first['msg']}"
 
 
-def _validate(raw: dict, last: Config | None = None) -> Config:
+def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Config:
     """Check every file. A bad file keeps its last good values (defaults on the first load) and is
     logged; the good files still apply (backlog R91: one bad key used to throw away EVERY file, so e.g.
-    jobs_enabled went back on). A rule between two files that fails still raises: keep the old config."""
-    try:
-        return Config.model_validate(raw)
-    except ValidationError:
-        pass
+    jobs_enabled went back on).
+    strict=True (CI's check of the repo's own files): raise on the first bad file instead."""
+    broken: dict[str, str] = raw.get(BROKEN, {})
+    raw = {k: v for k, v in raw.items() if k != BROKEN}
+    if strict and broken:
+        raise ValueError(next(iter(broken.values())))
+    if not broken:
+        try:
+            return Config.model_validate(raw)
+        except ValidationError as e:
+            if strict:
+                raise ValueError(_reason(e)) from e
     base = last or Config()
     sections, bad = {}, []
     for section, field in Config.model_fields.items():
+        if section in broken:
+            bad.append(broken[section])
+            sections[section] = getattr(base, section)
+            continue
         try:
             sections[section] = field.annotation.model_validate(raw.get(section, {}))
         except ValidationError as e:
             bad.append(_reason(e, section))
             sections[section] = getattr(base, section)
-    try:
-        new = Config(**sections)
-    except ValidationError as e:
-        raise ValueError(_reason(e)) from e
     for reason in bad:
         log.error("config.invalid", extra={"reason": reason, "kept": "last good values for this file"})
-    return new
+    try:
+        return Config(**sections)
+    except ValidationError as e:
+        if not bad:
+            raise ValueError(_reason(e)) from e  # every file is fine, but two disagree: keep the old config
+        # A rule between two files fails only because a bad file fell back to its old values or the
+        # defaults. Throwing everything away would bring back e.g. jobs_enabled = true (R91), so keep
+        # the good files anyway and say so. Each file on its own is still in range.
+        log.error("config.invalid", extra={"reason": _reason(e), "kept": "the good files; this rule is not met until the bad file is fixed"})
+        return Config.model_construct(**sections)
 
 
 def env_problems() -> list[str]:
@@ -482,7 +507,7 @@ def env_problems() -> list[str]:
     and logged loudly; never stops the app (a bad value only keeps that file's last good values)."""
     problems = []
     sections: set[str] = set()
-    for key, value in os.environ.items():
+    for key in os.environ:
         if not key.startswith(ENV_PREFIX):
             continue
         parts = key[len(ENV_PREFIX):].lower().split("__")
@@ -491,12 +516,15 @@ def env_problems() -> list[str]:
             problems.append(f"{key}: no such setting (misspelt?), ignored")
         else:
             sections.add(parts[0])
-    raw = _read_raw()
+    try:
+        raw = _read_raw()
+    except Exception as e:  # never stop the start over this check
+        return problems + [f"config files could not be read: {e}"]
     for section in sorted(sections):
         try:
             Config.model_fields[section].annotation.model_validate(raw.get(section, {}))
         except ValidationError as e:
-            problems.append(_reason(e, section) + " (an env value or the file is out of range)")
+            problems.append(_reason(e, section) + " (check the KJS__ env value and the file)")
     return problems
 
 

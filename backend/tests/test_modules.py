@@ -238,7 +238,7 @@ def test_repo_config_files_are_valid(monkeypatch):
         monkeypatch.delenv(key)  # only the files themselves
     monkeypatch.setattr(ini, "CONFIG_DIR", REPO_CONFIG)
     assert (REPO_CONFIG / "modules.ini").exists()
-    ini._validate(ini._read_raw())  # raises with the file and key on a typo or a bad value
+    ini._validate(ini._read_raw(), strict=True)  # raises with the file and key on a typo or a bad value
 
 
 # ---------- Chat and Lead Harvester (added after Vineet's PRs #53 and #55) ----------
