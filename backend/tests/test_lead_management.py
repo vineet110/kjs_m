@@ -165,7 +165,7 @@ async def test_lead_files_forbidden_on_someone_elses_lead(client):
                              files={"file": ("card.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
     await login(client, "a@kjs.in")
     assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).status_code == 403
-    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 404  # by id: no hint it exists (TC-FILE-11)
     r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
                           files={"file": ("x.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
     assert r.status_code == 403
