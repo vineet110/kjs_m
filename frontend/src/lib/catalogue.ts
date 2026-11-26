@@ -48,7 +48,7 @@ export function focusText(t: Record<string, string>, key: string, coffee: boolea
 /** The range in words for the footer and Google: "coffee, health drinks and confectionery". */
 export function rangeText(cats: Category[] | null | undefined): string {
   const names = topLevel(cats).map((c) => c.name.toLowerCase());
-  if (names.length === 0) return 'coffee, tea, health drinks and confectionery';
+  if (names.length === 0) return 'coffee, health drinks and confectionery';
   return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 

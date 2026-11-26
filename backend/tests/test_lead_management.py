@@ -8,9 +8,11 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.lead import Lead
 from app.models.user import User
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, real_png, login, make_user
 
 ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "message": "Need sticks"}
+
+
 def _zip(parts: dict[str, bytes]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
@@ -165,7 +167,7 @@ async def test_lead_files_forbidden_on_someone_elses_lead(client):
                              files={"file": ("card.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)).json()["id"]
     await login(client, "a@kjs.in")
     assert (await client.get(f"/api/v1/files?owner_type=lead&owner_id={lead_id}")).status_code == 403
-    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 404  # by id: no hint it exists (TC-FILE-11)
     r = await client.post("/api/v1/files", data={"owner_type": "lead", "owner_id": str(lead_id)},
                           files={"file": ("x.pdf", b"%PDF-1.4 %%EOF", "application/pdf")}, headers=HDR)
     assert r.status_code == 403
@@ -353,7 +355,7 @@ async def test_no_reporting_loops(client):
     assert await set_boss(c, a) == 422
 
 
-PNG = ("me.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32 + b"IEND\xaeB`\x82", "image/png")
+PNG = ("me.png", real_png(), "image/png")
 
 
 async def _photo(client, owner_id) -> int:

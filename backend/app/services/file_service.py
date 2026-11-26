@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from fastapi import UploadFile
 from sqlalchemy import select
@@ -47,8 +47,10 @@ Cleaner = Callable[[str], str]
 CLEANERS: dict[str, Cleaner] = {}
 # owner_type -> the only extensions it takes (e.g. a complaint's screenshot is a picture). Others: allowed_types.
 OWNER_TYPES: dict[str, set[str]] = {}
-# Owners whose pictures are shrunk and cleaned on upload (image_shrink: size, quality, no GPS data)
+# Owners whose pictures are shrunk and cleaned on upload (image_shrink: size, quality, no GPS data).
+# SHRINK_PUBLIC: only their pictures shown on the website (a private print file keeps its full size).
 SHRINK: set[str] = set()
+SHRINK_PUBLIC: set[str] = set()
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -64,9 +66,14 @@ ONLY_FOR = {"heic": {"lead"}}
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
                    approvers: Approvers | None = None, clean: Cleaner | None = None,
-                   types: set[str] | None = None, shrink: bool = False) -> None:
+                   types: set[str] | None = None, shrink: bool | Literal["public"] = False) -> None:
+    """shrink: True = every picture, "public" = only pictures marked to show on the website."""
+    if isinstance(shrink, str) and shrink != "public":
+        raise ValueError(f"shrink must be True, False or 'public', not {shrink!r}")  # a typo must not shrink all
     OWNERS[owner_type] = check
-    if shrink:
+    if shrink == "public":
+        SHRINK_PUBLIC.add(owner_type)
+    elif shrink:
         SHRINK.add(owner_type)
     if types:
         OWNER_TYPES[owner_type] = types
@@ -96,6 +103,8 @@ async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) ->
 
 
 def _clean_id(owner_type: str, owner_id: str) -> str:
+    if len(owner_id) > 120:  # the column's size (migration 0034): a clear 422, never a database error (500)
+        raise AppError(422, "bad_owner", "This owner id is too long.")
     clean = CLEANERS.get(owner_type)
     return clean(owner_id) if clean else owner_id
 
@@ -109,6 +118,17 @@ async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, a
 
 # Largest public photo the API sends itself (R44). A safety limit, not a tunable: bigger ones redirect to R2.
 PUBLIC_PHOTO_MAX = 2 * 1024 * 1024
+
+
+async def _check_or_not_found(db: AsyncSession, user: User, f: StoredFile) -> None:
+    """Reading one file by its id: someone who may not see it gets 404 like a file that doesn't exist, so the
+    answer doesn't tell them the file is there (TC-FILE-11)."""
+    try:
+        await _check(db, user, f.owner_type, f.owner_id, "read")
+    except AppError as e:
+        if e.status_code == 403 or e.code == "module_off":  # a switched-off area also looks like "no such file"
+            raise AppError(404, "not_found", "File not found.") from e
+        raise
 
 
 def safe_name(name: str) -> str:
@@ -147,7 +167,7 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
     if not await asyncio.to_thread(file_check.is_valid, ext, data):
         raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file. "
                        "Please check it and try again.")
-    if owner_type in SHRINK:
+    if owner_type in SHRINK or (is_public and owner_type in SHRINK_PUBLIC):
         try:
             data = await asyncio.to_thread(image_shrink.shrink, ext, data)
         except image_shrink.NotAPicture as e:
@@ -218,7 +238,7 @@ async def download(db: AsyncSession, user: User | None, file_id: int,
         if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
-        await _check(db, user, f.owner_type, f.owner_id, "read")
+        await _check_or_not_found(db, user, f)
     # Small public web PHOTOS are sent by us, so browsers can keep them (send_file), instead of a new 5-minute
     # R2 link on every view that nothing could cache (R44). Only JPG/PNG/WebP up to PUBLIC_PHOTO_MAX bytes: each
     # one is read from R2 into memory, so big files (spec PDFs, big or odd pictures) keep the link.
@@ -240,7 +260,7 @@ async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, 
     """The file's bytes for the in-page preview (staff only, same access as download). Always sent by
     our API, never a storage link: the page shows it inside our own site, and R2 stays private."""
     f = await _get(db, file_id)
-    await _check(db, user, f.owner_type, f.owner_id, "read")
+    await _check_or_not_found(db, user, f)
     store = storage()
     try:
         if hasattr(store, "file_path"):
@@ -252,6 +272,7 @@ async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, 
 
 async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str) -> dict:
     f = await _get(db, file_id, lock=True)
+    await _check_or_not_found(db, user, f)  # can't even see it: 404, like a missing file (TC-FILE-11)
     await _check(db, user, f.owner_type, f.owner_id, "write")  # seeing a file isn't enough to ask to delete it
     if f.delete_status == "requested":
         raise AppError(409, "already_requested", "Deletion was already requested.")

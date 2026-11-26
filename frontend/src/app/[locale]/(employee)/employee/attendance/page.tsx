@@ -936,7 +936,7 @@ export default function AttendancePage() {
               <h3 className="text-lg font-bold text-slate-900">Apply for Leave</h3>
               <button onClick={() => setShowLeaveModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <form onSubmit={handleApplyLeave} className="space-y-4 text-sm">
+            <form method="post" onSubmit={handleApplyLeave} className="space-y-4 text-sm">
               <div>
                 <label className="label">Leave Type</label>
                 <select name="leave_type" required className="input">
@@ -989,7 +989,7 @@ export default function AttendancePage() {
               <h3 className="text-lg font-bold text-slate-900">Missed a Punch?</h3>
               <button onClick={() => setShowRegModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <form onSubmit={handleRegularize} className="space-y-4 text-sm">
+            <form method="post" onSubmit={handleRegularize} className="space-y-4 text-sm">
               <div>
                 <label className="label">Day</label>
                 <input type="date" name="day" required max={todayIST()} className="input" />

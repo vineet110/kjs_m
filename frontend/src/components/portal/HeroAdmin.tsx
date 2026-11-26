@@ -137,7 +137,7 @@ function SlideForm({ draft, hero, onDone, onCancel }: { draft: Draft; hero: Admi
 
   const slots = Array.from({ length: hero.max_images }, (_, i) => i);
   return (
-    <form onSubmit={save} className="card grid gap-3 p-4 md:grid-cols-6">
+    <form method="post" onSubmit={save} className="card grid gap-3 p-4 md:grid-cols-6">
       <div className="md:col-span-2"><label className="label" htmlFor="h-eyebrow">Small label (optional)</label><input id="h-eyebrow" value={d.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} maxLength={60} className="input" placeholder="Private label" /></div>
       <div className="md:col-span-4"><label className="label" htmlFor="h-title">Title</label><input id="h-title" value={d.title} onChange={(e) => set('title', e.target.value)} required minLength={3} maxLength={80} className="input" placeholder="Your brand on our proven recipes" /></div>
       <div className="md:col-span-6"><label className="label" htmlFor="h-text">Text (optional)</label><textarea id="h-text" value={d.text} onChange={(e) => set('text', e.target.value)} maxLength={240} rows={2} className="input" /></div>
@@ -216,7 +216,7 @@ function Stats({ hero, onChange }: { hero: AdminHero; onChange: () => void }) {
           {' '}Whole numbers count up on the page; text like “0.9–3 g” shows as written.
         </p>
       </div>
-      <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
+      <form method="post" onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
         <div><label className="label" htmlFor="s-number">Number</label><input id="s-number" name="number" required maxLength={12} className="input" placeholder="24" /></div>
         <div className="md:col-span-3"><label className="label" htmlFor="s-label">Label</label><input id="s-label" name="label" required minLength={2} maxLength={60} className="input" placeholder="items and pack sizes to choose from" /></div>
         <div><label className="label" htmlFor="s-order">Order</label><input id="s-order" type="number" name="sort_order" defaultValue={hero.stats.length} className="input" /></div>

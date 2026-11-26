@@ -87,6 +87,19 @@ const NAV: NavGroup[] = [
 ];
 const DEFAULT_ORDER = NAV.map((g) => g.group);
 
+/** May this person open this page? An admin page needs the same permission as its sidebar link (the longest
+ *  link the path starts with), so someone without it is sent away instead of seeing an empty admin frame
+ *  (TC-SHELL-03, TC-KADM-05, TC-SET-11). /employee pages and admin pages with no link: yes (the API still
+ *  checks every request). */
+export function mayOpen(path: string, mine: string[]): boolean {
+  const p = path.replace(/^\/[a-z]{2}(?=\/admin(\/|$))/, ''); // a locale prefix (/en/admin/...)
+  if (!/^\/admin(\/|$)/.test(p)) return true;
+  const item = NAV.flatMap((g) => g.items)
+    .filter((n) => p === n.href || p.startsWith(n.href + '/'))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  return !item || allowed(item.perm, mine);
+}
+
 /** The groups and links this person sees: allowed by permission and in an area that is on for them.
  * A group with no links left is left out. */
 export function navFor(me: Pick<Me, 'permissions' | 'modules'>): NavGroup[] {

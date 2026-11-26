@@ -34,7 +34,7 @@ export default function Configurator({ products }: { products: P[] }) {
   }
 
   return (
-    <form
+    <form method="post"
       onSubmit={(e) => {
         e.preventDefault();
         // Website insights: counted only here, once the browser has accepted the form (not on a refused click)

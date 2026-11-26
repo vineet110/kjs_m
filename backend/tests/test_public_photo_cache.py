@@ -34,11 +34,15 @@ async def _product(client, name="Edge Coffee") -> str:
 async def test_a_photo_over_the_limit_keeps_the_r2_link(client, like_r2, monkeypatch):
     slug = await _product(client)
     fid = (await _upload(client, owner_id=slug, file=PNG, public=True)).json()["id"]
-    monkeypatch.setattr(file_service, "PUBLIC_PHOTO_MAX", len(PNG[1]) - 1)  # one byte too big
+    from app.core.database import AsyncSessionLocal
+    from app.models.file import StoredFile
+    async with AsyncSessionLocal() as db:
+        size = (await db.get(StoredFile, fid)).size  # as saved: a public photo is re-encoded on upload (#135)
+    monkeypatch.setattr(file_service, "PUBLIC_PHOTO_MAX", size - 1)  # one byte too big
     client.cookies.clear()
     r = await client.get(f"/api/v1/public/files/{fid}")
     assert r.status_code == 302 and r.headers["location"] == "https://r2.example/signed"
-    monkeypatch.setattr(file_service, "PUBLIC_PHOTO_MAX", len(PNG[1]))  # exactly at the limit: sent by us
+    monkeypatch.setattr(file_service, "PUBLIC_PHOTO_MAX", size)  # exactly at the limit: sent by us
     assert (await client.get(f"/api/v1/public/files/{fid}")).status_code == 200
 
 

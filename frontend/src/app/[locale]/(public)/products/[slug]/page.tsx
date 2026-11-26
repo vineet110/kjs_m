@@ -7,7 +7,7 @@ import { JsonLd } from '@/components/public/JsonLd';
 import GatedActions from '@/components/public/GatedActions';
 import OfferBadge from '@/components/public/OfferBadge';
 import TrackView from '@/components/public/TrackView';
-import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
+import { features, serverGetFresh, type Product, type PublicFile } from '@/lib/api';
 import { imageOf, isUploaded, summary } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
@@ -16,15 +16,15 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
+  const p = await serverGetFresh<Product>(`/public/products/${encodeURIComponent(slug)}`);
   return p ? { title: p.name, description: summary(p.description).slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
+  const p = await serverGetFresh<Product>(`/public/products/${encodeURIComponent(slug)}`);
   if (!p) notFound();
-  const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
+  const [files, f] = await Promise.all([serverGetFresh<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
   const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));
   const docs = (files ?? []).filter((x) => !x.content_type.startsWith('image/'));
   const ownImage = imageOf(p);

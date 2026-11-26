@@ -33,10 +33,7 @@ Pillow==13.0.0  # shrinks website images on upload (home page hero); approved by
 
 # Observability
 
-# Testing & Deterministic Clock Control
-pytest==8.2.2
-pytest-asyncio==0.23.7
-freezegun==1.5.1
+# Testing packages: requirements-dev.txt (not installed in the production image, CR24.v)
 
 # ------------------------------------------------------------------------------
 # Later (not installed yet):

@@ -123,10 +123,20 @@ function Back({ name }: { name: string }) {
   );
 }
 
+// The phone is hidden until asked for (the screen may be seen by others); the last 4 digits help recognise it
+const maskPhone = (phone: string) => `${'*'.repeat(8)}${phone.replace(/\D/g, '').slice(-4)}`;
+
+/** The Info tab's phone: masked like the header's until clicked (it showed the full number at once). */
+function InfoPhone({ phone }: { phone: string }) {
+  const [show, setShow] = useState(false);
+  if (!phone) return null;
+  return show ? <a href={`tel:${phone.replace(/\s/g, '')}`} className="hover:underline">{phone}</a>
+    : <button type="button" onClick={() => setShow(true)} title="Show the number" aria-label={`Show the phone number ending ${phone.replace(/\D/g, '').slice(-4)}`} className="hover:underline">{maskPhone(phone)}</button>;
+}
+
 function Header({ lead, enquiries }: { lead: Lead; enquiries: Lead[] }) {
   const [showPhone, setShowPhone] = useState(false);
-  // The phone is hidden until asked for (the screen may be seen by others); the last 4 digits help recognise it
-  const masked = lead.phone ? `${'*'.repeat(8)}${lead.phone.replace(/\D/g, '').slice(-4)}` : '';
+  const masked = lead.phone ? maskPhone(lead.phone) : '';
   return (
     <div className="card flex flex-wrap items-start gap-4 p-4">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-xl font-bold text-orange-600">
@@ -139,7 +149,7 @@ function Header({ lead, enquiries }: { lead: Lead; enquiries: Lead[] }) {
           {lead.company && <span className="text-sm text-slate-500">· {lead.company}</span>}
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-          {lead.email && <a href={`mailto:${lead.email}`} className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{lead.email}</a>}
+          {lead.email && <a href={`mailto:${lead.email}`} className="max-w-full rounded-full bg-slate-100 px-3 py-1 [overflow-wrap:anywhere] hover:bg-slate-200">{lead.email}</a>}
           {lead.phone && (
             showPhone ? <a href={`tel:${lead.phone.replace(/\s/g, '')}`} className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{lead.phone}</a>
               : <button type="button" onClick={() => setShowPhone(true)} title="Show the number" className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{masked}</button>
@@ -212,7 +222,7 @@ function Pipeline({ lead, onChange }: { lead: Lead; onChange: () => void }) {
           );
         })}
         {closing && (
-          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-sm">
+          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-base md:text-sm">
             <option value="">Close with outcome…</option>
             {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
@@ -225,11 +235,11 @@ function Pipeline({ lead, onChange }: { lead: Lead; onChange: () => void }) {
 
 function Field({ icon, label, children }: { icon: IconName; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex min-w-0 gap-3">{/* min-w-0: a long email wraps instead of widening the page (XB-25) */}
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-orange-50 text-orange-500"><Icon name={icon} className="h-4 w-4" /></span>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="break-words text-sm text-slate-800">{children || '—'}</p>
+        <p className="text-sm text-slate-800 [overflow-wrap:anywhere]">{children || '—'}</p>
       </div>
     </div>
   );
@@ -241,7 +251,7 @@ function Info({ lead }: { lead: Lead }) {
       <div className="grid gap-4 rounded-lg border border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field icon="check" label="Lead status">{lead.status === 'closed' ? `Closed${lead.outcome ? ` (${lead.outcome.replace(/_/g, ' ')})` : ''}` : 'Active'}</Field>
         <Field icon="mail" label="Email">{lead.email}</Field>
-        <Field icon="phone" label="Phone">{lead.phone}</Field>
+        <Field icon="phone" label="Phone">{lead.phone ? <InfoPhone phone={lead.phone} /> : null}</Field>
         <Field icon="box" label="Product">{lead.product_name}</Field>
         <Field icon="globe" label="Source">{SOURCE[lead.source] ?? lead.source}</Field>
         <Field icon="layers" label="Category">{lead.category_name}</Field>
@@ -299,7 +309,7 @@ function Notes({ lead, notes, onChange }: { lead: Lead; notes: LeadNote[] | null
   const shown = (notes ?? []).filter((n) => ['note', 'call', 'email'].includes(n.kind)).reverse();
   return (
     <div className="space-y-4">
-      <form onSubmit={add} className="space-y-2">
+      <form method="post" onSubmit={add} className="space-y-2">
         <textarea ref={box} name="text" required maxLength={2000} rows={3} placeholder="What happened? e.g. Called, wants samples of 3-in-1" className="input" />
         <div className="flex items-center gap-2">
           {/* A call or email also counts as the first reply (stops the respond timer) */}
@@ -360,7 +370,7 @@ function Tasks({ lead }: { lead: Lead }) {
   }
   return (
     <div className="space-y-4">
-      <form onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_14rem_auto]">
+      <form method="post" onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_14rem_auto]">
         <input name="title" required minLength={2} maxLength={200} placeholder="e.g. Send the price sheet" className="input" aria-label="Task" />
         <input name="due" type="datetime-local" className="input" aria-label="Due (IST)" />
         <button className="btn-dark">Add task</button>
