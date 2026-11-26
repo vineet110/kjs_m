@@ -59,7 +59,7 @@ async def summary(db: AsyncSession) -> dict:
     tasks_done = [{"name": n, "done": c} for n, c in (await db.execute(
         select(User.name, func.count()).join(Task, Task.assignee_id == User.id)
         .where(Task.status == "done", Task.completed_at >= now - timedelta(days=a_cfg.tasks_days))
-        .group_by(User.name).order_by(func.count().desc()).limit(a_cfg.top_people))).all()]
+        .group_by(User.id, User.name).order_by(func.count().desc()).limit(a_cfg.top_people))).all()]  # by person, not name (CR24.i)
 
     # Order boards by state
     boards = (await db.scalars(select(OrderBoard).where(OrderBoard.status == "active"))).all()

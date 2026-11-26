@@ -248,7 +248,8 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
     for uid in await _member_ids(db, board.id, step.id):
         for title in step.task_templates:
             task_service.add(db, assignee_id=uid, title=f"{board.code} · {step.name}: {title}", source="board",
-                             source_ref=f"board:{board.code}:step:{step.position}", due_at=due, created_by=actor.id)
+                             source_ref=f"board:{board.code}:step:{step.position}", due_at=due,
+                             created_by=None)  # made by the board: nobody may edit them as "creator" (CR16)
         notification_service.notify(db, [uid], "board.step_started", f"{board.code}: step '{step.name}' started",
                                     f"Planned until {step.planned_end:%d %b}.", f"/employee/order-boards/{board.code}")
 
@@ -484,7 +485,7 @@ async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, m
         for uid in new - old:
             for title in step.task_templates:
                 task_service.add(db, assignee_id=uid, title=f"{b.code} · {step.name}: {title}", source="board",
-                                 source_ref=f"board:{b.code}:step:{step.position}", due_at=due, created_by=user.id)
+                                 source_ref=f"board:{b.code}:step:{step.position}", due_at=due, created_by=None)  # CR16
         for uid in old - new:
             closed += await _close_tasks(db, b.code, f"taken off step '{step.name}'", user_id=uid,
                                          step_position=step.position)

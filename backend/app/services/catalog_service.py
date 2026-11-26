@@ -171,6 +171,8 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:
     category = await get_category(db, data.category_slug, include_hidden=True)
     slug = slugify(data.name)
+    if not slug:  # e.g. a name only in Hindi: its page address would be empty (CR21)
+        raise AppError(422, "bad_name", "The product name needs at least one English letter or number.")
     if await db.scalar(select(func.count()).select_from(Product).where(Product.slug == slug)):
         raise AppError(409, "duplicate", "A product with this name already exists.")
     p = Product(
