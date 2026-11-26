@@ -1993,7 +1993,7 @@ R70. Security headers on the VPS  🟠 before going live
 
 R71. Koko trusts chat history from the browser  🟠 (raises R1)
 
-   27 Nov: ii: in PR #119; i (history on the server) still open. Not merged yet: mark ✅ when it is.
+   27 Nov: ii in PR #119; i in PR #134 (Koko uses its saved replies). Not merged yet: mark ✅ when it is.
 
    i.    The browser sends the whole history, including Koko's own past replies, so a visitor can fake them
          (`schemas/lead.py:10`, `koko_service.py:208`).
