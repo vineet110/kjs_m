@@ -12,4 +12,4 @@ class KokoUsage(Base):
     __tablename__ = "koko_usage"
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
-    calls: Mapped[int] = mapped_column(Integer, default=0)
+    calls: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)

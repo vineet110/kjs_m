@@ -82,9 +82,9 @@ async def test_card_still_sent_when_the_ai_fails(client, catalogue, monkeypatch)
     assert r["reply"] == koko_service.FALLBACK and r["catalogue"]["category_slug"] == "wafers"
 
 
-
 async def _budget_used_up() -> bool:  # the budget check is async since R72 (counted in the database)
     return False
+
 
 async def test_card_still_sent_when_todays_ai_budget_is_used_up(client, catalogue, seen, monkeypatch):
     monkeypatch.setattr(koko_service, "_within_daily_budget", _budget_used_up)

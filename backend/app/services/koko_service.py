@@ -26,6 +26,11 @@ from app.services.catalog_service import SUBCATEGORIES
 
 log = logging.getLogger(__name__)
 ENQUIRY_TAG = "[ENQUIRY]"
+
+
+_limit_logged: tuple | None = None  # (day, limit) the "limit reached" warning was logged for
+
+
 async def _within_daily_budget() -> bool:
     """Count one AI call; False once today's cap (config/koko.ini daily_limit) is used up.
     Per-IP limits alone don't stop someone with many IPs from running up the bill.
@@ -44,9 +49,13 @@ async def _within_daily_budget() -> bool:
     except Exception:
         log.exception("koko.budget_check_failed")
         return False
-    if calls == cfg().koko.daily_limit + 1:
-        log.warning("koko.daily_limit_reached", extra={"limit": cfg().koko.daily_limit})
-    return calls <= cfg().koko.daily_limit
+    limit = cfg().koko.daily_limit
+    global _limit_logged
+    if calls > limit and _limit_logged != (today, limit):  # once per day and limit (also if it was lowered today)
+        _limit_logged = (today, limit)
+        log.warning("koko.daily_limit_reached", extra={"limit": limit})
+    return calls <= limit
+
 
 FALLBACK = (
     "Sorry, I can't answer right now. Please use the enquiry form or WhatsApp "
