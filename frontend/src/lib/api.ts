@@ -138,7 +138,8 @@ async function readAnswer<T>(res: Response, requestId: string, signal: AbortSign
     if (res.status === 404 && data.code === 'module_off') moduleOff(); // the portal frame shows "Not available yet"
     // A 503 that isn't our JSON: the hosting's "application loading" page while the API wakes up (lib/server-wake.ts).
     // The request never reached our app, so nothing was saved: say so plainly instead of "Something went wrong".
-    if (res.status === 503 && !data.code)
+    // (nginx's own 503 on an API address now has a JSON body with code server_error: the same case)
+    if (res.status === 503 && (!data.code || data.code === 'server_error'))
       throw new ApiFailure(503, { code: 'server_waking', message: SERVER_WAKING, details: {}, request_id: requestId });
     throw new ApiFailure(res.status, {
       code: data.code || 'error',

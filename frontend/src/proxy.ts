@@ -6,6 +6,9 @@ const intl = createIntlMiddleware({
   locales: ['en'],
   defaultLocale: 'en',
   localePrefix: 'never',
+  // One language: no NEXT_LOCALE cookie at all (ZAP SEC-05 flagged it without Secure). With more
+  // languages, turn it back on with { secure: true, sameSite: 'lax' }.
+  localeCookie: false,
 });
 
 const SESSION_COOKIE = 'kjs_session';
