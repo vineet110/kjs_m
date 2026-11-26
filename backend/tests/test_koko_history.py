@@ -199,3 +199,15 @@ async def test_kokos_long_echoed_reply_is_cut_not_refused(client, monkeypatch, s
     body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 900},
                          {"role": "user", "content": "and?"}]}
     assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200
+
+
+async def test_a_very_long_chat_is_cut_never_refused_and_its_enquiry_still_goes(client, monkeypatch, sent):
+    from app.services import koko_service as ks
+
+    async def fake_summary(chat):
+        return "summary"
+    monkeypatch.setattr(ks, "summarise_chat", fake_summary)
+    long = [{"role": "user" if i % 2 == 0 else "assistant", "content": "x" * 1500} for i in range(81)]
+    assert (await client.post(CHAT, json={"messages": long}, headers=HDR)).status_code == 200  # 81 lines, ~120k
+    lead = {"source": "koko", "name": "Omar", "phone": "+91 98765 43210", "consent": True, "chat": long}
+    assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201

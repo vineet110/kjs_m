@@ -258,6 +258,8 @@ async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict,
 
 async def save_chat(db: AsyncSession, chat_id: str, page: str, messages: list[dict], suggested: bool,
                     ip_hash: str | None) -> None:
+    """Replace a whole transcript (seeding and tests only). The chat endpoint uses append_chat, which locks
+    the row: replacing without the lock could drop a turn saved meanwhile."""
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
     if row is not None and not _owns(row, chat_id, ip_hash):
         return  # someone else's chat id: never overwrite another visitor's transcript

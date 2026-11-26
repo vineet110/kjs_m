@@ -27,6 +27,8 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     # The same question sent again because its answer never arrived (the widget retries after a time-out):
     # answer it again in place, don't save it twice. Only when the browser has no reply after it: a visitor
     # who really says "yes" twice keeps Koko's question in between (re-review of #134)
+    # (Known, accepted: two tabs sending the same question at the very same moment can both be saved; the
+    # transcript then shows it twice. Harmless, and rare.)
     browser_got_reply = len(data.messages) >= 2 and data.messages[-2].role == "assistant"
     retry = (not browser_got_reply and len(stored) >= 2 and stored[-2].get("role") == "user"
              and stored[-2].get("content") == question.content and stored[-1].get("role") == "assistant")
