@@ -1217,7 +1217,7 @@ R3. SLA due times are worked out live  🟢
 
 R4. Re-opening a lead to "new" keeps its old escalation level  🟢
 
-   27 Nov: fix in PR #124 (a reopen starts a new resolve timer; needs Vineet's OK on that decision). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #124 (a reopen starts a new resolve timer; needs Vineet's OK on that decision). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    It shows "overdue" at once and doesn't alert again.
    ii.   18 Nov (go-live review): a plain reset was dropped. The resolve timer counts from `created_at`, so a
@@ -1261,7 +1261,7 @@ R10. CSP allows inline scripts  🟢
 
 R11. Backups: failure alerts, off-site copy, encryption  🟠 (with KJS IT)
 
-   27 Nov: i: failure alerts in PR #115. Not merged yet: mark ✅ when it is.
+   27 Nov: i: failure alerts in PR #115. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    A failed nightly backup only writes to `backup.log`. Nobody is told.
    ii.   ✅ Off-site copy, encrypted (PR #42, 9 Nov). Still open: i (nobody is told when a backup fails: R50).
@@ -1354,7 +1354,7 @@ R18. Quick view copies the enquiry modal's overlay  🟢
 
 R19. Product items stored as text in the description  🟠
 
-   27 Nov: fix in PR #138 (products.items + Admin Items box, migration 0036; design OK'd by Vineet). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #138 (products.items + Admin Items box, migration 0036; design OK'd by Vineet). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Item numbers and pack sizes are read with a strict pattern ("• Item 801: 25 g, 24 pieces per box,
          6 per case"). If an admin writes it differently, the items silently disappear from the site.
@@ -1655,7 +1655,7 @@ Suggested order: CR4 and R45 first (small, and we hear about problems before vis
 
 R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: ask first)
 
-   27 Nov: fix in PR #135 (product and profile photos shrunk with the existing image_shrink; Pillow approved 19 Nov). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #135 (product and profile photos shrunk with the existing image_shrink; Pillow approved 19 Nov). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    The product page shows uploaded photos with `unoptimized` (`products/[slug]/page.tsx`), so a 10 MB phone
          photo reaches the visitor as 10 MB. Phone photos can also carry the GPS location (EXIF).
@@ -1670,7 +1670,7 @@ R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: as
 
 R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arrive (A54)
 
-   27 Nov: fix in PR #130 (small public photos sent by the API, browser-cacheable 10 min). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #130 (small public photos sent by the API, browser-cacheable 10 min). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    With `STORAGE_DRIVER=r2`, `/api/v1/public/files/{id}` redirects to a new 5-minute signed link every
          time, so browsers and Cloudflare can't cache the photo. The link also says "attachment".
@@ -1686,7 +1686,7 @@ R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arriv
 
 R45. Nobody hears about crashes or downtime  🟠
 
-   27 Nov: uptime check documented in PR #115 (README 5.6); the check itself is set up by Vineet. Not merged yet: mark ✅ when it is.
+   27 Nov: uptime check documented in PR #115 (README 5.6); the check itself is set up by Vineet. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Errors only go to the logs, and nothing checks `/api/health` from outside.
    ii.   Fix: a free uptime checker on `/api/health/ready`. Error tracking (Sentry) is a new service: ask first.
@@ -1732,7 +1732,7 @@ R47. Small follow-ups from PRs #27, #30, #33 and #34  🟢 later
 
 R48. Website pictures: real address before go-live  🔴 before go-live
 
-   27 Nov: CSP part in PR #116; connecting cdn.kjsindia.com is a Cloudflare step (Vineet). Not merged yet: mark ✅ when it is.
+   27 Nov: CSP part in PR #116; connecting cdn.kjsindia.com is a Cloudflare step (Vineet). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Connect `cdn.kjsindia.com` to the `kjs-site-assets` bucket, then change `ASSET_BASE_URL` AND the address in
          `nginx/security-headers.conf` (`img-src`), and rebuild the frontend.
@@ -1761,7 +1761,7 @@ R49. Order boards follow-ups (PRs #35–#39)  🟡 ii–vi open
 
 R50. Before and after go-live  🔴 i–iii before go-live
 
-   27 Nov: iv: in PR #115. Not merged yet: mark ✅ when it is.
+   27 Nov: iv: in PR #115. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    On the server: run `deploy/test-restore.sh` once (it was not run after the last changes to
          `backup.sh` / `restore.sh`), then a real restore drill using an off-site copy (`deploy/README.md` 5.4).
@@ -1779,7 +1779,7 @@ R50. Before and after go-live  🔴 i–iii before go-live
 
 R55. `admin` level for batches: auto-assign still gives batches to employees  🟠 before using `admin` (Nishita)
 
-   27 Nov: fix in PR #129. Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #129. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    With `batches = admin` the job (and "Run now") hands batches to every checked-in employee, who can't open
          them; their open batch then blocks new ones. Fix: with `admin`, only admins are eligible (`_eligible`
@@ -1833,7 +1833,7 @@ R56. `leave_requests` foreign keys differ between model and migration  🟢
 
 R57. Lead Harvester follow-up PR  🟠 before real use
 
-   27 Nov: i (all but the multi-process job lock) in PR #136; ii (IPv6, validators once) in PR #137, its download size limit and iii still open. Not merged yet: mark ✅ when it is.
+   27 Nov: i (all but the multi-process job lock) in PR #136; ii (IPv6, validators once) in PR #137, its download size limit and iii still open. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Open bugs: robots.txt allows scraping when it can't be read; unknown categories (`spices`,
          `private_label`); a number in the phone field crashes a run; duplicates inside one fetch;
@@ -1990,7 +1990,7 @@ our own VPS. Do these before going live on the VPS unless marked 🟢.
 
 R70. Security headers on the VPS  🟠 before going live
 
-   27 Nov: HSTS in PR #112; COOP/CORP in PR #119; CSP nonces still open (conflict with the page cache). Not merged yet: mark ✅ when it is.
+   27 Nov: HSTS in PR #112; COOP/CORP in PR #119; CSP nonces still open (conflict with the page cache). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Today only `deploy/nginx/security-headers.conf` sets them (CSP, X-Frame-Options and more).
    ii.   Add HSTS, and remove `'unsafe-inline'` from the CSP script rule if the frontend allows it.
@@ -1999,7 +1999,7 @@ R70. Security headers on the VPS  🟠 before going live
 
 R71. Koko trusts chat history from the browser  🟠 (raises R1)
 
-   27 Nov: ii in PR #119; i in PR #134 (Koko uses its saved replies). Not merged yet: mark ✅ when it is.
+   27 Nov: ii in PR #119; i in PR #134 (Koko uses its saved replies). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    The browser sends the whole history, including Koko's own past replies, so a visitor can fake them
          (`schemas/lead.py:10`, `koko_service.py:208`).
@@ -2010,7 +2010,7 @@ R71. Koko trusts chat history from the browser  🟠 (raises R1)
 
 R72. Rate limits and the Koko budget reset on every restart  🟠 (raises R2)
 
-   27 Nov: the Koko budget part in PR #133 (koko_usage table, migration 0035); the per-IP limiters still open. Not merged yet: mark ✅ when it is.
+   27 Nov: the Koko budget part in PR #133 (koko_usage table, migration 0035); the per-IP limiters still open. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Kept in process memory (`core/rate_limit.py:22`, `koko_service.py:26`): a restart or deploy resets
          the daily AI budget, and two processes would double every limit.
@@ -2147,7 +2147,7 @@ Left on purpose by Vineet. None matters with today's values; each one bites only
 
 R91. One bad value makes the WHOLE config fall back to defaults on first load  🟠 before the VPS deploy
 
-   27 Nov: fix in PR #113. Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #113. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    `ini.py` validates all files together: one bad key = every file ignored (e.g. `jobs_enabled` back on).
    ii.   `storage.max_upload_mb` max went 500 -> 25 (#91): a server with 26-500 set (ini or
@@ -2198,7 +2198,7 @@ Tester brief (private artifact, Vineet shares it): "KJS Basic Release: Tester Br
 
 R97. VPS-day steps found in the review  🔴 before go-live (Vineet)
 
-   27 Nov: iii: in PR #113; i: CSP copied back in PR #112; ii and iv are server steps (Vineet). Not merged yet: mark ✅ when it is.
+   27 Nov: iii: in PR #113; i: CSP copied back in PR #112; ii and iv are server steps (Vineet). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    nginx `connect-src` (`deploy/nginx/security-headers.conf:17`) blocks Firebase: add
          `https://identitytoolkit.googleapis.com https://securetoken.googleapis.com`, or staff can't log in.
@@ -2211,7 +2211,7 @@ R97. VPS-day steps found in the review  🔴 before go-live (Vineet)
 
 R98. A disabled employee's open leads stay assigned to them  🔴 before go-live (after UAT)
 
-   27 Nov: fix in PR #122. Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #122. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Decided 18 Nov: on disable, their new / contacted leads go back to unassigned, with a note on each
          lead and one audit row; closed leads keep their owner.
@@ -2226,7 +2226,7 @@ R99. No leads export  ✅ 18 Nov (decided: launch without one)
 
 R100. Website text and SEO fields  🟢 (covered by the dynamic UI work)
 
-   27 Nov: ii: in PR #129. Not merged yet: mark ✅ when it is.
+   27 Nov: ii: in PR #129. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    Non-coffee words hard-coded: home page (line 66), layout title, private-label description, search
          placeholder, JSON-LD, Koko's prompt. Ignored for now (Vineet, 18 Nov).
@@ -2267,7 +2267,7 @@ migration 0030), the site follows the switches (#99). Decisions 58, 59 in `memor
 
 R104. A product with a name over 60 characters can't get a photo  🟠 own PR (Nishita)
 
-   27 Nov: fix in PR #124 (files.owner_id widened to 120, same bug as CR19). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #124 (files.owner_id widened to 120, same bug as CR19). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    `files.owner_id` is 60 characters (model and migration 0006); product slugs can be 110. The upload
          fails when the file row is saved, after the product is already saved. Was true before #93.
@@ -2383,7 +2383,7 @@ someone on the server.
 
 R118. The live nginx is ahead of the repo  🟠
 
-   27 Nov: i: in PR #112 (the Firebase CSP); iii: the host nginx config is still to copy (Vineet). Not merged yet: mark ✅ when it is.
+   27 Nov: i: in PR #112 (the Firebase CSP); iii: the host nginx config is still to copy (Vineet). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    The live CSP allows `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` (R97.i done on
          the server), but `deploy/nginx/security-headers.conf:17` still says `connect-src 'self'`. A redeploy
