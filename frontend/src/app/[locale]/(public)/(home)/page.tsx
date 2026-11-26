@@ -86,7 +86,8 @@ export default async function HomePage() {
       // The headline and text editable in Admin > Website
       eyebrow: 'Co-manufacturing · Hyderabad, India',
       title: t['home.hero_title'] ?? SITE.tagline,
-      text: focusText(t, 'home.hero_text', coffee) ?? '', // the backend always sends one (content_service.TEXTS)
+      // The backend sends one, but /public/texts can fail (texts() is then {}): never a headline with no text (CR29)
+      text: focusText(t, 'home.hero_text', coffee) ?? 'Made and packed for your brand in Hyderabad, India. Trusted by global leaders like Nestlé, Unilever, Mayora.',
       href: '#range',
       cta: 'Explore the range',
       images: pick(coffee ? COFFEE.slice(0, 3) : ['gofrey-crispy-x2', 'pacho-chocolate-bar', 'bigy-mellow']),
