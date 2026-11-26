@@ -504,44 +504,58 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             if strict:
                 raise ValueError(_reason(e)) from e
     base = last or Config()
+    kept = "its last good values" if last is not None else "the built-in defaults"
 
-    def fallback(section: str):
-        """A bad section: the file on its own if it is valid (only an env value was bad), else its last good
-        values (defaults on the first load); then each KJS__ env value on top, one at a time, each kept only if
-        the section stays valid. A bad file is still all or nothing (a misspelt switch never half-applies),
-        but one bad env value never takes the good env values or a good file down with it: a good file's
-        jobs_enabled = false and KJS__APP__JOBS_ENABLED=false both hold (R91)."""
+    def fallback(section: str) -> tuple[BaseModel, str]:
+        """A bad section, and what was kept (for the log). The file on its own (defaults + the file, so a
+        deleted key goes back to its default) if it is valid, else its last good values (defaults on the
+        first load); then the KJS__ env values on top: all together if they fit, else one at a time, repeated
+        until nothing more fits (so two values that only work together are not lost). A bad file is still all
+        or nothing (a misspelt switch never half-applies); one bad env value never takes the good env values or
+        a good file with it: a good file's jobs_enabled = false and KJS__APP__JOBS_ENABLED=false hold (R91)."""
         model = type(getattr(base, section))
-        values = getattr(base, section).model_dump()
+        values, how = getattr(base, section).model_dump(), kept
         if section not in broken:
             try:
-                values = model.model_validate({**values, **file_only.get(section, {})}).model_dump()
+                values, how = model.model_validate(file_only.get(section, {})).model_dump(), "the file"
             except ValidationError:
                 pass  # the file itself is bad: its last good values (logged above)
-        for key, value in from_env.get(section, {}).items():
-            try:
-                model.model_validate({**values, key: value})
-            except ValidationError:
-                continue  # this env value is the bad one: env_problems() names it at start-up
-            values[key] = value
-        return model.model_validate(values)
+        env = dict(from_env.get(section, {}))
+        try:
+            return model.model_validate({**values, **env}), how + (" + its KJS__ env values" if env else "")
+        except ValidationError:
+            pass
+        ignored = dict(env)
+        changed = True
+        while changed:  # apply what fits; a value that needs another one gets a second chance
+            changed = False
+            for key, value in list(ignored.items()):
+                try:
+                    model.model_validate({**values, key: value})
+                except ValidationError:
+                    continue
+                values[key] = value
+                del ignored[key]
+                changed = True
+        return model.model_validate(values), how + f"; ignored env: {', '.join(sorted(ignored))}"
 
-    sections, bad, bad_sections = {}, [], set()
+    sections, bad, bad_sections, hows = {}, [], set(), {}
     for section, field in Config.model_fields.items():
         if section in broken:
-            bad.append(broken[section])
+            bad.append((broken[section], section))
             bad_sections.add(section)
-            sections[section] = fallback(section)
+            sections[section], how = fallback(section)
+            hows[section] = how
             continue
         try:
             sections[section] = field.annotation.model_validate(raw.get(section, {}))
         except ValidationError as e:
-            bad.append(_reason(e, section))
+            bad.append((_reason(e, section), section))
             bad_sections.add(section)
-            sections[section] = fallback(section)
-    kept = "last good values for this file" if last is not None else "the built-in defaults for this file"
-    for reason in bad:
-        log.error("config.invalid", extra={"reason": reason, "kept": kept})
+            sections[section], how = fallback(section)
+            hows[section] = how
+    for reason, section in bad:
+        log.error("config.invalid", extra={"reason": reason, "kept": hows.get(section, kept)})
     try:
         return Config(**sections)
     except ValidationError as e:

@@ -205,15 +205,39 @@ def test_env_values_still_win_when_their_file_is_broken(config_dir, monkeypatch)
 
 
 def test_a_failed_load_is_not_retried_until_a_file_changes(config_dir, monkeypatch):
-    write(config_dir / "app.ini", "[app]\njob_timeout_seconds = 100\n")
-    write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = soon\n")
-    ini.reload_now()
+    # A fresh store whose very first load fails: loaded_from_files stays False, so only `tried` stops the retry
+    store = ini._Store()
     calls = []
-    real = ini._validate
-    monkeypatch.setattr(ini, "_validate", lambda *a, **k: calls.append(1) or real(*a, **k))
-    ini._store.load()
-    ini._store.load()
-    assert calls == []  # same files: no new read, no repeated error lines
+
+    def failing(*a, **k):
+        calls.append(1)
+        raise ValueError("config/app.ini: broken")
+
+    monkeypatch.setattr(ini, "_validate", failing)
+    store.load()
+    store.load()
+    store.load()
+    assert calls == [1]  # same files: no new read, no error line every 3 s
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 6\n")
+    store.load()
+    assert calls == [1, 1]  # a changed file is read again
+
+
+def test_a_deleted_key_goes_back_to_its_default_even_with_a_bad_env_value(config_dir, monkeypatch):
+    monkeypatch.setenv("KJS__APP__TIMEZONE", "Asia/Kolkataa")  # bad: the app section always takes the fallback
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 9\n")
+    assert ini.reload_now().app.lead_rate_per_hour == 9
+    write(config_dir / "app.ini", "[app]\n")  # the line is deleted
+    assert ini.reload_now().app.lead_rate_per_hour == 5  # its default, not the old 9
+
+
+def test_env_values_that_only_work_together_are_both_applied(config_dir, monkeypatch):
+    write(config_dir / "modules.ini", "[modules]\nsite_insights = on\nanalytics = on\n")
+    monkeypatch.setenv("KJS__MODULES__ANALYTICS", "off")
+    monkeypatch.setenv("KJS__MODULES__SITE_INSIGHTS", "off")
+    monkeypatch.setenv("KJS__MODULES__NOPE", "off")  # an unknown area: forces the one-at-a-time path
+    c = ini.reload_now()
+    assert c.modules.analytics == "off" and c.modules.site_insights == "off"
 
 
 def test_a_misspelt_time_zone_is_a_bad_value_not_a_crash(config_dir, monkeypatch):
