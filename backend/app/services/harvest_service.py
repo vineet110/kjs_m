@@ -69,7 +69,10 @@ def find_phone(text: str) -> str:
                 stretch = text[run[i].start():run[j].end()]
                 first = stretch.lstrip("+")[:1]
                 bare = stretch.lstrip("+").replace(" ", "").replace("-", "").replace(".", "")
-                if ((digits == 10 and first in "6789") or (digits == 11 and first == "0")
+                # A 10-digit mobile is one group or groups of at most 5 ("98765 43210"), never a 6-digit pin
+                # code plus something ("700001 2026": Kolkata pin codes start with 7)
+                mobile_groups = j == i or all(len(g.group()) <= 5 for g in run[i:j + 1])
+                if ((digits == 10 and first in "6789" and mobile_groups) or (digits == 11 and first == "0")
                         or (11 <= digits <= 13 and stretch.startswith("+"))
                         # "919876543210": the default country code written without its "+"
                         or (digits == 12 and bare.startswith(cfg().harvest.default_country_code)
@@ -235,7 +238,6 @@ async def fetch_rss_source(source: HarvestSource) -> list[dict]:
         if email_match:
             found_email = email_match.group(0)
 
-        found_phone = ""
         found_phone = find_phone(combined)  # same rules as scraped pages (+91 98765 43210 was missed)
 
         records.append({
