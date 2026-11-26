@@ -1,5 +1,5 @@
 """Lead SLA timers (working hours only), escalation job, notes, hand-over, notifications."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -166,7 +166,7 @@ async def test_weekly_counts_for_overview_trend(client):
         assert await lead_service.weekly_counts(db, now=now) == (2, 1)
 
 
-def test_a_reopened_lead_counts_its_resolve_time_from_the_reopen():  # CR12
+def test_a_reopened_lead_counts_its_resolve_time_from_the_reopen(sla_20_60_10):  # CR12 (numbers pinned)
     lead = Lead(status="contacted", created_at=ist("2026-10-26", "10:00"), reopened_at=ist("2026-11-02", "10:00"))
     assert lead_service.sla(lead, ist("2026-11-02", "10:30"), set())["sla_label"] == "Resolve in 30 min"
 
@@ -186,3 +186,24 @@ async def test_reopening_a_lead_closed_on_time_sends_no_false_alert(client, sla_
         result = await lead_service.sla_check(db, now=reopened)  # right after the reopen: nothing is late
         await db.commit()
     assert result["escalated"] == 0
+
+
+async def test_a_lead_reported_late_is_reported_again_after_a_reopen(client, sla_20_60_10):  # R4
+    await make_user("admin@kjsindia.com", role="admin")
+    await make_user("e@kjsindia.com", permissions=["leads.view"])
+    lead_id = await _new_lead(client, ist("2026-10-26", "10:00"))
+    await login(client, "e@kjsindia.com")
+    assert (await client.patch(f"/api/v1/employee/leads/{lead_id}", json={"status": "contacted"}, headers=HDR)).status_code == 204
+    async with AsyncSessionLocal() as db:
+        await lead_service.sla_check(db, now=ist("2026-10-26", "11:20"))  # resolve late: level 2
+        await db.commit()
+        assert (await db.get(Lead, lead_id)).escalation_level == 2
+    to = lambda body: client.patch(f"/api/v1/employee/leads/{lead_id}", json=body, headers=HDR)  # noqa: E731
+    assert (await to({"status": "closed", "outcome": "quote_sent"})).status_code == 204
+    assert (await to({"status": "contacted"})).status_code == 204
+    async with AsyncSessionLocal() as db:
+        lead = await db.get(Lead, lead_id)
+        assert lead.escalation_level == 1
+        later = await lead_service.sla_check(db, now=lead.reopened_at + timedelta(days=3))  # new timer ran out
+        await db.commit()
+    assert later["escalated"] == 1

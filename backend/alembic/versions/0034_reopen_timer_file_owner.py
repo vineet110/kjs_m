@@ -3,8 +3,9 @@ files: owner_id 60 -> 120 characters (a product slug can be 110, CR19)
 
 Only adds a nullable column and widens one: the old code keeps working with the new schema.
 
-Number 0034: 0027-0029 are taken by the open monitoring PRs (#83-#85). Whichever of those merges after this
-one points its down_revision at the newest number on main.
+Number 0034 follows 0033 on main. The open monitoring PRs (#83-#85) hold 0027-0029 with older
+down_revisions: when they merge, renumber them after the newest head on main (else two heads, and
+`alembic upgrade head` fails).
 
 Revision ID: 0034
 Revises: 0033

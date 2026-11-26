@@ -96,6 +96,8 @@ async def _publicly_visible(db: AsyncSession, owner_type: str, owner_id: str) ->
 
 
 def _clean_id(owner_type: str, owner_id: str) -> str:
+    if len(owner_id) > 120:  # the column's size (migration 0034): a clear 422, never a database error (500)
+        raise AppError(422, "bad_owner", "This owner id is too long.")
     clean = CLEANERS.get(owner_type)
     return clean(owner_id) if clean else owner_id
 
