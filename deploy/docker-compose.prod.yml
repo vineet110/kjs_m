@@ -3,6 +3,7 @@
 # Full guide: deploy/README.md. Secrets come from deploy/.env (copy .env.production.example).
 #
 #   Internet → Cloudflare → cloudflared (tunnel) → nginx → frontend (Next.js) / backend (FastAPI) → db
+#   (The live Hostinger VPS has a host nginx with HTTPS instead of Cloudflare: deploy/README.md section 1.)
 #
 # No port is open to the internet: cloudflared dials out to Cloudflare. nginx listens only on
 # 127.0.0.1:8080 so you can test on the server itself.

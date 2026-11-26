@@ -39,9 +39,15 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
          version 1.26.3) holds the HTTPS certificate and sends http to https.
    ii.   The security headers and CSP come from the Docker nginx (`nginx/security-headers.conf`) and pass
          through the host nginx unchanged. Change them here, never on the server, or the next deploy undoes it.
-   iii.  The host nginx config is NOT in this repo yet. It must have `server_tokens off;` in its `http { }`
-         block (hides the version, ZAP SEC-04). Check: `curl -sI https://twins.kjsindia.com | grep -i server`
-         shows `nginx` with no number.
+   iii.  The host nginx config is NOT in this repo yet. It must have:
+         - `server_tokens off;` in its `http { }` block (hides the version, ZAP SEC-04);
+         - `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` (the visitor's real IP; without it
+           every visitor shares one rate limit);
+         - `proxy_set_header X-Forwarded-Proto $scheme;`.
+         Check: `curl -sI https://twins.kjsindia.com | grep -i server` and
+         `curl -s https://twins.kjsindia.com/x.php | grep -i nginx` both show no version number.
+   iv.   `CF-Connecting-IP` is removed by the Docker nginx (no Cloudflare in front, so a visitor could fake it).
+         If Cloudflare is ever put in front again, remove that line in `nginx/default.conf` first.
 
 
 
