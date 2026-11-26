@@ -434,13 +434,15 @@ def _read_raw() -> dict:
             parser.optionxform = str  # keep key case (module names in [logging.levels])
             # Values are read inside the try too: ConfigParser checks % (interpolation) only when a value is
             # read, so "15%" would otherwise escape this handler and stop every file loading
+            # utf-8-sig: a file saved "UTF-8 with BOM" (Windows Notepad) reads like plain UTF-8. A file in
+            # another encoding (UnicodeDecodeError) is a broken file too, not a reason to drop every file.
             try:
-                parser.read(path, encoding="utf-8")
+                parser.read(path, encoding="utf-8-sig")
                 if parser.has_section(section):
                     values.update(parser[section])
                 if section == "logging" and parser.has_section("logging.levels"):
                     values["levels"] = dict(parser["logging.levels"])
-            except configparser.Error as e:
+            except (configparser.Error, UnicodeDecodeError) as e:
                 broken[section] = f"config/{filename}: {e}"
                 values = {}
         raw[section] = values
@@ -637,8 +639,8 @@ def effective_with_sources() -> list[dict]:
             parser = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
             parser.optionxform = str
             try:
-                parser.read(path, encoding="utf-8")
-            except configparser.Error:
+                parser.read(path, encoding="utf-8-sig")  # same reading as _read_raw
+            except (configparser.Error, UnicodeDecodeError):
                 continue
             if parser.has_section(section):
                 in_files |= {f"{section}.{k}" for k in parser[section]}
