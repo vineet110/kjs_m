@@ -178,12 +178,42 @@ def test_a_percent_sign_keeps_only_that_file(config_dir):
     assert c.app.jobs_enabled is False and c.sla.respond_minutes == 20
 
 
-def test_a_rule_broken_by_good_files_is_not_waived_for_an_unrelated_bad_file(config_dir):
+def test_a_rule_broken_by_good_files_is_never_waived_and_the_rest_still_applies(config_dir):
     write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 9\n")
     ini.reload_now()
     write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 7\njob_timeout_seconds = 60\n")  # 60 < 120 + 30
     write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")  # bad, but not read by that rule
-    assert ini.reload_now().app.lead_rate_per_hour == 9  # the whole new config is refused, as before
+    c = ini.reload_now()
+    # The rule's values go back to their last good ones (300 s); the other new values still apply (re-review
+    # of #113: refusing everything meant all defaults on the first load, e.g. jobs back on)
+    assert c.app.job_timeout_seconds == 300 and c.app.lead_rate_per_hour == 7
+
+
+def test_first_load_with_two_good_files_that_disagree_keeps_the_other_settings(config_dir):
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\njob_timeout_seconds = 100\n")  # 100 < 120 + 30
+    c = ini.reload_now()
+    assert c.app.jobs_enabled is False and c.app.job_timeout_seconds >= c.notifications.email_time_budget_seconds + 30
+
+
+def test_env_values_still_win_when_their_file_is_broken(config_dir, monkeypatch):
+    # Production switches jobs off with KJS__APP__JOBS_ENABLED=false: a broken app.ini must not switch them on
+    monkeypatch.setenv("KJS__APP__JOBS_ENABLED", "false")
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 5\nlead_rate_per_hour = 6\n")  # duplicate key
+    assert ini.reload_now().app.jobs_enabled is False
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = soon\n")  # a bad value
+    assert ini.reload_now().app.jobs_enabled is False
+
+
+def test_a_failed_load_is_not_retried_until_a_file_changes(config_dir, monkeypatch):
+    write(config_dir / "app.ini", "[app]\njob_timeout_seconds = 100\n")
+    write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = soon\n")
+    ini.reload_now()
+    calls = []
+    real = ini._validate
+    monkeypatch.setattr(ini, "_validate", lambda *a, **k: calls.append(1) or real(*a, **k))
+    ini._store.load()
+    ini._store.load()
+    assert calls == []  # same files: no new read, no repeated error lines
 
 
 def test_a_misspelt_time_zone_is_a_bad_value_not_a_crash(config_dir, monkeypatch):

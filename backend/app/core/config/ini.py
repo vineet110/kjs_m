@@ -421,6 +421,7 @@ LIST_FIELDS = _list_fields()
 
 # ---------- Loading ----------
 BROKEN = "__broken__"  # raw[BROKEN] = {section: reason}: files that could not even be read (syntax error)
+FROM_ENV = "__from_env__"  # raw[FROM_ENV] = {section: {key, ...}}: the keys a KJS__ env value set
 
 
 def _read_raw() -> dict:
@@ -451,11 +452,13 @@ def _read_raw() -> dict:
         raw[section] = values
 
     # KJS__SLA__RESPOND_MINUTES=15 overrides [sla] respond_minutes
+    from_env: dict[str, set[str]] = {}
     for key, value in os.environ.items():
         if key.startswith(ENV_PREFIX):
             parts = key[len(ENV_PREFIX):].lower().split("__")
             if len(parts) == 2 and parts[0] in raw:
                 raw[parts[0]][parts[1]] = value
+                from_env.setdefault(parts[0], set()).add(parts[1])
 
     for section, k in LIST_FIELDS:
         values = raw.get(section, {})
@@ -463,6 +466,7 @@ def _read_raw() -> dict:
             values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
     if broken:
         raw[BROKEN] = broken
+    raw[FROM_ENV] = from_env
     return raw
 
 
@@ -484,7 +488,8 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
     jobs_enabled went back on).
     strict=True (CI's check of the repo's own files): raise on the first bad file instead."""
     broken: dict[str, str] = raw.get(BROKEN, {})
-    raw = {k: v for k, v in raw.items() if k != BROKEN}
+    from_env: dict[str, set[str]] = raw.get(FROM_ENV, {})
+    raw = {k: v for k, v in raw.items() if k not in (BROKEN, FROM_ENV)}
     if strict and broken:
         raise ValueError(next(iter(broken.values())))
     if not broken:
@@ -494,38 +499,52 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             if strict:
                 raise ValueError(_reason(e)) from e
     base = last or Config()
+
+    def fallback(section: str):
+        """A bad file's last good values (defaults on the first load), with its KJS__ env values still on top:
+        env wins over the file, so e.g. KJS__APP__JOBS_ENABLED=false holds even when app.ini is broken."""
+        kept = getattr(base, section)
+        env = {k: raw.get(section, {})[k] for k in from_env.get(section, ()) if k in raw.get(section, {})}
+        if not env:
+            return kept
+        try:
+            return type(kept).model_validate({**kept.model_dump(), **env})
+        except ValidationError:
+            return kept  # the env value itself is out of range: env_problems() reports it at start-up
+
     sections, bad, bad_sections = {}, [], set()
     for section, field in Config.model_fields.items():
         if section in broken:
             bad.append(broken[section])
             bad_sections.add(section)
-            sections[section] = getattr(base, section)
+            sections[section] = fallback(section)
             continue
         try:
             sections[section] = field.annotation.model_validate(raw.get(section, {}))
         except ValidationError as e:
             bad.append(_reason(e, section))
             bad_sections.add(section)
-            sections[section] = getattr(base, section)
+            sections[section] = fallback(section)
     kept = "last good values for this file" if last is not None else "the built-in defaults for this file"
     for reason in bad:
         log.error("config.invalid", extra={"reason": reason, "kept": kept})
     try:
         return Config(**sections)
     except ValidationError as e:
-        if not (bad_sections & Config.RULE_SECTIONS):
-            # The files the rule reads are all fine and still disagree: a real mistake, keep the old config
-            raise ValueError(_reason(e)) from e
-        # The rule fails and one of the files it reads is bad. The rule is never waived (a too-short job
-        # timeout cuts an email batch mid-send). Only the values the rule reads go back to their last good
-        # ones (or the defaults), which met it; every other good setting stays, e.g. jobs_enabled = false (R91).
+        # A rule between two files fails. It is never waived (a too-short job timeout cuts an email batch
+        # mid-send), and the files are never all thrown away either (on the first load that would bring back
+        # every default, e.g. jobs_enabled = true: R91). Only the values the rule reads go back to their last
+        # good ones (or the defaults), which met it; every other setting still applies.
+        refused = [f"{FILES[s]} {k} = {getattr(sections[s], k)}" for s, keys in Config.RULE_FIELDS.items()
+                   for k in keys if getattr(sections[s], k) != getattr(getattr(base, s), k)]
         safe = {s: sections[s].model_copy(update={k: getattr(getattr(base, s), k) for k in keys})
                 for s, keys in Config.RULE_FIELDS.items()}
         try:
             new = Config(**{**sections, **safe})
         except ValidationError as e2:
             raise ValueError(_reason(e2)) from e2  # can't happen with values that met the rule: keep the old config
-        log.error("config.invalid", extra={"reason": _reason(e), "kept": "the last good job timeout and email budget"})
+        log.error("config.invalid", extra={"reason": _reason(e), "refused": refused or "none",
+                                           "kept": "the last good job timeout and email budget"})
         return new
 
 
@@ -567,6 +586,7 @@ class _Store:
         self.lock = threading.Lock()
         self.listeners: list[Callable[[Config], None]] = []
         self.loaded_from_files = False
+        self.tried = False  # the files were read at least once (even if that try failed)
 
     def _current_mtimes(self) -> dict[str, float]:
         out = {}
@@ -580,9 +600,9 @@ class _Store:
     def load(self, force: bool = False) -> None:
         with self.lock:
             mtimes = self._current_mtimes()
-            if not force and mtimes == self.mtimes and self.loaded_from_files:
-                return
-            self.mtimes = mtimes
+            if not force and mtimes == self.mtimes and (self.loaded_from_files or self.tried):
+                return  # nothing changed since the last try (a failed one is not logged again every 3 s)
+            self.mtimes, self.tried = mtimes, True
             try:
                 new = _validate(_read_raw(), self.config if self.loaded_from_files else None)
             except ValueError as e:
