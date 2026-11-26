@@ -87,12 +87,22 @@ const SERVER_TIMEOUT_MS = 15_000;
  *  and cache() brings it back, so the layout, generateMetadata and the page asking for the same path
  *  during one request cost one API call, not three. */
 export const serverGet = cache(async function serverGet<T>(path: string): Promise<T | null> {
+  return apiGet<T>(path, false);
+});
+
+/** Like serverGet, but always asks the API (no 60 s reuse). For a product or category page: when an
+ *  admin hides one, its page must be gone at once, not a minute later (TC-PROD-07, TC-E2E-05). */
+export const serverGetFresh = cache(async function serverGetFresh<T>(path: string): Promise<T | null> {
+  return apiGet<T>(path, true);
+});
+
+async function apiGet<T>(path: string, fresh: boolean): Promise<T | null> {
   let res: Response;
   try {
     // No X-Request-ID header here: Next.js caches by URL + headers, and a new ID every time
     // would turn the cache off. We log the ID FastAPI gives back instead.
     res = await fetch(`${INTERNAL}/api/v1${path}`, {
-      next: { revalidate: REVALIDATE_SECONDS },
+      ...(fresh ? { cache: 'no-store' as const } : { next: { revalidate: REVALIDATE_SECONDS } }),
       signal: AbortSignal.timeout(SERVER_TIMEOUT_MS),
     });
   } catch (err) {
@@ -109,7 +119,7 @@ export const serverGet = cache(async function serverGet<T>(path: string): Promis
     throw new Error(`API ${path} failed: ${res.status} (request ${requestId})`);
   }
   return res.json();
-});
+}
 
 // ---------- Browser side (client components): same-origin /api, cookie sent automatically ----------
 export class ApiFailure extends Error {

@@ -27,10 +27,10 @@ TEXTS: dict[str, tuple[str, str]] = {
                        "Chocolate bars, wafers, biscuits and marshmallow treats, made and packed for your brand. "
                        "Trusted by global leaders like Nestlé, Unilever, Mayora."),
     "seo.home.title": ("Home: page title (Google)",
-                       "KJS India | Contract Manufacturing: Chocolate Bars, Wafers, Biscuits"),
+                       "KJS India | Chocolate Bars, Wafers, Biscuits Manufacturer"),
     "seo.home.description": ("Home: description (Google)",
                              "Co-manufacturer of chocolate bars, wafers, biscuits and marshmallow treats, "
-                             "plus coffee and tea in stick packs. Private label, export, FSSC 22000 certified."),
+                             "plus coffee in stick packs. Private label, export, FSSC 22000 certified."),
     # Coffee-only versions: used while Coffee is the only category shown (Admin > Products > Categories)
     "coffee.home.hero_text": ("Coffee only: text under the headline",
                               "Agglomerated, spray-dried and freeze-dried instant coffee, made and packed for your "
@@ -42,7 +42,7 @@ TEXTS: dict[str, tuple[str, str]] = {
                                     "sticks, jars, tins, pouches or bulk. Private label, export, FSSC 22000."),
     "seo.products.title": ("Products: page title (Google)", "Products | KJS India"),
     "seo.products.description": ("Products: description (Google)",
-                                 "Coffee, tea, health drink and confectionery products for private label and export."),
+                                 "Coffee, health drink and confectionery products for private label and export."),
     "contact.intro": ("Contact page: intro", "For brands, distributors, retailers and importers. Bulk and export orders."),
     "partners.intro": ("Partners page: intro",
                        "Sales agents, referral partners, freight forwarders and distributors: refer buyers to KJS India "

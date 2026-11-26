@@ -32,6 +32,7 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
   const [shown, setShown] = useState(PAGE);
   const [quick, setQuick] = useState<HomeProduct | null>(null);
   const [sent, setSent] = useState(false);
+  const [listFull, setListFull] = useState(false); // "list is full" note, a few seconds (was a blocking alert())
   const { listed, ready } = useHistory();
 
   // Products on the site, and the list as shown and sent: only those products, the newest LIST_MAX
@@ -69,7 +70,10 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
     const latest = readEnquiryList();
     const next = latest.includes(slug) ? latest.filter((s) => s !== slug) : addToEnquiryList(latest, slug, live, LIST_MAX);
     if (next) saveEnquiryList(next);
-    else alert(`Your enquiry list can hold ${LIST_MAX} products. Send it first, then start a new one.`);
+    else {
+      setListFull(true);
+      window.setTimeout(() => setListFull(false), 5000);
+    }
   }
 
   // After a successful send the list is emptied on screen AND in storage at the same moment (backlog
@@ -98,6 +102,11 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
 
   return (
     <>
+      {listFull && (
+        <p role="status" className="fixed bottom-24 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 rounded-lg bg-ink px-4 py-3 text-center text-sm text-white shadow-lg">
+          Your enquiry list can hold {LIST_MAX} products. Send it first, then start a new one.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2" role="tablist">
         {[{ slug: 'all', name: 'All products', count: products.length }, ...tabs.map((c) => ({ slug: c.slug, name: c.name, count: c.product_count }))].map((t) => (
           <button

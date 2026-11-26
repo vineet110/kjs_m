@@ -29,7 +29,7 @@ export default function PartnerForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form method="post" onSubmit={submit} className="space-y-3">
       <h2 className="text-lg font-bold">Apply to become a partner</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className="label" htmlFor="p-name">Full name *</label><input id="p-name" name="name" required minLength={2} className="input" /></div>

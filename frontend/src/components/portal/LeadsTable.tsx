@@ -170,7 +170,7 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
           ))}
         </ul>
       )}
-      <form onSubmit={addNote} className="flex flex-wrap gap-2">
+      <form method="post" onSubmit={addNote} className="flex flex-wrap gap-2">
         <select name="kind" className="input w-auto"><option value="call">Call</option><option value="email">Email</option><option value="note">Note</option></select>
         <input name="text" required maxLength={2000} placeholder="What happened? e.g. Called, wants samples of 3-in-1" className="input min-w-[12rem] flex-1" />
         <button disabled={busy} className="btn-dark">Log</button>

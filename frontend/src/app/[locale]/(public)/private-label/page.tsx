@@ -2,11 +2,11 @@
 // market -> send to sales). No price is shown until KJS gives price bands (backlog I3, A23).
 import type { Metadata } from 'next';
 import Configurator from '@/components/public/Configurator';
-import { serverGet, type Product } from '@/lib/api';
+import { features, serverGet, type Product } from '@/lib/api';
 
 export const metadata: Metadata = {
   title: 'Private label',
-  description: 'Your brand, our factory: private-label coffee, tea, health drinks and confectionery in stick packs, sachets and pouches.',
+  description: 'Your brand, our factory: private-label coffee, health drinks and confectionery in stick packs, sachets and pouches.',
 };
 
 const STEPS = [
@@ -17,13 +17,14 @@ const STEPS = [
 ];
 
 export default async function PrivateLabelPage() {
-  const products = (await serverGet<Product[]>('/public/products')) ?? [];
+  // features.ini configurator = false: no form at all (the API would refuse its send anyway, TC-PUB-22)
+  const [products, f] = await Promise.all([serverGet<Product[]>('/public/products').then((p) => p ?? []), features()]);
   return (
     <div className="mx-auto max-w-7xl space-y-12 px-4 py-12">
       <div className="max-w-3xl space-y-3">
         <p className="eyebrow">Private label</p>
         <h1 className="text-4xl font-bold">Your brand, our factory</h1>
-        <p className="text-lg text-slate-600">Coffee, tea, health drinks and confectionery, blended and packed under your label.</p>
+        <p className="text-lg text-slate-600">Coffee, health drinks and confectionery, blended and packed under your label.</p>
       </div>
 
       <ol className="grid gap-4 md:grid-cols-4">
@@ -36,11 +37,13 @@ export default async function PrivateLabelPage() {
         ))}
       </ol>
 
-      <section>
-        <div className="card p-6">
-          <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
-        </div>
-      </section>
+      {f.configurator && (
+        <section>
+          <div className="card p-6">
+            <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

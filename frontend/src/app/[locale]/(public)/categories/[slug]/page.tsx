@@ -5,22 +5,22 @@ import { notFound } from 'next/navigation';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
 import Reveal from '@/components/public/Reveal';
-import { serverGet, type Category, type Product } from '@/lib/api';
+import { serverGetFresh, type Category, type Product } from '@/lib/api';
 
 // Next 15+: params arrive as a Promise.
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const c = await serverGet<Category>(`/public/categories/${encodeURIComponent(slug)}`);
+  const c = await serverGetFresh<Category>(`/public/categories/${encodeURIComponent(slug)}`);
   return c ? { title: `${c.name} contract manufacturing`, description: c.description } : {};
 }
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
   const [category, products] = await Promise.all([
-    serverGet<Category>(`/public/categories/${encodeURIComponent(slug)}`),
-    serverGet<Product[]>(`/public/products?category=${encodeURIComponent(slug)}`),
+    serverGetFresh<Category>(`/public/categories/${encodeURIComponent(slug)}`),
+    serverGetFresh<Product[]>(`/public/products?category=${encodeURIComponent(slug)}`),
   ]);
   if (!category) notFound();
 
