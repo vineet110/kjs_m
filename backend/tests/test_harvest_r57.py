@@ -120,6 +120,7 @@ async def test_a_lead_saved_without_country_code_is_a_duplicate_of_the_same_numb
     ("Kolkata 700001 2026 catalogue", ""),  # a 7-starting pin code plus a year is not a mobile
     ("Chennai 600001 1234", ""),
     ("Call 987 654 3210", "9876543210"),  # 3-3-4 grouping still found
+    ("Tel +91 (0)22 2345 6789", "912223456789"),  # the bracketed trunk 0 is dropped
 ])
 def test_more_phone_texts(text, digits):
     import re

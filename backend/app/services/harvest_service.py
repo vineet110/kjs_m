@@ -50,8 +50,10 @@ def find_phone(text: str) -> str:
     trunk 0; 11 to 13 with "+"). Nothing else is guessed: free text has endless formats, and a wrong number is
     worse than none, so this takes the common shapes and never glues a year, pin code or time onto them. So "+91 98765 43210 10am" gives +91 98765 43210, "Since 1998 98765 43210" gives
     98765 43210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
+    # "+91 (0)22 2345 6789": the bracketed 0 is a trunk prefix that is never dialled with the country code
+    text = re.sub(r"\(\s*0\s*\)", " ", text or "")
     runs: list[list[re.Match]] = []
-    for g in _DIGIT_GROUP.finditer(text or ""):
+    for g in _DIGIT_GROUP.finditer(text):
         joined = runs and _GROUP_JOIN.fullmatch(text[runs[-1][-1].end():g.start()]) and not g.group().startswith("+")
         if joined:
             runs[-1].append(g)
