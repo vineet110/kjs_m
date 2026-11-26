@@ -66,7 +66,7 @@ class LocalStorage:
         except OSError as e:
             raise StorageError(f"delete failed: {type(e).__name__}") from e
 
-    def url(self, key: str, filename: str = "") -> str | None:
+    def url(self, key: str, filename: str = "", inline: bool = False) -> str | None:
         return None
 
 
@@ -193,8 +193,10 @@ class R2Storage:
             if not token:
                 return out
 
-    def url(self, key: str, filename: str = "") -> str | None:
-        extra = {"response-content-disposition": f'attachment; filename="{filename}"'} if filename else None
+    def url(self, key: str, filename: str = "", inline: bool = False) -> str | None:
+        # inline: the browser opens it (a public spec sheet), else it downloads (CR22)
+        how = "inline" if inline else "attachment"
+        extra = {"response-content-disposition": f'{how}; filename="{filename}"'} if filename else None
         return sigv4_presign(method="GET", host=self.host, path=self._path(key),
                              access_key=self.access_key, secret_key=self.secret_key,
                              region=self.region, expires=300, now=datetime.now(timezone.utc), extra_query=extra)

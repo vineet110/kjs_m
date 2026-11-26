@@ -236,7 +236,9 @@ async def create(db: AsyncSession, user: User, data) -> dict:
     await _start_step(db, board, first, user)
     audit_service.record(db, actor=user, action="board.created", entity_type="board", entity_id=code,
                          after={"steps": len(plan), "deadline": data.deadline.isoformat(), "plan_late": plan_late})
-    notification_service.notify(db, member_ids - {user.id}, "board.added", f"You are on order board {code}",
+    # Step 1's people already got "step started" for this same moment: one message, not two (CR24.ii)
+    first_step_people = set(data.steps[0].member_ids) if data.steps else set()
+    notification_service.notify(db, member_ids - {user.id} - first_step_people, "board.added", f"You are on order board {code}",
                                 f"{board.name} for {board.client}.", f"/employee/order-boards/{code}")
     await db.commit()
     return await detail(db, user, code)
@@ -250,8 +252,10 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
             task_service.add(db, assignee_id=uid, title=f"{board.code} · {step.name}: {title}", source="board",
                              source_ref=f"board:{board.code}:step:{step.position}", due_at=due,
                              created_by=None)  # made by the board: nobody may edit them as "creator" (CR16)
+        # The order and client too: for step-1 people this is the only message about a new board (CR24.ii)
         notification_service.notify(db, [uid], "board.step_started", f"{board.code}: step '{step.name}' started",
-                                    f"Planned until {step.planned_end:%d %b}.", f"/employee/order-boards/{board.code}")
+                                    f"{board.name} for {board.client}. Planned until {step.planned_end:%d %b}.",
+                                    f"/employee/order-boards/{board.code}")
 
 
 # ---------- Read ----------
