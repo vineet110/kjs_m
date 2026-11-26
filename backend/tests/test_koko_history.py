@@ -90,3 +90,36 @@ async def test_the_history_sent_to_the_ai_starts_with_the_visitor(monkeypatch):
     async with AsyncSessionLocal() as db:
         await koko_service.reply(db, lines, "")
     assert seen["h"][0]["role"] == "user"
+
+
+STRONG = "0b8f6c1e-3a2d-4c5b-9e7f-1a2b3c4d5e6f"  # what the widget makes now (crypto.randomUUID)
+
+
+async def test_a_strong_chat_id_keeps_the_chat_when_the_network_changes():
+    from app.core.database import AsyncSessionLocal
+    from app.services import content_service
+    async with AsyncSessionLocal() as db:
+        await content_service.append_chat(db, STRONG, "", {"role": "user", "content": "hi"},
+                                          {"role": "assistant", "content": "hello"}, False, "wifi")
+        assert await content_service.stored_chat(db, STRONG, "mobile-data") is not None  # same chat, new IP
+        await content_service.append_chat(db, "c-short1", "", {"role": "user", "content": "hi"},
+                                          {"role": "assistant", "content": "hello"}, False, "wifi")
+        assert await content_service.stored_chat(db, "c-short1", "mobile-data") is None  # old weak id: IP rule
+
+
+async def test_two_requests_at_once_both_keep_their_turn():
+    import asyncio
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+    from app.services import content_service
+
+    async def one(n):
+        async with AsyncSessionLocal() as db:
+            await content_service.append_chat(db, STRONG, "", {"role": "user", "content": f"q{n}"},
+                                              {"role": "assistant", "content": f"a{n}"}, False, "ip")
+    await one(0)
+    await asyncio.gather(one(1), one(2))
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == STRONG))
+    assert len(saved) == 6 and {m["content"] for m in saved} >= {"q1", "a1", "q2", "a2"}

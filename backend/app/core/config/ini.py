@@ -119,6 +119,8 @@ class KokoIni(BaseModel):
     prompt_limit: int = Field(8000, ge=2000, le=60000)  # characters of system prompt (about 2,000 tokens)
     timeout_seconds: int = Field(25, ge=5, le=55)  # whole AI call; nginx gives up at 60 s
     http_timeout_seconds: int = Field(20, ge=5, le=55)  # one HTTP request to the AI provider
+    message_max: int = Field(2000, ge=200, le=10000)  # characters of one chat line (visitor or Koko)
+    chat_max: int = Field(8000, ge=1000, le=60000)  # characters of the whole chat the AI may be sent
 
     @model_validator(mode="after")
     def timeout_order(self):

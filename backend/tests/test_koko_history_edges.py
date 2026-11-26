@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.content import KokoChat
-from app.schemas.lead import CHAT_MAX
+from app.core.config.ini import cfg
 from app.services import content_service
 from app.core.deps import visitor_keys
 from tests.test_koko_history import CHAT, HDR, sent  # noqa: F401 - `sent` is a fixture
@@ -33,7 +33,7 @@ async def test_a_long_saved_chat_is_cut_to_the_newest_lines_that_fit(client, sen
     history = sent[-1]
     assert history[-1] == {"role": "user", "content": "last question"}
     assert history[0]["role"] == "user"  # never starts with a Koko line
-    assert sum(len(m["content"]) for m in history) <= CHAT_MAX
+    assert sum(len(m["content"]) for m in history) <= cfg().koko.chat_max
     assert history[-2]["content"].startswith("19 ")  # the newest Koko reply is kept
     saved = await _saved("long")
     assert len(saved) <= 40 and saved[-1] == {"role": "assistant", "content": f"Koko reply {len(sent)}"}

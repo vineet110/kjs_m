@@ -204,19 +204,53 @@ async def set_partner_status(db: AsyncSession, user: User, partner_id: int, stat
 
 
 # ---------- Koko transcripts ----------
+# A chat id this long is a random secret the widget made (crypto.randomUUID): knowing it is the proof that the
+# chat is yours, so a phone that changes network keeps its chat. Shorter ids (the old widget made ~20 weak
+# characters) still need the same hashed IP as well. A security rule, not a tunable.
+STRONG_CHAT_ID = 32
+
+
+def _owns(row: KokoChat, chat_id: str, ip_hash: str | None) -> bool:
+    if len(chat_id) >= STRONG_CHAT_ID:
+        return True
+    return ip_hash is not None and row.ip_hash == ip_hash
+
+
 async def stored_chat(db: AsyncSession, chat_id: str, ip_hash: str | None) -> list[dict] | None:
-    """This visitor's saved transcript (same chat id AND same hashed IP), or None. What Koko really said
-    comes from here, never from the browser (R71)."""
-    if not chat_id or ip_hash is None:  # no IP known: can't tell whose chat it is
+    """This visitor's saved transcript, or None. What Koko really said comes from here, never from the
+    browser (R71). Yours = a strong chat id, or a weak one from the same hashed IP (_owns)."""
+    if not chat_id:
         return None
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
-    return list(row.messages) if row is not None and row.ip_hash == ip_hash else None
+    return list(row.messages) if row is not None and _owns(row, chat_id, ip_hash) else None
+
+
+async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict, reply: dict, suggested: bool,
+                      ip_hash: str | None, retry: bool = False) -> None:
+    """Add one question and Koko's reply to the saved transcript. The row is locked and the pair appended to
+    what is there NOW, so two requests at the same moment both keep their turn. retry: the same question
+    whose answer never reached the browser replaces its own earlier answer instead of being saved twice."""
+    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id).with_for_update())
+    if row is not None and not _owns(row, chat_id, ip_hash):
+        return  # someone else's chat id: never touch another visitor's transcript
+    if row is None:
+        if len(chat_id) < STRONG_CHAT_ID and ip_hash is None:
+            return  # a weak id with no IP: nobody could ever prove it is theirs
+        row = KokoChat(chat_id=chat_id, page=page[:255], messages=[], suggested_enquiry=False, ip_hash=ip_hash)
+        db.add(row)
+    messages = [m for m in (row.messages or []) if isinstance(m, dict)]
+    if (retry and len(messages) >= 2 and messages[-2].get("content") == question["content"]
+            and messages[-1].get("role") == "assistant"):
+        messages = messages[:-2]
+    row.messages = (messages + [question, reply])[-40:]
+    row.suggested_enquiry = row.suggested_enquiry or suggested
+    await db.commit()
 
 
 async def save_chat(db: AsyncSession, chat_id: str, page: str, messages: list[dict], suggested: bool,
                     ip_hash: str | None) -> None:
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
-    if row is not None and row.ip_hash != ip_hash:
+    if row is not None and not _owns(row, chat_id, ip_hash):
         return  # someone else's chat id: never overwrite another visitor's transcript
     if row is None:
         row = KokoChat(chat_id=chat_id, page=page[:255], messages=[], suggested_enquiry=False, ip_hash=ip_hash)

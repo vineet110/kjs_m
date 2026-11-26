@@ -1,18 +1,23 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
+from app.core.config.ini import cfg
 from app.schemas.common import Email, OneLine, RequiredPhone
-
-
-MESSAGE_MAX = 2000  # one chat line (visitor or Koko)
-CHAT_MAX = 8000  # all lines of one request together (what the AI may be sent)
 
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(max_length=MESSAGE_MAX)
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def not_too_long(cls, v: str) -> str:
+        # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import)
+        if len(v) > cfg().koko.message_max:
+            raise ValueError(f"A chat message can be at most {cfg().koko.message_max} characters.")
+        return v
 
 
 class LeadIn(BaseModel):
@@ -128,7 +133,7 @@ class KokoIn(BaseModel):
         # common prompt-injection trick, and the last message must be the visitor's question.
         if self.messages[0].role != "user" or self.messages[-1].role != "user":
             raise ValueError("The conversation must start and end with a visitor message.")
-        if sum(len(m.content) for m in self.messages) > CHAT_MAX:
+        if sum(len(m.content) for m in self.messages) > cfg().koko.chat_max:
             raise ValueError("The conversation is too long. Please start a new chat.")
         return self
 
