@@ -777,7 +777,13 @@ async def board_alerts(db: AsyncSession, today: date | None = None) -> dict:
         # (CR15). A step being saved right now is skipped and checked fresh next run.
         step = await db.scalar(select(BoardStep).where(BoardStep.id == step.id).with_for_update(skip_locked=True)
                                .execution_options(populate_existing=True))
-        if step is None or step.status != "active" or crossed <= step.alerted_pct:
+        board = await db.scalar(select(OrderBoard).where(OrderBoard.id == board.id)
+                                .execution_options(populate_existing=True))  # finished meanwhile? (its own lock)
+        if step is None or step.status != "active" or board.status != "active":
+            continue
+        pct = used_pct(step, today, holidays)  # from the fresh plan: a re-plan may have just moved its dates
+        crossed = max((t for t in thresholds if pct >= t), default=0)
+        if crossed <= step.alerted_pct:
             continue
         step.alerted_pct = crossed
         who = (await _member_ids(db, board.id, step.id) | set(managers) | {board.created_by}) - {None}

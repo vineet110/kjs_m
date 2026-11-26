@@ -580,11 +580,16 @@ async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:
         # and checked fresh next minute.
         fresh = await db.scalar(select(Lead).where(Lead.id == lead.id).with_for_update(skip_locked=True)
                                 .execution_options(populate_existing=True))
-        if fresh is None or fresh.status == "closed" or fresh.escalation_level >= level:
+        if fresh is None or fresh.status == "closed":
             continue
+        # The same rules again, on the fresh row (a call logged meanwhile can turn "not answered" into "not closed")
         t = sla(fresh, now, holidays)
-        still = (fresh.status == "new" and now > t["respond_due_at"] + grace) if level == 1 else now > t["resolve_due_at"] + grace
-        if not still:
+        level, what = 0, ""
+        if fresh.status == "new" and fresh.escalation_level < 1 and now > t["respond_due_at"] + grace:
+            level, what = 1, "not answered"
+        elif fresh.escalation_level < 2 and now > t["resolve_due_at"] + grace:
+            level, what = 2, "not closed"
+        if not level:
             continue
         lead = fresh
         lead.escalation_level = level
