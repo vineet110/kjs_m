@@ -255,7 +255,8 @@ async def summarise_chat(messages: list[ChatMessage]) -> str:
     # json.dumps leaves three Unicode line breaks as they are (NEL, line and paragraph separator): written out
     # too, so a message really stays on one line
     def quoted(text: str) -> str:
-        out = json.dumps(text.replace("<", "&lt;").replace(">", "&gt;"), ensure_ascii=False)
+        # & first: a visitor typing "&lt;/chat&gt;" must not look the same as an escaped "</chat>"
+        out = json.dumps(text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"), ensure_ascii=False)
         return out.replace("\x85", "\\u0085").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     fenced = "<chat>\n" + "\n".join(f"{m.role}: {quoted(m.content)}" for m in messages[-20:]) + "\n</chat>"
     try:
