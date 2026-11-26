@@ -37,9 +37,9 @@ def send_file(f, url: str | None, data: Path | bytes | None, inline: bool = Fals
     # sandbox: even if an uploaded PDF carries scripts, they can't run as our website
     headers = {"content-disposition": disposition, "x-content-type-options": "nosniff",
                "content-security-policy": "sandbox"}
-    # Public website files (product photos) may be cached by browsers and Cloudflare for an hour;
-    # staff files never are.
-    headers["cache-control"] = "public, max-age=3600" if inline else "private, no-store"
+    # Public website files (product photos) may be kept by browsers for 10 minutes (a photo taken down
+    # disappears within that); staff files never are.
+    headers["cache-control"] = "public, max-age=600" if inline else "private, no-store"
     if isinstance(data, Path):  # local disk: streamed in chunks, never loaded whole into memory
         return FileResponse(data, media_type=f.content_type, headers=headers)
     return Response(data, media_type=f.content_type, headers=headers)

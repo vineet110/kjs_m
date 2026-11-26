@@ -116,6 +116,10 @@ async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, a
         raise AppError(403, "forbidden", "You can't access these files.")
 
 
+# Largest public photo the API sends itself (R44). A safety limit, not a tunable: bigger ones redirect to R2.
+PUBLIC_PHOTO_MAX = 2 * 1024 * 1024
+
+
 async def _check_or_not_found(db: AsyncSession, user: User, f: StoredFile) -> None:
     """Reading one file by its id: someone who may not see it gets 404 like a file that doesn't exist, so the
     answer doesn't tell them the file is there (TC-FILE-11)."""
@@ -227,15 +231,20 @@ async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile
 
 async def download(db: AsyncSession, user: User | None, file_id: int,
                    inline: bool = False) -> tuple[StoredFile, str | None, Path | bytes | None]:
-    """Returns (file, redirect_url, content). R2 gives a 5-minute link; local storage gives the path
-    on disk, so the file is streamed instead of loaded into memory."""
+    """Returns (file, redirect_url, content). R2 gives a 5-minute link (except public photos, R44); local
+    storage gives the path on disk, so the file is streamed instead of loaded into memory."""
     f = await _get(db, file_id)
     if user is None:  # the public website: only public files of a live product
         if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
         await _check_or_not_found(db, user, f)
-    url = storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
+    # Small public web PHOTOS are sent by us, so browsers can keep them (send_file), instead of a new 5-minute
+    # R2 link on every view that nothing could cache (R44). Only JPG/PNG/WebP up to PUBLIC_PHOTO_MAX bytes: each
+    # one is read from R2 into memory, so big files (spec PDFs, big or odd pictures) keep the link.
+    public_photo = (user is None and f.content_type in ("image/jpeg", "image/png", "image/webp")
+                    and f.size <= PUBLIC_PHOTO_MAX)
+    url = None if public_photo else storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
     store = storage()
