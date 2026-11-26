@@ -106,7 +106,7 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
   return (
     <>
       {listFull && (
-        <p role="status" className="fixed bottom-24 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 rounded-lg bg-ink px-4 py-3 text-center text-sm text-white shadow-lg">
+        <p role="status" className="fixed bottom-24 left-1/2 z-[60] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 rounded-lg bg-ink px-4 py-3 text-center text-sm text-white shadow-lg">
           Your enquiry list can hold {LIST_MAX} products. Send it first, then start a new one.
         </p>
       )}

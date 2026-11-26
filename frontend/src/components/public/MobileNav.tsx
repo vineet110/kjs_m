@@ -4,18 +4,23 @@
 // Closes when a link is followed (the header stays on screen between pages) and on Escape.
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Item = { href: string; label: string };
 
 export default function MobileNav({ items }: { items: Item[] }) {
   const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return;
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const close = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus(); // keyboard users land back on the menu button, not on nothing
+    };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [open]);
@@ -23,6 +28,7 @@ export default function MobileNav({ items }: { items: Item[] }) {
   return (
     <div className="md:hidden">
       <button
+        ref={button}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
