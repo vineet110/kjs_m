@@ -299,7 +299,8 @@ async def set_permissions(db: AsyncSession, admin: User, user_id: int, permissio
 
 
 async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -> User:
-    user = await db.get(User, user_id)
+    # Locked: a lead handed to this person right now waits, then sees them switched off (R98, lead_service.assign)
+    user = await db.get(User, user_id, with_for_update=True, populate_existing=True)
     if user is None:
         raise AppError(404, "not_found", "User not found.")
     _check_can_manage(admin, user)

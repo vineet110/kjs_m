@@ -10,7 +10,7 @@ from app.models.user import User
 from tests.conftest import HDR, login, make_user
 
 
-def _lead(owner: int, status: str) -> Lead:
+def _lead(owner: int | None, status: str) -> Lead:
     return Lead(source="enquiry_form", name=f"Buyer {status}", phone="+91 98765 43210", consent=True,
                 consent_at=datetime.now(timezone.utc), status=status, assigned_to=owner,
                 outcome="Won" if status == "closed" else "")
@@ -33,6 +33,9 @@ async def test_disabling_an_employee_returns_their_open_leads(client):
     assert owners == {"new": None, "contacted": None, "closed": e}  # closed ones keep their owner
     assert len(notes) == 2 and all("switched off" in n for n in notes)
     assert len(audit) == 1 and audit[0].after["leads_unassigned"] == 2
+    async with AsyncSessionLocal() as db:
+        per_lead = (await db.scalars(select(AuditLog).where(AuditLog.action == "lead.unassigned"))).all()
+    assert len(per_lead) == 2
 
 
 async def test_turning_an_employee_back_on_leaves_leads_alone(client):
@@ -43,9 +46,9 @@ async def test_turning_an_employee_back_on_leaves_leads_alone(client):
     await login(client, "admin@kjsindia.com")
     await client.post(f"/api/v1/admin/users/{e}/status", json={"status": "disabled"}, headers=HDR)
     async with AsyncSessionLocal() as db:
-        db.add(_lead(None, "new"))
+        db.add(_lead(e, "new"))  # owned by e while switched off (e.g. set by hand)
         await db.commit()
     assert (await client.post(f"/api/v1/admin/users/{e}/status", json={"status": "active"}, headers=HDR)).status_code == 200
     async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(Lead.assigned_to)) is None
+        assert await db.scalar(select(Lead.assigned_to)) == e  # turning back on moves nothing
         assert not (await db.scalars(select(LeadNote))).all()

@@ -519,22 +519,28 @@ async def list_notes(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
 
 
 async def return_open_leads(db: AsyncSession, by: User, owner: User) -> int:
-    """The owner's account was disabled (R98, decided 18 Nov): their new and contacted leads go back to
-    unassigned so the team sees and picks them up; each gets a note saying why. Closed leads keep their owner
-    (the reports count them). Returns how many went back. The caller writes the one audit row and commits."""
-    leads = (await db.scalars(select(Lead).where(Lead.assigned_to == owner.id, Lead.status.in_(("new", "contacted")))
+    """The owner's account was disabled (R98, decided 18 Nov): their open (not closed) leads go back to
+    unassigned so the team sees and picks them up; each gets a note and an audit row saying why. Closed leads
+    keep their owner (the reports count them). Returns how many went back. The caller commits.
+    Not moved (known gap, backlog): open tasks on those leads stay with the person."""
+    leads = (await db.scalars(select(Lead).where(Lead.assigned_to == owner.id, Lead.status != "closed")
                               .with_for_update())).all()
     for lead in leads:
         lead.assigned_to = None
         db.add(LeadNote(lead_id=lead.id, user_id=by.id, kind="handover",
                         text=f"Back to unassigned: {owner.name}'s account was switched off"))
+        audit_service.record(db, actor=by, action="lead.unassigned", entity_type="lead", entity_id=lead.id,
+                             before={"assigned_to": owner.id}, after={"assigned_to": None, "why": "owner switched off"})
     return len(leads)
 
 
 async def assign(db: AsyncSession, user: User, lead_id: int, to_user_id: int) -> None:
     """Hand over (owner) or reassign (leads.view_all) a lead to a colleague."""
+    # The colleague first (shared lock), then the lead: switching that colleague off (auth_service.set_status)
+    # waits for this handover, or this waits for it, so a lead never lands on a just-disabled account (R98).
+    # Same order as set_status (person, then leads): no deadlock.
+    target = await db.get(User, to_user_id, with_for_update={"read": True}, populate_existing=True)
     lead = await _lead_for(db, user, lead_id, lock=True)
-    target = await db.get(User, to_user_id)
     if target is None or target.status != "active":
         raise AppError(422, "bad_user", "Pick an active colleague.")
     if "leads.view" not in effective_permissions(target.role, target.permissions):
