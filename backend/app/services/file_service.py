@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from fastapi import UploadFile
 from sqlalchemy import select
@@ -66,8 +66,10 @@ ONLY_FOR = {"heic": {"lead"}}
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
                    approvers: Approvers | None = None, clean: Cleaner | None = None,
-                   types: set[str] | None = None, shrink: bool | str = False) -> None:
+                   types: set[str] | None = None, shrink: bool | Literal["public"] = False) -> None:
     """shrink: True = every picture, "public" = only pictures marked to show on the website."""
+    if isinstance(shrink, str) and shrink != "public":
+        raise ValueError(f"shrink must be True, False or 'public', not {shrink!r}")  # a typo must not shrink all
     OWNERS[owner_type] = check
     if shrink == "public":
         SHRINK_PUBLIC.add(owner_type)

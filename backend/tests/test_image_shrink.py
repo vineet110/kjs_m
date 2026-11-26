@@ -115,3 +115,21 @@ def test_a_picture_bomb_is_refused_before_it_is_unpacked():
 def test_other_files_are_left_alone():
     pdf = b"%PDF-1.4 spec sheet %%EOF"
     assert image_shrink.shrink("pdf", pdf) == pdf
+
+
+def test_a_palette_picture_saved_as_jpeg_keeps_its_rgb_profile():
+    import io
+    from PIL import Image, ImageCms
+    from app.services import image_shrink
+    srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    b = io.BytesIO()
+    Image.new("P", (10, 10)).save(b, "PNG", icc_profile=srgb)
+    out = Image.open(io.BytesIO(image_shrink.shrink("jpg", b.getvalue())))
+    assert out.info.get("icc_profile")  # only a CMYK profile is dropped on the way to RGB
+
+
+def test_a_typo_in_shrink_is_refused():
+    import pytest
+    from app.services import file_service
+    with pytest.raises(ValueError):
+        file_service.register_owner("typo-owner", lambda *a: True, shrink="Public")
