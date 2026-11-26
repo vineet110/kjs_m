@@ -13,9 +13,12 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
+from app.core.database import AsyncSessionLocal
+from app.models.koko_usage import KokoUsage
 from app.schemas.catalog import CategoryOut, ProductOut
 from app.schemas.lead import ChatMessage, KokoCardProduct, KokoCatalogue
 from app.services import catalog_service, content_service, llm
@@ -23,19 +26,27 @@ from app.services.catalog_service import SUBCATEGORIES
 
 log = logging.getLogger(__name__)
 ENQUIRY_TAG = "[ENQUIRY]"
-_calls_today: dict[str, int] = {}  # IST date -> AI calls (one API process, see backlog A41)
-
-
-def _within_daily_budget() -> bool:
+async def _within_daily_budget() -> bool:
     """Count one AI call; False once today's cap (config/koko.ini daily_limit) is used up.
-    Per-IP limits alone don't stop someone with many IPs from running up the bill."""
-    today = datetime.now(ZoneInfo(cfg().app.timezone)).date().isoformat()
-    if today not in _calls_today:
-        _calls_today.clear()
-    _calls_today[today] = _calls_today.get(today, 0) + 1
-    if _calls_today[today] == cfg().koko.daily_limit + 1:
+    Per-IP limits alone don't stop someone with many IPs from running up the bill.
+    Counted in the database (koko_usage, one row per India-time day), so a restart or a deploy no longer
+    resets the cap, and two API processes would share it (R72). Its own short session and commit: the count
+    must stick even if the caller's work is rolled back. If the count can't be made: no AI call (the
+    visitor gets the fallback), never an uncounted one."""
+    today = datetime.now(ZoneInfo(cfg().app.timezone)).date()
+    try:
+        async with AsyncSessionLocal() as db:
+            calls = await db.scalar(
+                pg_insert(KokoUsage).values(day=today, calls=1)
+                .on_conflict_do_update(index_elements=[KokoUsage.day], set_={"calls": KokoUsage.calls + 1})
+                .returning(KokoUsage.calls))
+            await db.commit()
+    except Exception:
+        log.exception("koko.budget_check_failed")
+        return False
+    if calls == cfg().koko.daily_limit + 1:
         log.warning("koko.daily_limit_reached", extra={"limit": cfg().koko.daily_limit})
-    return _calls_today[today] <= cfg().koko.daily_limit
+    return calls <= cfg().koko.daily_limit
 
 FALLBACK = (
     "Sorry, I can't answer right now. Please use the enquiry form or WhatsApp "
@@ -220,7 +231,7 @@ async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "") -
     # Koko hasn't answered yet in this chat (the widget never sends its own error lines), so a first try
     # that failed still gets the card next time
     first = not any(m.role == "assistant" for m in messages)
-    within_budget = _within_daily_budget()
+    within_budget = await _within_daily_budget()
     if not within_budget and not first:
         return FALLBACK, True, None  # nothing to show: no database work either
     cats = await catalog_service.list_categories(db)
@@ -246,7 +257,7 @@ async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "") -
 async def summarise_chat(messages: list[ChatMessage]) -> str:
     """A 2-3 line summary for the sales team. Falls back to the raw transcript."""
     transcript = "\n".join(f"{m.role}: {m.content}" for m in messages[-20:])
-    if not _within_daily_budget():
+    if not await _within_daily_budget():
         return transcript[:3000]
     try:
         return await llm.chat(
