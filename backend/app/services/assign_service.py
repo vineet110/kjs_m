@@ -110,20 +110,23 @@ def read_rows(filename: str, data: bytes) -> list[dict]:
     return rows
 
 
-def _buyer_key(company: str, email: str | None, phone: str | None) -> tuple[str, str]:
-    """The same buyer: same company and email; with no email, same company and phone digits (CR17.i: "Metro
-    Cash & Carry" in five cities with phones only were four "already imported")."""
-    email = (email or "").strip().lower()
-    return company.strip().lower(), email or "phone:" + re.sub(r"\D", "", phone or "")
+def _buyer_keys(company: str, email: str | None, phone: str | None) -> tuple[tuple[str, str], tuple[str, str] | None]:
+    """(its own key, its phone key). The same buyer: same company and email; with no email, same company and
+    phone (CR17.i: "Metro Cash & Carry" in five cities with phones only were four "already imported"). Phones
+    compare by their last 10 digits, so "+91 40 1111 1111" and "040-1111-1111" are one number."""
+    company, email = company.strip().lower(), (email or "").strip().lower()
+    digits = re.sub(r"\D", "", phone or "")[-10:]
+    by_phone = (company, "phone:" + digits) if digits else None
+    return ((company, email) if email else (company, "phone:" + digits)), by_phone
 
 
 async def import_records(db: AsyncSession, user: User, filename: str, data: bytes, default_category: str) -> dict:
-    # One import at a time: two uploads of the same file at once would both see "nothing imported yet" (CR17.ii).
-    # Held until this transaction ends.
-    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('buyer_import'))"))
     cats = {c.slug: c.slug for c in (await db.scalars(select(Category))).all()}
     cats |= {c.name.lower(): c.slug for c in (await db.scalars(select(Category))).all()}
     rows = await asyncio.to_thread(read_rows, filename, data)  # parsing is slow: keep the server responsive
+    # One import at a time from here (after the slow parse): two uploads of the same file at once would both
+    # see "nothing imported yet" (CR17.ii). Held until this transaction ends.
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('buyer_import'))"))
     lst = RecordList(name=filename[:200], rows=0, uploaded_by=user.id)
     db.add(lst)
     await db.flush()
@@ -132,7 +135,7 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
     companies = {r["company"].strip().lower() for r in rows if r["company"]}
     seen = set()
     for chunk in [sorted(companies)[i:i + 1000] for i in range(0, len(companies), 1000)]:
-        seen |= {_buyer_key(c, e, p) for c, e, p in (await db.execute(
+        seen |= {_buyer_keys(c, e, p)[0] for c, e, p in (await db.execute(
             select(BuyerRecord.company, BuyerRecord.email, BuyerRecord.phone)
             .where(func.lower(BuyerRecord.company).in_(chunk)))).all()}
     added, skipped = 0, []
@@ -144,8 +147,9 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
         if not cat:
             skipped.append({"row": n, "reason": f"unknown category '{r['category'] or default_category}'"})
             continue
-        key = _buyer_key(r["company"], r["email"], r["phone"])
-        if key in seen:
+        key, by_phone = _buyer_keys(r["company"], r["email"], r["phone"])
+        # Also already imported: the same company and phone saved earlier with no email (this file adds one)
+        if key in seen or (by_phone is not None and by_phone in seen):
             skipped.append({"row": n, "reason": "already imported"})
             continue
         seen.add(key)

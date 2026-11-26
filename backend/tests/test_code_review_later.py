@@ -35,3 +35,26 @@ async def test_a_product_name_with_no_english_letters_is_refused(client):  # CR2
     await login(client, "cat@kjsindia.com")
     r = await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "चॉकलेट बार"}, headers=HDR)
     assert r.status_code == 422 and r.json()["code"] == "bad_name"
+
+
+async def test_old_board_tasks_with_a_creator_still_cannot_be_edited_by_that_creator(client):  # CR16 (old rows)
+    from app.services import task_service
+    await make_user("boss@kjsindia.com", permissions=["leads.view", "boards.manage"])
+    await make_user("pack@kjsindia.com")
+    boss, pack = await _ids("boss@kjsindia.com", "pack@kjsindia.com")
+    async with AsyncSessionLocal() as db:
+        task_service.add(db, assignee_id=pack, title="ABC1 · Packing: check", source="board", created_by=boss)
+        await db.commit()
+        tid = await db.scalar(select(Task.id))
+    await login(client, "boss@kjsindia.com")
+    assert (await client.patch(f"/api/v1/tasks/{tid}", json={"status": "done"}, headers=HDR)).status_code == 404
+
+
+async def test_same_phone_written_two_ways_and_a_later_email_is_still_one_buyer(client):  # CR17.i
+    await make_user("boss@kjsindia.com", permissions=["leads.view", "assign.manage"])
+    await login(client, "boss@kjsindia.com")
+    first = "Company,Phone,Category\nAcme,+91 40 1111 1111,coffee\n"
+    again = "Company,Email,Phone,Category\nAcme,,040-1111-1111,coffee\nAcme,a@acme.com,04011111111,coffee\n"
+    await client.post("/api/v1/assign/import", files={"file": ("1.csv", first.encode(), "text/csv")}, headers=HDR)
+    r = (await client.post("/api/v1/assign/import", files={"file": ("2.csv", again.encode(), "text/csv")}, headers=HDR)).json()
+    assert r["added"] == 0 and len(r["skipped"]) == 2
