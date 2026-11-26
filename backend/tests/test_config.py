@@ -220,3 +220,20 @@ def test_a_misspelt_time_zone_is_a_bad_value_not_a_crash(config_dir, monkeypatch
     monkeypatch.setenv("KJS__APP__TIMEZONE", "Asia/Kolkataa")
     assert ini.reload_now().app.timezone == "Asia/Kolkata"
     assert any("timezone" in p for p in ini.env_problems())
+
+
+def test_one_bad_env_value_drops_only_itself(config_dir, monkeypatch):
+    # Re-review of #113: a bad env value must not take the good env values or the good file down with it
+    monkeypatch.setenv("KJS__APP__JOBS_ENABLED", "false")
+    monkeypatch.setenv("KJS__APP__LEAD_RATE_PER_HOUR", "0")  # out of range
+    monkeypatch.setenv("KJS__APP__TIMEZONE", "Asia/Kolkataa")  # misspelt
+    write(config_dir / "app.ini", "[app]\nkoko_rate_per_hour = 7\n")
+    c = ini.reload_now()
+    assert c.app.jobs_enabled is False and c.app.koko_rate_per_hour == 7
+    assert c.app.lead_rate_per_hour == 5 and c.app.timezone == "Asia/Kolkata"  # the bad ones keep their defaults
+
+
+def test_a_misspelt_module_env_key_does_not_switch_every_area_on(config_dir, monkeypatch):
+    monkeypatch.setenv("KJS__MODULES__CHAT", "off")
+    monkeypatch.setenv("KJS__MODULES__CHATT", "off")  # misspelt: modules refuse unknown areas
+    assert ini.reload_now().modules.chat == "off"

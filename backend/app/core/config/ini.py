@@ -421,7 +421,8 @@ LIST_FIELDS = _list_fields()
 
 # ---------- Loading ----------
 BROKEN = "__broken__"  # raw[BROKEN] = {section: reason}: files that could not even be read (syntax error)
-FROM_ENV = "__from_env__"  # raw[FROM_ENV] = {section: {key, ...}}: the keys a KJS__ env value set
+FROM_ENV = "__from_env__"  # raw[FROM_ENV] = {section: {key: value}}: what the KJS__ env values set
+FILE_ONLY = "__file_only__"  # raw[FILE_ONLY] = {section: {key: value}}: each file's own values, before env
 
 
 def _read_raw() -> dict:
@@ -452,21 +453,24 @@ def _read_raw() -> dict:
         raw[section] = values
 
     # KJS__SLA__RESPOND_MINUTES=15 overrides [sla] respond_minutes
-    from_env: dict[str, set[str]] = {}
+    file_only = {s: dict(v) for s, v in raw.items()}  # each file's own values, before env (for _validate's fallback)
+    from_env: dict[str, dict] = {}
     for key, value in os.environ.items():
         if key.startswith(ENV_PREFIX):
             parts = key[len(ENV_PREFIX):].lower().split("__")
             if len(parts) == 2 and parts[0] in raw:
                 raw[parts[0]][parts[1]] = value
-                from_env.setdefault(parts[0], set()).add(parts[1])
+                from_env.setdefault(parts[0], {})[parts[1]] = value
 
-    for section, k in LIST_FIELDS:
-        values = raw.get(section, {})
-        if isinstance(values.get(k), str):
-            values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
+    for layer in (raw, file_only, from_env):
+        for section, k in LIST_FIELDS:
+            values = layer.get(section, {})
+            if isinstance(values.get(k), str):
+                values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
     if broken:
         raw[BROKEN] = broken
     raw[FROM_ENV] = from_env
+    raw[FILE_ONLY] = file_only
     return raw
 
 
@@ -488,8 +492,9 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
     jobs_enabled went back on).
     strict=True (CI's check of the repo's own files): raise on the first bad file instead."""
     broken: dict[str, str] = raw.get(BROKEN, {})
-    from_env: dict[str, set[str]] = raw.get(FROM_ENV, {})
-    raw = {k: v for k, v in raw.items() if k not in (BROKEN, FROM_ENV)}
+    from_env: dict[str, dict] = raw.get(FROM_ENV, {})
+    file_only: dict[str, dict] = raw.get(FILE_ONLY, {})
+    raw = {k: v for k, v in raw.items() if k not in (BROKEN, FROM_ENV, FILE_ONLY)}
     if strict and broken:
         raise ValueError(next(iter(broken.values())))
     if not broken:
@@ -501,16 +506,25 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
     base = last or Config()
 
     def fallback(section: str):
-        """A bad file's last good values (defaults on the first load), with its KJS__ env values still on top:
-        env wins over the file, so e.g. KJS__APP__JOBS_ENABLED=false holds even when app.ini is broken."""
-        kept = getattr(base, section)
-        env = {k: raw.get(section, {})[k] for k in from_env.get(section, ()) if k in raw.get(section, {})}
-        if not env:
-            return kept
-        try:
-            return type(kept).model_validate({**kept.model_dump(), **env})
-        except ValidationError:
-            return kept  # the env value itself is out of range: env_problems() reports it at start-up
+        """A bad section: the file on its own if it is valid (only an env value was bad), else its last good
+        values (defaults on the first load); then each KJS__ env value on top, one at a time, each kept only if
+        the section stays valid. A bad file is still all or nothing (a misspelt switch never half-applies),
+        but one bad env value never takes the good env values or a good file down with it: a good file's
+        jobs_enabled = false and KJS__APP__JOBS_ENABLED=false both hold (R91)."""
+        model = type(getattr(base, section))
+        values = getattr(base, section).model_dump()
+        if section not in broken:
+            try:
+                values = model.model_validate({**values, **file_only.get(section, {})}).model_dump()
+            except ValidationError:
+                pass  # the file itself is bad: its last good values (logged above)
+        for key, value in from_env.get(section, {}).items():
+            try:
+                model.model_validate({**values, key: value})
+            except ValidationError:
+                continue  # this env value is the bad one: env_problems() names it at start-up
+            values[key] = value
+        return model.model_validate(values)
 
     sections, bad, bad_sections = {}, [], set()
     for section, field in Config.model_fields.items():
