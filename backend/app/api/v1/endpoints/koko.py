@@ -22,7 +22,8 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     # mouth (R71). What Koko said comes from our saved transcript; from the browser only the new question.
     # No saved transcript (first message, or the visitor's network changed): only the visitor's own lines.
     question = data.messages[-1]
-    stored = await content_service.stored_chat(db, data.chat_id, ip_hash) or []
+    # Only rows shaped like a chat line (an odd saved row, e.g. from older code, must never cause a 500)
+    stored = [m for m in await content_service.stored_chat(db, data.chat_id, ip_hash) or [] if isinstance(m, dict)]
     # The same question sent again (the widget retries after a time-out): answer it again in place, don't
     # save it twice
     if (len(stored) >= 2 and stored[-2].get("role") == "user" and stored[-2].get("content") == question.content
