@@ -1,3 +1,4 @@
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,3 +35,7 @@ class Product(Base, TimestampMixin):
     # "Up to X% OFF" badge on the website; empty = no offer (set by staff in Admin > Products)
     offer_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The catalogue items (R19, migration 0036): [{"no": "801", "variant": "", "weight": "25 g", "pieces": 24,
+    # "per_case": 6}, ...]. They used to be "• Item ..." lines inside the description, read back with a strict
+    # pattern, so a line written a little differently vanished from the site without a word.
+    items: Mapped[list[dict]] = mapped_column(JSONB, default=list, server_default="[]")

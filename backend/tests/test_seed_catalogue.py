@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 import pytest
@@ -10,7 +9,6 @@ from app.seed_catalogue import BEVERAGES, CATALOGUE_CATEGORIES, PRODUCTS, add_ca
 
 IMAGES = Path(__file__).parent.parent.parent / "frontend" / "public" / "images" / "products"
 # The same line format the home page reads back (frontend/src/lib/catalogue.ts)
-ITEM_LINE = re.compile(r"^• Item (\S+)(?: \((.+)\))?: (.+?), (\d+) pieces per box, (\d+) per case$")
 
 
 async def test_catalogue_seed_adds_once_and_keeps_old_categories(client):
@@ -53,17 +51,15 @@ async def test_catalogue_seed_never_overwrites_admin_edits(client):
     assert r.json()["name"] == "Renamed by admin"
 
 
-async def test_catalogue_descriptions_list_every_item(client):
+async def test_catalogue_products_carry_every_item(client):
+    # Since R19 the items are their own field, not "• Item" lines in the description
     async with AsyncSessionLocal() as db:
         await add_catalogue(db)
-    confectionery = {p["slug"] for p in PRODUCTS}  # the coffee catalogue has no item numbers
+    confectionery = {p["slug"]: p for p in PRODUCTS}  # the coffee catalogue has no item numbers
     for p in (await client.get("/api/v1/public/products")).json():
-        if p["slug"] not in confectionery:
-            assert "• " not in p["description"] and len(p["pack_formats"]) <= 255, p["slug"]
-            continue
-        lines = [line for line in p["description"].splitlines() if line.startswith("• ")]
-        assert lines and all(ITEM_LINE.match(line) for line in lines), p["slug"]
-        assert len(p["pack_formats"]) <= 255
+        assert "• " not in p["description"] and len(p["pack_formats"]) <= 255, p["slug"]
+        if p["slug"] in confectionery:
+            assert [i["no"] for i in p["items"]] == [str(x[0]) for x in confectionery[p["slug"]]["items"]], p["slug"]
 
 
 def test_every_catalogue_product_has_its_picture():
