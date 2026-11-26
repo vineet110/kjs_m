@@ -69,7 +69,8 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
     try {
       const res = await api<KokoReply>('/koko/chat', {
         method: 'POST',
-        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current },
+        // turn_id: new for each question, the same if the request is repeated, so the server saves it once
+        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current, turn_id: newChatId() },
         timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
         safeToRepeat: true, // asking again only gives another reply
       });

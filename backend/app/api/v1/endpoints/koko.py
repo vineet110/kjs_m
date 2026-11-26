@@ -26,28 +26,16 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     stored = [m for m in await content_service.stored_chat(db, data.chat_id, ip_hash) or [] if isinstance(m, dict)]
     await db.commit()  # give the connection back before the slow AI call
     # The same question sent again because its answer never arrived (the widget retries after a time-out):
-    # answer it again in place, don't save it twice. A retry: the saved chat ends with this question and its
-    # answer, and the line before the question is the same in the browser and in the saved chat (so the browser
-    # never got that answer). A visitor who really says "yes" twice has Koko's answer before the second "yes",
-    # which differs from the saved line before the first. Only the ends are compared, so a saved chat trimmed
-    # to transcript_lines works too.
-    # (Known, accepted: a retry that arrives while the first request is still running, or two tabs at the same
-    # moment, can both be saved, so the transcript shows the question twice; and an answer that never arrived
-    # stays in the AI's history if the visitor then asks something else. Both rare and harmless.)
-    message_max = cfg().koko.message_max
-
-    def same(m: ChatMessage, saved: dict) -> bool:
-        return m.role == saved.get("role") and m.content[:message_max] == str(saved.get("content"))[:message_max]
-
-    ends_with_question = (len(stored) >= 2 and stored[-1].get("role") == "assistant"
-                          and same(question, stored[-2]))
-    if len(data.messages) == 1:
-        retry = ends_with_question and len(stored) == 2
-    else:
-        retry = ends_with_question and len(stored) >= 3 and same(data.messages[-2], stored[-3])
+    # answer it again in place, don't save it twice. Told apart by the question's turn id: the widget makes a
+    # new one for every question it sends and keeps it when it repeats the request, so a visitor who really
+    # asks the same thing again (or gets the same fixed reply twice) is never mistaken for a retry. An old
+    # widget with no turn id: never a retry (at worst a question is saved twice).
+    # (Known, accepted: an answer that never arrived stays in the AI's history if the visitor then asks
+    # something else. Rare and harmless.)
+    retry = content_service.is_retry_of(stored, data.turn_id)
     if retry:
         stored = stored[:-2]
-    chat_max = cfg().koko.chat_max
+    message_max, chat_max = cfg().koko.message_max, cfg().koko.chat_max
     if stored or retry:  # a retry with nothing saved left still uses only the question, never it twice
         past = []
         for m in stored:
@@ -55,7 +43,7 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
                 if not isinstance(m.get("content"), str):
                     continue  # a missing or null text is skipped, never sent as the word "None"
                 past.append(ChatMessage(role=m["role"], content=m["content"][:message_max]))
-            except Exception:  # noqa: BLE001
+            except (KeyError, TypeError, ValueError, AttributeError):  # (pydantic's ValidationError is a ValueError)
                 continue
         # the newest lines that fit the same total as a request from the browser, starting with the visitor
         room = chat_max - len(question.content)
@@ -75,6 +63,7 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     reply, suggest, card = await koko_service.reply(db, messages, data.page, first=first)
     # Keep the transcript (Admin > Koko): appended under a row lock, never another visitor's chat (append_chat)
     if data.chat_id:
-        await content_service.append_chat(db, data.chat_id, data.page, question.model_dump(),
-                                          {"role": "assistant", "content": reply}, suggest, ip_hash, retry=retry)
+        saved_question = {**question.model_dump(), **({"turn": data.turn_id} if data.turn_id else {})}
+        await content_service.append_chat(db, data.chat_id, data.page, saved_question,
+                                          {"role": "assistant", "content": reply}, suggest, ip_hash)
     return KokoOut(reply=reply, suggest_enquiry=suggest, catalogue=card)

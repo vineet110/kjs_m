@@ -10,11 +10,16 @@ from app.schemas.common import Email, OneLine, RequiredPhone
 # Most chat lines one request may carry before anything is parsed: the top of koko.ini request_lines' range.
 # A security limit (a body of tens of thousands of tiny lines is cut, not validated line by line).
 CHAT_LINES_CEILING = 400
+# Longest chat line accepted at all (the top of message_max's range); longer ones are refused before parsing
+CHAT_LINE_CEILING = 10000
 
 
 def _newest_lines(v):
     """The newest CHAT_LINES_CEILING lines; a Koko line this cut leaves first goes too (a chat starts with
     the visitor). Only cuts a list that was longer: a request that itself starts with Koko is still refused."""
+    if isinstance(v, list) and any(isinstance(m, dict) and len(str(m.get("content", ""))) > CHAT_LINE_CEILING
+                                   for m in v):
+        raise ValueError("A chat line is far too long.")
     if not isinstance(v, list) or len(v) <= CHAT_LINES_CEILING:
         return v
     v = v[-CHAT_LINES_CEILING:]
@@ -151,6 +156,8 @@ class KokoIn(BaseModel):
     messages: Annotated[list[ChatMessage], BeforeValidator(_newest_lines)] = Field(min_length=1)  # cut below too
     page: str = Field(default="", max_length=255)
     chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")  # random id from the browser
+    # A new random id per question; the same one when the widget repeats a request (so a retry is told apart)
+    turn_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")
 
     @model_validator(mode="before")
     @classmethod

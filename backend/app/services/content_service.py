@@ -226,15 +226,25 @@ async def stored_chat(db: AsyncSession, chat_id: str, ip_hash: str | None) -> li
     return list(row.messages) if row is not None and _owns(row, chat_id, ip_hash) else None
 
 
+def is_retry_of(messages: list[dict], turn: str) -> bool:
+    """The saved chat already ends with this turn's question and an answer: the same request sent again."""
+    return bool(turn) and len(messages) >= 2 and messages[-1].get("role") == "assistant" \
+        and messages[-2].get("role") == "user" and messages[-2].get("turn") == turn
+
+
 async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict, reply: dict, suggested: bool,
-                      ip_hash: str | None, retry: bool = False) -> None:
+                      ip_hash: str | None) -> None:
     """Add one question and Koko's reply to the saved transcript. The row is locked and the pair appended to
-    what is there NOW, so two requests at the same moment both keep their turn. retry: the same question
-    whose answer never reached the browser replaces its own earlier answer instead of being saved twice."""
+    what is there NOW, so two requests at the same moment both keep their turn. A repeated request of the same
+    turn (its answer never reached the browser) replaces its own earlier pair instead of being saved twice;
+    checked here under the lock, so a retry that overtakes the first request is caught too."""
     exists = await db.scalar(select(KokoChat.id).where(KokoChat.chat_id == chat_id))
     if exists is None:
         if len(chat_id) < STRONG_CHAT_ID and ip_hash is None:
-            return  # a weak id with no IP: nobody could ever prove it is theirs
+            # A weak id with no IP: nobody could ever prove it is theirs, so it isn't saved (known: such a chat,
+            # from a very old browser behind an IP-hiding proxy, has no transcript and its lead summary uses the
+            # visitor's own lines only)
+            return
         # Two first messages at the same moment: one creates the row, the other's insert is simply skipped
         # (chat_id is unique), never an error after the AI answer was already made
         await db.execute(pg_insert(KokoChat).values(chat_id=chat_id, page=page[:255], messages=[],
@@ -248,8 +258,7 @@ async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict,
         await db.rollback()
         return  # someone else's chat id: never touch another visitor's transcript
     messages = [m for m in (row.messages or []) if isinstance(m, dict)]
-    if (retry and len(messages) >= 2 and messages[-2].get("role") == "user"
-            and messages[-2].get("content") == question["content"] and messages[-1].get("role") == "assistant"):
+    if is_retry_of(messages, question.get("turn", "")):
         messages = messages[:-2]
     reply = {**reply, "content": str(reply.get("content", ""))[:cfg().koko.message_max]}  # saved within the limit
     row.messages = (messages + [question, reply])[-cfg().koko.transcript_lines:]

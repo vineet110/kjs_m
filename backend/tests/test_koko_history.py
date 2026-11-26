@@ -53,7 +53,7 @@ async def test_another_network_never_gets_someone_elses_chat():  # R71 (forbidde
 
 
 async def test_a_repeated_question_is_saved_once(client, sent):
-    one = {"chat_id": "c4", "messages": [{"role": "user", "content": "price?"}]}
+    one = {"chat_id": "c4", "turn_id": "t1", "messages": [{"role": "user", "content": "price?"}]}
     assert (await client.post(CHAT, json=one, headers=HDR)).status_code == 200
     assert (await client.post(CHAT, json=one, headers=HDR)).status_code == 200  # the widget's retry
     from sqlalchemy import select
@@ -221,8 +221,8 @@ async def test_a_retry_of_a_later_question_is_saved_once(client, sent):
     m1 = [{"role": "user", "content": "q1"}]
     await client.post(CHAT, json={"chat_id": cid, "messages": m1}, headers=HDR)
     m2 = m1 + [{"role": "assistant", "content": "Koko reply 1"}, {"role": "user", "content": "q2"}]
-    await client.post(CHAT, json={"chat_id": cid, "messages": m2}, headers=HDR)
-    await client.post(CHAT, json={"chat_id": cid, "messages": m2}, headers=HDR)  # the answer to q2 was lost: retry
+    await client.post(CHAT, json={"chat_id": cid, "turn_id": "t2", "messages": m2}, headers=HDR)
+    await client.post(CHAT, json={"chat_id": cid, "turn_id": "t2", "messages": m2}, headers=HDR)  # q2's answer lost
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == cid))
     assert [m["content"] for m in saved if m["role"] == "user"] == ["q1", "q2"]
@@ -267,8 +267,42 @@ async def test_a_retry_after_the_saved_chat_was_trimmed_is_saved_once(client, mo
         r = await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)
         msgs.append({"role": "assistant", "content": r.json()["reply"]})
     msgs.append({"role": "user", "content": "q7"})
-    await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)
-    await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)  # q7's answer lost: retry
+    await client.post(CHAT, json={"chat_id": cid, "turn_id": "t7", "messages": msgs}, headers=HDR)
+    await client.post(CHAT, json={"chat_id": cid, "turn_id": "t7", "messages": msgs}, headers=HDR)  # q7's answer lost
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == cid))
     assert [m["content"] for m in saved if m["role"] == "user"] == ["q3", "q4", "q5", "q6", "q7"]
+
+
+async def test_the_same_question_with_the_same_fixed_reply_is_still_saved_each_time(client, monkeypatch):
+    """Review 11: with the AI down, Koko gives the same fixed reply; a visitor asking again is not a retry."""
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+
+    async def same_reply(system, messages, max_tokens=None):
+        return "Koko is busy, please WhatsApp us."
+    monkeypatch.setattr(llm, "chat", same_reply)
+    cid, msgs = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f", []
+    for turn in ("t1", "t2", "t3"):
+        msgs.append({"role": "user", "content": "hello?"})
+        r = await client.post(CHAT, json={"chat_id": cid, "turn_id": turn, "messages": msgs}, headers=HDR)
+        msgs.append({"role": "assistant", "content": r.json()["reply"]})
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == cid))
+    assert [m["content"] for m in saved if m["role"] == "user"] == ["hello?"] * 3
+
+
+def test_the_line_ceiling_matches_the_config_range():
+    from app.core.config.ini import KokoIni
+    from app.schemas.lead import CHAT_LINE_CEILING, CHAT_LINES_CEILING
+
+    def top(name):
+        return next(m.le for m in KokoIni.model_fields[name].metadata if hasattr(m, "le"))
+    assert (CHAT_LINES_CEILING, CHAT_LINE_CEILING) == (top("request_lines"), top("message_max"))
+
+
+async def test_a_chat_line_far_over_any_limit_is_refused(client, sent):
+    body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 20000},
+                         {"role": "user", "content": "and?"}]}
+    assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 422

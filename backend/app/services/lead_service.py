@@ -91,8 +91,9 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
     if data.source == "website_offer" and not (cfg().site_ui.enabled and cfg().site_ui.offer_box):
         raise AppError(404, "feature_off", "This form is not available right now.")
     lead_limiter.check(rate_key or ip_hash)
-    # The AI summary first, before any database query: an LLM call takes seconds, and holding a
-    # database connection that long would starve other requests when several visitors chat.
+    # The AI summary before the lead is saved. Only the saved transcript is read first, and the connection is
+    # given back (commit) before the AI call: an LLM call takes seconds, and holding a database connection
+    # that long would starve other requests when several visitors chat.
     summary = ""
     if data.source == "koko" and (data.chat or data.chat_id):
         # What Koko said comes from the saved transcript, never the browser's copy (R71): a visitor could add
