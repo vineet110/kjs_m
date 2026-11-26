@@ -127,6 +127,9 @@ class KokoIni(BaseModel):
 
     @model_validator(mode="after")
     def message_fits_chat(self):
+        # The widget sends at least as many lines as are saved, or a retry can't be told from a real repeat
+        if self.request_lines < self.transcript_lines:
+            raise ValueError("request_lines must be at least transcript_lines")
         if self.message_max > self.chat_max:
             raise ValueError("message_max must be at most chat_max (one line can't be longer than the whole chat)")
         return self

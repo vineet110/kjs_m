@@ -235,3 +235,19 @@ async def test_a_huge_echoed_koko_reply_is_cut_not_refused(client, monkeypatch, 
     body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 5000},
                          {"role": "user", "content": "and?"}]}
     assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200
+
+
+async def test_a_chat_over_400_lines_is_never_stuck(client, sent):
+    long = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"l{i}"} for i in range(401)]
+    assert (await client.post(CHAT, json={"messages": long}, headers=HDR)).status_code == 200
+
+
+async def test_lowering_message_max_never_blocks_an_old_long_line(client, monkeypatch, sent):
+    from app.core.config import ini
+    old = [{"role": "user", "content": "y" * 1800}, {"role": "assistant", "content": "ok"}]
+    monkeypatch.setenv("KJS__KOKO__MESSAGE_MAX", "500")
+    ini.reload_now()
+    body = {"messages": old + [{"role": "user", "content": "next question"}]}
+    assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200
+    too_long = {"messages": [{"role": "user", "content": "z" * 600}]}
+    assert (await client.post(CHAT, json=too_long, headers=HDR)).status_code == 422  # a NEW long question: refused

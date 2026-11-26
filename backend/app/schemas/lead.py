@@ -13,7 +13,14 @@ CHAT_LINES_CEILING = 400
 
 
 def _newest_lines(v):
-    return v[-CHAT_LINES_CEILING:] if isinstance(v, list) else v
+    """The newest CHAT_LINES_CEILING lines; a Koko line this cut leaves first goes too (a chat starts with
+    the visitor). Only cuts a list that was longer: a request that itself starts with Koko is still refused."""
+    if not isinstance(v, list) or len(v) <= CHAT_LINES_CEILING:
+        return v
+    v = v[-CHAT_LINES_CEILING:]
+    while v and isinstance(v[0], dict) and v[0].get("role") == "assistant":
+        v = v[1:]
+    return v
 
 
 class ChatMessage(BaseModel):
@@ -26,12 +33,10 @@ class ChatMessage(BaseModel):
         # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import). A visitor's
         # line over it is refused; Koko's own lines the browser sends back are only cut: the server uses its
         # saved copy of them, and a lowered limit must not block the chat after one long answer
-        limit = cfg().koko.message_max
-        if len(v) > limit:
-            if info.data.get("role") == "assistant":
-                return v[:limit]
-            raise ValueError(f"A chat message can be at most {limit} characters.")
-        return v
+        # Every line is cut to message_max, never refused here: the browser sends the whole chat again each time,
+        # so refusing an old line (e.g. after message_max was lowered) would block the chat for good. Only a new
+        # question that is too long is refused (KokoIn.question_not_too_long).
+        return v[:cfg().koko.message_max]
 
 
 class LeadIn(BaseModel):
@@ -148,6 +153,16 @@ class KokoIn(BaseModel):
     messages: Annotated[list[ChatMessage], BeforeValidator(_newest_lines)] = Field(min_length=1)  # cut below too
     page: str = Field(default="", max_length=255)
     chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")  # random id from the browser
+
+    @model_validator(mode="before")
+    @classmethod
+    def question_not_too_long(cls, data):
+        # The new question (the last line) over message_max is refused, so the visitor knows; older lines are cut
+        msgs = data.get("messages") if isinstance(data, dict) else None
+        if isinstance(msgs, list) and msgs and isinstance(msgs[-1], dict):
+            if len(str(msgs[-1].get("content", ""))) > cfg().koko.message_max:
+                raise ValueError(f"A chat message can be at most {cfg().koko.message_max} characters.")
+        return data
 
     @model_validator(mode="after")
     def starts_and_ends_with_visitor(self):
