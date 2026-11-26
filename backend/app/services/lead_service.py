@@ -56,7 +56,7 @@ def add_work_minutes(start: datetime, minutes: int, holidays: set[date]) -> date
 def sla(lead: Lead, now: datetime, holidays: set[date]) -> dict:
     s = cfg().sla
     respond_due = add_work_minutes(lead.created_at, s.respond_minutes, holidays)
-    resolve_due = add_work_minutes(lead.created_at, s.resolve_minutes, holidays)
+    resolve_due = add_work_minutes(lead.reopened_at or lead.created_at, s.resolve_minutes, holidays)
     if lead.status == "closed":
         return {"sla_state": "done", "sla_label": "Closed", "respond_due_at": respond_due, "resolve_due_at": resolve_due}
     stage, due = ("Respond", respond_due) if lead.status == "new" else ("Resolve", resolve_due)
@@ -490,7 +490,12 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         lead.resolved_at = now  # stops the "resolve" timer
         lead.outcome = outcome or lead.outcome
     else:
-        lead.resolved_at = None  # re-opened: the "resolve" timer runs again
+        if before["status"] == "closed":
+            # Re-opened (CR12, R4): a new resolve timer from now, and it may be reported again if that runs out
+            # (level 2 = "not closed" already reported would otherwise keep it quiet for ever)
+            lead.reopened_at = now
+            lead.escalation_level = min(lead.escalation_level, 1)
+        lead.resolved_at = None  # the "resolve" timer runs again
     if lead.assigned_to is None:
         lead.assigned_to = user.id  # whoever acts on an unassigned lead takes it
     audit_service.record(db, actor=user, action="lead.status_changed", entity_type="lead",

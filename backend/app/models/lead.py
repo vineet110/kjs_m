@@ -36,6 +36,8 @@ class Lead(Base, TimestampMixin):
     # SLA (config/sla.ini): respond = first "contacted", resolve = "closed"
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when a closed lead is opened again: its resolve timer counts from here, not from created_at (CR12, 0034)
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     outcome: Mapped[str] = mapped_column(String(40), default="")  # quote_sent, not_interested, …
     escalation_level: Mapped[int] = mapped_column(Integer, default=0)  # 1 = respond late reported, 2 = resolve late reported
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))  # internal leads only; website/Koko = empty
