@@ -215,6 +215,7 @@ D8. Timeline  ✅ 23 Oct (updated 24 Oct)
 
    i.    Go-live Fri 11 Dec 2026. Latest acceptable Fri 18 Dec.
    ii.   24 Oct: new plan, Phase 1 in 2 weeks (26 Oct to 7 Nov), then production. List: `checklist.md`.
+   iii.  26 Nov: go-live moved to **Tue 1 Dec 2026** (Vineet). Plan and progress: Vineet's goLive.md (local).
 
 
 D9. What is a "record" in an auto-assign batch?  🟠
@@ -1216,6 +1217,8 @@ R3. SLA due times are worked out live  🟢
 
 R4. Re-opening a lead to "new" keeps its old escalation level  🟢
 
+   27 Nov: fix in PR #124 (a reopen starts a new resolve timer; needs Vineet's OK on that decision). Not merged yet: mark ✅ when it is.
+
    i.    It shows "overdue" at once and doesn't alert again.
    ii.   18 Nov (go-live review): a plain reset was dropped. The resolve timer counts from `created_at`, so a
          reopened old lead would alert at once, on every reopen. Needs a product decision first: should a reopen
@@ -1257,6 +1260,8 @@ R10. CSP allows inline scripts  🟢
 
 
 R11. Backups: failure alerts, off-site copy, encryption  🟠 (with KJS IT)
+
+   27 Nov: i: failure alerts in PR #115. Not merged yet: mark ✅ when it is.
 
    i.    A failed nightly backup only writes to `backup.log`. Nobody is told.
    ii.   ✅ Off-site copy, encrypted (PR #42, 9 Nov). Still open: i (nobody is told when a backup fails: R50).
@@ -1661,6 +1666,8 @@ R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: as
 
 R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arrive (A54)
 
+   27 Nov: fix in PR #130 (public photos sent by the API, cacheable 1 h). Not merged yet: mark ✅ when it is.
+
    i.    With `STORAGE_DRIVER=r2`, `/api/v1/public/files/{id}` redirects to a new 5-minute signed link every
          time, so browsers and Cloudflare can't cache the photo. The link also says "attachment".
    ii.   Plan: for public website files only, the API reads the photo from R2 and sends it itself with
@@ -1674,6 +1681,8 @@ R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arriv
 
 
 R45. Nobody hears about crashes or downtime  🟠
+
+   27 Nov: uptime check documented in PR #115 (README 5.6); the check itself is set up by Vineet. Not merged yet: mark ✅ when it is.
 
    i.    Errors only go to the logs, and nothing checks `/api/health` from outside.
    ii.   Fix: a free uptime checker on `/api/health/ready`. Error tracking (Sentry) is a new service: ask first.
@@ -1719,6 +1728,8 @@ R47. Small follow-ups from PRs #27, #30, #33 and #34  🟢 later
 
 R48. Website pictures: real address before go-live  🔴 before go-live
 
+   27 Nov: CSP part in PR #116; connecting cdn.kjsindia.com is a Cloudflare step (Vineet). Not merged yet: mark ✅ when it is.
+
    i.    Connect `cdn.kjsindia.com` to the `kjs-site-assets` bucket, then change `ASSET_BASE_URL` AND the address in
          `nginx/security-headers.conf` (`img-src`), and rebuild the frontend.
    ii.   After about a week on R2, remove the copies in `frontend/public/images` and `public/flags`.
@@ -1746,6 +1757,8 @@ R49. Order boards follow-ups (PRs #35–#39)  🟡 ii–vi open
 
 R50. Before and after go-live  🔴 i–iii before go-live
 
+   27 Nov: iv: in PR #115. Not merged yet: mark ✅ when it is.
+
    i.    On the server: run `deploy/test-restore.sh` once (it was not run after the last changes to
          `backup.sh` / `restore.sh`), then a real restore drill using an off-site copy (`deploy/README.md` 5.4).
    ii.   Rotate every key that was pasted in chat (R2 app and backup keys, database passwords) and put
@@ -1761,6 +1774,8 @@ R50. Before and after go-live  🔴 i–iii before go-live
 
 
 R55. `admin` level for batches: auto-assign still gives batches to employees  🟠 before using `admin` (Nishita)
+
+   27 Nov: fix in PR #129. Not merged yet: mark ✅ when it is.
 
    i.    With `batches = admin` the job (and "Run now") hands batches to every checked-in employee, who can't open
          them; their open batch then blocks new ones. Fix: with `admin`, only admins are eligible (`_eligible`
@@ -1969,12 +1984,16 @@ our own VPS. Do these before going live on the VPS unless marked 🟢.
 
 R70. Security headers on the VPS  🟠 before going live
 
+   27 Nov: HSTS in PR #112; COOP/CORP in PR #119; CSP nonces still open (conflict with the page cache). Not merged yet: mark ✅ when it is.
+
    i.    Today only `deploy/nginx/security-headers.conf` sets them (CSP, X-Frame-Options and more).
    ii.   Add HSTS, and remove `'unsafe-inline'` from the CSP script rule if the frontend allows it.
    iii.  Check on the VPS: `curl -I https://<site>` shows every header.
 
 
 R71. Koko trusts chat history from the browser  🟠 (raises R1)
+
+   27 Nov: ii: in PR #119; i (history on the server) still open. Not merged yet: mark ✅ when it is.
 
    i.    The browser sends the whole history, including Koko's own past replies, so a visitor can fake them
          (`schemas/lead.py:10`, `koko_service.py:208`).
@@ -2120,6 +2139,8 @@ Left on purpose by Vineet. None matters with today's values; each one bites only
 
 R91. One bad value makes the WHOLE config fall back to defaults on first load  🟠 before the VPS deploy
 
+   27 Nov: fix in PR #113. Not merged yet: mark ✅ when it is.
+
    i.    `ini.py` validates all files together: one bad key = every file ignored (e.g. `jobs_enabled` back on).
    ii.   `storage.max_upload_mb` max went 500 -> 25 (#91): a server with 26-500 set (ini or
          `KJS__STORAGE__MAX_UPLOAD_MB`) loses all its ini values. Check the VPS env before deploying.
@@ -2169,6 +2190,8 @@ Tester brief (private artifact, Vineet shares it): "KJS Basic Release: Tester Br
 
 R97. VPS-day steps found in the review  🔴 before go-live (Vineet)
 
+   27 Nov: iii: in PR #113; i: CSP copied back in PR #112; ii and iv are server steps (Vineet). Not merged yet: mark ✅ when it is.
+
    i.    nginx `connect-src` (`deploy/nginx/security-headers.conf:17`) blocks Firebase: add
          `https://identitytoolkit.googleapis.com https://securetoken.googleapis.com`, or staff can't log in.
          Also the final image domain there (R48).
@@ -2179,6 +2202,8 @@ R97. VPS-day steps found in the review  🔴 before go-live (Vineet)
 
 
 R98. A disabled employee's open leads stay assigned to them  🔴 before go-live (after UAT)
+
+   27 Nov: fix in PR #122. Not merged yet: mark ✅ when it is.
 
    i.    Decided 18 Nov: on disable, their new / contacted leads go back to unassigned, with a note on each
          lead and one audit row; closed leads keep their owner.
@@ -2192,6 +2217,8 @@ R99. No leads export  ✅ 18 Nov (decided: launch without one)
 
 
 R100. Website text and SEO fields  🟢 (covered by the dynamic UI work)
+
+   27 Nov: ii: in PR #129. Not merged yet: mark ✅ when it is.
 
    i.    Non-coffee words hard-coded: home page (line 66), layout title, private-label description, search
          placeholder, JSON-LD, Koko's prompt. Ignored for now (Vineet, 18 Nov).
@@ -2345,6 +2372,8 @@ someone on the server.
 
 
 R118. The live nginx is ahead of the repo  🟠
+
+   27 Nov: i: in PR #112 (the Firebase CSP); iii: the host nginx config is still to copy (Vineet). Not merged yet: mark ✅ when it is.
 
    i.    The live CSP allows `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` (R97.i done on
          the server), but `deploy/nginx/security-headers.conf:17` still says `connect-src 'self'`. A redeploy
