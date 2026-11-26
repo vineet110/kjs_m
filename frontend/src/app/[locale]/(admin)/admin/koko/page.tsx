@@ -50,7 +50,7 @@ export default function KokoAdmin() {
           <h2 className="text-lg font-bold">Facts</h2>
           {facts?.changed && <Pill value="pending" label="edited" />}
         </div>
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={18} className="input font-mono text-xs" />
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={18} className="input font-mono text-base md:text-xs" />
         <Msg msg={msg} />
         <div className="flex gap-2">
           <button disabled={!facts || draft === facts.value} onClick={() => save(draft)} className="btn-dark">Save facts</button>

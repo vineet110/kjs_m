@@ -212,7 +212,7 @@ function Pipeline({ lead, onChange }: { lead: Lead; onChange: () => void }) {
           );
         })}
         {closing && (
-          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-sm">
+          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-base md:text-sm">
             <option value="">Close with outcome…</option>
             {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>

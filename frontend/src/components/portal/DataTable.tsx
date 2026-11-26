@@ -83,7 +83,7 @@ export default function DataTable<T>({ rows, columns, rowKey, search, noun, acti
               {SIZES.map((s) => <option key={s}>{s}</option>)}
             </select>
             <nav aria-label="Pages" className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1">
-              <button type="button" disabled={now === 1} onClick={() => setPage(now - 1)} className="px-2 py-1 disabled:text-slate-300" aria-label="Previous page">‹<span className="hidden sm:inline"> Previous</span></button>
+              <button type="button" disabled={now === 1} onClick={() => setPage(now - 1)} className="min-w-8 px-2 py-1 disabled:text-slate-300" aria-label="Previous page">‹<span className="hidden sm:inline"> Previous</span></button>
               {pageList(now, pages).map((p, i) =>
                 p === 0 ? (
                   <span key={`gap${i}`} className="px-1 text-slate-400">…</span>
@@ -94,7 +94,7 @@ export default function DataTable<T>({ rows, columns, rowKey, search, noun, acti
                   </button>
                 ),
               )}
-              <button type="button" disabled={now === pages} onClick={() => setPage(now + 1)} className="px-2 py-1 font-semibold disabled:font-normal disabled:text-slate-300" aria-label="Next page"><span className="hidden sm:inline">Next </span>›</button>
+              <button type="button" disabled={now === pages} onClick={() => setPage(now + 1)} className="min-w-8 px-2 py-1 font-semibold disabled:font-normal disabled:text-slate-300" aria-label="Next page"><span className="hidden sm:inline">Next </span>›</button>
             </nav>
           </div>
         </div>
