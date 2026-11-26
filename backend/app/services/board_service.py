@@ -252,8 +252,10 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
             task_service.add(db, assignee_id=uid, title=f"{board.code} · {step.name}: {title}", source="board",
                              source_ref=f"board:{board.code}:step:{step.position}", due_at=due,
                              created_by=None)  # made by the board: nobody may edit them as "creator" (CR16)
+        # The order and client too: for step-1 people this is the only message about a new board (CR24.ii)
         notification_service.notify(db, [uid], "board.step_started", f"{board.code}: step '{step.name}' started",
-                                    f"Planned until {step.planned_end:%d %b}.", f"/employee/order-boards/{board.code}")
+                                    f"{board.name} for {board.client}. Planned until {step.planned_end:%d %b}.",
+                                    f"/employee/order-boards/{board.code}")
 
 
 # ---------- Read ----------
@@ -776,6 +778,18 @@ async def board_alerts(db: AsyncSession, today: date | None = None) -> dict:
     sent = 0
     for step, board in rows:
         pct = used_pct(step, today, holidays)
+        crossed = max((t for t in thresholds if pct >= t), default=0)
+        if crossed <= step.alerted_pct:
+            continue
+        # Lock just this step and look again before alerting: it may have been marked done this very moment
+        # (CR15). A step being saved right now is skipped and checked fresh next run.
+        step = await db.scalar(select(BoardStep).where(BoardStep.id == step.id).with_for_update(skip_locked=True)
+                               .execution_options(populate_existing=True))
+        board = await db.scalar(select(OrderBoard).where(OrderBoard.id == board.id)
+                                .execution_options(populate_existing=True))  # finished meanwhile? (its own lock)
+        if step is None or step.status != "active" or board.status != "active":
+            continue
+        pct = used_pct(step, today, holidays)  # from the fresh plan: a re-plan may have just moved its dates
         crossed = max((t for t in thresholds if pct >= t), default=0)
         if crossed <= step.alerted_pct:
             continue

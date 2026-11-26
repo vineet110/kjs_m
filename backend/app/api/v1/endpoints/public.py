@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints.files import send_file
+from app.api.v1.endpoints.files import pdf_policy, send_file
 from app.core.config.ini import public_config
 from app.core.database import get_db
 from app.core.errors import AppError
@@ -51,7 +51,13 @@ async def create_lead(data: LeadIn, request: Request, db: AsyncSession = Depends
 @router.get("/files/{file_id}")
 async def public_file(file_id: int, db: AsyncSession = Depends(get_db)):
     """Only files marked public (product images). Everything else is a 404 here."""
-    return send_file(*await file_service.download(db, None, file_id, inline=True), inline=True)
+    f, url, data = await file_service.download(db, None, file_id, inline=True)
+    response = send_file(f, url, data, inline=True)
+    # A spec sheet must open in the browser with local storage too (CR22): Chrome's PDF viewer shows nothing for
+    # a sandboxed PDF, so a real PDF goes without the sandbox, as in the staff preview (files.py view)
+    if url is None:
+        response.headers["content-security-policy"] = await pdf_policy(f, data)
+    return response
 
 
 @router.get("/texts")

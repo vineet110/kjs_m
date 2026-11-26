@@ -160,6 +160,8 @@ def _catalogue_text(cats: list[CategoryOut], picked: list[ProductOut]) -> str:
     lines += [
         f"- Product: {p.name} ({p.category_name}). Formats: {p.pack_formats or 'on request'}. "
         f"MOQ: {p.moq or 'on request'}. {p.description[:PRODUCT_TEXT]}"
+        # the items left the description in R19: their numbers and variants, so Koko can still name them
+        + (f" Items: {', '.join(i.no + (f' ({i.variant})' if i.variant else '') for i in p.items[:12])}." if p.items else "")
         for p in picked
     ]
     if cats:

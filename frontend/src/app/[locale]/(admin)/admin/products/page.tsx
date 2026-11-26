@@ -8,6 +8,7 @@ import FileList, { uploadOne } from '@/components/portal/FileList';
 import { useToast } from '@/components/portal/Toast';
 import { Msg, PageTitle, Pill } from '@/components/portal/ui';
 import { api, ApiFailure, type AdminCategory, type Product } from '@/lib/api';
+import { itemsFromLines, itemsToLines } from '@/lib/catalogue';
 import LoadError from '@/components/ui/LoadError';
 
 type Row = Product & { is_active: boolean };
@@ -15,7 +16,8 @@ type Row = Product & { is_active: boolean };
 /** Is a form value the same as the saved one? Empty and null count as the same, and so do the two kinds of
  *  line break a text box may give. */
 function same(a: unknown, b: unknown) {
-  const norm = (v: unknown) => (typeof v === 'string' ? v.replace(/\r\n/g, '\n') : v ?? '');
+  // Lists (the items) compare by their content, not by which array they are
+  const norm = (v: unknown) => (typeof v === 'string' ? v.replace(/\r\n/g, '\n') : typeof v === 'object' && v !== null ? JSON.stringify(v) : v ?? '');
   return norm(a) === norm(b);
 }
 
@@ -48,10 +50,13 @@ export default function AdminProducts() {
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const { photo, ...f } = Object.fromEntries(new FormData(form));
+    const { photo, items_text, ...f } = Object.fromEntries(new FormData(form));
+    const items = itemsFromLines(String(items_text ?? ''));
+    if ('error' in items) return setMsg({ ok: false, text: items.error });
     const body: Record<string, unknown> = {
       ...f, private_label: f.private_label === 'on', is_best_seller: f.is_best_seller === 'on',
       offer_percent: f.offer_percent ? Number(f.offer_percent) : null, // empty = no offer
+      items: items.items,
     };
     try {
       if (editing) {
@@ -158,6 +163,10 @@ export default function AdminProducts() {
         <div><label className="label">Pack formats</label><input name="pack_formats" defaultValue={e?.pack_formats} className="input" placeholder="Stick pack 18 g, Pouch 1 kg" /></div>
         <div><label className="label">Minimum order</label><input name="moq" defaultValue={e?.moq} className="input" placeholder="100,000 units" /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea name="description" defaultValue={e?.description} rows={3} className="input" /></div>
+        <div className="md:col-span-2">
+          <label className="label" htmlFor="items_text">Items (one per line: item no | variant | weight | pieces per box | per case)</label>
+          <textarea id="items_text" name="items_text" defaultValue={itemsToLines(e?.items)} rows={4} className="input font-mono" placeholder={'801 | Hazelnut | 25 g | 24 | 6\n802 |  | 40 g | 12 | 8'} />
+        </div>
         {e ? (
           // Old products keep their picture path; new photos go in through "Photos & files" below
           <div><label className="label">Image path (optional; or upload a photo in Photos & files)</label><input name="image_path" defaultValue={e.image_path} className="input" placeholder="/images/products/coffee-stick.jpg" /></div>
