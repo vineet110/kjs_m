@@ -1653,6 +1653,8 @@ Suggested order: CR4 and R45 first (small, and we hear about problems before vis
 
 R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: ask first)
 
+   27 Nov: fix in PR #135 (product and profile photos shrunk with the existing image_shrink; Pillow approved 19 Nov). Not merged yet: mark ✅ when it is.
+
    i.    The product page shows uploaded photos with `unoptimized` (`products/[slug]/page.tsx`), so a 10 MB phone
          photo reaches the visitor as 10 MB. Phone photos can also carry the GPS location (EXIF).
    ii.   Plan: when an image (png, jpg, jpeg, webp) is uploaded, open it (reject it if it can't be opened),
@@ -2260,6 +2262,8 @@ migration 0030), the site follows the switches (#99). Decisions 58, 59 in `memor
 
 
 R104. A product with a name over 60 characters can't get a photo  🟠 own PR (Nishita)
+
+   27 Nov: fix in PR #124 (files.owner_id widened to 120, same bug as CR19). Not merged yet: mark ✅ when it is.
 
    i.    `files.owner_id` is 60 characters (model and migration 0006); product slugs can be 110. The upload
          fails when the file row is saved, after the product is already saved. Was true before #93.
