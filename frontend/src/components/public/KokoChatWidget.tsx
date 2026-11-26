@@ -125,7 +125,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
                 {formError && <p role="alert" className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-2">
                   <button className="btn-gold flex-1">Send</button>
-                  <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Later</button>
+                  <button type="button" onClick={() => { setShowForm(false); setFormError(''); }} className="btn-ghost">Later</button>
                 </div>
               </form>
             )}

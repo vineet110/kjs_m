@@ -33,6 +33,8 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
   const [quick, setQuick] = useState<HomeProduct | null>(null);
   const [sent, setSent] = useState(false);
   const [listFull, setListFull] = useState(false); // "list is full" note, a few seconds (was a blocking alert())
+  const listFullTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(listFullTimer.current), []);
   const { listed, ready } = useHistory();
 
   // Products on the site, and the list as shown and sent: only those products, the newest LIST_MAX
@@ -72,7 +74,8 @@ export default function ProductExplorer({ categories, revealFrom = 'auto' }: { c
     if (next) saveEnquiryList(next);
     else {
       setListFull(true);
-      window.setTimeout(() => setListFull(false), 5000);
+      window.clearTimeout(listFullTimer.current); // a second click shows it a full 5 s again
+      listFullTimer.current = window.setTimeout(() => setListFull(false), 5000);
     }
   }
 

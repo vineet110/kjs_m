@@ -35,7 +35,7 @@ export default function MobileNav({ items }: { items: Item[] }) {
       {open && (
         <nav id="mobile-nav" className="absolute inset-x-0 top-16 border-b border-white/10 bg-ink/95 px-4 py-2 shadow-lg backdrop-blur">
           {items.map((n) => (
-            <Link key={n.href} href={n.href} className="block rounded-md px-3 py-3 text-base text-slate-200 hover:bg-white/10 hover:text-white">
+            <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className="block rounded-md px-3 py-3 text-base text-slate-200 hover:bg-white/10 hover:text-white">
               {n.label}
             </Link>
           ))}

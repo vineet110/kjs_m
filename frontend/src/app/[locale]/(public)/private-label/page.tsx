@@ -2,6 +2,7 @@
 // market -> send to sales). No price is shown until KJS gives price bands (backlog I3, A23).
 import type { Metadata } from 'next';
 import Configurator from '@/components/public/Configurator';
+import EnquiryButton from '@/components/public/EnquiryButton';
 import { features, serverGet, type Product } from '@/lib/api';
 
 export const metadata: Metadata = {
@@ -17,8 +18,10 @@ const STEPS = [
 ];
 
 export default async function PrivateLabelPage() {
-  // features.ini configurator = false: no form at all (the API would refuse its send anyway, TC-PUB-22)
-  const [products, f] = await Promise.all([serverGet<Product[]>('/public/products').then((p) => p ?? []), features()]);
+  // features.ini configurator = false: no configurator (the API would refuse its send, TC-PUB-22); a plain
+  // enquiry button instead, so the page still has a way to tell us about the product
+  const f = await features();
+  const products = f.configurator ? ((await serverGet<Product[]>('/public/products')) ?? []) : [];
   return (
     <div className="mx-auto max-w-7xl space-y-12 px-4 py-12">
       <div className="max-w-3xl space-y-3">
@@ -37,13 +40,18 @@ export default async function PrivateLabelPage() {
         ))}
       </ol>
 
-      {f.configurator && (
-        <section>
-          <div className="card p-6">
+      <section>
+        <div className="card p-6">
+          {f.configurator ? (
             <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
-          </div>
-        </section>
-      )}
+          ) : (
+            <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-slate-700">Tell us your product, pack format, quantity and market, and our sales team will come back to you.</p>
+              <EnquiryButton label="Start your private label" source="enquiry_form" title="Private label enquiry" className="btn-gold" />
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
