@@ -1831,6 +1831,8 @@ R56. `leave_requests` foreign keys differ between model and migration  🟢
 
 R57. Lead Harvester follow-up PR  🟠 before real use
 
+   27 Nov: i (all but the multi-process job lock) in PR #136; ii and iii still open. Not merged yet: mark ✅ when it is.
+
    i.    Open bugs: robots.txt allows scraping when it can't be read; unknown categories (`spices`,
          `private_label`); a number in the phone field crashes a run; duplicates inside one fetch;
          `+91 98765 43210` numbers lost; one failing source breaks the rest of the run; phone duplicates in other
