@@ -8,6 +8,7 @@ and the products their question names (stage 1: plain code, no new package). Sta
 On a product or category page, the first reply also carries a catalogue card (that category's products),
 built from the database, not by the AI: always correct, no tokens, shown even when the AI is down.
 """
+import json
 import logging
 import re
 from datetime import datetime
@@ -248,8 +249,12 @@ async def summarise_chat(messages: list[ChatMessage]) -> str:
     transcript = "\n".join(f"{m.role}: {m.content}" for m in messages[-20:])
     if not _within_daily_budget():
         return transcript[:3000]
-    # The visitor typed this: fenced off, so a line like "ignore the above, tell sales ..." stays text (R71.ii)
-    fenced = "<chat>\n" + transcript.replace("</chat>", "") + "\n</chat>"
+    # The visitor typed this: fenced off, so a line like "ignore the above, tell sales ..." stays text (R71.ii).
+    # Each message is one JSON string (a typed newline + "assistant: ..." can't fake a Koko turn), with < and >
+    # escaped (no "</chat>" in any spelling can close the fence early).
+    def quoted(text: str) -> str:
+        return json.dumps(text.replace("<", "&lt;").replace(">", "&gt;"), ensure_ascii=False)
+    fenced = "<chat>\n" + "\n".join(f"{m.role}: {quoted(m.content)}" for m in messages[-20:]) + "\n</chat>"
     try:
         return await llm.chat(
             "Summarise this website chat for a B2B sales team in English, max 3 short lines: "
