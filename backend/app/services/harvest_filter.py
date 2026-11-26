@@ -16,6 +16,7 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.batch import BuyerRecord, RecordList
+from app.models.catalog import Category
 from app.models.lead import Lead
 from app.models.harvest import HarvestSource
 
@@ -48,11 +49,16 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 PHONE_DIGITS_REGEX = re.compile(r"^\+?[1-9]\d{6,14}$")
 
 
+def _text(value) -> str:
+    """A field as text: sources send numbers, lists or nothing where text is expected (R57)."""
+    return "" if value is None else str(value)
+
+
 def normalize_email(email: str | None) -> str:
     """Normalize and validate an email address, or return empty string."""
     if not email:
         return ""
-    cleaned = email.strip().lower()
+    cleaned = _text(email).strip().lower()
     return cleaned if EMAIL_REGEX.match(cleaned) else ""
 
 
@@ -60,7 +66,7 @@ def normalize_phone(phone: str | None) -> str:
     """Normalize and validate a phone with country code (E.164), or return empty string."""
     if not phone:
         return ""
-    raw = phone.strip()
+    raw = _text(phone).strip()
     # Strip spaces, dashes, parentheses
     compact = re.sub(r"[\s\-\(\)\.]", "", raw)
     if compact.startswith("00"):
@@ -112,8 +118,10 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
         clauses_leads.append(func.lower(Lead.email) == email.lower())
         clauses_buyers.append(func.lower(BuyerRecord.email) == email.lower())
     if phone:
-        clauses_leads.append(Lead.phone == phone)
-        clauses_buyers.append(BuyerRecord.phone == phone)
+        # Compared by digits: "+91 98765 43210" and "+919876543210" are one number (R57)
+        digits = re.sub(r"\D", "", phone)
+        clauses_leads.append(func.regexp_replace(Lead.phone, "[^0-9]", "", "g") == digits)
+        clauses_buyers.append(func.regexp_replace(BuyerRecord.phone, "[^0-9]", "", "g") == digits)
 
     if not clauses_leads and not clauses_buyers:
         return False
@@ -166,18 +174,25 @@ async def filter_single_record(
     # 3. Duplicate check against existing leads and buyer_records
     if await is_duplicate(db, email, phone):
         return None, "duplicate"
+    # The record must land in a real catalogue category (auto-assign routes by it). "spices" and
+    # "private_label" are keyword groups, not categories: use the source's own category, else drop (R57)
+    real = set((await db.scalars(select(Category.slug))).all())
+    if category_slug not in real:
+        if source_category not in real:
+            return None, "unknown_category"
+        category_slug = source_category
 
     clean_record = {
-        "company": (raw.get("company") or raw.get("contact_name") or "External Buyer")[:200].strip(),
-        "contact_name": (raw.get("contact_name") or "")[:120].strip(),
+        "company": _text(raw.get("company") or raw.get("contact_name") or "External Buyer")[:200].strip(),
+        "contact_name": _text(raw.get("contact_name"))[:120].strip(),
         "email": email[:255],
         "phone": phone[:40],
-        "country": (raw.get("country") or "India")[:80].strip(),
-        "website": (raw.get("website") or raw.get("source_url") or "")[:255].strip(),
+        "country": _text(raw.get("country") or "India")[:80].strip(),
+        "website": _text(raw.get("website") or raw.get("source_url"))[:255].strip(),
         "category": category_slug,
         "matched_keyword": matched_kw,
-        "raw_message": raw.get("message") or raw.get("description") or "",
-        "source_url": raw.get("source_url") or "",
+        "raw_message": _text(raw.get("message") or raw.get("description")),
+        "source_url": _text(raw.get("source_url")),
     }
     return clean_record, None
 
