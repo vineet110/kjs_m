@@ -16,9 +16,6 @@ COMPOSE="${COMPOSE:-docker compose -f docker-compose.prod.yml}"
 # restore.sh sets KJS_BACKUP_STAMP, so it knows the file names. (Not "STAMP": a common name that may
 # already be set in the shell, and then every backup would get the same name and overwrite the last.)
 stamp="${KJS_BACKUP_STAMP:-$(date +%Y%m%d-%H%M%S)}"
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
-
 db_file="$BACKUP_DIR/db-$stamp.dump"
 files_file="$BACKUP_DIR/files-$stamp.tgz"
 
@@ -39,6 +36,11 @@ on_exit() {
   if [ "$code" -ne 0 ]; then ping_checker /fail; else ping_checker ""; fi
 }
 trap on_exit EXIT
+trap 'exit 1' INT TERM HUP  # a killed run (shutdown, timeout) always counts as failed
+
+# Set up before any work, so even a backup folder that can't be made sends /fail
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 storage_driver="$(grep -E '^STORAGE_DRIVER=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d "\"' \r")"
 
