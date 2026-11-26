@@ -30,9 +30,7 @@ class ChatMessage(BaseModel):
     @field_validator("content")
     @classmethod
     def not_too_long(cls, v: str, info: ValidationInfo) -> str:
-        # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import). A visitor's
-        # line over it is refused; Koko's own lines the browser sends back are only cut: the server uses its
-        # saved copy of them, and a lowered limit must not block the chat after one long answer
+        # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import).
         # Every line is cut to message_max, never refused here: the browser sends the whole chat again each time,
         # so refusing an old line (e.g. after message_max was lowered) would block the chat for good. Only a new
         # question that is too long is refused (KokoIn.question_not_too_long).

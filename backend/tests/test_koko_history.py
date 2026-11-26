@@ -251,3 +251,24 @@ async def test_lowering_message_max_never_blocks_an_old_long_line(client, monkey
     assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200
     too_long = {"messages": [{"role": "user", "content": "z" * 600}]}
     assert (await client.post(CHAT, json=too_long, headers=HDR)).status_code == 422  # a NEW long question: refused
+
+
+async def test_a_retry_after_the_saved_chat_was_trimmed_is_saved_once(client, monkeypatch, sent):
+    monkeypatch.setenv("KJS__KOKO__TRANSCRIPT_LINES", "10")
+    from sqlalchemy import select
+    from app.core.config import ini
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+    ini.reload_now()
+    cid = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
+    msgs = []
+    for q in [f"q{i}" for i in range(1, 7)]:
+        msgs.append({"role": "user", "content": q})
+        r = await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)
+        msgs.append({"role": "assistant", "content": r.json()["reply"]})
+    msgs.append({"role": "user", "content": "q7"})
+    await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)
+    await client.post(CHAT, json={"chat_id": cid, "messages": msgs}, headers=HDR)  # q7's answer lost: retry
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == cid))
+    assert [m["content"] for m in saved if m["role"] == "user"] == ["q3", "q4", "q5", "q6", "q7"]
