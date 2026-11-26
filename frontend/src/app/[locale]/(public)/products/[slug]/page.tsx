@@ -77,8 +77,8 @@ export default async function ProductPage({ params }: Props) {
             <div>
               <p className="mb-2 text-sm font-semibold">Items in our catalogue</p>
               <ul className="space-y-1 text-sm text-slate-700">
-                {itemsOf(p).map((i) => (
-                  <li key={i.no}>
+                {itemsOf(p).map((i, n) => (
+                  <li key={`${i.no}-${n}`}>
                     <span className="font-medium">Item {i.no}</span>{i.variant && ` (${i.variant})`}: {i.weight}, {i.pieces} pieces per box, {i.perCase} per case
                   </li>
                 ))}

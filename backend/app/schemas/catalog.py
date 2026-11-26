@@ -13,7 +13,23 @@ class ProductItem(BaseModel):
     per_case: int = Field(ge=1, le=100000)  # boxes per case
 
 
-Items = Annotated[list[ProductItem], Field(max_length=100)]
+def _unique_numbers(items: list[ProductItem]) -> list[ProductItem]:
+    numbers = [i.no for i in items]
+    if len(numbers) != len(set(numbers)):
+        raise ValueError("each item number may appear only once")
+    return items
+
+
+Items = Annotated[list[ProductItem], Field(max_length=100), AfterValidator(_unique_numbers)]
+
+
+class ProductItemOut(BaseModel):
+    """An item as stored (answers): not checked again, so one odd stored item can never break a product list."""
+    no: str
+    variant: str = ""
+    weight: str = ""
+    pieces: int = 0
+    per_case: int = 0
 
 
 class CategoryOut(BaseModel):
@@ -54,7 +70,7 @@ class ProductOut(BaseModel):
     category_slug: str
     category_name: str
     is_active: bool = True
-    items: list[ProductItem] = []
+    items: list[ProductItemOut] = []
     photo_url: str | None = None  # first photo uploaded with "Show on website"; cards use it without an image_path
 
 

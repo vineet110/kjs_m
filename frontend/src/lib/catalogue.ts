@@ -19,7 +19,7 @@ export function parseItems(description: string): CatalogueItem[] {
 
 /** A product's items: its own list, or (an older API answer) the lines in its description. */
 export function itemsOf(p: Pick<Product, 'description'> & { items?: ProductItem[] }): CatalogueItem[] {
-  if (p.items?.length)
+  if (p.items !== undefined) // an emptied list stays empty: description lines only for an older API answer
     return p.items.map((i) => ({ no: i.no, variant: i.variant, weight: i.weight, pieces: String(i.pieces), perCase: String(i.per_case) }));
   return parseItems(p.description);
 }
@@ -41,6 +41,7 @@ export function itemsFromLines(text: string): { items: ProductItem[] } | { error
     const whole = (v: string | undefined) => (v && /^\d+$/.test(v) && Number(v) >= 1 ? Number(v) : null);
     if (parts.length !== 5 || !no || /\s/.test(no) || !weight || whole(pieces) === null || whole(perCase) === null)
       return { error: `Items, line ${n + 1}: write it as "item no | variant | weight | pieces per box | per case", e.g. "801 | Hazelnut | 25 g | 24 | 6" (variant may be empty).` };
+    if (items.some((i) => i.no === no)) return { error: `Items, line ${n + 1}: item ${no} is already in the list.` };
     items.push({ no, variant: variant ?? '', weight, pieces: whole(pieces)!, per_case: whole(perCase)! });
   }
   return { items };

@@ -26,16 +26,28 @@ ITEM = re.compile(r"^• Item (\S+)(?: \((.+)\))?: (.+?), (\d+) pieces per box, 
 HEADER = "Items in our catalogue:"
 
 
+def _fits(i: dict, taken: set[str]) -> bool:
+    """The same limits the API checks (schemas/catalog.py ProductItem), copied for the same reason as ITEM.
+    A line outside them stays in the description: a stored item the API refuses would break every product list."""
+    return (len(i["no"]) <= 20 and len(i["variant"]) <= 60 and 1 <= len(i["weight"]) <= 30
+            and 1 <= i["pieces"] <= 100000 and 1 <= i["per_case"] <= 100000 and i["no"] not in taken)
+
+
 def split_description(text: str) -> tuple[str, list[dict]]:
-    """(the description without its item lines, the items)."""
-    keep, items = [], []
+    """(the description without the item lines that moved, the items). Lines that don't fit stay, under the
+    'Items in our catalogue:' header if they had one, so nothing disappears and staff can move them by hand."""
+    keep, items, taken = [], [], set()
     for line in (text or "").split("\n"):
         m = ITEM.match(line.strip())
-        if m:
-            items.append({"no": m[1], "variant": m[2] or "", "weight": m[3], "pieces": int(m[4]),
-                          "per_case": int(m[5])})
-        elif line.strip() != HEADER:
+        item = m and {"no": m[1], "variant": m[2] or "", "weight": m[3], "pieces": int(m[4]), "per_case": int(m[5])}
+        if item and _fits(item, taken):
+            items.append(item)
+            taken.add(item["no"])
+        else:
             keep.append(line)
+    left = [line for line in keep if line.strip().startswith("• Item")]
+    if not left:  # every item moved: the header has nothing under it any more
+        keep = [line for line in keep if line.strip() != HEADER]
     return "\n".join(keep).rstrip(), items
 
 

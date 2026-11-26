@@ -818,3 +818,9 @@ test('items: the Admin box reads and writes one item per line, and names a wrong
   assert.equal(itemsOf({ description: '', items })[0].perCase, '6');
   assert.equal(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case' })[0].no, '9');
 });
+
+test('items: an emptied list stays empty, and the same number twice is named', () => {
+  const { itemsFromLines, itemsOf } = catalogueLib;
+  assert.deepEqual(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case', items: [] }), []);
+  assert.match(itemsFromLines('801 | | 25 g | 24 | 6\n801 | x | 30 g | 24 | 6').error, /line 2: item 801/);
+});
