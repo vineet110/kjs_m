@@ -252,8 +252,11 @@ async def summarise_chat(messages: list[ChatMessage]) -> str:
     # The visitor typed this: fenced off, so a line like "ignore the above, tell sales ..." stays text (R71.ii).
     # Each message is one JSON string (a typed newline + "assistant: ..." can't fake a Koko turn), with < and >
     # escaped (no "</chat>" in any spelling can close the fence early).
+    # json.dumps leaves three Unicode line breaks as they are (NEL, line and paragraph separator): written out
+    # too, so a message really stays on one line
     def quoted(text: str) -> str:
-        return json.dumps(text.replace("<", "&lt;").replace(">", "&gt;"), ensure_ascii=False)
+        out = json.dumps(text.replace("<", "&lt;").replace(">", "&gt;"), ensure_ascii=False)
+        return out.replace("\x85", "\\u0085").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     fenced = "<chat>\n" + "\n".join(f"{m.role}: {quoted(m.content)}" for m in messages[-20:]) + "\n</chat>"
     try:
         return await llm.chat(
