@@ -1666,7 +1666,7 @@ R43. Uploaded photos are sent at full size  🟠 next small PR (needs Pillow: as
 
 R44. With R2, public photo links expire after 5 minutes  🟠 once R2 keys arrive (A54)
 
-   27 Nov: fix in PR #130 (public photos sent by the API, cacheable 1 h). Not merged yet: mark ✅ when it is.
+   27 Nov: fix in PR #130 (small public photos sent by the API, browser-cacheable 10 min). Not merged yet: mark ✅ when it is.
 
    i.    With `STORAGE_DRIVER=r2`, `/api/v1/public/files/{id}` redirects to a new 5-minute signed link every
          time, so browsers and Cloudflare can't cache the photo. The link also says "attachment".
@@ -2003,6 +2003,8 @@ R71. Koko trusts chat history from the browser  🟠 (raises R1)
 
 
 R72. Rate limits and the Koko budget reset on every restart  🟠 (raises R2)
+
+   27 Nov: the Koko budget part in PR #133 (koko_usage table, migration 0035); the per-IP limiters still open. Not merged yet: mark ✅ when it is.
 
    i.    Kept in process memory (`core/rate_limit.py:22`, `koko_service.py:26`): a restart or deploy resets
          the daily AI budget, and two processes would double every limit.

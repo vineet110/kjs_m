@@ -513,7 +513,7 @@ CR23. Seeding the catalogue can add products into a hidden category  🟢
 
 CR24. Smaller backend points  🟢
 
-   27 Nov: i, iv in PR #123; ii in PR #125; iii, v still open. Not merged yet: mark ✅ when it is.
+   27 Nov: i, iv in PR #123; ii in PR #125; v in PR #132; iii still open (A79 decision). Not merged yet: mark ✅ when it is.
 
    i.    `analytics_service.py:58-60`: "tasks done" is grouped by name, so two staff with the same
          name are merged. Group by `User.id, User.name`.
