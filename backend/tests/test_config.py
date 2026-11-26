@@ -266,3 +266,28 @@ def test_a_bad_app_ini_on_a_fresh_start_never_switches_jobs_on(config_dir):
     # Last review of #113: the defaults are what a bad file falls back to on a first load
     write(config_dir / "app.ini", "[app]\njobs_enabled = false\nlead_rate_per_hour = x\n")
     assert ini.reload_now().app.jobs_enabled is False
+
+
+def test_a_bad_modules_ini_on_a_fresh_start_keeps_its_valid_switches(config_dir, monkeypatch):
+    # First start, no last good values: the valid switches apply, only the misspelt one is left out
+    # (the defaults would switch chat and the rest on)
+    write(config_dir / "modules.ini", "[modules]\nchat = off\nbatches = off\norder_boardz = off\n")
+    for key in [k for k in os.environ if k.startswith("KJS__MODULES__")]:
+        monkeypatch.delenv(key)  # the test setup switches every area on by env; only the file counts here
+    store = ini._Store()  # a server start: nothing loaded before
+    store.load()
+    assert store.config.modules.chat == "off" and store.config.modules.batches == "off"
+
+
+def test_env_problems_names_an_env_value_that_breaks_the_rule_between_files(config_dir, monkeypatch):
+    monkeypatch.setenv("KJS__APP__JOB_TIMEOUT_SECONDS", "60")  # valid alone, 60 < 120 + 30
+    assert any("app.ini + notifications.ini" in p for p in ini.env_problems())
+
+
+def test_the_settings_page_says_when_a_file_was_refused(config_dir):
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = 15\n")
+    ini.reload_now()
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")
+    ini.reload_now()
+    row = next(r for r in ini.effective_with_sources() if r["key"] == "sla.respond_minutes")
+    assert row["value"] == 15 and "sla.ini was refused" in row["note"]

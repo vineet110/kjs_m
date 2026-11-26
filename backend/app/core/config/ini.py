@@ -488,6 +488,28 @@ def _reason(e: ValidationError, section: str | None = None) -> str:
     return f"config/{FILES.get(section, section)}:{where} {first['msg']}"
 
 
+def _apply_one_by_one(model: type[BaseModel], values: dict, new: dict) -> dict:
+    """Put each of `new` into `values` (in place) if the section stays valid with it; repeated until nothing
+    more fits, so two values that only work together both get in. Returns the ones left out."""
+    left = dict(new)
+    changed = True
+    while changed:
+        changed = False
+        for key, value in list(left.items()):
+            try:
+                model.model_validate({**values, key: value})
+            except ValidationError:
+                continue
+            values[key] = value
+            del left[key]
+            changed = True
+    return left
+
+
+# What _validate kept for each file it could not apply as written (for the admin Settings page)
+REFUSED: dict[str, str] = {}
+
+
 def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Config:
     """Check every file. A bad file keeps its last good values (defaults on the first load) and is
     logged; the good files still apply (backlog R91: one bad key used to throw away EVERY file, so e.g.
@@ -521,24 +543,19 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             try:
                 values, how = model.model_validate(file_only.get(section, {})).model_dump(), "the file"
             except ValidationError:
-                pass  # the file itself is bad: its last good values (logged above)
+                if last is None:
+                    # First start: there are no last good values, and the defaults may switch on what the file
+                    # keeps off (modules: chat, batches...). Its valid keys apply one by one instead; only the
+                    # bad key keeps its default.
+                    left = _apply_one_by_one(model, values, file_only.get(section, {}))
+                    how = f"the file's valid keys (refused: {', '.join(sorted(left))})"
+                # else: the file itself is bad: its last good values (logged above)
         env = dict(from_env.get(section, {}))
         try:
             return model.model_validate({**values, **env}), how + (" + its KJS__ env values" if env else "")
         except ValidationError:
             pass
-        ignored = dict(env)
-        changed = True
-        while changed:  # apply what fits; a value that needs another one gets a second chance
-            changed = False
-            for key, value in list(ignored.items()):
-                try:
-                    model.model_validate({**values, key: value})
-                except ValidationError:
-                    continue
-                values[key] = value
-                del ignored[key]
-                changed = True
+        ignored = _apply_one_by_one(model, values, env)
         return model.model_validate(values), how + f"; ignored env: {', '.join(sorted(ignored))}"
 
     sections, bad, bad_sections, hows = {}, [], set(), {}
@@ -558,6 +575,8 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             hows[section] = how
     for reason, section in bad:
         log.error("config.invalid", extra={"reason": reason, "kept": hows.get(section, kept)})
+    REFUSED.clear()
+    REFUSED.update({s: hows.get(s, kept) for _, s in bad})
     try:
         return Config(**sections)
     except ValidationError as e:
@@ -609,6 +628,13 @@ def env_problems() -> list[str]:
             except ValidationError:
                 where = "the file itself is bad, see config.invalid"
             problems.append(f"{_reason(e, section)} ({where})")
+    # The rule between files, when a KJS__ value feeds it (e.g. KJS__APP__JOB_TIMEOUT_SECONDS=60)
+    if sections & Config.RULE_SECTIONS:
+        try:
+            Config.model_validate({k: v for k, v in raw.items() if not k.startswith("__")})
+        except ValidationError as e:
+            if not e.errors()[0]["loc"]:  # a Config-level rule, not one section's value
+                problems.append(f"{_reason(e)} (a KJS__ env value breaks this rule; the last good values are used)")
     return problems
 
 
@@ -725,6 +751,8 @@ def effective_with_sources() -> list[dict]:
         section, name = key.split(".", 1)
         env = f"{ENV_PREFIX}{section.upper()}__{name.upper()}"
         source = "env" if env in os.environ else "ini" if key in in_files else "default"
+        # The file (or an env value) of this section was refused at the last load: say what is used instead
+        note = f"config/{FILES[section]} was refused; using {REFUSED[section]}" if section in REFUSED else ""
         out.append({"key": key, "value": value, "default": defaults.get(key), "source": source,
-                    "file": f"config/{FILES[section]}", "env_var": env})
+                    "file": f"config/{FILES[section]}", "env_var": env, "note": note})
     return out
