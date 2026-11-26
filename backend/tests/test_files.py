@@ -3,19 +3,10 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.catalog import Category, Product
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, real_png, login, make_user
 
 PDF = ("spec.pdf", b"%PDF-1.4 test %%EOF", "application/pdf")
 
-
-
-def _real_png() -> bytes:
-    """A real 4x4 PNG: product and profile pictures are opened and shrunk on upload (R43)."""
-    import io as _io
-    from PIL import Image
-    b = _io.BytesIO()
-    Image.new("RGB", (4, 4), (200, 150, 60)).save(b, "PNG")
-    return b.getvalue()
 
 async def _product(slug: str) -> None:
     """Files can only be added to a product that exists."""
@@ -200,7 +191,7 @@ async def test_a_failed_save_leaves_no_stored_copy(client, monkeypatch):
         storage().get(kept[0])
 
 
-PNG = ("photo.png", _real_png(), "image/png")
+PNG = ("photo.png", real_png(), "image/png")
 
 
 async def test_cards_get_the_first_public_photo_of_a_product(client):
@@ -262,7 +253,13 @@ async def test_a_big_product_photo_is_shrunk_on_upload(client):  # R43
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Big Photo Coffee"}, headers=HDR)).json()
-    fid = (await _upload(client, owner_id=p["slug"], file=("big.jpg", b.getvalue(), "image/jpeg"), public=True)).json()["id"]
+    from app.core.config.ini import cfg
+    up = await _upload(client, owner_id=p["slug"], file=("big.jpg", b.getvalue(), "image/jpeg"), public=True)
+    private = await _upload(client, owner_id=p["slug"], file=("print.jpg", b.getvalue(), "image/jpeg"))
+    assert up.status_code == 201 and private.status_code == 201
+    kept = Image.open(io.BytesIO((await client.get(f"/api/v1/files/{private.json()['id']}/download")).content))
+    assert kept.size == (4000, 3000)  # a private picture (e.g. print artwork) keeps its full size
     client.cookies.clear()
-    shown = Image.open(io.BytesIO((await client.get(f"/api/v1/public/files/{fid}")).content))
-    assert max(shown.size) <= 1600  # site_ui.ini image_max_px (default 1600)
+    r = await client.get(f"/api/v1/public/files/{up.json()['id']}")
+    assert r.status_code == 200
+    assert max(Image.open(io.BytesIO(r.content)).size) <= cfg().site_ui.image_max_px

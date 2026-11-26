@@ -8,17 +8,10 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.lead import Lead
 from app.models.user import User
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, real_png, login, make_user
 
 ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "message": "Need sticks"}
 
-def _real_png() -> bytes:
-    """A real 4x4 PNG: product and profile pictures are opened and shrunk on upload (R43)."""
-    import io as _io
-    from PIL import Image
-    b = _io.BytesIO()
-    Image.new("RGB", (4, 4), (200, 150, 60)).save(b, "PNG")
-    return b.getvalue()
 
 def _zip(parts: dict[str, bytes]) -> bytes:
     buf = io.BytesIO()
@@ -362,7 +355,7 @@ async def test_no_reporting_loops(client):
     assert await set_boss(c, a) == 422
 
 
-PNG = ("me.png", _real_png(), "image/png")
+PNG = ("me.png", real_png(), "image/png")
 
 
 async def _photo(client, owner_id) -> int:

@@ -223,6 +223,6 @@ async def _product_is_live(db: AsyncSession, slug: str) -> bool:
                                        Category.slug.not_in(await hidden_slugs(db)))))
 
 
-# shrink: product photos are made at most site_ui image_max_px and lose their GPS / camera data (R43);
-# spec sheets and other files are stored as they are
-file_service.register_owner("product", _product_files_access, public=_product_is_live, shrink=True)
+# shrink "public": photos shown on the website are made at most site_ui image_max_px and lose their GPS /
+# camera data (R43); private pictures (e.g. print-ready label artwork) and other files are stored as they are
+file_service.register_owner("product", _product_files_access, public=_product_is_live, shrink="public")
