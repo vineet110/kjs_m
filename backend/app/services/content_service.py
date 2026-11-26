@@ -248,8 +248,8 @@ async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict,
         await db.rollback()
         return  # someone else's chat id: never touch another visitor's transcript
     messages = [m for m in (row.messages or []) if isinstance(m, dict)]
-    if (retry and len(messages) >= 2 and messages[-2].get("content") == question["content"]
-            and messages[-1].get("role") == "assistant"):
+    if (retry and len(messages) >= 2 and messages[-2].get("role") == "user"
+            and messages[-2].get("content") == question["content"] and messages[-1].get("role") == "assistant"):
         messages = messages[:-2]
     row.messages = (messages + [question, reply])[-cfg().koko.transcript_lines:]
     row.suggested_enquiry = row.suggested_enquiry or suggested

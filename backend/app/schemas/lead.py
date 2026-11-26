@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
 from app.core.config.ini import cfg
 from app.schemas.common import Email, OneLine, RequiredPhone
@@ -13,10 +13,15 @@ class ChatMessage(BaseModel):
 
     @field_validator("content")
     @classmethod
-    def not_too_long(cls, v: str) -> str:
-        # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import)
-        if len(v) > cfg().koko.message_max:
-            raise ValueError(f"A chat message can be at most {cfg().koko.message_max} characters.")
+    def not_too_long(cls, v: str, info: ValidationInfo) -> str:
+        # config/koko.ini message_max, read now (a Field(max_length=...) would be fixed at import). A visitor's
+        # line over it is refused; Koko's own lines the browser sends back are only cut: the server uses its
+        # saved copy of them, and a lowered limit must not block the chat after one long answer
+        limit = cfg().koko.message_max
+        if len(v) > limit:
+            if info.data.get("role") == "assistant":
+                return v[:limit]
+            raise ValueError(f"A chat message can be at most {limit} characters.")
         return v
 
 
@@ -38,7 +43,18 @@ class LeadIn(BaseModel):
     source_page: str = Field(default="", max_length=255)
     consent: bool
     website: str = Field(default="", max_length=255)  # honeypot: hidden field, humans leave it empty
-    chat: list[ChatMessage] = Field(default_factory=list, max_length=30)  # Koko leads only
+    # Koko leads only. As many lines as a Koko request may have (koko.ini request_lines, checked below), so a
+    # long chat never blocks its enquiry form
+    chat: list[ChatMessage] = Field(default_factory=list)
+    # Koko's chat id: the sales summary is made from the saved transcript, never the browser's copy (R71)
+    chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")
+
+    @field_validator("chat")
+    @classmethod
+    def chat_not_too_long(cls, v: list[ChatMessage]) -> list[ChatMessage]:
+        if len(v) > cfg().koko.request_lines:
+            raise ValueError("The chat is too long to attach. Please send the form without it.")
+        return v
 
     @model_validator(mode="after")
     def need_contact(self):

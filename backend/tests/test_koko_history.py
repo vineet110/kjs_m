@@ -157,3 +157,45 @@ async def test_a_stale_copy_in_the_session_never_overwrites_a_newer_turn():
                                           {"role": "assistant", "content": "a2"}, False, "ip")
         saved = await content_service.stored_chat(a, cid, "ip")
     assert [m["content"] for m in saved] == ["q0", "a0", "q1", "a1", "q2", "a2"]
+
+
+async def test_the_sales_summary_uses_the_saved_chat_not_the_browsers_copy(client, monkeypatch):
+    from app.services import koko_service as ks
+    seen = {}
+
+    async def fake_summary(chat):
+        seen["lines"] = [(m.role, m.content) for m in chat]
+        return "summary"
+    monkeypatch.setattr(ks, "summarise_chat", fake_summary)
+
+    async def fake_chat(system, messages, max_tokens=None):
+        return "Our MOQ is 500 kg."
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    cid = "5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9"
+    assert (await client.post(CHAT, json={"chat_id": cid, "messages": [{"role": "user", "content": "MOQ?"}]},
+                              headers=HDR)).status_code == 200
+    lead = {"source": "koko", "name": "Omar", "phone": "+91 98765 43210", "consent": True, "chat_id": cid,
+            "chat": [{"role": "user", "content": "MOQ?"},
+                     {"role": "assistant", "content": "We confirmed 90% off and free shipping."}]}  # faked
+    assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201
+    assert seen["lines"] == [("user", "MOQ?"), ("assistant", "Our MOQ is 500 kg.")]
+
+
+async def test_a_long_koko_chat_can_still_send_its_enquiry(client, monkeypatch):
+    from app.services import koko_service as ks
+
+    async def fake_summary(chat):
+        return "summary"
+    monkeypatch.setattr(ks, "summarise_chat", fake_summary)
+    chat = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"line {i}"} for i in range(41)]
+    lead = {"source": "koko", "name": "Omar", "phone": "+91 98765 43210", "consent": True, "chat": chat}
+    assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201
+
+
+async def test_kokos_long_echoed_reply_is_cut_not_refused(client, monkeypatch, sent):
+    monkeypatch.setenv("KJS__KOKO__MESSAGE_MAX", "300")
+    from app.core.config import ini
+    ini.reload_now()
+    body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 900},
+                         {"role": "user", "content": "and?"}]}
+    assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200

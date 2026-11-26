@@ -23,12 +23,14 @@ const HELLO: Msg = {
   content: 'Hi! I am Koko. Ask me about our stick packs, blending, packaging or private label. I reply in your language.',
 };
 
-/** 36 random characters (crypto.randomUUID, or 16 random bytes where that is missing). */
+/** 36 random characters (crypto.randomUUID, or 16 crypto random bytes where that is missing). */
 function newChatId(): string {
   const c = globalThis.crypto as Crypto | undefined;
   if (typeof c?.randomUUID === 'function') return c.randomUUID();
-  const bytes = c?.getRandomValues ? c.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
-  const hex = Array.from(bytes, (b: number) => b.toString(16).padStart(2, '0')).join('');
+  // No secure random at all (a very old browser): a short id, which the server ties to the visitor's network
+  // as before, instead of a long guessable one it would trust on its own
+  if (!c?.getRandomValues) return `c-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`;
+  const hex = Array.from(c.getRandomValues(new Uint8Array(16)), (b: number) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
@@ -89,7 +91,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
         body: {
           source: 'koko', name: f.get('name'), email: email || null, phone: f.get('phone'),
           company: f.get('company'), consent: f.get('consent') === 'on',
-          chat: forServer(msgs), source_page: window.location.pathname,
+          chat: forServer(msgs), chat_id: chatId.current, source_page: window.location.pathname,
         },
       });
       setSent(true);
