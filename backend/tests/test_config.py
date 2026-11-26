@@ -152,3 +152,25 @@ def test_env_problems_never_raises_on_a_broken_file(config_dir, monkeypatch):
     write(config_dir / "sla.ini", "[sla]\nx = 1\nx = 2\n")
     monkeypatch.setenv("KJS__SLA__RESPOND_MINUTES", "7")
     ini.env_problems()  # no exception
+
+
+def test_a_percent_sign_keeps_only_that_file(config_dir):
+    # ConfigParser checks % only when a value is read: that must not stop every file loading
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\n")
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = 15%\n")
+    c = ini.reload_now()
+    assert c.app.jobs_enabled is False and c.sla.respond_minutes == 20
+
+
+def test_a_rule_broken_by_good_files_is_not_waived_for_an_unrelated_bad_file(config_dir):
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 9\n")
+    ini.reload_now()
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 7\njob_timeout_seconds = 60\n")  # 60 < 120 + 30
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")  # bad, but not read by that rule
+    assert ini.reload_now().app.lead_rate_per_hour == 9  # the whole new config is refused, as before
+
+
+def test_a_misspelt_time_zone_is_a_bad_value_not_a_crash(config_dir, monkeypatch):
+    monkeypatch.setenv("KJS__APP__TIMEZONE", "Asia/Kolkataa")
+    assert ini.reload_now().app.timezone == "Asia/Kolkata"
+    assert any("timezone" in p for p in ini.env_problems())

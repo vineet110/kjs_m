@@ -64,7 +64,12 @@ class AppIni(BaseModel):
     @field_validator("timezone")
     @classmethod
     def real_timezone(cls, v: str) -> str:
-        ZoneInfo(v)  # raises for a misspelt name, so the last good config is kept
+        # A misspelt name raises ZoneInfoNotFoundError (a KeyError, not a ValueError): turned into a
+        # ValueError, so pydantic reports it like any bad value and the last good config is kept
+        try:
+            ZoneInfo(v)
+        except Exception as e:
+            raise ValueError(f"unknown time zone '{v}'") from e
         return v
 
     @model_validator(mode="after")
@@ -376,6 +381,9 @@ class Config(BaseModel):
     site_insights: SiteInsightsIni = SiteInsightsIni()
     site_ui: SiteUiIni = SiteUiIni()
 
+    # Files the rules below read (a rule can only be waived for a bad file it actually depends on: _validate)
+    RULE_SECTIONS: typing.ClassVar[set[str]] = {"app", "notifications"}
+
     @model_validator(mode="after")
     def job_timeout_covers_email_budget(self):
         # The jobs loop cancels a job at app.job_timeout_seconds; send_emails stops itself at its own budget.
@@ -424,15 +432,17 @@ def _read_raw() -> dict:
         if path.exists():
             parser = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
             parser.optionxform = str  # keep key case (module names in [logging.levels])
+            # Values are read inside the try too: ConfigParser checks % (interpolation) only when a value is
+            # read, so "15%" would otherwise escape this handler and stop every file loading
             try:
                 parser.read(path, encoding="utf-8")
+                if parser.has_section(section):
+                    values.update(parser[section])
+                if section == "logging" and parser.has_section("logging.levels"):
+                    values["levels"] = dict(parser["logging.levels"])
             except configparser.Error as e:
                 broken[section] = f"config/{filename}: {e}"
-                parser = None
-            if parser is not None and parser.has_section(section):
-                values.update(parser[section])
-            if parser is not None and section == "logging" and parser.has_section("logging.levels"):
-                values["levels"] = dict(parser["logging.levels"])
+                values = {}
         raw[section] = values
 
     # KJS__SLA__RESPOND_MINUTES=15 overrides [sla] respond_minutes
@@ -477,24 +487,27 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             if strict:
                 raise ValueError(_reason(e)) from e
     base = last or Config()
-    sections, bad = {}, []
+    sections, bad, bad_sections = {}, [], set()
     for section, field in Config.model_fields.items():
         if section in broken:
             bad.append(broken[section])
+            bad_sections.add(section)
             sections[section] = getattr(base, section)
             continue
         try:
             sections[section] = field.annotation.model_validate(raw.get(section, {}))
         except ValidationError as e:
             bad.append(_reason(e, section))
+            bad_sections.add(section)
             sections[section] = getattr(base, section)
     for reason in bad:
         log.error("config.invalid", extra={"reason": reason, "kept": "last good values for this file"})
     try:
         return Config(**sections)
     except ValidationError as e:
-        if not bad:
-            raise ValueError(_reason(e)) from e  # every file is fine, but two disagree: keep the old config
+        if not (bad_sections & Config.RULE_SECTIONS):
+            # The files the rule reads are all fine and still disagree: a real mistake, keep the old config
+            raise ValueError(_reason(e)) from e
         # A rule between two files fails only because a bad file fell back to its old values or the
         # defaults. Throwing everything away would bring back e.g. jobs_enabled = true (R91), so keep
         # the good files anyway and say so. Each file on its own is still in range.
