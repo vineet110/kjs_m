@@ -113,7 +113,7 @@ async def _check_or_not_found(db: AsyncSession, user: User, f: StoredFile) -> No
     try:
         await _check(db, user, f.owner_type, f.owner_id, "read")
     except AppError as e:
-        if e.status_code == 403:
+        if e.status_code == 403 or e.code == "module_off":  # a switched-off area also looks like "no such file"
             raise AppError(404, "not_found", "File not found.") from e
         raise
 

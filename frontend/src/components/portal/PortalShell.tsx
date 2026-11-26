@@ -102,6 +102,12 @@ export default function PortalShell({ children, requirePerm }: { children: React
   useEffect(() => {
     loadMe();
   }, [loadMe]);
+  // The account we already have may not open this admin page: away at once, without waiting for the re-check
+  // (which may also fail and would leave the page on Loading)
+  const denied = status.state === 'ready' && !may(status.me);
+  useEffect(() => {
+    if (denied) router.replace('/employee/dashboard');
+  }, [denied, router]);
   // The server said an area is switched off (it changed while this tab was open): ask "who am I" again, so the
   // sidebar drops it and its pages show "Not available yet"
   useEffect(() => onModuleOff(loadMe), [loadMe]);

@@ -131,7 +131,7 @@ function InfoPhone({ phone }: { phone: string }) {
   const [show, setShow] = useState(false);
   if (!phone) return null;
   return show ? <a href={`tel:${phone.replace(/\s/g, '')}`} className="hover:underline">{phone}</a>
-    : <button type="button" onClick={() => setShow(true)} title="Show the number" className="hover:underline">{maskPhone(phone)}</button>;
+    : <button type="button" onClick={() => setShow(true)} title="Show the number" aria-label={`Show the phone number ending ${phone.replace(/\D/g, '').slice(-4)}`} className="hover:underline">{maskPhone(phone)}</button>;
 }
 
 function Header({ lead, enquiries }: { lead: Lead; enquiries: Lead[] }) {
