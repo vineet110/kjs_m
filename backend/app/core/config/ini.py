@@ -381,8 +381,11 @@ class Config(BaseModel):
     site_insights: SiteInsightsIni = SiteInsightsIni()
     site_ui: SiteUiIni = SiteUiIni()
 
-    # Files the rules below read (a rule can only be waived for a bad file it actually depends on: _validate)
-    RULE_SECTIONS: typing.ClassVar[set[str]] = {"app", "notifications"}
+    # The values the rules below read, per file (_validate puts these back to their last good values when a
+    # rule fails because one of these files is bad; a rule is never waived)
+    RULE_FIELDS: typing.ClassVar[dict[str, list[str]]] = {"app": ["job_timeout_seconds"],
+                                                           "notifications": ["email_time_budget_seconds"]}
+    RULE_SECTIONS: typing.ClassVar[set[str]] = set(RULE_FIELDS)
 
     @model_validator(mode="after")
     def job_timeout_covers_email_budget(self):
@@ -467,8 +470,10 @@ def _reason(e: ValidationError, section: str | None = None) -> str:
     """'config/sla.ini: 'respond_minutes' Input should be a valid integer' from the first error."""
     first = e.errors()[0]
     loc = list(first["loc"])
+    if section is None and not loc:  # a rule between files (Config-level): name the files it reads
+        return "config/" + " + ".join(FILES[s] for s in sorted(Config.RULE_SECTIONS)) + f": {first['msg']}"
     if section is None:
-        section, loc = (loc[0] if loc else "?"), loc[1:]
+        section, loc = loc[0], loc[1:]
     where = f" '{loc[0]}'" if loc else ""  # a rule between two keys has no single key
     return f"config/{FILES.get(section, section)}:{where} {first['msg']}"
 
@@ -502,19 +507,26 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
             bad.append(_reason(e, section))
             bad_sections.add(section)
             sections[section] = getattr(base, section)
+    kept = "last good values for this file" if last is not None else "the built-in defaults for this file"
     for reason in bad:
-        log.error("config.invalid", extra={"reason": reason, "kept": "last good values for this file"})
+        log.error("config.invalid", extra={"reason": reason, "kept": kept})
     try:
         return Config(**sections)
     except ValidationError as e:
         if not (bad_sections & Config.RULE_SECTIONS):
             # The files the rule reads are all fine and still disagree: a real mistake, keep the old config
             raise ValueError(_reason(e)) from e
-        # A rule between two files fails only because a bad file fell back to its old values or the
-        # defaults. Throwing everything away would bring back e.g. jobs_enabled = true (R91), so keep
-        # the good files anyway and say so. Each file on its own is still in range.
-        log.error("config.invalid", extra={"reason": _reason(e), "kept": "the good files; this rule is not met until the bad file is fixed"})
-        return Config.model_construct(**sections)
+        # The rule fails and one of the files it reads is bad. The rule is never waived (a too-short job
+        # timeout cuts an email batch mid-send). Only the values the rule reads go back to their last good
+        # ones (or the defaults), which met it; every other good setting stays, e.g. jobs_enabled = false (R91).
+        safe = {s: sections[s].model_copy(update={k: getattr(getattr(base, s), k) for k in keys})
+                for s, keys in Config.RULE_FIELDS.items()}
+        try:
+            new = Config(**{**sections, **safe})
+        except ValidationError as e2:
+            raise ValueError(_reason(e2)) from e2  # can't happen with values that met the rule: keep the old config
+        log.error("config.invalid", extra={"reason": _reason(e), "kept": "the last good job timeout and email budget"})
+        return new
 
 
 def env_problems() -> list[str]:

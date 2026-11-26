@@ -132,11 +132,27 @@ def test_a_file_with_a_syntax_error_keeps_only_that_file(config_dir, caplog):
 
 
 def test_a_rule_between_files_broken_by_a_bad_file_still_keeps_the_good_files(config_dir):
-    # notifications.ini is bad, so its default email budget (60) comes back, and 60 < 60 + 30 breaks the rule
+    # notifications.ini is bad, so its default email budget (120) comes back, and a 60 s timeout < 120 + 30
+    # breaks the rule. The rule is never waived: the timeout goes back to its safe value, every other good
+    # setting (jobs_enabled = false) stays (R91 + review of #113)
     write(config_dir / "app.ini", "[app]\njobs_enabled = false\njob_timeout_seconds = 60\n")
     write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = soon\n")
     c = ini.reload_now()
     assert c.app.jobs_enabled is False
+    assert c.app.job_timeout_seconds >= c.notifications.email_time_budget_seconds + 30
+
+
+def test_a_good_file_cannot_break_the_rule_while_the_other_rule_file_is_bad(config_dir):
+    # Review of #113: app.ini has a typo (keeps its last good 300 s), then the email budget is raised to 280.
+    # 300 < 280 + 30: the budget must stay at its last good value, never go live with the unsafe pair
+    write(config_dir / "app.ini", "[app]\njob_timeout_seconds = 300\n")
+    write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = 120\n")
+    ini.reload_now()
+    write(config_dir / "app.ini", "[app]\njob_timeout_seconds = 300\nlead_rate_per_hour = x\n")
+    write(config_dir / "notifications.ini", "[notifications]\nemail_time_budget_seconds = 280\n")
+    c = ini.reload_now()
+    assert c.app.job_timeout_seconds >= c.notifications.email_time_budget_seconds + 30
+    assert c.notifications.email_time_budget_seconds == 120
 
 
 def test_strict_validation_fails_on_any_bad_file(config_dir):
