@@ -473,7 +473,7 @@ async def _photo_access(db: AsyncSession, user: User, owner_id: str, action: str
 
 
 # Pictures only (TC-PROF-06): a GIF, PDF or video is refused, not saved as a broken "photo"
-file_service.register_owner("user", _photo_access, types={"jpg", "jpeg", "png", "webp"})
+file_service.register_owner("user", _photo_access, types={"jpg", "jpeg", "png", "webp"}, shrink=True)  # small, no GPS (R43)
 
 
 # ---------- Profile ----------

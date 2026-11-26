@@ -8,6 +8,15 @@ from tests.conftest import HDR, login, make_user
 PDF = ("spec.pdf", b"%PDF-1.4 test %%EOF", "application/pdf")
 
 
+
+def _real_png() -> bytes:
+    """A real 4x4 PNG: product and profile pictures are opened and shrunk on upload (R43)."""
+    import io as _io
+    from PIL import Image
+    b = _io.BytesIO()
+    Image.new("RGB", (4, 4), (200, 150, 60)).save(b, "PNG")
+    return b.getvalue()
+
 async def _product(slug: str) -> None:
     """Files can only be added to a product that exists."""
     async with AsyncSessionLocal() as db:
@@ -54,7 +63,7 @@ async def test_public_files_only_when_marked_public(client):
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"}, headers=HDR)).json()
     private_id = (await _upload(client, owner_id=p["slug"])).json()["id"]
-    public_id = (await _upload(client, owner_id=p["slug"], file=("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png"), public=True)).json()["id"]
+    public_id = (await _upload(client, owner_id=p["slug"], file=PNG, public=True)).json()["id"]
     client.cookies.clear()
     assert (await client.get(f"/api/v1/public/files/{private_id}")).status_code == 404
     r = await client.get(f"/api/v1/public/files/{public_id}")
@@ -191,7 +200,7 @@ async def test_a_failed_save_leaves_no_stored_copy(client, monkeypatch):
         storage().get(kept[0])
 
 
-PNG = ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")
+PNG = ("photo.png", _real_png(), "image/png")
 
 
 async def test_cards_get_the_first_public_photo_of_a_product(client):
@@ -243,3 +252,17 @@ async def test_no_card_photo_when_the_category_is_hidden(client):
     r = await client.get(f"/api/v1/public/products/{p['slug']}")
     if r.status_code == 200:
         assert r.json()["photo_url"] is None
+
+
+async def test_a_big_product_photo_is_shrunk_on_upload(client):  # R43
+    import io
+    from PIL import Image
+    b = io.BytesIO()
+    Image.new("RGB", (4000, 3000), (10, 120, 200)).save(b, "JPEG", quality=95)
+    await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
+    await login(client, "cat@kjsindia.com")
+    p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Big Photo Coffee"}, headers=HDR)).json()
+    fid = (await _upload(client, owner_id=p["slug"], file=("big.jpg", b.getvalue(), "image/jpeg"), public=True)).json()["id"]
+    client.cookies.clear()
+    shown = Image.open(io.BytesIO((await client.get(f"/api/v1/public/files/{fid}")).content))
+    assert max(shown.size) <= 1600  # site_ui.ini image_max_px (default 1600)
