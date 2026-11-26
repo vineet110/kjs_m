@@ -184,5 +184,3 @@ async def test_with_batches_on_admin_only_admins_get_batches(client, monkeypatch
         await client.post("/api/v1/attendance/check-in", headers=HDR)
     plan = (await client.get("/api/v1/assign/preview")).json()
     assert [p["user_id"] for p in plan] == [root]  # the employee can't open a batch, so gets none
-    monkeypatch.delenv("KJS__MODULES__BATCHES")
-    ini.reload_now()
