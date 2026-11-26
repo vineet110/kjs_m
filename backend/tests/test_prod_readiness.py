@@ -16,7 +16,7 @@ from app.models.task import Task
 from app.models.user import User
 from app.services import attendance_service, auth_service, notification_service
 from app.services import board_service as boards
-from tests.conftest import HDR, id_token, login, make_user
+from tests.conftest import HDR, id_token, login, make_user, real_png
 from tests.test_boards import _ids, board_body
 
 
@@ -293,12 +293,12 @@ async def test_public_photos_are_cacheable_staff_files_are_not(client):
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Stick Coffee"},
                            headers=HDR)).json()
     f = (await client.post("/api/v1/files", data={"owner_type": "product", "owner_id": p["slug"], "is_public": "true"},
-                           files={"file": ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")}, headers=HDR)).json()
+                           files={"file": ("photo.png", real_png(), "image/png")}, headers=HDR)).json()
     staff = await client.get(f"/api/v1/files/{f['id']}/download")
-    assert staff.headers["cache-control"] == "private, no-store" and staff.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
+    assert staff.headers["cache-control"] == "private, no-store" and staff.content[:4] == b"\x89PNG"
     client.cookies.clear()
     public = await client.get(f"/api/v1/public/files/{f['id']}")
-    assert public.headers["cache-control"].startswith("public") and public.content == b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82"
+    assert public.headers["cache-control"].startswith("public") and public.content == staff.content
 
 
 async def test_deleted_files_are_purged_from_storage_later(client, monkeypatch):

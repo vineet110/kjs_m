@@ -56,7 +56,7 @@ def add_work_minutes(start: datetime, minutes: int, holidays: set[date]) -> date
 def sla(lead: Lead, now: datetime, holidays: set[date]) -> dict:
     s = cfg().sla
     respond_due = add_work_minutes(lead.created_at, s.respond_minutes, holidays)
-    resolve_due = add_work_minutes(lead.created_at, s.resolve_minutes, holidays)
+    resolve_due = add_work_minutes(lead.reopened_at or lead.created_at, s.resolve_minutes, holidays)
     if lead.status == "closed":
         return {"sla_state": "done", "sla_label": "Closed", "respond_due_at": respond_due, "resolve_due_at": resolve_due}
     stage, due = ("Respond", respond_due) if lead.status == "new" else ("Resolve", resolve_due)
@@ -481,6 +481,10 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         raise AppError(409, "unchanged", f"This lead is already '{status}'.")
     if status == "new" and lead.responded_at is not None:
         raise AppError(409, "already_answered", "This lead was already answered; set it to 'contacted' instead.")
+    outcome = outcome.strip()  # " Won " and "Won" are one outcome in the reports
+    if status == "closed" and not outcome:
+        # The screen always asks; a script or an old tab must not close a lead the outcome reports can't count
+        raise AppError(422, "outcome_required", "Choose an outcome to close this lead.")
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
@@ -490,7 +494,12 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         lead.resolved_at = now  # stops the "resolve" timer
         lead.outcome = outcome or lead.outcome
     else:
-        lead.resolved_at = None  # re-opened: the "resolve" timer runs again
+        if before["status"] == "closed":
+            # Re-opened (CR12, R4): a new resolve timer from now, and it may be reported again if that runs out
+            # (level 2 = "not closed" already reported would otherwise keep it quiet for ever)
+            lead.reopened_at = now
+            lead.escalation_level = min(lead.escalation_level, 1)
+        lead.resolved_at = None  # the "resolve" timer runs again
     if lead.assigned_to is None:
         lead.assigned_to = user.id  # whoever acts on an unassigned lead takes it
     audit_service.record(db, actor=user, action="lead.status_changed", entity_type="lead",
@@ -518,10 +527,29 @@ async def list_notes(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
             for n, name in rows.all()]
 
 
+async def return_open_leads(db: AsyncSession, by: User, owner: User) -> int:
+    """The owner's account was disabled (R98, decided 18 Nov): their open (not closed) leads go back to
+    unassigned so the team sees and picks them up; each gets a note and an audit row saying why. Closed leads
+    keep their owner (the reports count them). Returns how many went back. The caller commits.
+    Not moved (known gap, backlog): open tasks on those leads stay with the person."""
+    leads = (await db.scalars(select(Lead).where(Lead.assigned_to == owner.id, Lead.status != "closed")
+                              .with_for_update())).all()
+    for lead in leads:
+        lead.assigned_to = None
+        db.add(LeadNote(lead_id=lead.id, user_id=by.id, kind="handover",
+                        text=f"Back to unassigned: {owner.name}'s account was switched off"))
+        audit_service.record(db, actor=by, action="lead.unassigned", entity_type="lead", entity_id=lead.id,
+                             before={"assigned_to": owner.id}, after={"assigned_to": None, "why": "owner switched off"})
+    return len(leads)
+
+
 async def assign(db: AsyncSession, user: User, lead_id: int, to_user_id: int) -> None:
     """Hand over (owner) or reassign (leads.view_all) a lead to a colleague."""
+    # The colleague first (shared lock), then the lead: switching that colleague off (auth_service.set_status)
+    # waits for this handover, or this waits for it, so a lead never lands on a just-disabled account (R98).
+    # Same order as set_status (person, then leads): no deadlock.
+    target = await db.get(User, to_user_id, with_for_update={"read": True}, populate_existing=True)
     lead = await _lead_for(db, user, lead_id, lock=True)
-    target = await db.get(User, to_user_id)
     if target is None or target.status != "active":
         raise AppError(422, "bad_user", "Pick an active colleague.")
     if "leads.view" not in effective_permissions(target.role, target.permissions):
@@ -578,9 +606,10 @@ async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:
         lead.escalation_level = level
         owner = await db.get(User, lead.assigned_to) if lead.assigned_to else None
         who = owner.name if owner else "nobody yet"
-        notification_service.notify(
-            db, set(managers) | ({owner.id} if owner else set()), "lead.sla_breach",
-            f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}.", "/admin/leads")
+        title, body = f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}."
+        notification_service.notify(db, set(managers), "lead.sla_breach", title, body, "/admin/leads")
+        if owner and owner.id not in managers:  # the owner can't open All Enquiries: their own lead page instead
+            notification_service.notify(db, {owner.id}, "lead.sla_breach", title, body, f"/employee/contacts/{lead.id}")
         log.warning("lead.sla_breach", extra={"lead_id": lead.id, "level": level})
         reported += 1
     return {"open_leads": len(leads), "escalated": reported}

@@ -25,7 +25,7 @@ def range_text(cats: list[CategoryOut]) -> str:
     rangeText in frontend/src/lib/catalogue.ts. No categories: the full range."""
     names = [c.name.lower() for c in cats if c.slug not in PARENT_OF]
     if not names:
-        return "coffee, tea, health drinks and confectionery"
+        return "coffee, health drinks and confectionery"
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
@@ -171,6 +171,8 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:
     category = await get_category(db, data.category_slug, include_hidden=True)
     slug = slugify(data.name)
+    if not slug:  # e.g. a name only in Hindi: its page address would be empty (CR21)
+        raise AppError(422, "bad_name", "The product name needs at least one English letter or number.")
     if await db.scalar(select(func.count()).select_from(Product).where(Product.slug == slug)):
         raise AppError(409, "duplicate", "A product with this name already exists.")
     p = Product(
@@ -223,4 +225,6 @@ async def _product_is_live(db: AsyncSession, slug: str) -> bool:
                                        Category.slug.not_in(await hidden_slugs(db)))))
 
 
-file_service.register_owner("product", _product_files_access, public=_product_is_live)
+# shrink "public": photos shown on the website are made at most site_ui image_max_px and lose their GPS /
+# camera data (R43); private pictures (e.g. print-ready label artwork) and other files are stored as they are
+file_service.register_owner("product", _product_files_access, public=_product_is_live, shrink="public")

@@ -1,7 +1,7 @@
 """CR22: a public spec sheet (PDF) opens in the visitor's browser, with local storage as well as R2.
 Chrome's PDF viewer shows nothing for a PDF sent with "Content-Security-Policy: sandbox", so a real PDF goes
 without it (as the staff preview does); pictures and everything else stay sandboxed."""
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, login, make_user, real_png
 from tests.test_files import PDF, _upload
 
 PNG = ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")

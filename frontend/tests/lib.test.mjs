@@ -243,7 +243,7 @@ test('rangeText: the visible top-level categories in words, or the full range wi
   assert.equal(rangeText([cat('coffee', 'Coffee')]), 'coffee');
   assert.equal(rangeText([cat('coffee', 'Coffee'), cat('health-drinks', 'Health drinks'), cat('wafers', 'Wafers')]), 'coffee and health drinks');
   assert.equal(rangeText([cat('coffee', 'Coffee'), cat('tea', 'Tea'), cat('confectionery', 'Confectionery')]), 'coffee, tea and confectionery');
-  assert.equal(rangeText(null), 'coffee, tea, health drinks and confectionery');
+  assert.equal(rangeText(null), 'coffee, health drinks and confectionery');
 });
 
 test('imageOf: own site paths only (served from public/ when no R2 address is set)', () => {
@@ -800,6 +800,7 @@ test('talk: the offer form takes only phone numbers the server takes', () => {
   assert.ok(talk.phoneOk('+91 98765 43210'));
   assert.ok(talk.phoneOk('(040) 2345-6789'));
   assert.ok(!talk.phoneOk('12345'));
+  assert.ok(talk.phoneOk('123456')); // 6 digits: the enquiry forms and the server take it too
   assert.ok(!talk.phoneOk('98765 43210 ext'));
   assert.ok(!talk.phoneOk('1234567890123456'));
 });
