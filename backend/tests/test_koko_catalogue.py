@@ -82,8 +82,12 @@ async def test_card_still_sent_when_the_ai_fails(client, catalogue, monkeypatch)
     assert r["reply"] == koko_service.FALLBACK and r["catalogue"]["category_slug"] == "wafers"
 
 
+async def _budget_used_up() -> bool:  # the budget check is async since R72 (counted in the database)
+    return False
+
+
 async def test_card_still_sent_when_todays_ai_budget_is_used_up(client, catalogue, seen, monkeypatch):
-    monkeypatch.setattr(koko_service, "_within_daily_budget", lambda: False)
+    monkeypatch.setattr(koko_service, "_within_daily_budget", _budget_used_up)
     r = (await client.post(CHAT, json=ask("hi", "/categories/wafers"), headers=HDR)).json()
     assert r["reply"] == koko_service.FALLBACK and r["catalogue"]["category_slug"] == "wafers" and not seen
 
@@ -185,7 +189,7 @@ async def test_card_mixes_kinds_and_puts_sales_picks_first(client, catalogue, se
 
 async def test_no_database_work_once_the_budget_is_used_and_no_card_is_due(client, catalogue, monkeypatch):
     """Smaller 2: later messages after today's budget is used: answered without loading the catalogue."""
-    monkeypatch.setattr(koko_service, "_within_daily_budget", lambda: False)
+    monkeypatch.setattr(koko_service, "_within_daily_budget", _budget_used_up)
 
     async def boom(*a, **k):
         raise AssertionError("the catalogue should not be loaded")
