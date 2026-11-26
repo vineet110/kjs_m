@@ -32,7 +32,7 @@ ping_checker() { if [ -n "$ping_url" ]; then curl -fsS -m 10 --retry 3 -o /dev/n
 # If anything fails, don't leave half-written files behind, and say so to the checker
 on_exit() {
   local code=$?
-  rm -f "$db_file.tmp" "$files_file.tmp" "$db_file.enc" "$files_file.enc"
+  rm -f "$db_file.tmp" "$files_file.tmp" "$db_file.enc" "$files_file.enc" || true  # never skip the ping below
   if [ "$code" -ne 0 ]; then ping_checker /fail; else ping_checker ""; fi
 }
 trap on_exit EXIT
