@@ -3,8 +3,12 @@
 
 export type Category = { id: number; slug: string; name: string; description: string; product_count: number };
 
+/** One catalogue item of a product (R19): item number, optional variant, pack weight, pieces per box, boxes per case. */
+export type ProductItem = { no: string; variant: string; weight: string; pieces: number; per_case: number };
+
 export type Product = {
   id: number; slug: string; name: string; description: string; pack_formats: string; moq: string;
+  items?: ProductItem[]; // its own field since R19 (was "• Item" lines in the description)
   image_path: string; private_label: boolean; is_best_seller: boolean; category_slug: string; category_name: string;
   offer_percent: number | null; // "Up to X% OFF" badge; null = no offer
   photo_url?: string | null; // first photo uploaded with "Show on website" (Admin > Products > Photos & files)

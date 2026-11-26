@@ -51,7 +51,7 @@ def _product_out(p: Product, c: Category, photo_url: str | None = None) -> Produ
         id=p.id, slug=p.slug, name=p.name, description=p.description, pack_formats=p.pack_formats,
         moq=p.moq, image_path=p.image_path, private_label=p.private_label,
         is_best_seller=p.is_best_seller, offer_percent=p.offer_percent, category_slug=c.slug, category_name=c.name,
-        is_active=p.is_active, photo_url=photo_url,
+        is_active=p.is_active, items=p.items or [], photo_url=photo_url,
     )
 
 
@@ -177,7 +177,7 @@ async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> Prod
         category_id=category.id, slug=slug, name=data.name.strip(), description=data.description,
         pack_formats=data.pack_formats, moq=data.moq, image_path=data.image_path,
         private_label=data.private_label, is_best_seller=data.is_best_seller, offer_percent=data.offer_percent,
-        is_active=True,
+        is_active=True, items=[i.model_dump() for i in data.items],
     )
     db.add(p)
     await db.flush()

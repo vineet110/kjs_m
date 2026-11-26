@@ -273,10 +273,12 @@ BEVERAGES = [
 
 
 def _description(p: dict) -> str:
-    lines = [p["text"], "", "Items in our catalogue:"]
-    for no, variant, weight, pcs, boxes in p["items"]:
-        lines.append(f"• Item {no}{f' ({variant})' if variant else ''}: {weight}, {pcs} pieces per box, {boxes} per case")
-    return "\n".join(lines)
+    return p["text"]  # the items have their own column since R19 (_items)
+
+
+def _items(p: dict) -> list[dict]:
+    return [{"no": str(no), "variant": variant or "", "weight": weight, "pieces": int(pcs), "per_case": int(boxes)}
+            for no, variant, weight, pcs, boxes in p["items"]]
 
 
 def _pack_formats(p: dict) -> str:
@@ -305,7 +307,7 @@ async def add_catalogue(db: AsyncSession) -> None:
             continue
         db.add(Product(
             category_id=existing_cats[p["cat"]].id, slug=p["slug"], name=p["name"],
-            description=_description(p), pack_formats=_pack_formats(p), moq="",
+            description=_description(p), items=_items(p), pack_formats=_pack_formats(p), moq="",
             image_path=f"/images/products/{p['slug']}.jpg", private_label=True, is_best_seller=False, is_active=True,
         ))
         added += 1

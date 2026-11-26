@@ -803,3 +803,18 @@ test('talk: the offer form takes only phone numbers the server takes', () => {
   assert.ok(!talk.phoneOk('98765 43210 ext'));
   assert.ok(!talk.phoneOk('1234567890123456'));
 });
+
+// ---------- Product items (R19) ----------
+test('items: the Admin box reads and writes one item per line, and names a wrong line instead of dropping it', () => {
+  const { itemsFromLines, itemsToLines, itemsOf } = catalogueLib;
+  const items = [{ no: '801', variant: 'Hazelnut', weight: '25 g', pieces: 24, per_case: 6 }, { no: '802', variant: '', weight: '40 g', pieces: 12, per_case: 8 }];
+  const text = itemsToLines(items);
+  assert.equal(text, '801 | Hazelnut | 25 g | 24 | 6\n802 |  | 40 g | 12 | 8');
+  assert.deepEqual(itemsFromLines(text + '\n\n'), { items });
+  assert.match(itemsFromLines('801 | Hazelnut | 25 g | 24\n').error, /line 1/);
+  assert.match(itemsFromLines('ok | | 1 g | 1 | 1\n80 1 | | 25 g | 24 | 6').error, /line 2/);
+  assert.match(itemsFromLines('801 | | 25 g | 0 | 6').error, /line 1/);
+  // its own list first; an older answer's description lines still work
+  assert.equal(itemsOf({ description: '', items })[0].perCase, '6');
+  assert.equal(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case' })[0].no, '9');
+});

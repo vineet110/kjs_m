@@ -3,6 +3,19 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, model_validator
 
 
+class ProductItem(BaseModel):
+    """One catalogue item of a product (R19): item number, optional variant, pack weight, pieces per box,
+    boxes per case. Checked here, so a mistake is refused with a message, never silently dropped."""
+    no: str = Field(min_length=1, max_length=20, pattern=r"^\S+$")  # "801", "B-12": no spaces
+    variant: str = Field(default="", max_length=60)
+    weight: str = Field(min_length=1, max_length=30)  # "25 g", "1 kg"
+    pieces: int = Field(ge=1, le=100000)  # pieces per box
+    per_case: int = Field(ge=1, le=100000)  # boxes per case
+
+
+Items = Annotated[list[ProductItem], Field(max_length=100)]
+
+
 class CategoryOut(BaseModel):
     id: int
     slug: str
@@ -41,6 +54,7 @@ class ProductOut(BaseModel):
     category_slug: str
     category_name: str
     is_active: bool = True
+    items: list[ProductItem] = []
     photo_url: str | None = None  # first photo uploaded with "Show on website"; cards use it without an image_path
 
 
@@ -75,6 +89,7 @@ class ProductIn(BaseModel):
     private_label: bool = True
     is_best_seller: bool = False
     offer_percent: OfferPercent | None = None
+    items: Items = []
 
 
 class ProductPatchIn(BaseModel):
@@ -92,6 +107,7 @@ class ProductPatchIn(BaseModel):
     is_best_seller: bool | None = None
     offer_percent: OfferPercent | None = None
     is_active: bool | None = None  # false = hidden from the website
+    items: Items | None = None
 
     @model_validator(mode="after")
     def _no_null_for_required(self):
