@@ -247,7 +247,12 @@ async def test_no_card_photo_when_the_category_is_hidden(client):
 
 async def test_public_photos_are_sent_by_us_and_cacheable_spec_sheets_keep_the_link(client, monkeypatch):  # R44
     from app.core.storage import storage
-    monkeypatch.setattr(type(storage()), "url", lambda self, key, filename="", inline=False: "https://r2.example/signed")
+    store = type(storage())
+    monkeypatch.setattr(store, "url", lambda self, key, filename="", inline=False: "https://r2.example/signed")
+    # and like R2: no file on disk, the bytes come from get()
+    monkeypatch.delattr(store, "file_path")
+    original_get = store.get
+    monkeypatch.setattr(store, "get", lambda self, key: original_get(self, key))
     await make_user("cat@kjsindia.com", permissions=["leads.view", "catalog.edit"])
     await login(client, "cat@kjsindia.com")
     p = (await client.post("/api/v1/admin/products", json={"category_slug": "coffee", "name": "Cache Coffee"}, headers=HDR)).json()
@@ -255,5 +260,6 @@ async def test_public_photos_are_sent_by_us_and_cacheable_spec_sheets_keep_the_l
     sheet = (await _upload(client, owner_id=p["slug"], public=True)).json()["id"]
     client.cookies.clear()
     r = await client.get(f"/api/v1/public/files/{photo}")
-    assert r.status_code == 200 and r.headers["cache-control"] == "public, max-age=3600"
+    assert r.status_code == 200 and r.headers["cache-control"] == "public, max-age=600"
+    assert r.content == PNG[1] and r.headers["content-type"] == "image/png"
     assert (await client.get(f"/api/v1/public/files/{sheet}")).status_code == 302

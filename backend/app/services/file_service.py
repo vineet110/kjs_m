@@ -107,6 +107,10 @@ async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, a
         raise AppError(403, "forbidden", "You can't access these files.")
 
 
+# Largest public photo the API sends itself (R44). A safety limit, not a tunable: bigger ones redirect to R2.
+PUBLIC_PHOTO_MAX = 2 * 1024 * 1024
+
+
 def safe_name(name: str) -> str:
     base = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-.") or "file"
     return base[-120:]
@@ -215,9 +219,11 @@ async def download(db: AsyncSession, user: User | None, file_id: int,
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
         await _check(db, user, f.owner_type, f.owner_id, "read")
-    # Public PHOTOS are sent by us (cacheable for an hour, see send_file), never as a new 5-minute R2 link on
-    # every view, which no browser or Cloudflare could cache (R44). Big files (spec PDFs) keep the link.
-    public_photo = user is None and f.content_type.startswith("image/")
+    # Small public web PHOTOS are sent by us, so browsers can keep them (send_file), instead of a new 5-minute
+    # R2 link on every view that nothing could cache (R44). Only JPG/PNG/WebP up to PUBLIC_PHOTO_MAX bytes: each
+    # one is read from R2 into memory, so big files (spec PDFs, big or odd pictures) keep the link.
+    public_photo = (user is None and f.content_type in ("image/jpeg", "image/png", "image/webp")
+                    and f.size <= PUBLIC_PHOTO_MAX)
     url = None if public_photo else storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
