@@ -38,15 +38,16 @@ BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
 # a time, a year or a second number glued on is never taken whole.
 PHONE_MIN_DIGITS, PHONE_MAX_DIGITS = 9, 13
 # A digit group that touches a letter ("9am", "A12", "2g") is never part of a phone
-_DIGIT_GROUP = re.compile(r"(?<![A-Za-z])\+?\d+(?![\dA-Za-z])")
+_DIGIT_GROUP = re.compile(r"(?<![A-Za-z\d])\+?\d+(?![\dA-Za-z])")
 _GROUP_JOIN = re.compile(r"[\s.()-]{1,2}")  # what may sit between the groups of one number ("+91 98765-43210")
 
 
 def find_phone(text: str) -> str:
     """The first phone in a text, or "". Digit groups that touch (a space, dot, dash or bracket between) form
-    a run. Inside a run, from the first start that gives one, the longest stretch of 10 to 12 digits wins (a
-    local, 0-prefixed or +91 number), else of 9 to 13. So "+91 98765 43210 10am" gives +91 98765 43210, "Since
-    1998 9876543210" gives 9876543210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
+    a run. A number starts with "+" or a group of 3+ digits (not "12" of "Order 12"). Inside a run, every
+    start is tried: the first stretch shaped like a phone wins (10 digits; 11 with a trunk 0; 11-12 with "+"),
+    else the first of 9 to 13 digits. So "+91 98765 43210 10am" gives +91 98765 43210, "Since 1998 98765 43210" gives
+    98765 43210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
     runs: list[list[re.Match]] = []
     for g in _DIGIT_GROUP.finditer(text or ""):
         joined = runs and _GROUP_JOIN.fullmatch(text[runs[-1][-1].end():g.start()]) and not g.group().startswith("+")
@@ -55,18 +56,27 @@ def find_phone(text: str) -> str:
         else:
             runs.append([g])
     for run in runs:
+        usual = possible = ""
         for i in range(len(run)):
-            usual, possible, digits = "", "", 0
+            if not run[i].group().startswith("+") and len(run[i].group()) < 3:
+                continue
+            digits = 0
             for j in range(i, len(run)):
                 digits += len(run[j].group().lstrip("+"))
                 if digits > PHONE_MAX_DIGITS:
                     break
-                if digits >= PHONE_MIN_DIGITS:
-                    possible = text[run[i].start():run[j].end()]
-                    if 10 <= digits <= 12:
-                        usual = possible
-            if usual or possible:
-                return usual or possible
+                stretch = text[run[i].start():run[j].end()]
+                first = stretch.lstrip("+")[:1]
+                shaped = ((digits == 10 and first != "0") or (digits == 11 and first == "0")
+                          or (11 <= digits <= 12 and stretch.startswith("+")))
+                if shaped and not usual:
+                    usual = stretch
+                elif digits >= PHONE_MIN_DIGITS and not possible:
+                    possible = stretch
+            if usual:
+                return usual
+        if possible:
+            return possible
     return ""
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
 # API keys only from HARVEST_ settings (security fix after the PR #53 review).

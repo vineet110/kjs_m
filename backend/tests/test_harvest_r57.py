@@ -34,6 +34,10 @@ async def test_unreadable_robots_txt_means_nothing_is_fetched():
     ("98765 43210 98765 43211", "9876543210"),  # two numbers side by side: the first one only
     ("Tel: 040 2345 6789 / 98765 43210", "04023456789"),
     ("No number here, only 400001", ""),
+    ("Since 1998 98765 43210", "9876543210"),  # re-review: a year before a spaced number
+    ("Mumbai 400001 98765 43210", "9876543210"),  # a pin code before it
+    ("Order 12 98765 43210", "9876543210"),  # a small quantity before it
+    ("ref x9876543210 here", ""),  # glued to a letter: a code, not a phone
 ])
 def test_the_phone_finder_takes_a_number_without_the_digits_around_it(text, digits):
     import re
@@ -90,3 +94,20 @@ async def test_duplicates_inside_one_fetch_are_dropped():
         with patch("app.services.harvest_service.fetch_api_source", new_callable=AsyncMock, return_value=[item, again]):
             run = await run_harvest_source(db, src.id)
         assert run.accepted_count == 1 and run.drop_reasons == {"duplicate": 1}
+
+
+def test_local_numbers_get_the_default_country_code():
+    assert normalize_phone("98765 43210") == "+919876543210"
+    assert normalize_phone("040 2345 6789") == "+914023456789"
+
+
+async def test_a_lead_saved_without_country_code_is_a_duplicate_of_the_same_number_with_it():
+    from datetime import datetime, timezone
+    from app.models.lead import Lead
+    async with AsyncSessionLocal() as db:
+        db.add(Lead(source="enquiry_form", name="B", phone="98765-43210", consent=True,
+                    consent_at=datetime.now(timezone.utc), status="new"))
+        await db.commit()
+        clean, drop = await filter_single_record(db, {"company": "B", "phone": "+91 98765 43210",
+                                                      "product": "instant coffee"}, "all")
+        assert drop == "duplicate"

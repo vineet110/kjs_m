@@ -180,6 +180,7 @@ class NotificationsIni(BaseModel):
 
 class HarvestIni(BaseModel):
     http_timeout_seconds: int = Field(30, ge=5, le=120)  # one request to a lead source
+    default_country_code: str = Field("91", pattern=r"^[1-9]\d{0,2}$")  # for local numbers found without one
 
 
 class BoardsIni(BaseModel):

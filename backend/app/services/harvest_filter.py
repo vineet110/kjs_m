@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.models.batch import BuyerRecord, RecordList
 from app.models.catalog import Category
 from app.models.lead import Lead
@@ -69,8 +70,14 @@ def normalize_phone(phone: str | None) -> str:
     raw = _text(phone).strip()
     # Strip spaces, dashes, parentheses
     compact = re.sub(r"[\s\-\(\)\.]", "", raw)
+    country = cfg().harvest.default_country_code
     if compact.startswith("00"):
         compact = "+" + compact[2:]
+    elif compact.isdigit() and len(compact) == 10:
+        # A local number ("98765 43210") gets the default country code, or the record had no phone at all
+        compact = f"+{country}{compact}"
+    elif compact.isdigit() and len(compact) == 11 and compact.startswith("0"):
+        compact = f"+{country}{compact[1:]}"  # "040 2345 6789": the 0 is the trunk prefix
     elif not compact.startswith("+") and len(compact) >= 11:
         # e.g. 919876543210 -> +919876543210
         compact = "+" + compact
@@ -123,8 +130,10 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
     if phone:
         # Compared by digits: "+91 98765 43210" and "+919876543210" are one number (R57)
         digits = re.sub(r"\D", "", phone)
-        clauses_leads.append(func.regexp_replace(Lead.phone, "[^0-9]", "", "g") == digits)
-        clauses_buyers.append(func.regexp_replace(BuyerRecord.phone, "[^0-9]", "", "g") == digits)
+        # The last 10 digits: a lead typed as "98765 43210" is the same as "+91 98765 43210" (re-review of #136)
+        tail = digits[-10:]
+        clauses_leads.append(func.right(func.regexp_replace(Lead.phone, "[^0-9]", "", "g"), 10) == tail)
+        clauses_buyers.append(func.right(func.regexp_replace(BuyerRecord.phone, "[^0-9]", "", "g"), 10) == tail)
 
     if not clauses_leads and not clauses_buyers:
         return False
