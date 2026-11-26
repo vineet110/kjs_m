@@ -12,7 +12,7 @@ import { accountEpoch, forgetAccount, rememberAccount, rememberedAccount } from 
 import AccountMenu, { Avatar, LogoutDialog, LogoutIcon, RoleBadge } from './AccountMenu';
 import Bell from './Bell';
 import ReportProblem from './ReportProblem';
-import SidebarNav from './SidebarNav';
+import SidebarNav, { mayOpen } from './SidebarNav';
 import { ToastProvider } from './Toast';
 import Loading from '@/components/ui/Loading';
 import { asset } from '@/lib/assets';
@@ -47,9 +47,12 @@ function useIsPhone() {
 }
 
 export default function PortalShell({ children, requirePerm }: { children: React.ReactNode; requirePerm?: string }) {
+  const pathname = usePathname();
+  // requirePerm, and the permission of this page's sidebar link (admin pages)
+  const may = useCallback((m: Me) => (!requirePerm || m.permissions.includes(requirePerm)) && mayOpen(pathname, m.permissions), [requirePerm, pathname]);
   const [status, setStatus] = useState<Status>(() => {
     const known = rememberedAccount();
-    return known && (!requirePerm || known.permissions.includes(requirePerm)) ? { state: 'ready', me: known } : { state: 'loading' };
+    return known && may(known) ? { state: 'ready', me: known } : { state: 'loading' };
   });
   // The sidebar: hidden by default on every screen; the ☰ button slides it in and out (see the render below).
   // On a computer, an open sidebar stays open in this tab (also between admin and employee pages, which each
@@ -71,7 +74,6 @@ export default function PortalShell({ children, requirePerm }: { children: React
   const focusButtonAfterClose = useRef(false);
   const latest = useRef(0); // only the newest answer counts (an older, slower one is ignored)
   const router = useRouter();
-  const pathname = usePathname();
 
   const loadMe = useCallback(() => {
     const n = ++latest.current;
@@ -83,7 +85,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
       .then((m) => {
         if (n !== latest.current) return; // an older question, or this frame is gone / logging out
         rememberAccount(m, askedAt);
-        if (requirePerm && !m.permissions.includes(requirePerm)) router.replace('/employee/dashboard');
+        if (!may(m)) router.replace('/employee/dashboard');
         else setStatus({ state: 'ready', me: m });
       })
       .catch((e) => {
@@ -95,7 +97,7 @@ export default function PortalShell({ children, requirePerm }: { children: React
         // A page already showing keeps showing (one failed re-check); else say so, with the error code
         else setStatus((s) => (s.state === 'ready' ? s : { state: 'error', requestId: e instanceof ApiFailure ? e.body.request_id : null }));
       });
-  }, [requirePerm, router, pathname]);
+  }, [may, router, pathname]);
 
   useEffect(() => {
     loadMe();

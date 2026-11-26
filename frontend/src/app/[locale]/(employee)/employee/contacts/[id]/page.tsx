@@ -123,10 +123,20 @@ function Back({ name }: { name: string }) {
   );
 }
 
+// The phone is hidden until asked for (the screen may be seen by others); the last 4 digits help recognise it
+const maskPhone = (phone: string) => `${'*'.repeat(8)}${phone.replace(/\D/g, '').slice(-4)}`;
+
+/** The Info tab's phone: masked like the header's until clicked (it showed the full number at once). */
+function InfoPhone({ phone }: { phone: string }) {
+  const [show, setShow] = useState(false);
+  if (!phone) return null;
+  return show ? <a href={`tel:${phone.replace(/\s/g, '')}`} className="hover:underline">{phone}</a>
+    : <button type="button" onClick={() => setShow(true)} title="Show the number" className="hover:underline">{maskPhone(phone)}</button>;
+}
+
 function Header({ lead, enquiries }: { lead: Lead; enquiries: Lead[] }) {
   const [showPhone, setShowPhone] = useState(false);
-  // The phone is hidden until asked for (the screen may be seen by others); the last 4 digits help recognise it
-  const masked = lead.phone ? `${'*'.repeat(8)}${lead.phone.replace(/\D/g, '').slice(-4)}` : '';
+  const masked = lead.phone ? maskPhone(lead.phone) : '';
   return (
     <div className="card flex flex-wrap items-start gap-4 p-4">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-xl font-bold text-orange-600">
@@ -241,7 +251,7 @@ function Info({ lead }: { lead: Lead }) {
       <div className="grid gap-4 rounded-lg border border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field icon="check" label="Lead status">{lead.status === 'closed' ? `Closed${lead.outcome ? ` (${lead.outcome.replace(/_/g, ' ')})` : ''}` : 'Active'}</Field>
         <Field icon="mail" label="Email">{lead.email}</Field>
-        <Field icon="phone" label="Phone">{lead.phone}</Field>
+        <Field icon="phone" label="Phone">{lead.phone ? <InfoPhone phone={lead.phone} /> : null}</Field>
         <Field icon="box" label="Product">{lead.product_name}</Field>
         <Field icon="globe" label="Source">{SOURCE[lead.source] ?? lead.source}</Field>
         <Field icon="layers" label="Category">{lead.category_name}</Field>

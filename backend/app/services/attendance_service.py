@@ -665,7 +665,7 @@ async def export_excel(
     if end_date < start_date:
         raise AppError(422, "bad_dates", "End date cannot be earlier than start date.")
     max_days = cfg().attendance.max_export_days
-    if (end_date - start_date).days > max_days:
+    if (end_date - start_date).days + 1 > max_days:  # both days count: 1 Jan to 1 Jan is 1 day (TC-ATT-14)
         raise AppError(422, "range_too_large", f"Date range cannot exceed {max_days} days.")
 
     # 1. Fetch users

@@ -159,7 +159,7 @@ async def test_view_of_a_board_file_only_for_people_on_the_board(client):
     await login(client, "pack@kjsindia.com")
     assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 200
     await login(client, "other@kjsindia.com")
-    assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/view")).status_code == 404  # not 403: no hint it exists
 
 
 async def test_a_failed_save_leaves_no_stored_copy(client, monkeypatch):

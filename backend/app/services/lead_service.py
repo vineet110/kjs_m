@@ -481,6 +481,9 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         raise AppError(409, "unchanged", f"This lead is already '{status}'.")
     if status == "new" and lead.responded_at is not None:
         raise AppError(409, "already_answered", "This lead was already answered; set it to 'contacted' instead.")
+    if status == "closed" and not outcome.strip():
+        # The screen always asks; a script or an old tab must not close a lead the outcome reports can't count
+        raise AppError(422, "outcome_required", "Choose an outcome to close this lead.")
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
