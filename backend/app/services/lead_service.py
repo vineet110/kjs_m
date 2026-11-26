@@ -481,6 +481,10 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         raise AppError(409, "unchanged", f"This lead is already '{status}'.")
     if status == "new" and lead.responded_at is not None:
         raise AppError(409, "already_answered", "This lead was already answered; set it to 'contacted' instead.")
+    outcome = outcome.strip()  # " Won " and "Won" are one outcome in the reports
+    if status == "closed" and not outcome:
+        # The screen always asks; a script or an old tab must not close a lead the outcome reports can't count
+        raise AppError(422, "outcome_required", "Choose an outcome to close this lead.")
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
@@ -597,9 +601,10 @@ async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:
         lead.escalation_level = level
         owner = await db.get(User, lead.assigned_to) if lead.assigned_to else None
         who = owner.name if owner else "nobody yet"
-        notification_service.notify(
-            db, set(managers) | ({owner.id} if owner else set()), "lead.sla_breach",
-            f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}.", "/admin/leads")
+        title, body = f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}."
+        notification_service.notify(db, set(managers), "lead.sla_breach", title, body, "/admin/leads")
+        if owner and owner.id not in managers:  # the owner can't open All Enquiries: their own lead page instead
+            notification_service.notify(db, {owner.id}, "lead.sla_breach", title, body, f"/employee/contacts/{lead.id}")
         log.warning("lead.sla_breach", extra={"lead_id": lead.id, "level": level})
         reported += 1
     return {"open_leads": len(leads), "escalated": reported}

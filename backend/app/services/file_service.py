@@ -107,6 +107,17 @@ async def _check(db: AsyncSession, user: User, owner_type: str, owner_id: str, a
         raise AppError(403, "forbidden", "You can't access these files.")
 
 
+async def _check_or_not_found(db: AsyncSession, user: User, f: StoredFile) -> None:
+    """Reading one file by its id: someone who may not see it gets 404 like a file that doesn't exist, so the
+    answer doesn't tell them the file is there (TC-FILE-11)."""
+    try:
+        await _check(db, user, f.owner_type, f.owner_id, "read")
+    except AppError as e:
+        if e.status_code == 403 or e.code == "module_off":  # a switched-off area also looks like "no such file"
+            raise AppError(404, "not_found", "File not found.") from e
+        raise
+
+
 def safe_name(name: str) -> str:
     base = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-.") or "file"
     return base[-120:]
@@ -213,7 +224,7 @@ async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[S
         if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
-        await _check(db, user, f.owner_type, f.owner_id, "read")
+        await _check_or_not_found(db, user, f)
     url = storage().url(f.key, safe_name(f.name))  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
@@ -230,7 +241,7 @@ async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, 
     """The file's bytes for the in-page preview (staff only, same access as download). Always sent by
     our API, never a storage link: the page shows it inside our own site, and R2 stays private."""
     f = await _get(db, file_id)
-    await _check(db, user, f.owner_type, f.owner_id, "read")
+    await _check_or_not_found(db, user, f)
     store = storage()
     try:
         if hasattr(store, "file_path"):
@@ -242,6 +253,7 @@ async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, 
 
 async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str) -> dict:
     f = await _get(db, file_id, lock=True)
+    await _check_or_not_found(db, user, f)  # can't even see it: 404, like a missing file (TC-FILE-11)
     await _check(db, user, f.owner_type, f.owner_id, "write")  # seeing a file isn't enough to ask to delete it
     if f.delete_status == "requested":
         raise AppError(409, "already_requested", "Deletion was already requested.")

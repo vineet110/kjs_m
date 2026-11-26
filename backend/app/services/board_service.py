@@ -353,10 +353,13 @@ async def complete_step(db: AsyncSession, user: User, code: str, step_id: int) -
     nxt = await db.scalar(select(BoardStep).where(BoardStep.board_id == b.id, BoardStep.position == step.position + 1))
     if nxt:
         await _start_step(db, b, nxt, user)
-    managers = await notification_service.users_with(db, "boards.manage")
-    notification_service.notify(db, (set(managers) | {b.created_by}) - {user.id, None}, "board.step_done", f"{b.code}: '{step.name}' done",
-                                f"By {user.name}." + (f" Next: {nxt.name}." if nxt else " All steps done."),
-                                f"/admin/order-boards/{b.code}")
+    managers = set(await notification_service.users_with(db, "boards.manage"))
+    title = f"{b.code}: '{step.name}' done"
+    body = f"By {user.name}." + (f" Next: {nxt.name}." if nxt else " All steps done.")
+    # Managers open the admin page; a creator without boards.manage can't (PR 3), so they get the employee page
+    notification_service.notify(db, managers - {user.id, None}, "board.step_done", title, body, f"/admin/order-boards/{b.code}")
+    if b.created_by and b.created_by not in managers and b.created_by != user.id:
+        notification_service.notify(db, {b.created_by}, "board.step_done", title, body, f"/employee/order-boards/{b.code}")
     audit_service.record(db, actor=user, action="board.step_done", entity_type="board", entity_id=b.code,
                          after={"step": step.position, "name": step.name})
     await db.commit()

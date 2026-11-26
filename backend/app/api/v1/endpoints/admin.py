@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -271,10 +271,17 @@ async def audit(
 
 class HolidayIn(BaseModel):
     day: date
+    name: str = Field(min_length=2, max_length=100)  # "a" is not a holiday name (TC-SET-08)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def trimmed(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+
+class HolidayOut(BaseModel):  # not HolidayIn: an old 1-letter holiday must still be listed
+    day: date
     name: str
-
-
-class HolidayOut(HolidayIn):
     id: int
 
     model_config = {"from_attributes": True}
