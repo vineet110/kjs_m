@@ -124,7 +124,7 @@ export default function TeamAttendance() {
           </button>
           <div className="flex items-center gap-1 border-l pl-2 border-slate-200">
             <button className="btn-ghost py-1" onClick={() => setDay(addDays(day, -1))}>←</button>
-            <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="input w-auto text-xs py-1" />
+            <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="input w-auto text-base md:text-xs py-1" />
             <button className="btn-ghost py-1" onClick={() => setDay(addDays(day, 1))}>→</button>
           </div>
         </div>

@@ -195,7 +195,7 @@ export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?
           </div>
           <div>
             <label className="label" htmlFor="u-photo">Profile Image</label>
-            <input id="u-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input py-1.5 text-sm" />
+            <input id="u-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input py-1.5 text-base md:text-sm" />
           </div>
         </div>
         {me.role === 'admin' && user?.id !== me.id && (

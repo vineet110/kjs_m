@@ -65,7 +65,7 @@ function CountryList({ selected, showDial, up, onPick, onClose }: {
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKey}
         placeholder={showDial ? 'Search country or code' : 'Search country'}
-        className="input !py-1.5 text-sm"
+        className="input !py-1.5 text-base md:text-sm"
         role="combobox"
         aria-expanded="true"
         aria-controls={listId}

@@ -139,7 +139,7 @@ function Header({ lead, enquiries }: { lead: Lead; enquiries: Lead[] }) {
           {lead.company && <span className="text-sm text-slate-500">· {lead.company}</span>}
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-          {lead.email && <a href={`mailto:${lead.email}`} className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{lead.email}</a>}
+          {lead.email && <a href={`mailto:${lead.email}`} className="max-w-full rounded-full bg-slate-100 px-3 py-1 [overflow-wrap:anywhere] hover:bg-slate-200">{lead.email}</a>}
           {lead.phone && (
             showPhone ? <a href={`tel:${lead.phone.replace(/\s/g, '')}`} className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{lead.phone}</a>
               : <button type="button" onClick={() => setShowPhone(true)} title="Show the number" className="rounded-full bg-slate-100 px-3 py-1 hover:bg-slate-200">{masked}</button>
@@ -212,7 +212,7 @@ function Pipeline({ lead, onChange }: { lead: Lead; onChange: () => void }) {
           );
         })}
         {closing && (
-          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-sm">
+          <select autoFocus disabled={busy} defaultValue="" onChange={(e) => e.target.value && move('closed', e.target.value)} className="input w-auto py-1 text-base md:text-sm">
             <option value="">Close with outcome…</option>
             {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
@@ -225,11 +225,11 @@ function Pipeline({ lead, onChange }: { lead: Lead; onChange: () => void }) {
 
 function Field({ icon, label, children }: { icon: IconName; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex min-w-0 gap-3">{/* min-w-0: a long email wraps instead of widening the page (XB-25) */}
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-orange-50 text-orange-500"><Icon name={icon} className="h-4 w-4" /></span>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="break-words text-sm text-slate-800">{children || '—'}</p>
+        <p className="text-sm text-slate-800 [overflow-wrap:anywhere]">{children || '—'}</p>
       </div>
     </div>
   );

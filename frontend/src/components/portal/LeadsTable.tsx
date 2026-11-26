@@ -182,7 +182,7 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
             disabled={busy}
             defaultValue=""
             onChange={(e) => e.target.value && run(() => api(`/employee/leads/${lead.id}`, { method: 'PATCH', body: { status: 'closed', outcome: e.target.value } }))}
-            className="input w-auto py-1 text-xs"
+            className="input w-auto py-1 text-base md:text-xs"
           >
             <option value="">Close with outcome…</option>
             {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
@@ -193,7 +193,7 @@ function LeadActions({ lead, staff, admin, onDone }: { lead: Lead; staff: Collea
           disabled={busy}
           defaultValue=""
           onChange={(e) => e.target.value && run(() => api(admin ? `/admin/leads/${lead.id}/assign` : `/employee/leads/${lead.id}/handover`, { method: 'POST', body: { user_id: Number(e.target.value) } }))}
-          className="input w-auto py-1 text-xs"
+          className="input w-auto py-1 text-base md:text-xs"
         >
           <option value="">{admin ? 'Assign to…' : 'Hand over to…'}</option>
           {staff.filter((c) => c.id !== lead.assigned_to).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

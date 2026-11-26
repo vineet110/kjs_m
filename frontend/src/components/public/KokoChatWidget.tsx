@@ -117,7 +117,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
                 <input name="email" type="email" placeholder="Email" className="input" />
                 <PhoneInput id="koko-phone" placeholder="Phone / WhatsApp *" />
                 <label className="flex items-start gap-2 text-[11px] text-slate-600">
-                  <input type="checkbox" name="consent" required className="mt-0.5" />
+                  <input type="checkbox" name="consent" required className="mt-0.5 h-6 w-6 shrink-0" />
                   I agree to be contacted about this request (DPDP Act 2023).
                 </label>
                 <div className="flex gap-2">
