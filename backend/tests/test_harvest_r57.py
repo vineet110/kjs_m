@@ -24,11 +24,47 @@ async def test_unreadable_robots_txt_means_nothing_is_fetched():
     assert e.value.code == "robots_unreadable"  # a failed run with the real reason, not "blocked by robots"
 
 
-def test_the_scraper_takes_a_number_without_the_digits_around_it():
+@pytest.mark.parametrize("text, digits", [
+    ("Phone: +91 98765 43210 9am-6pm, since 1998", "919876543210"),
+    ("Call +91 98765 43210 10am-6pm", "919876543210"),  # a time right after (re-review of #136)
+    ("Since 1998 9876543210", "9876543210"),  # a year right before
+    ("+91 98765 43210 2026", "919876543210"),  # a year after must not make it too long and lose it
+    ("Mumbai 400001, Tel +91 98765 43210", "919876543210"),  # a pin code first
+    ("MOQ 10000 units. Date 2026-11-27. Call 98765 43210", "9876543210"),
+    ("98765 43210 98765 43211", "9876543210"),  # two numbers side by side: the first one only
+    ("Tel: 040 2345 6789 / 98765 43210", "04023456789"),
+    ("No number here, only 400001", ""),
+])
+def test_the_phone_finder_takes_a_number_without_the_digits_around_it(text, digits):
     import re
-    from app.services.harvest_service import PHONE_IN_TEXT
-    m = PHONE_IN_TEXT.search("Phone: +91 98765 43210 9am-6pm, since 1998")
-    assert m and re.sub(r"\D", "", m.group(0)) == "919876543210"
+    from app.services.harvest_service import find_phone
+    assert re.sub(r"\D", "", find_phone(text)) == digits
+
+
+async def test_an_active_category_still_matches_when_the_source_is_set_to_another_group():
+    # Re-review of #136: a "private_label" source must still file "private label instant coffee" as coffee
+    async with AsyncSessionLocal() as db:
+        raw = {"company": "A", "email": "pl@a.in", "product": "private label instant coffee"}
+        clean, drop = await filter_single_record(db, raw, "private_label")
+        assert drop is None and clean["category"] == "coffee"
+
+
+async def test_a_source_that_fails_after_fetching_is_recorded_and_waits_its_turn():
+    from sqlalchemy import select
+    from app.models.harvest import HarvestRun
+    from app.services.harvest_service import harvest_due_sources_job
+    async with AsyncSessionLocal() as db:
+        src = HarvestSource(name="S", source_type="api", url="https://api.example.com/x", category="coffee", is_active=True)
+        db.add(src)
+        await db.commit()
+        item = {"company": "A", "email": "f@a.in", "product": "coffee beans"}
+        with patch("app.services.harvest_service.fetch_api_source", new_callable=AsyncMock, return_value=[item]), \
+                patch("app.services.harvest_service.save_accepted_records", new_callable=AsyncMock,
+                      side_effect=RuntimeError("disk full")):
+            await harvest_due_sources_job(db)
+        runs = (await db.scalars(select(HarvestRun.status).where(HarvestRun.source_id == src.id))).all()
+        await db.refresh(src)
+        assert runs == ["failed"] and src.last_run_at is not None and src.last_status == "failed"
 
 
 async def test_a_number_in_a_text_field_does_not_crash_and_spices_without_a_category_is_dropped():

@@ -80,7 +80,8 @@ def normalize_phone(phone: str | None) -> str:
     return ""
 
 
-def match_product_category(text: str, source_category: str = "all") -> tuple[str | None, str | None]:
+def match_product_category(text: str, source_category: str = "all",
+                           allowed: set[str] | None = None) -> tuple[str | None, str | None]:
     """Check text against coffee, tea, spices, and private_label keywords.
 
     Returns (category_slug, matched_keyword), or (None, None) if unrelated.
@@ -95,6 +96,8 @@ def match_product_category(text: str, source_category: str = "all") -> tuple[str
     if source_category in PRODUCT_KEYWORDS:
         order.remove(source_category)
         order.insert(0, source_category)
+    if allowed is not None:  # only categories in use: "private label instant coffee" is coffee, not dropped
+        order = [c for c in order if c in allowed]
 
     for cat in order:
         for kw in PRODUCT_KEYWORDS[cat]:
@@ -173,17 +176,17 @@ async def filter_single_record(
         for k in ("product", "title", "message", "description", "requirement", "category")
         if raw.get(k)
     )
-    category_slug, matched_kw = match_product_category(combined_text, source_category)
-    if not category_slug:
+    # Only categories in use may match (re-review of #136): a source set to "private_label" or a hidden "tea"
+    # must still file "private label instant coffee" under coffee. `categories`: loaded once per run.
+    active = categories if categories is not None else await active_category_slugs(db)
+    category_slug, matched_kw = match_product_category(combined_text, source_category, allowed=active)
+    if not category_slug and not match_product_category(combined_text, source_category)[0]:
         return None, "product_mismatch"
 
     # 3. Duplicate check against existing leads and buyer_records
     if await is_duplicate(db, email, phone):
         return None, "duplicate"
-    # The record must land in a catalogue category that is in use: auto-assign routes by it, and a buyer
-    # filed under the wrong product would reach the wrong sales person. "spices" and "private_label" are
-    # keyword groups, not categories, so such records are dropped (R57). `categories`: loaded once per run.
-    if category_slug not in (categories if categories is not None else await active_category_slugs(db)):
+    if not category_slug:  # it matched only a keyword group with no category in use (spices, hidden tea): R57
         return None, "unknown_category"
 
     clean_record = {

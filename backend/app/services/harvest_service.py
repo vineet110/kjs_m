@@ -33,10 +33,41 @@ from app.services.harvest_filter import (
 log = logging.getLogger("app.harvest")
 
 BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
-# A phone number in a page's text (scrape_html_source). Format rules, not tunables: a phone has 9 to 15
-# digits (15 = the E.164 maximum; 9 keeps out pin codes, dates and quantities)
-PHONE_IN_TEXT = re.compile(r"\+?[1-9]\d{0,3}(?:[\s.-]?\d{2,5}){2,4}(?!\d)")
-PHONE_MIN_DIGITS, PHONE_MAX_DIGITS = 9, 15
+# A phone number in free text (scraped pages, RSS). Format rules, not tunables: 9 digits keeps out pin codes,
+# dates and quantities; 13 is the longest real number we expect (+91 and 10 digits is 12), so a number with
+# a time, a year or a second number glued on is never taken whole.
+PHONE_MIN_DIGITS, PHONE_MAX_DIGITS = 9, 13
+# A digit group that touches a letter ("9am", "A12", "2g") is never part of a phone
+_DIGIT_GROUP = re.compile(r"(?<![A-Za-z])\+?\d+(?![\dA-Za-z])")
+_GROUP_JOIN = re.compile(r"[\s.()-]{1,2}")  # what may sit between the groups of one number ("+91 98765-43210")
+
+
+def find_phone(text: str) -> str:
+    """The first phone in a text, or "". Digit groups that touch (a space, dot, dash or bracket between) form
+    a run. Inside a run, from the first start that gives one, the longest stretch of 10 to 12 digits wins (a
+    local, 0-prefixed or +91 number), else of 9 to 13. So "+91 98765 43210 10am" gives +91 98765 43210, "Since
+    1998 9876543210" gives 9876543210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
+    runs: list[list[re.Match]] = []
+    for g in _DIGIT_GROUP.finditer(text or ""):
+        joined = runs and _GROUP_JOIN.fullmatch(text[runs[-1][-1].end():g.start()]) and not g.group().startswith("+")
+        if joined:
+            runs[-1].append(g)
+        else:
+            runs.append([g])
+    for run in runs:
+        for i in range(len(run)):
+            usual, possible, digits = "", "", 0
+            for j in range(i, len(run)):
+                digits += len(run[j].group().lstrip("+"))
+                if digits > PHONE_MAX_DIGITS:
+                    break
+                if digits >= PHONE_MIN_DIGITS:
+                    possible = text[run[i].start():run[j].end()]
+                    if 10 <= digits <= 12:
+                        usual = possible
+            if usual or possible:
+                return usual or possible
+    return ""
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
 # API keys only from HARVEST_ settings (security fix after the PR #53 review).
 
@@ -197,9 +228,7 @@ async def fetch_rss_source(source: HarvestSource) -> list[dict]:
             found_email = email_match.group(0)
 
         found_phone = ""
-        phone_match = re.search(r"\+?[1-9]\d{1,3}[-.\s]?\d{3,4}[-.\s]?\d{4,6}", combined)
-        if phone_match:
-            found_phone = phone_match.group(0)
+        found_phone = find_phone(combined)  # same rules as scraped pages (+91 98765 43210 was missed)
 
         records.append({
             "company": title[:100] if title else "RSS Buyer Enquiry",
@@ -287,8 +316,7 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
         # Any grouping: "+91 98765 43210" (groups of 5) was missed before (R57). The pattern alone also takes
         # a pin code ("400001"), a date ("2026-11-27") or "MOQ 10000" that comes first, so the first match
         # with a phone's number of digits wins
-        ph = next((m.group(0) for m in PHONE_IN_TEXT.finditer(text_clean)
-                   if PHONE_MIN_DIGITS <= len(re.sub(r"\D", "", m.group(0))) <= PHONE_MAX_DIGITS), "")
+        ph = find_phone(text_clean)
         if ph:
             primary_phone = ph
 
@@ -413,6 +441,22 @@ async def run_harvest_source(db: AsyncSession, source_id: int) -> HarvestRun:
     return run
 
 
+async def _record_failed_run(db: AsyncSession, source_id: int, error: Exception) -> None:
+    """After a rollback the run row and last_run_at are gone too: write a failed run and mark the source as
+    run, so the Runs page shows why and the source waits its interval instead of retrying every tick."""
+    try:
+        now = datetime.now(timezone.utc)
+        db.add(HarvestRun(source_id=source_id, status="failed", started_at=now, finished_at=now, drop_reasons={},
+                          error_message=f"{type(error).__name__}: {error}"[:500]))
+        source = await db.get(HarvestSource, source_id)
+        if source is not None:
+            source.last_run_at, source.last_status = now, "failed"
+        await db.commit()
+    except Exception:  # the database itself may be the problem: never stop the other sources
+        await db.rollback()
+        log.exception("harvest.failed_run_not_recorded", extra={"source_id": source_id})
+
+
 @job("lead_harvester", any_time=False, module="lead_harvester")
 async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
     """Background job: checks active harvest sources whose schedule is due and runs them."""
@@ -449,6 +493,7 @@ async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
             # The session may be half-written: start clean, so the next source still runs (R57)
             await db.rollback()
             log.exception("harvest.job_source_error", extra={"source_id": source_id, "error": str(e)})
+            await _record_failed_run(db, source_id, e)
 
     return {
         "due_sources": len(due_sources),
