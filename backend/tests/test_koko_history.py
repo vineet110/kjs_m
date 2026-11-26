@@ -39,3 +39,26 @@ async def test_the_saved_transcript_gives_kokos_real_replies(client, sent):
     assistant_lines = [m["content"] for m in sent[-1] if m["role"] == "assistant"]
     assert assistant_lines == ["Koko reply 1"]  # what Koko really said, from our transcript
     assert sent[-1][-1] == {"role": "user", "content": "how much?"}
+
+
+async def test_another_network_never_gets_someone_elses_chat():  # R71 (forbidden case)
+    from app.core.database import AsyncSessionLocal
+    from app.services import content_service
+    async with AsyncSessionLocal() as db:
+        await content_service.save_chat(db, "c3", "", [{"role": "user", "content": "hi"},
+                                                       {"role": "assistant", "content": "hello"}], False, "ip-A")
+        assert await content_service.stored_chat(db, "c3", "ip-A") is not None
+        assert await content_service.stored_chat(db, "c3", "ip-B") is None
+        assert await content_service.stored_chat(db, "c3", None) is None
+
+
+async def test_a_repeated_question_is_saved_once(client, sent):
+    one = {"chat_id": "c4", "messages": [{"role": "user", "content": "price?"}]}
+    assert (await client.post(CHAT, json=one, headers=HDR)).status_code == 200
+    assert (await client.post(CHAT, json=one, headers=HDR)).status_code == 200  # the widget's retry
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == "c4"))
+    assert [m["role"] for m in saved] == ["user", "assistant"]
