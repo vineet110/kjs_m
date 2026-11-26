@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints.files import _looks_like_pdf, send_file
+from app.api.v1.endpoints.files import pdf_policy, send_file
 from app.core.config.ini import public_config
 from app.core.database import get_db
 from app.core.errors import AppError
@@ -55,8 +55,8 @@ async def public_file(file_id: int, db: AsyncSession = Depends(get_db)):
     response = send_file(f, url, data, inline=True)
     # A spec sheet must open in the browser with local storage too (CR22): Chrome's PDF viewer shows nothing for
     # a sandboxed PDF, so a real PDF goes without the sandbox, as in the staff preview (files.py view)
-    if url is None and f.content_type == "application/pdf" and _looks_like_pdf(data):
-        response.headers["content-security-policy"] = "frame-ancestors 'self'"
+    if url is None:
+        response.headers["content-security-policy"] = await pdf_policy(f, data)
     return response
 
 

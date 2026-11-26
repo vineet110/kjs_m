@@ -251,8 +251,10 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
         for title in step.task_templates:
             task_service.add(db, assignee_id=uid, title=f"{board.code} · {step.name}: {title}", source="board",
                              source_ref=f"board:{board.code}:step:{step.position}", due_at=due, created_by=actor.id)
+        # The order and client too: for step-1 people this is the only message about a new board (CR24.ii)
         notification_service.notify(db, [uid], "board.step_started", f"{board.code}: step '{step.name}' started",
-                                    f"Planned until {step.planned_end:%d %b}.", f"/employee/order-boards/{board.code}")
+                                    f"{board.name} for {board.client}. Planned until {step.planned_end:%d %b}.",
+                                    f"/employee/order-boards/{board.code}")
 
 
 # ---------- Read ----------
