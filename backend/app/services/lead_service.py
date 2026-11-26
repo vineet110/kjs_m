@@ -103,6 +103,8 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
         chat = [ChatMessage(role=m["role"], content=str(m["content"])[:cfg().koko.message_max])
                 for m in stored if isinstance(m, dict) and m.get("role") in ("user", "assistant")
                 and isinstance(m.get("content"), str)] or [m for m in data.chat if m.role == "user"]
+        while len(chat) > 1 and sum(len(m.content) for m in chat) > cfg().koko.chat_max:
+            chat = chat[1:]  # the newest lines within chat_max: a long chat must not make the summary call huge
         summary = await koko_service.summarise_chat(chat) if chat else ""
 
     product_id = category_id = None

@@ -1,10 +1,19 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
 from app.core.config.ini import cfg
 from app.schemas.common import Email, OneLine, RequiredPhone
+
+
+# Most chat lines one request may carry before anything is parsed: the top of koko.ini request_lines' range.
+# A security limit (a body of tens of thousands of tiny lines is cut, not validated line by line).
+CHAT_LINES_CEILING = 400
+
+
+def _newest_lines(v):
+    return v[-CHAT_LINES_CEILING:] if isinstance(v, list) else v
 
 
 class ChatMessage(BaseModel):
@@ -19,8 +28,8 @@ class ChatMessage(BaseModel):
         # saved copy of them, and a lowered limit must not block the chat after one long answer
         limit = cfg().koko.message_max
         if len(v) > limit:
-            if info.data.get("role") == "assistant" and len(v) <= 4 * limit:
-                return v[:limit]  # (far longer than any reply Koko gives: refused, not parsed and cut every time)
+            if info.data.get("role") == "assistant":
+                return v[:limit]
             raise ValueError(f"A chat message can be at most {limit} characters.")
         return v
 
@@ -45,7 +54,7 @@ class LeadIn(BaseModel):
     website: str = Field(default="", max_length=255)  # honeypot: hidden field, humans leave it empty
     # Koko leads only. As many lines as a Koko request may have (koko.ini request_lines, checked below), so a
     # long chat never blocks its enquiry form
-    chat: list[ChatMessage] = Field(default_factory=list)
+    chat: Annotated[list[ChatMessage], BeforeValidator(_newest_lines)] = Field(default_factory=list)
     # Koko's chat id: the sales summary is made from the saved transcript, never the browser's copy (R71)
     chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")
 
@@ -136,7 +145,7 @@ class Contact(BaseModel):
 
 
 class KokoIn(BaseModel):
-    messages: list[ChatMessage] = Field(min_length=1)  # at most koko.ini request_lines (checked below)
+    messages: Annotated[list[ChatMessage], BeforeValidator(_newest_lines)] = Field(min_length=1)  # cut below too
     page: str = Field(default="", max_length=255)
     chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")  # random id from the browser
 

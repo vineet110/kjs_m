@@ -211,3 +211,27 @@ async def test_a_very_long_chat_is_cut_never_refused_and_its_enquiry_still_goes(
     assert (await client.post(CHAT, json={"messages": long}, headers=HDR)).status_code == 200  # 81 lines, ~120k
     lead = {"source": "koko", "name": "Omar", "phone": "+91 98765 43210", "consent": True, "chat": long}
     assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201
+
+
+async def test_a_retry_of_a_later_question_is_saved_once(client, sent):
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+    cid = "7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d"
+    m1 = [{"role": "user", "content": "q1"}]
+    await client.post(CHAT, json={"chat_id": cid, "messages": m1}, headers=HDR)
+    m2 = m1 + [{"role": "assistant", "content": "Koko reply 1"}, {"role": "user", "content": "q2"}]
+    await client.post(CHAT, json={"chat_id": cid, "messages": m2}, headers=HDR)
+    await client.post(CHAT, json={"chat_id": cid, "messages": m2}, headers=HDR)  # the answer to q2 was lost: retry
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == cid))
+    assert [m["content"] for m in saved if m["role"] == "user"] == ["q1", "q2"]
+
+
+async def test_a_huge_echoed_koko_reply_is_cut_not_refused(client, monkeypatch, sent):
+    monkeypatch.setenv("KJS__KOKO__MESSAGE_MAX", "300")
+    from app.core.config import ini
+    ini.reload_now()
+    body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 5000},
+                         {"role": "user", "content": "and?"}]}
+    assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200

@@ -251,6 +251,7 @@ async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict,
     if (retry and len(messages) >= 2 and messages[-2].get("role") == "user"
             and messages[-2].get("content") == question["content"] and messages[-1].get("role") == "assistant"):
         messages = messages[:-2]
+    reply = {**reply, "content": str(reply.get("content", ""))[:cfg().koko.message_max]}  # saved within the limit
     row.messages = (messages + [question, reply])[-cfg().koko.transcript_lines:]
     row.suggested_enquiry = row.suggested_enquiry or suggested
     await db.commit()

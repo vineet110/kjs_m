@@ -24,14 +24,19 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     question = data.messages[-1]
     # Only rows shaped like a chat line (an odd saved row, e.g. from older code, must never cause a 500)
     stored = [m for m in await content_service.stored_chat(db, data.chat_id, ip_hash) or [] if isinstance(m, dict)]
+    await db.commit()  # give the connection back before the slow AI call
     # The same question sent again because its answer never arrived (the widget retries after a time-out):
     # answer it again in place, don't save it twice. Only when the browser has no reply after it: a visitor
     # who really says "yes" twice keeps Koko's question in between (re-review of #134)
     # (Known, accepted: two tabs sending the same question at the very same moment can both be saved; the
     # transcript then shows it twice. Harmless, and rare.)
-    browser_got_reply = len(data.messages) >= 2 and data.messages[-2].role == "assistant"
-    retry = (not browser_got_reply and len(stored) >= 2 and stored[-2].get("role") == "user"
-             and stored[-2].get("content") == question.content and stored[-1].get("role") == "assistant")
+    # A retry: the saved chat already ends with this question and its answer, and the browser has asked no more
+    # questions than are saved (it never received that answer). Counting the visitor's lines works for any
+    # question, not only the first; a visitor who really asks the same thing again has one more line.
+    asked = sum(1 for m in data.messages if m.role == "user")
+    saved_asked = sum(1 for m in stored if m.get("role") == "user")
+    retry = (len(stored) >= 2 and stored[-2].get("role") == "user" and stored[-2].get("content") == question.content
+             and stored[-1].get("role") == "assistant" and asked == saved_asked)
     if retry:
         stored = stored[:-2]
     message_max, chat_max = cfg().koko.message_max, cfg().koko.chat_max
@@ -50,7 +55,9 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
             past.pop(0)
         messages = past + [question]
     else:
-        # No saved chat: only the visitor's own lines, the newest that fit chat_max
+        # No saved chat: the visitor's own lines (the browser's Koko lines can't be trusted), newest within
+        # chat_max. Kept, not just the last question: Koko picks products from earlier questions too ("and the
+        # pack sizes?" after a coffee question)
         messages = [m for m in data.messages if m.role == "user"]
         while len(messages) > 1 and sum(len(m.content) for m in messages) > chat_max:
             messages.pop(0)
