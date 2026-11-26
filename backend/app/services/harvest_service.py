@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.jobs.runner import job
 from app.models.harvest import HarvestRun, HarvestSource
@@ -33,10 +34,10 @@ from app.services.harvest_filter import (
 log = logging.getLogger("app.harvest")
 
 BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
-# A phone number in free text (scraped pages, RSS). Format rules, not tunables: 9 digits keeps out pin codes,
-# dates and quantities; 13 is the longest real number we expect (+91 and 10 digits is 12), so a number with
-# a time, a year or a second number glued on is never taken whole.
-PHONE_MIN_DIGITS, PHONE_MAX_DIGITS = 9, 13
+# A phone number in free text (scraped pages, RSS). A format rule, not a tunable: 13 digits is the longest
+# number we take (+91 and 10 digits is 12), so a number with a time, a year or a second number glued on is
+# never taken whole; find_phone() keeps only phone-shaped stretches.
+PHONE_MAX_DIGITS = 13
 # A digit group that touches a letter ("9am", "A12", "2g") is never part of a phone
 _DIGIT_GROUP = re.compile(r"(?<![A-Za-z\d])\+?\d+(?![\dA-Za-z])")
 _GROUP_JOIN = re.compile(r"[\s.()-]{1,2}")  # what may sit between the groups of one number ("+91 98765-43210")
@@ -67,8 +68,12 @@ def find_phone(text: str) -> str:
                     break
                 stretch = text[run[i].start():run[j].end()]
                 first = stretch.lstrip("+")[:1]
+                bare = stretch.lstrip("+").replace(" ", "").replace("-", "").replace(".", "")
                 if ((digits == 10 and first in "6789") or (digits == 11 and first == "0")
-                        or (11 <= digits <= 13 and stretch.startswith("+"))):
+                        or (11 <= digits <= 13 and stretch.startswith("+"))
+                        # "919876543210": the default country code written without its "+"
+                        or (digits == 12 and bare.startswith(cfg().harvest.default_country_code)
+                            and bare[len(cfg().harvest.default_country_code)] in "6789")):
                     return stretch  # the first stretch shaped like a phone; no guessing beyond that
     return ""
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,

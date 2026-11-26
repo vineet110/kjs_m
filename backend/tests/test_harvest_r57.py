@@ -116,6 +116,7 @@ async def test_a_lead_saved_without_country_code_is_a_duplicate_of_the_same_numb
 @pytest.mark.parametrize("text, digits", [
     ("Call +86 138 0013 8000", "8613800138000"),  # 13 digits with + : the whole number, not a cut
     ("Mumbai 400001 2261 2345", ""),  # a pin code plus a short number is not a 10-digit mobile
+    ("Contact 919876543210 for bulk coffee", "919876543210"),  # +91 written without its "+"
 ])
 def test_more_phone_texts(text, digits):
     import re
