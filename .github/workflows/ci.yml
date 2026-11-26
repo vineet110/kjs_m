@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg17  # same major version as production (CR36)
         env:
           POSTGRES_DB: kjs_test
           POSTGRES_USER: kjs_test
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv venv --python 3.12 .venv && uv pip install --python .venv -r requirements.txt
+      - run: uv venv --python 3.12 .venv && uv pip install --python .venv -r requirements-dev.txt
       - run: .venv/bin/python -m pytest -q
 
   frontend:

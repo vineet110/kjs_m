@@ -147,7 +147,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
   }
 
   return (
-    <form key={saved ? "saved" : "new"} onSubmit={submit} className="space-y-3">
+    <form method="post" key={saved ? "saved" : "new"} onSubmit={submit} className="space-y-3">
       {title && <h3 className="text-lg font-bold">{title}</h3>}
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className="label" htmlFor="name">Full name *</label><input id="name" name="name" defaultValue={saved?.name} required minLength={2} className="input" /></div>
@@ -169,11 +169,11 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
       {/* Honeypot: hidden from people, bots fill it in */}
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <label className="flex items-start gap-2 text-xs text-slate-600">
-        <input type="checkbox" name="consent" required defaultChecked={!!saved} className="mt-0.5" />
+        <input type="checkbox" name="consent" required defaultChecked={!!saved} className="mt-0.5 h-6 w-6 shrink-0" />
         <span>I agree that KJS India may contact me about this request and store my details for that purpose (DPDP Act 2023).</span>
       </label>
       <label className="flex items-start gap-2 text-xs text-slate-600">
-        <input type="checkbox" name="remember" defaultChecked className="mt-0.5" />
+        <input type="checkbox" name="remember" defaultChecked className="mt-0.5 h-6 w-6 shrink-0" />
         <span>Remember my details in this browser, so my next request is one click. (Untick on a shared computer.)</span>
       </label>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}

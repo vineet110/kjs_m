@@ -68,7 +68,7 @@ async def test_screenshot_only_by_filer_seen_by_admin(client):
     await login(client, "other@kjsindia.com")  # another employee: can't add to it or see it
     r = await client.post("/api/v1/files", data={"owner_type": "complaint", "owner_id": str(cid)}, files={"file": PNG}, headers=HDR)
     assert r.status_code == 403
-    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 403
+    assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 404  # by id: no hint it exists (TC-FILE-11)
 
     await login(client, "admin@kjsindia.com")
     assert (await client.get(f"/api/v1/files/{fid}/download")).status_code == 200

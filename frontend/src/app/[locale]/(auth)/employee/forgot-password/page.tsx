@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
           ) : (
-            <form onSubmit={submit} className="space-y-3">
+            <form method="post" onSubmit={submit} className="space-y-3">
               <div>
                 <label className="label" htmlFor="email">Work email</label>
                 <input id="email" name="email" type="email" required className="input" autoComplete="username" />

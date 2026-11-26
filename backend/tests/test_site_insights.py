@@ -182,10 +182,14 @@ def test_helpers():
 
 # ---------- Settings ----------
 def test_ranges_must_fit_the_days_kept(monkeypatch):
+    # Env values that don't fit together: each one that keeps the section valid applies, the one that
+    # breaks the rule is refused (#113: one bad env value never cancels the good ones)
     setting(monkeypatch, keep_days=30, default_days=60)
-    assert ini.cfg().site_insights.keep_days == 180  # refused: the last good settings stay
+    s = ini.cfg().site_insights
+    assert s.keep_days == 30 and s.default_days <= s.keep_days  # default_days=60 refused, never a broken range
     setting(monkeypatch, keep_days=30, default_days=30, day_choices=90)
-    assert ini.cfg().site_insights.keep_days == 180
+    s = ini.cfg().site_insights
+    assert s.keep_days == 30 and any(d <= s.keep_days for d in s.day_choices)  # day_choices=90 refused
     setting(monkeypatch, keep_days=30, default_days=30, day_choices="7, 90")
     assert ini.cfg().site_insights.keep_days == 30  # one choice fits: fine (the screen hides 90)
 

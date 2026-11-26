@@ -29,7 +29,7 @@ export default function PartnerForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form method="post" onSubmit={submit} className="space-y-3">
       <h2 className="text-lg font-bold">Apply to become a partner</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className="label" htmlFor="p-name">Full name *</label><input id="p-name" name="name" required minLength={2} className="input" /></div>
@@ -45,7 +45,7 @@ export default function PartnerForm() {
       <div><label className="label" htmlFor="p-message">Which markets and buyers do you work with?</label><textarea id="p-message" name="message" rows={3} className="input" /></div>
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <label className="flex items-start gap-2 text-xs text-slate-600">
-        <input type="checkbox" name="consent" required className="mt-0.5" />
+        <input type="checkbox" name="consent" required className="mt-0.5 h-6 w-6 shrink-0" />
         <span>I agree that KJS India may contact me about the partner programme and store my details for that purpose.</span>
       </label>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}

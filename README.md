@@ -92,7 +92,7 @@ cp .env.example .env
 # 2. Backend (FastAPI) on http://localhost:8000  (API docs: /docs)
 cd backend
 uv venv --python 3.12 .venv
-uv pip install --python .venv -r requirements.txt
+uv pip install --python .venv -r requirements-dev.txt   # app + test tools
 .venv/Scripts/alembic upgrade head        # macOS/Linux: .venv/bin/alembic
 .venv/Scripts/python -m app.seed          # categories + first admin
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000

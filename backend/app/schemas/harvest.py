@@ -1,19 +1,23 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, Field, model_validator
 
 from app.schemas.common import OneLine
 from app.services.harvest_net import check_env_name, check_url
 
 SourceType = Literal["api", "open_data", "rss", "scrape"]
+# The security rules (harvest_net), written once for creating AND editing (R57.ii: they were written twice):
+# a HARVEST_ setting name only; https and public addresses only
+EnvName = Annotated[str, AfterValidator(check_env_name)]
+SourceUrl = Annotated[str, AfterValidator(check_url)]
 
 
 class HarvestSourceIn(BaseModel):
     name: OneLine = Field(min_length=2, max_length=120)
     source_type: SourceType
-    url: str = Field(min_length=5, max_length=500)
-    auth_env_var: str = Field(default="", max_length=100)
+    url: SourceUrl = Field(min_length=5, max_length=500)
+    auth_env_var: EnvName = Field(default="", max_length=100)
     category: str = Field(default="all", max_length=60)
     is_active: bool = True
     terms_checked: bool = False
@@ -26,37 +30,15 @@ class HarvestSourceIn(BaseModel):
             raise ValueError("Scrape source stays off until terms are checked.")
         return self
 
-    # Security rules (harvest_net): HARVEST_ setting names only; https, public addresses only
-    @field_validator("auth_env_var")
-    @classmethod
-    def env_name_rules(cls, v: str) -> str:
-        return check_env_name(v)
-
-    @field_validator("url")
-    @classmethod
-    def url_rules(cls, v: str) -> str:
-        return check_url(v)
-
 
 class HarvestSourceUpdate(BaseModel):
     name: OneLine | None = Field(default=None, min_length=2, max_length=120)
-    url: str | None = Field(default=None, min_length=5, max_length=500)
-    auth_env_var: str | None = Field(default=None, max_length=100)
+    url: SourceUrl | None = Field(default=None, min_length=5, max_length=500)  # editing: the same checks
+    auth_env_var: EnvName | None = Field(default=None, max_length=100)
     category: str | None = Field(default=None, max_length=60)
     is_active: bool | None = None
     terms_checked: bool | None = None
     schedule_interval_minutes: int | None = Field(default=None, ge=1, le=43200)
-
-    # Editing gets the same checks as creating (before the fix, edits weren't checked at all)
-    @field_validator("auth_env_var")
-    @classmethod
-    def env_name_rules(cls, v: str | None) -> str | None:
-        return None if v is None else check_env_name(v)
-
-    @field_validator("url")
-    @classmethod
-    def url_rules(cls, v: str | None) -> str | None:
-        return None if v is None else check_url(v)
 
 
 class HarvestSourceOut(BaseModel):

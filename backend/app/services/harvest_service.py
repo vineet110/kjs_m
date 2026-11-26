@@ -18,11 +18,13 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.jobs.runner import job
 from app.models.harvest import HarvestRun, HarvestSource
 from app.services.harvest_net import harvest_setting, safe_get
 from app.services.harvest_filter import (
+    active_category_slugs,
     EMAIL_REGEX,
     PHONE_DIGITS_REGEX,
     filter_single_record,
@@ -32,6 +34,53 @@ from app.services.harvest_filter import (
 log = logging.getLogger("app.harvest")
 
 BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
+# A phone number in free text (scraped pages, RSS). A format rule, not a tunable: 13 digits is the longest
+# number we take (+91 and 10 digits is 12), so a number with a time, a year or a second number glued on is
+# never taken whole; find_phone() keeps only phone-shaped stretches.
+PHONE_MAX_DIGITS = 13
+# A digit group that touches a letter ("9am", "A12", "2g") is never part of a phone
+_DIGIT_GROUP = re.compile(r"(?<![A-Za-z\d])\+?\d+(?![\dA-Za-z])")
+_GROUP_JOIN = re.compile(r"[\s.()-]{1,2}")  # what may sit between the groups of one number ("+91 98765-43210")
+
+
+def find_phone(text: str) -> str:
+    """The first phone in a text, or "". Digit groups that touch (a space, dot, dash or bracket between) form
+    a run. A number starts with "+" or a group of 3+ digits (not "12" of "Order 12"). Inside a run, every
+    start is tried: the first stretch shaped like a phone wins (10 digits from 6-9, an Indian mobile; 11 with a
+    trunk 0; 11 to 13 with "+"). Nothing else is guessed: free text has endless formats, and a wrong number is
+    worse than none, so this takes the common shapes and never glues a year, pin code or time onto them. So "+91 98765 43210 10am" gives +91 98765 43210, "Since 1998 98765 43210" gives
+    98765 43210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
+    # "+91 (0)22 2345 6789": the bracketed 0 is a trunk prefix that is never dialled with the country code
+    text = re.sub(r"\(\s*0\s*\)", " ", text or "")
+    runs: list[list[re.Match]] = []
+    for g in _DIGIT_GROUP.finditer(text):
+        joined = runs and _GROUP_JOIN.fullmatch(text[runs[-1][-1].end():g.start()]) and not g.group().startswith("+")
+        if joined:
+            runs[-1].append(g)
+        else:
+            runs.append([g])
+    for run in runs:
+        for i in range(len(run)):
+            if not run[i].group().startswith("+") and len(run[i].group()) < 3:
+                continue
+            digits = 0
+            for j in range(i, len(run)):
+                digits += len(run[j].group().lstrip("+"))
+                if digits > PHONE_MAX_DIGITS:
+                    break
+                stretch = text[run[i].start():run[j].end()]
+                first = stretch.lstrip("+")[:1]
+                bare = stretch.lstrip("+").replace(" ", "").replace("-", "").replace(".", "")
+                # A 10-digit mobile is one group or groups of at most 5 ("98765 43210"), never a 6-digit pin
+                # code plus something ("700001 2026": Kolkata pin codes start with 7)
+                mobile_groups = j == i or all(len(g.group()) <= 5 for g in run[i:j + 1])
+                if ((digits == 10 and first in "6789" and mobile_groups) or (digits == 11 and first == "0")
+                        or (11 <= digits <= 13 and stretch.startswith("+"))
+                        # "919876543210": the default country code written without its "+"
+                        or (digits == 12 and bare.startswith(cfg().harvest.default_country_code)
+                            and bare[len(cfg().harvest.default_country_code)] in "6789")):
+                    return stretch  # the first stretch shaped like a phone; no guessing beyond that
+    return ""
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
 # API keys only from HARVEST_ settings (security fix after the PR #53 review).
 
@@ -191,10 +240,7 @@ async def fetch_rss_source(source: HarvestSource) -> list[dict]:
         if email_match:
             found_email = email_match.group(0)
 
-        found_phone = ""
-        phone_match = re.search(r"\+?[1-9]\d{1,3}[-.\s]?\d{3,4}[-.\s]?\d{4,6}", combined)
-        if phone_match:
-            found_phone = phone_match.group(0)
+        found_phone = find_phone(combined)  # same rules as scraped pages (+91 98765 43210 was missed)
 
         records.append({
             "company": title[:100] if title else "RSS Buyer Enquiry",
@@ -232,11 +278,12 @@ async def is_scraping_allowed(url: str, user_agent: str = BOT_USER_AGENT) -> boo
             log.warning("harvest.robots_txt_blocked", extra={"url": url, "error": e.message})
             return False
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": e.message})
-        return True  # known separate bug: can't read robots.txt = allowed (see docs/tempV.md)
+        raise AppError(502, "robots_unreadable", "Could not read the site's robots.txt, so nothing was fetched.") from e
     except Exception as e:
+        # robots.txt couldn't be read: when unsure, don't scrape (R57). Its own error, so the run shows
+        # "failed" with the real reason, not "blocked by robots"
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": str(e)})
-        # If robots.txt cannot be fetched/parsed, err on the side of caution or permit if network unreachable
-        return True
+        raise AppError(502, "robots_unreadable", "Could not read the site's robots.txt, so nothing was fetched.") from e
 
 
 async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
@@ -278,9 +325,12 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
             primary_email = em.group(0)
 
     if not primary_phone:
-        ph = re.search(r"\+?[1-9]\d{1,3}[-.\s]?\d{3,4}[-.\s]?\d{4,6}", text_clean)
+        # Any grouping: "+91 98765 43210" (groups of 5) was missed before (R57). The pattern alone also takes
+        # a pin code ("400001"), a date ("2026-11-27") or "MOQ 10000" that comes first, so the first match
+        # with a phone's number of digits wins
+        ph = find_phone(text_clean)
         if ph:
-            primary_phone = ph.group(0)
+            primary_phone = ph
 
     # Check for title
     title_m = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
@@ -355,8 +405,22 @@ async def run_harvest_source(db: AsyncSession, source_id: int) -> HarvestRun:
     accepted_items: list[dict] = []
     drop_reasons: dict[str, int] = {}
 
+    seen: set[str] = set()  # email / phone digits already taken in THIS fetch (R57: duplicates inside one fetch)
+    categories = await active_category_slugs(db)
     for item in raw_items:
-        clean, drop_reason = await filter_single_record(db, item, source.category)
+        try:
+            # A savepoint per record: a database error on one record is undone alone, the run goes on (R57)
+            async with db.begin_nested():
+                clean, drop_reason = await filter_single_record(db, item, source.category, categories)
+        except Exception:  # one odd record never stops the run (R57)
+            log.exception("harvest.record_failed", extra={"source_id": source.id})
+            clean, drop_reason = None, "unreadable"
+        if clean:
+            keys = {k for k in (clean["email"], re.sub(r"\D", "", clean["phone"])) if k}
+            if keys & seen:
+                clean, drop_reason = None, "duplicate"
+            else:
+                seen |= keys
         if clean:
             accepted_items.append(clean)
         else:
@@ -389,6 +453,24 @@ async def run_harvest_source(db: AsyncSession, source_id: int) -> HarvestRun:
     return run
 
 
+async def _record_failed_run(db: AsyncSession, source_id: int, error: Exception) -> None:
+    """After a rollback the run row and last_run_at are gone too: write a failed run and mark the source as
+    run, so the Runs page shows why and the source waits its interval instead of retrying every tick."""
+    try:
+        now = datetime.now(timezone.utc)
+        # Only the error type: a database error's text can hold a buyer's email or phone (the full text is in
+        # the log above, which is not shown on the Runs page)
+        db.add(HarvestRun(source_id=source_id, status="failed", started_at=now, finished_at=now, drop_reasons={},
+                          error_message=f"{type(error).__name__} (details in the server log)"))
+        source = await db.get(HarvestSource, source_id)
+        if source is not None:
+            source.last_run_at, source.last_status = now, "failed"
+        await db.commit()
+    except Exception:  # the database itself may be the problem: never stop the other sources
+        await db.rollback()
+        log.exception("harvest.failed_run_not_recorded", extra={"source_id": source_id})
+
+
 @job("lead_harvester", any_time=False, module="lead_harvester")
 async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
     """Background job: checks active harvest sources whose schedule is due and runs them."""
@@ -415,14 +497,17 @@ async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
     total_dropped = 0
     runs_executed = 0
 
-    for s in due_sources:
+    for source_id in [s.id for s in due_sources]:  # plain ids: after a rollback the loaded rows are stale
         try:
-            run = await run_harvest_source(db, s.id)
+            run = await run_harvest_source(db, source_id)
             total_accepted += run.accepted_count
             total_dropped += run.dropped_count
             runs_executed += 1
         except Exception as e:
-            log.exception("harvest.job_source_error", extra={"source_id": s.id, "error": str(e)})
+            # The session may be half-written: start clean, so the next source still runs (R57)
+            await db.rollback()
+            log.exception("harvest.job_source_error", extra={"source_id": source_id, "error": str(e)})
+            await _record_failed_run(db, source_id, e)
 
     return {
         "due_sources": len(due_sources),

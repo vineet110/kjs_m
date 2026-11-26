@@ -12,10 +12,12 @@ import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, or_
+from sqlalchemy import and_, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.ini import cfg
 from app.models.batch import BuyerRecord, RecordList
+from app.models.catalog import Category
 from app.models.lead import Lead
 from app.models.harvest import HarvestSource
 
@@ -48,23 +50,38 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 PHONE_DIGITS_REGEX = re.compile(r"^\+?[1-9]\d{6,14}$")
 
 
+def _text(value) -> str:
+    """A field as text: sources send numbers, lists or nothing where text is expected (R57)."""
+    return "" if value is None else str(value)
+
+
 def normalize_email(email: str | None) -> str:
     """Normalize and validate an email address, or return empty string."""
     if not email:
         return ""
-    cleaned = email.strip().lower()
+    cleaned = _text(email).strip().lower()
     return cleaned if EMAIL_REGEX.match(cleaned) else ""
 
 
-def normalize_phone(phone: str | None) -> str:
+def normalize_phone(phone: str | None, country: str | None = None) -> str:
     """Normalize and validate a phone with country code (E.164), or return empty string."""
     if not phone:
         return ""
-    raw = phone.strip()
+    raw = _text(phone).strip()
     # Strip spaces, dashes, parentheses
     compact = re.sub(r"[\s\-\(\)\.]", "", raw)
+    country_code = cfg().harvest.default_country_code
+    # India, however a source writes it: "India", "IN", "IND", "91", "+91", "Republic of India", "Bharat"
+    name = (country or "").strip().lower().lstrip("+")
+    local = name in ("", "in", "ind", "91", "bharat") or "india" in name
     if compact.startswith("00"):
         compact = "+" + compact[2:]
+    elif local and compact.isdigit() and len(compact) == 10 and compact[0] in "6789":
+        # An Indian mobile written without a code ("98765 43210") gets the default country code, else the
+        # record had no phone at all. Only for a buyer in India (or no country given): never a US number.
+        compact = f"+{country_code}{compact}"
+    elif local and compact.isdigit() and len(compact) == 11 and compact.startswith("0"):
+        compact = f"+{country_code}{compact[1:]}"  # "040 2345 6789": the 0 is the trunk prefix
     elif not compact.startswith("+") and len(compact) >= 11:
         # e.g. 919876543210 -> +919876543210
         compact = "+" + compact
@@ -74,7 +91,8 @@ def normalize_phone(phone: str | None) -> str:
     return ""
 
 
-def match_product_category(text: str, source_category: str = "all") -> tuple[str | None, str | None]:
+def match_product_category(text: str, source_category: str = "all",
+                           allowed: set[str] | None = None) -> tuple[str | None, str | None]:
     """Check text against coffee, tea, spices, and private_label keywords.
 
     Returns (category_slug, matched_keyword), or (None, None) if unrelated.
@@ -89,6 +107,8 @@ def match_product_category(text: str, source_category: str = "all") -> tuple[str
     if source_category in PRODUCT_KEYWORDS:
         order.remove(source_category)
         order.insert(0, source_category)
+    if allowed is not None:  # only categories in use: "private label instant coffee" is coffee, not dropped
+        order = [c for c in order if c in allowed]
 
     for cat in order:
         for kw in PRODUCT_KEYWORDS[cat]:
@@ -112,8 +132,14 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
         clauses_leads.append(func.lower(Lead.email) == email.lower())
         clauses_buyers.append(func.lower(BuyerRecord.email) == email.lower())
     if phone:
-        clauses_leads.append(Lead.phone == phone)
-        clauses_buyers.append(BuyerRecord.phone == phone)
+        # Compared by digits: "+91 98765 43210" and "+919876543210" are one number (R57)
+        digits = re.sub(r"\D", "", phone)
+        # The same digits; or a number stored WITHOUT a country code (10 digits, "98765 43210" typed in the
+        # enquiry form) matching our number's last 10. Never just "the last 10 match": +44 20 7946 0958 and
+        # +1 207 946 0958 are different people (re-review of #136)
+        for col, out in ((Lead.phone, clauses_leads), (BuyerRecord.phone, clauses_buyers)):
+            stored = func.regexp_replace(col, "[^0-9]", "", "g")
+            out.append(or_(stored == digits, and_(func.length(stored) == 10, stored == digits[-10:])))
 
     if not clauses_leads and not clauses_buyers:
         return False
@@ -137,19 +163,27 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
     return False
 
 
+async def active_category_slugs(db: AsyncSession) -> set[str]:
+    """Catalogue categories in use (switched-off ones, e.g. Tea, don't count)."""
+    return set((await db.scalars(select(Category.slug).where(Category.is_active.is_(True)))).all())
+
+
 async def filter_single_record(
     db: AsyncSession,
     raw: dict,
     source_category: str = "all",
+    categories: set[str] | None = None,
 ) -> tuple[dict | None, str | None]:
     """Apply the shared filter: contact check -> product check -> duplicate check.
 
     Returns (clean_record, None) if accepted, or (None, drop_reason) if dropped.
-    Possible drop reasons: 'invalid_contact', 'product_mismatch', 'duplicate'.
+    Possible drop reasons: 'invalid_contact', 'product_mismatch', 'duplicate', 'unknown_category' (matched only
+    a keyword group with no catalogue category in use, e.g. spices, private label, a hidden category). The run
+    itself can also count 'unreadable' (one record that could not be filtered at all).
     """
     # 1. Contact check: needs at least a valid email or phone with country code
     email = normalize_email(raw.get("email"))
-    phone = normalize_phone(raw.get("phone"))
+    phone = normalize_phone(raw.get("phone"), _text(raw.get("country")))
     if not email and not phone:
         return None, "invalid_contact"
 
@@ -159,25 +193,30 @@ async def filter_single_record(
         for k in ("product", "title", "message", "description", "requirement", "category")
         if raw.get(k)
     )
-    category_slug, matched_kw = match_product_category(combined_text, source_category)
-    if not category_slug:
+    # Only categories in use may match (re-review of #136): a source set to "private_label" or a hidden "tea"
+    # must still file "private label instant coffee" under coffee. `categories`: loaded once per run.
+    active = categories if categories is not None else await active_category_slugs(db)
+    category_slug, matched_kw = match_product_category(combined_text, source_category, allowed=active)
+    if not category_slug and not match_product_category(combined_text, source_category)[0]:
         return None, "product_mismatch"
 
     # 3. Duplicate check against existing leads and buyer_records
     if await is_duplicate(db, email, phone):
         return None, "duplicate"
+    if not category_slug:  # it matched only a keyword group with no category in use (spices, hidden tea): R57
+        return None, "unknown_category"
 
     clean_record = {
-        "company": (raw.get("company") or raw.get("contact_name") or "External Buyer")[:200].strip(),
-        "contact_name": (raw.get("contact_name") or "")[:120].strip(),
+        "company": _text(raw.get("company") or raw.get("contact_name") or "External Buyer")[:200].strip(),
+        "contact_name": _text(raw.get("contact_name"))[:120].strip(),
         "email": email[:255],
         "phone": phone[:40],
-        "country": (raw.get("country") or "India")[:80].strip(),
-        "website": (raw.get("website") or raw.get("source_url") or "")[:255].strip(),
+        "country": _text(raw.get("country") or "India")[:80].strip(),
+        "website": _text(raw.get("website") or raw.get("source_url"))[:255].strip(),
         "category": category_slug,
         "matched_keyword": matched_kw,
-        "raw_message": raw.get("message") or raw.get("description") or "",
-        "source_url": raw.get("source_url") or "",
+        "raw_message": _text(raw.get("message") or raw.get("description")),
+        "source_url": _text(raw.get("source_url")),
     }
     return clean_record, None
 

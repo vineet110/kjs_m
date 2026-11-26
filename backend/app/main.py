@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.router import api_router
 from app.core.config import production_problems, settings
-from app.core.config.ini import public_config
+from app.core.config.ini import env_problems, public_config
 from app.core.database import engine, get_db
 from app.core.errors import AppError
 from app.core.errors import install_error_handlers
@@ -30,6 +30,10 @@ async def lifespan(_: FastAPI):
         for p in problems:
             log.critical("config.unsafe_for_production", extra={"problem": p})
         raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
+    # Misspelt or out-of-range KJS__* env values (R97.iii). Logged loudly, never blocks the start:
+    # a bad value only keeps that file's last good values (ini.py), and a refused start takes the site down.
+    for p in env_problems():
+        log.error("config.env_invalid", extra={"problem": p})
     log.info("app.started", extra={"env": settings.APP_ENV, "jobs": list(runner.JOBS)})
     # Tests run jobs directly (runner.run_job), never on a timer.
     task = None if settings.APP_ENV == "test" else asyncio.create_task(runner.loop())
