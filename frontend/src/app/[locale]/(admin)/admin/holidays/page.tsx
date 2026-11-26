@@ -51,7 +51,7 @@ export default function HolidaysPage() {
           <button className="btn-ghost py-1" onClick={() => setYear(year + 1)}>→</button>
         </div>
       </PageTitle>
-      <form onSubmit={add} className="card flex flex-wrap items-end gap-3 p-4">
+      <form method="post" onSubmit={add} className="card flex flex-wrap items-end gap-3 p-4">
         <div><label className="label">Date</label><input type="date" name="day" required className="input" /></div>
         <div className="min-w-[14rem] flex-1"><label className="label">Name</label><input name="name" required minLength={2} maxLength={120} className="input" placeholder="Diwali" /></div>
         <button className="btn-dark">Add holiday</button>

@@ -104,7 +104,7 @@ export default function ProfilePage() {
       <PageTitle title="Profile" sub={`${p.email} · ${p.role}${p.categories.length ? ` · categories: ${p.categories.join(', ')}` : ''}`} />
       <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-6">
-      <form onSubmit={save} className="card space-y-3 p-5">
+      <form method="post" onSubmit={save} className="card space-y-3 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label">Name</label><input name="name" defaultValue={p.name} required minLength={2} className="input" /></div>
           <div><label className="label" htmlFor="me-phone">Phone / WhatsApp *</label><PhoneInput id="me-phone" defaultValue={p.phone} maxLength={20} /></div>
@@ -117,7 +117,7 @@ export default function ProfilePage() {
         <Msg msg={msg} />
         <button className="btn-dark">Save</button>
       </form>
-      <form onSubmit={changePassword} className="card space-y-3 p-5">
+      <form method="post" onSubmit={changePassword} className="card space-y-3 p-5">
         <h2 className="font-semibold">Change password</h2>
         <div><label className="label">Current password</label><input type="password" name="current" required autoComplete="current-password" className="input" /></div>
         <div className="grid gap-3 sm:grid-cols-2">

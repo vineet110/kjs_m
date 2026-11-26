@@ -163,7 +163,7 @@ function Offers() {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
+      <form method="post" onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
         <div className="md:col-span-3"><label className="label">Offer text</label><input name="text" required minLength={3} maxLength={200} className="input" placeholder="Free samples for new distributors this month" /></div>
         <div className="md:col-span-3"><label className="label">Link (optional)</label><input name="link" maxLength={255} className="input" placeholder="/private-label" /></div>
         <div className="md:col-span-2"><label className="label">Starts (IST, optional)</label><input type="datetime-local" name="starts_at" className="input" /></div>

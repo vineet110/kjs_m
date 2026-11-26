@@ -25,7 +25,7 @@ def range_text(cats: list[CategoryOut]) -> str:
     rangeText in frontend/src/lib/catalogue.ts. No categories: the full range."""
     names = [c.name.lower() for c in cats if c.slug not in PARENT_OF]
     if not names:
-        return "coffee, tea, health drinks and confectionery"
+        return "coffee, health drinks and confectionery"
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 

@@ -31,6 +31,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
+  const [formError, setFormError] = useState(''); // shown inside the form (was a blocking alert())
   const t = useTranslations('koko');
   const endRef = useRef<HTMLDivElement>(null);
   // Random id for this conversation (no personal data), so staff can read the transcript in Admin > Koko.
@@ -71,6 +72,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const email = String(f.get('email') || '').trim();
+    setFormError('');
     try {
       await api('/public/leads', {
         method: 'POST',
@@ -84,7 +86,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
       setShowForm(false);
       setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.', local: true }]);
     } catch (err) {
-      alert(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
+      setFormError(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
     }
   }
 
@@ -110,7 +112,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
             ))}
             {busy && <div className="w-16 rounded-xl bg-slate-100 px-3 py-2 text-slate-500">…</div>}
             {showForm && (
-              <form onSubmit={sendLead} className="space-y-2 rounded-xl border border-gold/50 bg-gold/5 p-3">
+              <form method="post" onSubmit={sendLead} className="space-y-2 rounded-xl border border-gold/50 bg-gold/5 p-3">
                 <p className="text-xs font-semibold">Share your details and our sales team will send a quote:</p>
                 <input name="name" required minLength={2} placeholder="Name *" className="input" />
                 <input name="company" placeholder="Company" className="input" />
@@ -120,15 +122,16 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
                   <input type="checkbox" name="consent" required className="mt-0.5 h-6 w-6 shrink-0" />
                   I agree to be contacted about this request (DPDP Act 2023).
                 </label>
+                {formError && <p role="alert" className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-2">
                   <button className="btn-gold flex-1">Send</button>
-                  <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Later</button>
+                  <button type="button" onClick={() => { setShowForm(false); setFormError(''); }} className="btn-ghost">Later</button>
                 </div>
               </form>
             )}
             <div ref={endRef} />
           </div>
-          <form onSubmit={send} className="flex gap-2 border-t bg-slate-50 p-3">
+          <form method="post" onSubmit={send} className="flex gap-2 border-t bg-slate-50 p-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} placeholder="Ask about our products…" className="input" />
             <button disabled={busy} className="btn-dark">Send</button>
           </form>

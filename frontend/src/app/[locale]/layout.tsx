@@ -13,7 +13,7 @@ const inter = Inter({ subsets: ['latin'] });
 const display = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--font-display' });
 
 export const metadata: Metadata = {
-  title: { default: 'KJS India | Contract Manufacturing: Coffee, Tea, Health Drinks, Confectionery', template: '%s | KJS India' },
+  title: { default: 'KJS India | Contract Manufacturing and Private Label', template: '%s | KJS India' },
   description:
     'KJS India is a private-label and contract manufacturer in Hyderabad: stick packs, blending, packaging and warehousing for brands, distributors and importers.',
   icons: { icon: asset('/images/kjs/favicon.png') },

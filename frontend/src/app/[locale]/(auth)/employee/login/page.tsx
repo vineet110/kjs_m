@@ -205,7 +205,7 @@ function LoginInner() {
               </button>
             ))}
           </div>
-          <form onSubmit={submit} className="space-y-3">
+          <form method="post" onSubmit={submit} className="space-y-3">
             {tab === 'signup' && (
               <>
                 <div><label className="label" htmlFor="name">Full name</label><input id="name" name="name" required minLength={2} className="input" /></div>

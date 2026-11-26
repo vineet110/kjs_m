@@ -2,11 +2,12 @@
 // market -> send to sales). No price is shown until KJS gives price bands (backlog I3, A23).
 import type { Metadata } from 'next';
 import Configurator from '@/components/public/Configurator';
-import { serverGet, type Product } from '@/lib/api';
+import EnquiryButton from '@/components/public/EnquiryButton';
+import { features, serverGet, type Product } from '@/lib/api';
 
 export const metadata: Metadata = {
   title: 'Private label',
-  description: 'Your brand, our factory: private-label coffee, tea, health drinks and confectionery in stick packs, sachets and pouches.',
+  description: 'Your brand, our factory: private-label coffee, health drinks and confectionery in stick packs, sachets and pouches.',
 };
 
 const STEPS = [
@@ -17,13 +18,16 @@ const STEPS = [
 ];
 
 export default async function PrivateLabelPage() {
-  const products = (await serverGet<Product[]>('/public/products')) ?? [];
+  // features.ini configurator = false: no configurator (the API would refuse its send, TC-PUB-22); a plain
+  // enquiry button instead, so the page still has a way to tell us about the product
+  const f = await features();
+  const products = f.configurator ? ((await serverGet<Product[]>('/public/products')) ?? []) : [];
   return (
     <div className="mx-auto max-w-7xl space-y-12 px-4 py-12">
       <div className="max-w-3xl space-y-3">
         <p className="eyebrow">Private label</p>
         <h1 className="text-4xl font-bold">Your brand, our factory</h1>
-        <p className="text-lg text-slate-600">Coffee, tea, health drinks and confectionery, blended and packed under your label.</p>
+        <p className="text-lg text-slate-600">Coffee, health drinks and confectionery, blended and packed under your label.</p>
       </div>
 
       <ol className="grid gap-4 md:grid-cols-4">
@@ -38,7 +42,14 @@ export default async function PrivateLabelPage() {
 
       <section>
         <div className="card p-6">
-          <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
+          {f.configurator ? (
+            <Configurator products={products.filter((p) => p.private_label).map((p) => ({ slug: p.slug, name: p.name, formats: p.pack_formats, category: p.category_name }))} />
+          ) : (
+            <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-slate-700">Tell us your product, pack format, quantity and market, and our sales team will come back to you.</p>
+              <EnquiryButton label="Start your private label" source="enquiry_form" title="Private label enquiry" className="btn-gold" />
+            </div>
+          )}
         </div>
       </section>
     </div>

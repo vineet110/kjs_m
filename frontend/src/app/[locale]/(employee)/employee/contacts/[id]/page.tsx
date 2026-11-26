@@ -299,7 +299,7 @@ function Notes({ lead, notes, onChange }: { lead: Lead; notes: LeadNote[] | null
   const shown = (notes ?? []).filter((n) => ['note', 'call', 'email'].includes(n.kind)).reverse();
   return (
     <div className="space-y-4">
-      <form onSubmit={add} className="space-y-2">
+      <form method="post" onSubmit={add} className="space-y-2">
         <textarea ref={box} name="text" required maxLength={2000} rows={3} placeholder="What happened? e.g. Called, wants samples of 3-in-1" className="input" />
         <div className="flex items-center gap-2">
           {/* A call or email also counts as the first reply (stops the respond timer) */}
@@ -360,7 +360,7 @@ function Tasks({ lead }: { lead: Lead }) {
   }
   return (
     <div className="space-y-4">
-      <form onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_14rem_auto]">
+      <form method="post" onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_14rem_auto]">
         <input name="title" required minLength={2} maxLength={200} placeholder="e.g. Send the price sheet" className="input" aria-label="Task" />
         <input name="due" type="datetime-local" className="input" aria-label="Due (IST)" />
         <button className="btn-dark">Add task</button>

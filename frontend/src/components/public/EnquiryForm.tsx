@@ -147,7 +147,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
   }
 
   return (
-    <form key={saved ? "saved" : "new"} onSubmit={submit} className="space-y-3">
+    <form method="post" key={saved ? "saved" : "new"} onSubmit={submit} className="space-y-3">
       {title && <h3 className="text-lg font-bold">{title}</h3>}
       <div className="grid gap-3 sm:grid-cols-2">
         <div><label className="label" htmlFor="name">Full name *</label><input id="name" name="name" defaultValue={saved?.name} required minLength={2} className="input" /></div>

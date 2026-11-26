@@ -29,8 +29,9 @@ export function popupAt(times: number[], n: number): number {
   return Math.floor(n / times.length) * cycle + times[n % times.length];
 }
 
-/** A phone number the server will take: 10 to 15 digits (spaces, +, - and brackets allowed around them). */
+/** A phone number the server will take: 6 to 15 digits (spaces, +, - and brackets allowed around them),
+ *  the same rule as the enquiry forms (savedPhoneOk in countries.ts, backend schemas/common.py). */
 export function phoneOk(v: string): boolean {
   const digits = v.replace(/\D/g, '');
-  return /^\+?[0-9 ()-]+$/.test(v.trim()) && digits.length >= 10 && digits.length <= 15;
+  return /^\+?[0-9 ()-]+$/.test(v.trim()) && digits.length >= 6 && digits.length <= 15;
 }
