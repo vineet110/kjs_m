@@ -13,8 +13,8 @@ constant, or a changed file won't apply.
 
 Order (highest wins): env var KJS__<SECTION>__<KEY>  ->  ini file  ->  default below.
 Every few seconds cfg() checks the files' modified-times. On a change it re-reads and
-validates everything; if the new values are invalid it keeps the old ones and logs an
-error naming the file and key.
+validates every file on its own: a file with an invalid value keeps its old values (logs an
+error naming the file and key) while the other files still apply.
 """
 import configparser
 import logging
@@ -442,15 +442,62 @@ def _read_raw() -> dict:
     return raw
 
 
-def _validate(raw: dict) -> Config:
+def _reason(e: ValidationError, section: str | None = None) -> str:
+    """'config/sla.ini: 'respond_minutes' Input should be a valid integer' from the first error."""
+    first = e.errors()[0]
+    loc = list(first["loc"])
+    if section is None:
+        section, loc = (loc[0] if loc else "?"), loc[1:]
+    where = f" '{loc[0]}'" if loc else ""  # a rule between two keys has no single key
+    return f"config/{FILES.get(section, section)}:{where} {first['msg']}"
+
+
+def _validate(raw: dict, last: Config | None = None) -> Config:
+    """Check every file. A bad file keeps its last good values (defaults on the first load) and is
+    logged; the good files still apply (backlog R91: one bad key used to throw away EVERY file, so e.g.
+    jobs_enabled went back on). A rule between two files that fails still raises: keep the old config."""
     try:
         return Config.model_validate(raw)
+    except ValidationError:
+        pass
+    base = last or Config()
+    sections, bad = {}, []
+    for section, field in Config.model_fields.items():
+        try:
+            sections[section] = field.annotation.model_validate(raw.get(section, {}))
+        except ValidationError as e:
+            bad.append(_reason(e, section))
+            sections[section] = getattr(base, section)
+    try:
+        new = Config(**sections)
     except ValidationError as e:
-        first = e.errors()[0]
-        loc = list(first["loc"])
-        section = loc[0] if loc else "?"
-        where = f" '{loc[1]}'" if len(loc) > 1 else ""  # a rule between two keys has no single key
-        raise ValueError(f"config/{FILES.get(section, section)}:{where} {first['msg']}") from e
+        raise ValueError(_reason(e)) from e
+    for reason in bad:
+        log.error("config.invalid", extra={"reason": reason, "kept": "last good values for this file"})
+    return new
+
+
+def env_problems() -> list[str]:
+    """KJS__* environment values that are misspelt or out of range (backlog R97.iii). Checked at start-up
+    and logged loudly; never stops the app (a bad value only keeps that file's last good values)."""
+    problems = []
+    sections: set[str] = set()
+    for key, value in os.environ.items():
+        if not key.startswith(ENV_PREFIX):
+            continue
+        parts = key[len(ENV_PREFIX):].lower().split("__")
+        model = Config.model_fields[parts[0]].annotation if parts[0] in Config.model_fields else None
+        if len(parts) != 2 or model is None or (parts[1] not in model.model_fields and parts[0] != "modules"):
+            problems.append(f"{key}: no such setting (misspelt?), ignored")
+        else:
+            sections.add(parts[0])
+    raw = _read_raw()
+    for section in sorted(sections):
+        try:
+            Config.model_fields[section].annotation.model_validate(raw.get(section, {}))
+        except ValidationError as e:
+            problems.append(_reason(e, section) + " (an env value or the file is out of range)")
+    return problems
 
 
 def _flatten(c: Config) -> dict[str, object]:
@@ -482,7 +529,7 @@ class _Store:
                 return
             self.mtimes = mtimes
             try:
-                new = _validate(_read_raw())
+                new = _validate(_read_raw(), self.config if self.loaded_from_files else None)
             except ValueError as e:
                 log.error("config.invalid", extra={"reason": str(e)})
                 return  # keep the last good config

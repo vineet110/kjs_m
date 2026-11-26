@@ -87,3 +87,36 @@ async def test_public_config_says_when_insights_are_off(client, monkeypatch):
     monkeypatch.setenv("KJS__MODULES__SITE_INSIGHTS", "off")
     ini.reload_now()
     assert (await client.get("/api/public/config")).json()["insights"]["on"] is False
+
+
+def test_one_bad_file_keeps_only_that_file_and_the_others_still_apply(config_dir, caplog):
+    # R91: one bad key used to throw away EVERY file (jobs_enabled went back to its default)
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\n")
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")
+    with caplog.at_level(logging.ERROR, logger="app.config"):
+        c = ini.reload_now()
+    assert c.app.jobs_enabled is False  # the good file applied
+    assert c.sla.respond_minutes == 20  # the bad file: default on the first load
+    assert any("sla.ini" in getattr(r, "reason", "") for r in caplog.records)
+
+
+def test_bad_file_on_reload_keeps_its_last_good_values(config_dir):
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = 15\n")
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 9\n")
+    ini.reload_now()
+    write(config_dir / "sla.ini", "[sla]\nrespond_minutes = soon\n")
+    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 7\n")
+    c = ini.reload_now()
+    assert c.sla.respond_minutes == 15 and c.app.lead_rate_per_hour == 7
+
+
+def test_env_problems_names_misspelt_and_out_of_range_values(config_dir, monkeypatch):
+    monkeypatch.setenv("KJS__APP__JOBS_ENABLE", "true")  # misspelt key
+    monkeypatch.setenv("KJS__NOPE__X", "1")  # no such file
+    monkeypatch.setenv("KJS__STORAGE__MAX_UPLOAD_MB", "500")  # above the max (R91.ii)
+    monkeypatch.setenv("KJS__SLA__RESPOND_MINUTES", "7")  # fine
+    problems = ini.env_problems()
+    assert any("KJS__APP__JOBS_ENABLE:" in p for p in problems)
+    assert any("KJS__NOPE__X:" in p for p in problems)
+    assert any("storage.ini" in p and "max_upload_mb" in p for p in problems)
+    assert not any("sla" in p.lower() for p in problems)
