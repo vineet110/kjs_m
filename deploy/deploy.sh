@@ -15,7 +15,11 @@ MIGRATION_DATABASE_URL="$(grep -E '^MIGRATION_DATABASE_URL=' .env 2>/dev/null | 
 [ -n "$MIGRATION_DATABASE_URL" ] || { echo "MIGRATION_DATABASE_URL is missing in deploy/.env (needed for migrations)"; exit 1; }
 export MIGRATION_DATABASE_URL
 
-git pull --ff-only
+# The pull may change this very script: run the NEW one from here on, not the old copy bash is reading (CR35)
+if [ -z "${KJS_DEPLOY_PULLED:-}" ]; then
+  git pull --ff-only
+  KJS_DEPLOY_PULLED=1 exec bash "./$(basename "$0")" "$@"
+fi
 TAG="$(git rev-parse --short HEAD)"
 export TAG  # beats TAG in .env for this run, so each deploy gets its own image tag (kjs-api:<commit>)
 echo "deploying $TAG"
