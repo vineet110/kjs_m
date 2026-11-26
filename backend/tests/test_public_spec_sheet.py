@@ -4,7 +4,7 @@ without it (as the staff preview does); pictures and everything else stay sandbo
 from tests.conftest import HDR, login, make_user, real_png
 from tests.test_files import PDF, _upload
 
-PNG = ("photo.png", b"\x89PNG\r\n\x1a\n..IEND\xaeB`\x82", "image/png")
+PNG = ("photo.png", real_png(), "image/png")  # a real picture: uploads are checked (#135)
 
 
 async def _public(client, file) -> int:
