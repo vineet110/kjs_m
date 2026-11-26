@@ -33,6 +33,10 @@ from app.services.harvest_filter import (
 log = logging.getLogger("app.harvest")
 
 BOT_USER_AGENT = "KJS-Lead-Harvester/1.0 (+https://kjsindia.com)"
+# A phone number in a page's text (scrape_html_source). Format rules, not tunables: a phone has 9 to 15
+# digits (15 = the E.164 maximum; 9 keeps out pin codes, dates and quantities)
+PHONE_IN_TEXT = re.compile(r"\+?[1-9]\d{0,3}(?:[\s.-]?\d{2,5}){2,4}(?!\d)")
+PHONE_MIN_DIGITS, PHONE_MAX_DIGITS = 9, 15
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
 # API keys only from HARVEST_ settings (security fix after the PR #53 review).
 
@@ -280,10 +284,13 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
             primary_email = em.group(0)
 
     if not primary_phone:
-        # Any grouping: "+91 98765 43210" (groups of 5) was missed before (R57)
-        ph = re.search(r"\+?[1-9]\d{0,3}(?:[\s.-]?\d{2,5}){2,4}(?!\d)", text_clean)
+        # Any grouping: "+91 98765 43210" (groups of 5) was missed before (R57). The pattern alone also takes
+        # a pin code ("400001"), a date ("2026-11-27") or "MOQ 10000" that comes first, so the first match
+        # with a phone's number of digits wins
+        ph = next((m.group(0) for m in PHONE_IN_TEXT.finditer(text_clean)
+                   if PHONE_MIN_DIGITS <= len(re.sub(r"\D", "", m.group(0))) <= PHONE_MAX_DIGITS), "")
         if ph:
-            primary_phone = ph.group(0)
+            primary_phone = ph
 
     # Check for title
     title_m = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)

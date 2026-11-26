@@ -26,10 +26,8 @@ async def test_unreadable_robots_txt_means_nothing_is_fetched():
 
 def test_the_scraper_takes_a_number_without_the_digits_around_it():
     import re
-    from app.services import harvest_service
-    import inspect
-    pattern = re.search(r'ph = re.search\(r"(.+?)", text_clean\)', inspect.getsource(harvest_service)).group(1)
-    m = re.search(pattern, "Phone: +91 98765 43210 9am-6pm, since 1998")
+    from app.services.harvest_service import PHONE_IN_TEXT
+    m = PHONE_IN_TEXT.search("Phone: +91 98765 43210 9am-6pm, since 1998")
     assert m and re.sub(r"\D", "", m.group(0)) == "919876543210"
 
 
