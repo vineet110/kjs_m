@@ -335,6 +335,8 @@ CR11. The running API has the database superuser password  ✅ FIXED (PR #43, wi
 
 CR12. Re-opening a lead that was closed on time sends a false "not closed in time" alert  🟢
 
+   27 Nov: fix in PR #124. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/services/lead_service.py:192` (reopen), `:260` (`sla_check`)
 
    i.    R4 covers a lead at level 2. This is the other case: a lead closed on time has level 0 or 1.
@@ -348,6 +350,8 @@ CR12. Re-opening a lead that was closed on time sends a false "not closed in tim
 
 
 CR13. "Step done" and "finish board" at the same moment leave open tasks on a finished board  🟢
+
+   27 Nov: already fixed (checked 27 Nov: the step action locks the board). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `backend/app/services/board_service.py:255` (`_step_for_action`), `:301` (`finish`)
 
@@ -388,6 +392,8 @@ CR14. A night-shift missed punch can't be fixed  🟢
 
 CR15. Background jobs can alert about something that was just fixed  🟢
 
+   27 Nov: fix in PR #127. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `lead_service.py` (`sla_check`), `board_service.py` (`board_alerts`)
 
    i.    The job reads lead 42 as "new". At that moment the employee logs a call and saves. The job
@@ -402,6 +408,8 @@ CR15. Background jobs can alert about something that was just fixed  🟢
 
 CR16. Board tasks let one employee edit colleagues' tasks  🟢
 
+   27 Nov: fix in PR #123. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/services/board_service.py:193` (`created_by=actor.id`),
           `backend/app/services/task_service.py:70` (the creator may edit)
 
@@ -414,6 +422,8 @@ CR16. Board tasks let one employee edit colleagues' tasks  🟢
 
 CR17. Buyer import: two gaps in the duplicate check  🟢
 
+   27 Nov: fix in PR #123. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/services/assign_service.py` (`import_records`)
 
    i.    Rows without an email are matched by company name only. "Metro Cash & Carry" in five
@@ -425,6 +435,8 @@ CR17. Buyer import: two gaps in the duplicate check  🟢
 
 CR18. "My leads" has no paging and can hide old open leads  🟢
 
+   27 Nov: already fixed (checked 27 Nov: My leads pages with offset). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/api/v1/endpoints/employee.py:38`
 
    i.    It returns the newest 200, closed ones included. An old lead still in "contacted" (a long
@@ -434,6 +446,8 @@ CR18. "My leads" has no paging and can hide old open leads  🟢
 
 
 CR19. A product with a long name: uploading its file gives a 500 and leaves a stray file  🟢
+
+   27 Nov: fix in PR #124. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `backend/app/models/file.py:22` (`owner_id` is `String(60)`),
           `backend/app/services/catalog_service.py:15` (slugs up to 110 characters)
@@ -448,6 +462,8 @@ CR19. A product with a long name: uploading its file gives a 500 and leaves a st
 
 CR20. Holiday name has no length limit (500 instead of a clear error)  🟢
 
+   27 Nov: fix in PR #121. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/api/v1/endpoints/admin.py:192-194`
 
    i.    `HolidayIn.name: str` has no limit, but the column is `String(120)`; an empty name is also
@@ -458,6 +474,8 @@ CR20. Holiday name has no length limit (500 instead of a clear error)  🟢
 
 
 CR21. Product names with no English letters get an empty web address  🟢
+
+   27 Nov: fix in PR #123. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `backend/app/services/catalog_service.py:14` (`slugify`)
 
@@ -470,6 +488,8 @@ CR21. Product names with no English letters get an empty web address  🟢
 
 CR22. With R2 storage, public spec sheets always download instead of opening  🟢
 
+   27 Nov: fix in PR #125. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `backend/app/services/file_service.py:155`, `backend/app/core/storage.py` (`url`)
 
    i.    `download()` always asks R2 for `response-content-disposition: attachment`, even for public
@@ -479,6 +499,8 @@ CR22. With R2 storage, public spec sheets always download instead of opening  �
 
 
 CR23. Seeding the catalogue can add products into a hidden category  🟢
+
+   27 Nov: fix in PR #123. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `backend/app/seed_catalogue.py:257` and below
 
@@ -490,6 +512,8 @@ CR23. Seeding the catalogue can add products into a hidden category  🟢
 
 
 CR24. Smaller backend points  🟢
+
+   27 Nov: i, iv in PR #123; ii in PR #125; v in PR #132; iii still open (A79 decision). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    i.    `analytics_service.py:58-60`: "tasks done" is grouped by name, so two staff with the same
          name are merged. Group by `User.id, User.name`.
@@ -517,6 +541,8 @@ CR24. Smaller backend points  🟢
 
 CR25. Task due times use the laptop's time zone, but the page says "IST"  🟢
 
+   27 Nov: already fixed (checked 27 Nov: the tasks page reads the box as IST). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `frontend/src/app/[locale]/(employee)/employee/tasks/page.tsx:40`
 
    i.    `new Date(f.due)` reads the time in the laptop's zone. A salesperson in Dubai sets "17:00"
@@ -527,6 +553,8 @@ CR25. Task due times use the laptop's time zone, but the page says "IST"  🟢
 
 
 CR26. Koko widget: double leads, small screens, screen readers  🟢
+
+   27 Nov: fix in PR #128. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `frontend/src/components/public/KokoChatWidget.tsx:56`, `:80`
 
@@ -539,6 +567,8 @@ CR26. Koko widget: double leads, small screens, screen readers  🟢
 
 
 CR27. Portal stays on "Loading..." forever if the session check fails with anything but 401  🟢
+
+   27 Nov: already fixed (checked 27 Nov: PortalShell has an error state with Try again). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `frontend/src/components/portal/PortalShell.tsx:64-67`
 
@@ -554,6 +584,8 @@ CR27. Portal stays on "Loading..." forever if the session check fails with anyth
 
 CR28. After login, a portal link loses its query string  🟢
 
+   27 Nov: fix in PR #120. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `frontend/src/proxy.ts:24` (no cookie), `frontend/src/components/portal/PortalShell.tsx:65`
           (cookie there, session expired)
 
@@ -568,6 +600,8 @@ CR28. After login, a portal link loses its query string  🟢
 
 CR29. Home page: empty banner text when one API call fails  🟢
 
+   27 Nov: fix in PR #120. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `frontend/src/app/[locale]/(public)/(home)/page.tsx:57`
 
    i.    `texts()` returns `{}` when `/public/texts` fails, and the fallback is now `''`. The comment
@@ -577,6 +611,8 @@ CR29. Home page: empty banner text when one API call fails  🟢
 
 
 CR30. Home page: "50+ product families" when there are none  🟢
+
+   27 Nov: already fixed (checked 27 Nov: the '50+' stat is gone). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `frontend/src/app/[locale]/(public)/(home)/page.tsx:133`
 
@@ -598,6 +634,8 @@ CR31. Home page: the only `h1` is hidden  🟢
 
 
 CR32. `Reveal.tsx` measures every waiting block on every scroll  🟢
+
+   27 Nov: already fixed (checked 27 Nov: Reveal uses one shared IntersectionObserver). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `frontend/src/components/public/Reveal.tsx:88` (`onScrollOnce`)
 
@@ -629,6 +667,8 @@ CR33. `npx tsc --noEmit` fails on a fresh clone  🟢
 
 CR34. Postgres says "ready" too early on the very first start  🟢
 
+   27 Nov: fix in PR #126. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+
    Where: `deploy/docker-compose.prod.yml:27`
 
    i.    `pg_isready` without `-h` checks the local socket. On first start, Postgres runs its setup
@@ -639,6 +679,8 @@ CR34. Postgres says "ready" too early on the very first start  🟢
 
 
 CR35. `deploy.sh` runs its old self after `git pull`  🟢
+
+   27 Nov: fix in PR #126. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `deploy/deploy.sh:12`
 
@@ -651,6 +693,8 @@ CR35. `deploy.sh` runs its old self after `git pull`  🟢
 
 
 CR36. CI tests on Postgres 16, production runs Postgres 17  🟢
+
+   27 Nov: fix in PR #126. Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
 
    Where: `.github/workflows/ci.yml:19` (`pgvector/pgvector:pg16`), `deploy/docker-compose.prod.yml:16`
 
