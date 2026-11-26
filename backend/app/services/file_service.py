@@ -12,7 +12,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from fastapi import UploadFile
 from sqlalchemy import select
@@ -47,8 +47,10 @@ Cleaner = Callable[[str], str]
 CLEANERS: dict[str, Cleaner] = {}
 # owner_type -> the only extensions it takes (e.g. a complaint's screenshot is a picture). Others: allowed_types.
 OWNER_TYPES: dict[str, set[str]] = {}
-# Owners whose pictures are shrunk and cleaned on upload (image_shrink: size, quality, no GPS data)
+# Owners whose pictures are shrunk and cleaned on upload (image_shrink: size, quality, no GPS data).
+# SHRINK_PUBLIC: only their pictures shown on the website (a private print file keeps its full size).
 SHRINK: set[str] = set()
+SHRINK_PUBLIC: set[str] = set()
 
 TYPES = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
          "webp": "image/webp", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -64,9 +66,14 @@ ONLY_FOR = {"heic": {"lead"}}
 
 def register_owner(owner_type: str, check: AccessCheck, public: PublicCheck | None = None,
                    approvers: Approvers | None = None, clean: Cleaner | None = None,
-                   types: set[str] | None = None, shrink: bool = False) -> None:
+                   types: set[str] | None = None, shrink: bool | Literal["public"] = False) -> None:
+    """shrink: True = every picture, "public" = only pictures marked to show on the website."""
+    if isinstance(shrink, str) and shrink != "public":
+        raise ValueError(f"shrink must be True, False or 'public', not {shrink!r}")  # a typo must not shrink all
     OWNERS[owner_type] = check
-    if shrink:
+    if shrink == "public":
+        SHRINK_PUBLIC.add(owner_type)
+    elif shrink:
         SHRINK.add(owner_type)
     if types:
         OWNER_TYPES[owner_type] = types
@@ -154,7 +161,7 @@ async def upload(db: AsyncSession, user: User, upload_file: UploadFile, owner_ty
     if not await asyncio.to_thread(file_check.is_valid, ext, data):
         raise AppError(422, "file_broken", f"This file looks damaged, or isn't really a .{ext} file. "
                        "Please check it and try again.")
-    if owner_type in SHRINK:
+    if owner_type in SHRINK or (is_public and owner_type in SHRINK_PUBLIC):
         try:
             data = await asyncio.to_thread(image_shrink.shrink, ext, data)
         except image_shrink.NotAPicture as e:

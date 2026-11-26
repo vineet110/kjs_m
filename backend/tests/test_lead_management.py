@@ -8,9 +8,11 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.lead import Lead
 from app.models.user import User
-from tests.conftest import HDR, login, make_user
+from tests.conftest import HDR, real_png, login, make_user
 
 ENQ = {"name": "Omar", "email": "omar@alnoor.ae", "consent": True, "phone": "+91 98765 43210", "message": "Need sticks"}
+
+
 def _zip(parts: dict[str, bytes]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
@@ -353,7 +355,7 @@ async def test_no_reporting_loops(client):
     assert await set_boss(c, a) == 422
 
 
-PNG = ("me.png", b"\x89PNG\r\n\x1a\n" + b"0" * 32 + b"IEND\xaeB`\x82", "image/png")
+PNG = ("me.png", real_png(), "image/png")
 
 
 async def _photo(client, owner_id) -> int:
