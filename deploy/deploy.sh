@@ -31,7 +31,9 @@ $COMPOSE up -d db
 $COMPOSE run --rm -e MIGRATION_DATABASE_URL backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql
 $COMPOSE up -d --remove-orphans
-# The app containers are new and may have new addresses: make nginx look them up again now
+# The app containers are new and may have new addresses: make nginx look them up again now.
+# Empty the 10 s page cache first: a cached page names the OLD build's script files, which are gone.
+$COMPOSE exec -T nginx sh -c 'rm -rf /var/cache/nginx/pages/*' || true
 $COMPOSE exec -T nginx nginx -s reload || true
 
 # Wait until the API (with its database) and the website both answer through nginx
