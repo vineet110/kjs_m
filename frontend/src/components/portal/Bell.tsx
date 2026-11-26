@@ -85,7 +85,7 @@ export default function Bell({ meId }: { meId: number }) {
         )}
       </button>
       {open && (
-        <div className="fixed inset-x-4 top-12 z-50 flex max-h-[calc(100dvh-4rem)] flex-col overflow-hidden rounded-xl border bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:block sm:max-h-none sm:w-80">{/* phone: pinned inside the screen (XB-29) */}
+        <div className="fixed inset-x-4 top-12 z-50 flex max-h-[calc(100dvh-4rem)] flex-col overflow-hidden rounded-xl border bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80">{/* phone: pinned inside the screen (XB-29) */}
           <div className="flex items-center justify-between border-b px-3 py-2">
             <span className="text-sm font-semibold">Notifications</span>
             {shown.length > 0 && <button onClick={readAll} className="text-xs underline">Mark all read</button>}
