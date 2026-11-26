@@ -31,6 +31,18 @@ How a visitor reaches us:
 
 No port on the server is open to the internet. cloudflared connects out to Cloudflare.
 
+**The live Hostinger VPS is set up differently (since 23 Nov, backlog R118):**
+
+   Internet -> host nginx on the VPS (HTTPS, ports 80 and 443) -> Docker nginx (127.0.0.1:8080) -> website / API
+
+   i.    No Cloudflare and no cloudflared. The host nginx (installed on the VPS itself, not in Docker,
+         version 1.26.3) holds the HTTPS certificate and sends http to https.
+   ii.   The security headers and CSP come from the Docker nginx (`nginx/security-headers.conf`) and pass
+         through the host nginx unchanged. Change them here, never on the server, or the next deploy undoes it.
+   iii.  The host nginx config is NOT in this repo yet. It must have `server_tokens off;` in its `http { }`
+         block (hides the version, ZAP SEC-04). Check: `curl -sI https://twins.kjsindia.com | grep -i server`
+         shows `nginx` with no number.
+
 
 
 ## 2. First-time setup
