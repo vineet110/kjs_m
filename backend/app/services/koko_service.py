@@ -218,6 +218,8 @@ async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "",
     """Koko's answer, whether to offer the enquiry form, and the catalogue card (first reply on a
     product or category page only; also when the AI can't answer)."""
     history = [m.model_dump() for m in messages[-12:]]  # cap the context we send
+    while history and history[0]["role"] != "user":  # ...and it starts with the visitor, never with Koko
+        history.pop(0)
     # Koko hasn't answered yet in this chat (the widget never sends its own error lines), so a first try
     # that failed still gets the card next time
     # (`first` can be given: the endpoint may send only the visitor's own lines, R71)

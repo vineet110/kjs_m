@@ -62,3 +62,31 @@ async def test_a_repeated_question_is_saved_once(client, sent):
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == "c4"))
     assert [m["role"] for m in saved] == ["user", "assistant"]
+
+
+async def test_a_visitor_saying_yes_twice_keeps_kokos_question(client, sent):
+    one = {"chat_id": "c9", "messages": [{"role": "user", "content": "do you ship to UAE?"}]}
+    assert (await client.post(CHAT, json=one, headers=HDR)).status_code == 200
+    two = {"chat_id": "c9", "messages": [*one["messages"], {"role": "assistant", "content": "Koko reply 1"},
+                                         {"role": "user", "content": "yes"}]}
+    assert (await client.post(CHAT, json=two, headers=HDR)).status_code == 200
+    three = {"chat_id": "c9", "messages": [*two["messages"], {"role": "assistant", "content": "Koko reply 2"},
+                                           {"role": "user", "content": "yes"}]}  # a real second "yes"
+    assert (await client.post(CHAT, json=three, headers=HDR)).status_code == 200
+    assert [m["content"] for m in sent[-1] if m["role"] == "assistant"] == ["Koko reply 1", "Koko reply 2"]
+
+
+async def test_the_history_sent_to_the_ai_starts_with_the_visitor(monkeypatch):
+    from app.core.database import AsyncSessionLocal
+    from app.schemas.lead import ChatMessage
+    from app.services import koko_service
+    seen = {}
+
+    async def fake_chat(system, messages, max_tokens=None):
+        seen["h"] = messages
+        return "ok"
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    lines = [ChatMessage(role="user" if i % 2 == 0 else "assistant", content=f"line {i}") for i in range(31)]
+    async with AsyncSessionLocal() as db:
+        await koko_service.reply(db, lines, "")
+    assert seen["h"][0]["role"] == "user"

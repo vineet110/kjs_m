@@ -24,10 +24,12 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     question = data.messages[-1]
     # Only rows shaped like a chat line (an odd saved row, e.g. from older code, must never cause a 500)
     stored = [m for m in await content_service.stored_chat(db, data.chat_id, ip_hash) or [] if isinstance(m, dict)]
-    # The same question sent again (the widget retries after a time-out): answer it again in place, don't
-    # save it twice
-    if (len(stored) >= 2 and stored[-2].get("role") == "user" and stored[-2].get("content") == question.content
-            and stored[-1].get("role") == "assistant"):
+    # The same question sent again because its answer never arrived (the widget retries after a time-out):
+    # answer it again in place, don't save it twice. Only when the browser has no reply after it: a visitor
+    # who really says "yes" twice keeps Koko's question in between (re-review of #134)
+    browser_got_reply = len(data.messages) >= 2 and data.messages[-2].role == "assistant"
+    if (not browser_got_reply and len(stored) >= 2 and stored[-2].get("role") == "user"
+            and stored[-2].get("content") == question.content and stored[-1].get("role") == "assistant"):
         stored = stored[:-2]
     if stored:
         past = []
@@ -47,7 +49,9 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     # to itself), so a reply that never arrived still gets its card next time
     first = not any(m.role == "assistant" for m in data.messages)
     reply, suggest, card = await koko_service.reply(db, messages, data.page, first=first)
-    if data.chat_id:  # keep the transcript (Admin > Koko) so we can improve the facts
+    # Keep the transcript (Admin > Koko) so we can improve the facts. Not when the visitor's IP is unknown:
+    # then we can't tell whose chat it is, and saving would overwrite it with only the visitor's lines
+    if data.chat_id and ip_hash is not None:
         earlier = stored if stored else [m.model_dump() for m in messages[:-1]]  # the whole saved chat, not the cut
         convo = earlier + [question.model_dump(), {"role": "assistant", "content": reply}]
         await content_service.save_chat(db, data.chat_id, data.page, convo, suggest, ip_hash)
