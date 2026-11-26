@@ -236,7 +236,9 @@ async def create(db: AsyncSession, user: User, data) -> dict:
     await _start_step(db, board, first, user)
     audit_service.record(db, actor=user, action="board.created", entity_type="board", entity_id=code,
                          after={"steps": len(plan), "deadline": data.deadline.isoformat(), "plan_late": plan_late})
-    notification_service.notify(db, member_ids - {user.id}, "board.added", f"You are on order board {code}",
+    # Step 1's people already got "step started" for this same moment: one message, not two (CR24.ii)
+    first_step_people = set(data.steps[0].member_ids) if data.steps else set()
+    notification_service.notify(db, member_ids - {user.id} - first_step_people, "board.added", f"You are on order board {code}",
                                 f"{board.name} for {board.client}.", f"/employee/order-boards/{code}")
     await db.commit()
     return await detail(db, user, code)

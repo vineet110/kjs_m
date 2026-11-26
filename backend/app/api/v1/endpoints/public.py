@@ -51,7 +51,7 @@ async def create_lead(data: LeadIn, request: Request, db: AsyncSession = Depends
 @router.get("/files/{file_id}")
 async def public_file(file_id: int, db: AsyncSession = Depends(get_db)):
     """Only files marked public (product images). Everything else is a 404 here."""
-    return send_file(*await file_service.download(db, None, file_id), inline=True)
+    return send_file(*await file_service.download(db, None, file_id, inline=True), inline=True)
 
 
 @router.get("/texts")

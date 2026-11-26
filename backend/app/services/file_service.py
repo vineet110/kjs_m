@@ -205,7 +205,8 @@ async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile
     return f
 
 
-async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[StoredFile, str | None, Path | bytes | None]:
+async def download(db: AsyncSession, user: User | None, file_id: int,
+                   inline: bool = False) -> tuple[StoredFile, str | None, Path | bytes | None]:
     """Returns (file, redirect_url, content). R2 gives a 5-minute link; local storage gives the path
     on disk, so the file is streamed instead of loaded into memory."""
     f = await _get(db, file_id)
@@ -214,7 +215,7 @@ async def download(db: AsyncSession, user: User | None, file_id: int) -> tuple[S
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
         await _check(db, user, f.owner_type, f.owner_id, "read")
-    url = storage().url(f.key, safe_name(f.name))  # safe_name: quotes or non-Latin names would break the header
+    url = storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
     store = storage()
