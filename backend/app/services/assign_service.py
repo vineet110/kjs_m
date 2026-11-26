@@ -13,6 +13,7 @@ import asyncio
 import csv
 import io
 import logging
+import re
 import zipfile
 import zlib
 from datetime import datetime, timezone
@@ -109,7 +110,17 @@ def read_rows(filename: str, data: bytes) -> list[dict]:
     return rows
 
 
+def _buyer_key(company: str, email: str | None, phone: str | None) -> tuple[str, str]:
+    """The same buyer: same company and email; with no email, same company and phone digits (CR17.i: "Metro
+    Cash & Carry" in five cities with phones only were four "already imported")."""
+    email = (email or "").strip().lower()
+    return company.strip().lower(), email or "phone:" + re.sub(r"\D", "", phone or "")
+
+
 async def import_records(db: AsyncSession, user: User, filename: str, data: bytes, default_category: str) -> dict:
+    # One import at a time: two uploads of the same file at once would both see "nothing imported yet" (CR17.ii).
+    # Held until this transaction ends.
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('buyer_import'))"))
     cats = {c.slug: c.slug for c in (await db.scalars(select(Category))).all()}
     cats |= {c.name.lower(): c.slug for c in (await db.scalars(select(Category))).all()}
     rows = await asyncio.to_thread(read_rows, filename, data)  # parsing is slow: keep the server responsive
@@ -121,9 +132,9 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
     companies = {r["company"].strip().lower() for r in rows if r["company"]}
     seen = set()
     for chunk in [sorted(companies)[i:i + 1000] for i in range(0, len(companies), 1000)]:
-        seen |= set((await db.execute(
-            select(func.lower(BuyerRecord.company), func.lower(BuyerRecord.email))
-            .where(func.lower(BuyerRecord.company).in_(chunk)))).all())
+        seen |= {_buyer_key(c, e, p) for c, e, p in (await db.execute(
+            select(BuyerRecord.company, BuyerRecord.email, BuyerRecord.phone)
+            .where(func.lower(BuyerRecord.company).in_(chunk)))).all()}
     added, skipped = 0, []
     for n, r in enumerate(rows, start=2):  # row 1 = headers
         cat = cats.get((r["category"] or default_category).strip().lower())
@@ -133,7 +144,7 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
         if not cat:
             skipped.append({"row": n, "reason": f"unknown category '{r['category'] or default_category}'"})
             continue
-        key = (r["company"].strip().lower(), r["email"].strip().lower())
+        key = _buyer_key(r["company"], r["email"], r["phone"])
         if key in seen:
             skipped.append({"row": n, "reason": "already imported"})
             continue
