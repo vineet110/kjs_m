@@ -123,3 +123,37 @@ async def test_two_requests_at_once_both_keep_their_turn():
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == STRONG))
     assert len(saved) == 6 and {m["content"] for m in saved} >= {"q1", "a1", "q2", "a2"}
+
+
+async def test_two_first_messages_at_once_never_fail():
+    import asyncio
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.content import KokoChat
+    from app.services import content_service
+    new_id = "9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
+
+    async def one(n):
+        async with AsyncSessionLocal() as db:
+            await content_service.append_chat(db, new_id, "", {"role": "user", "content": f"q{n}"},
+                                              {"role": "assistant", "content": f"a{n}"}, False, "ip")
+    await asyncio.gather(one(1), one(2))  # both create the chat at the same moment
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(KokoChat.messages).where(KokoChat.chat_id == new_id))
+    assert len(saved) == 4
+
+
+async def test_a_stale_copy_in_the_session_never_overwrites_a_newer_turn():
+    from app.core.database import AsyncSessionLocal
+    from app.services import content_service
+    cid = "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9"
+    async with AsyncSessionLocal() as a, AsyncSessionLocal() as b:
+        await content_service.append_chat(a, cid, "", {"role": "user", "content": "q0"},
+                                          {"role": "assistant", "content": "a0"}, False, "ip")
+        await content_service.stored_chat(b, cid, "ip")  # b loads the chat, then waits on the AI...
+        await content_service.append_chat(a, cid, "", {"role": "user", "content": "q1"},
+                                          {"role": "assistant", "content": "a1"}, False, "ip")
+        await content_service.append_chat(b, cid, "", {"role": "user", "content": "q2"},
+                                          {"role": "assistant", "content": "a2"}, False, "ip")
+        saved = await content_service.stored_chat(a, cid, "ip")
+    assert [m["content"] for m in saved] == ["q0", "a0", "q1", "a1", "q2", "a2"]

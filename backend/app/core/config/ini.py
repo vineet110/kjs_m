@@ -121,6 +121,9 @@ class KokoIni(BaseModel):
     http_timeout_seconds: int = Field(20, ge=5, le=55)  # one HTTP request to the AI provider
     message_max: int = Field(2000, ge=200, le=10000)  # characters of one chat line (visitor or Koko)
     chat_max: int = Field(8000, ge=1000, le=60000)  # characters of the whole chat the AI may be sent
+    history_lines: int = Field(12, ge=2, le=40)  # chat lines (newest) the AI is sent with each question
+    transcript_lines: int = Field(40, ge=10, le=200)  # chat lines kept per conversation (Admin > Koko)
+    request_lines: int = Field(60, ge=2, le=400)  # chat lines the widget may send in one request
 
     @model_validator(mode="after")
     def timeout_order(self):

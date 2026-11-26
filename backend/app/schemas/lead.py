@@ -123,7 +123,7 @@ class Contact(BaseModel):
 
 
 class KokoIn(BaseModel):
-    messages: list[ChatMessage] = Field(min_length=1, max_length=20)
+    messages: list[ChatMessage] = Field(min_length=1)  # at most koko.ini request_lines (checked below)
     page: str = Field(default="", max_length=255)
     chat_id: str = Field(default="", max_length=40, pattern=r"^[A-Za-z0-9-]*$")  # random id from the browser
 
@@ -133,7 +133,9 @@ class KokoIn(BaseModel):
         # common prompt-injection trick, and the last message must be the visitor's question.
         if self.messages[0].role != "user" or self.messages[-1].role != "user":
             raise ValueError("The conversation must start and end with a visitor message.")
-        if sum(len(m.content) for m in self.messages) > cfg().koko.chat_max:
+        # Only a line count: the server sends the AI its own saved copy of the chat, cut to chat_max, so a long
+        # chat is never refused for its length (each line is still at most message_max)
+        if len(self.messages) > cfg().koko.request_lines:
             raise ValueError("The conversation is too long. Please start a new chat.")
         return self
 

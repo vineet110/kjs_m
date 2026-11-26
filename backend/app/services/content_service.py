@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -230,19 +231,27 @@ async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict,
     """Add one question and Koko's reply to the saved transcript. The row is locked and the pair appended to
     what is there NOW, so two requests at the same moment both keep their turn. retry: the same question
     whose answer never reached the browser replaces its own earlier answer instead of being saved twice."""
-    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id).with_for_update())
-    if row is not None and not _owns(row, chat_id, ip_hash):
-        return  # someone else's chat id: never touch another visitor's transcript
-    if row is None:
+    exists = await db.scalar(select(KokoChat.id).where(KokoChat.chat_id == chat_id))
+    if exists is None:
         if len(chat_id) < STRONG_CHAT_ID and ip_hash is None:
             return  # a weak id with no IP: nobody could ever prove it is theirs
-        row = KokoChat(chat_id=chat_id, page=page[:255], messages=[], suggested_enquiry=False, ip_hash=ip_hash)
-        db.add(row)
+        # Two first messages at the same moment: one creates the row, the other's insert is simply skipped
+        # (chat_id is unique), never an error after the AI answer was already made
+        await db.execute(pg_insert(KokoChat).values(chat_id=chat_id, page=page[:255], messages=[],
+                                                    suggested_enquiry=False, ip_hash=ip_hash)
+                         .on_conflict_do_nothing(index_elements=["chat_id"]))
+    # Locked and read fresh from the database (populate_existing): the copy this session loaded before the
+    # slow AI call may be out of date, and appending to it would drop a turn saved meanwhile
+    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id).with_for_update()
+                          .execution_options(populate_existing=True))
+    if row is None or not _owns(row, chat_id, ip_hash):
+        await db.rollback()
+        return  # someone else's chat id: never touch another visitor's transcript
     messages = [m for m in (row.messages or []) if isinstance(m, dict)]
     if (retry and len(messages) >= 2 and messages[-2].get("content") == question["content"]
             and messages[-1].get("role") == "assistant"):
         messages = messages[:-2]
-    row.messages = (messages + [question, reply])[-40:]
+    row.messages = (messages + [question, reply])[-cfg().koko.transcript_lines:]
     row.suggested_enquiry = row.suggested_enquiry or suggested
     await db.commit()
 

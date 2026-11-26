@@ -217,7 +217,7 @@ async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "",
                 first: bool | None = None) -> tuple[str, bool, KokoCatalogue | None]:
     """Koko's answer, whether to offer the enquiry form, and the catalogue card (first reply on a
     product or category page only; also when the AI can't answer)."""
-    history = [m.model_dump() for m in messages[-12:]]  # cap the context we send
+    history = [m.model_dump() for m in messages[-cfg().koko.history_lines:]]  # cap the context we send
     while history and history[0]["role"] != "user":  # ...and it starts with the visitor, never with Koko
         history.pop(0)
     # Koko hasn't answered yet in this chat (the widget never sends its own error lines), so a first try

@@ -25,9 +25,10 @@ const HELLO: Msg = {
 
 /** 36 random characters (crypto.randomUUID, or 16 random bytes where that is missing). */
 function newChatId(): string {
-  const c = globalThis.crypto;
-  if (typeof c.randomUUID === 'function') return c.randomUUID();
-  const hex = Array.from(c.getRandomValues(new Uint8Array(16)), (b: number) => b.toString(16).padStart(2, '0')).join('');
+  const c = globalThis.crypto as Crypto | undefined;
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  const bytes = c?.getRandomValues ? c.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  const hex = Array.from(bytes, (b: number) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
@@ -44,7 +45,8 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
   // Random id for this conversation (no personal data), so staff can read the transcript in Admin > Koko.
   // A long random id: knowing it is what makes the saved chat yours (the server trusts ids of 32+ characters
   // even when the phone changes network); crypto, not Math.random, so nobody can guess it
-  const chatId = useRef(newChatId());
+  const chatId = useRef('');
+  if (!chatId.current) chatId.current = newChatId(); // once per chat, not on every render
 
   // Braces matter: an effect may only return a cleanup function. Newer Chrome makes
   // scrollIntoView() return a Promise, which React then tries to call -> "destroy is not a function".

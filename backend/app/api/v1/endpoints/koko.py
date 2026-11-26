@@ -33,7 +33,7 @@ async def koko_chat(data: KokoIn, request: Request, db: AsyncSession = Depends(g
     if retry:
         stored = stored[:-2]
     message_max, chat_max = cfg().koko.message_max, cfg().koko.chat_max
-    if stored:
+    if stored or retry:  # a retry with nothing saved left still uses only the question, never it twice
         past = []
         for m in stored:
             try:  # an odd saved row is skipped, never a 500 for the rest of the chat
