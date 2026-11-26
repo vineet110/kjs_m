@@ -207,15 +207,18 @@ async def _get(db: AsyncSession, file_id: int, lock: bool = False) -> StoredFile
 
 async def download(db: AsyncSession, user: User | None, file_id: int,
                    inline: bool = False) -> tuple[StoredFile, str | None, Path | bytes | None]:
-    """Returns (file, redirect_url, content). R2 gives a 5-minute link; local storage gives the path
-    on disk, so the file is streamed instead of loaded into memory."""
+    """Returns (file, redirect_url, content). R2 gives a 5-minute link (except public photos, R44); local
+    storage gives the path on disk, so the file is streamed instead of loaded into memory."""
     f = await _get(db, file_id)
     if user is None:  # the public website: only public files of a live product
         if not (f.is_public and await _publicly_visible(db, f.owner_type, f.owner_id)):
             raise AppError(404, "not_found", "File not found.")
     elif not f.is_public:
         await _check(db, user, f.owner_type, f.owner_id, "read")
-    url = storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
+    # Public PHOTOS are sent by us (cacheable for an hour, see send_file), never as a new 5-minute R2 link on
+    # every view, which no browser or Cloudflare could cache (R44). Big files (spec PDFs) keep the link.
+    public_photo = user is None and f.content_type.startswith("image/")
+    url = None if public_photo else storage().url(f.key, safe_name(f.name), inline=inline)  # safe_name: quotes or non-Latin names would break the header
     if url:
         return f, url, None
     store = storage()
