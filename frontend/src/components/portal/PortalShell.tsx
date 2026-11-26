@@ -163,7 +163,9 @@ export default function PortalShell({ children, requirePerm }: { children: React
 
   // While the account loads (also right after logging in: the login spinner carries on here). Each page
   // then shows its own Loading while its data comes.
-  if (status.state === 'loading')
+  // Also while moving to an admin page this account may not open: the redirect is on its way, and the page
+  // must not render and fire requests that fail with 403 meanwhile
+  if (status.state === 'loading' || (status.state === 'ready' && !may(status.me)))
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loading />

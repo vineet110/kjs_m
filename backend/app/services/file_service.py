@@ -253,6 +253,7 @@ async def view(db: AsyncSession, user: User, file_id: int) -> tuple[StoredFile, 
 
 async def request_delete(db: AsyncSession, user: User, file_id: int, reason: str) -> dict:
     f = await _get(db, file_id, lock=True)
+    await _check_or_not_found(db, user, f)  # can't even see it: 404, like a missing file (TC-FILE-11)
     await _check(db, user, f.owner_type, f.owner_id, "write")  # seeing a file isn't enough to ask to delete it
     if f.delete_status == "requested":
         raise AppError(409, "already_requested", "Deletion was already requested.")
