@@ -9,11 +9,6 @@ from app.models.user import User
 from app.services import assign_service
 from tests.conftest import HDR, login, make_user
 
-try:
-    from app.models.assign import BuyerRecord
-except ImportError:  # the model's module name
-    from app.models import BuyerRecord
-
 
 async def _import(client, name: str, csv: str) -> dict:
     r = await client.post("/api/v1/assign/import", files={"file": (name, csv.encode(), "text/csv")}, headers=HDR)
