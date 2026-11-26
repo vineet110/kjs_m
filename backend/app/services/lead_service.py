@@ -575,6 +575,18 @@ async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:
             level, what = 2, "not closed"
         if not level:
             continue
+        # Late on the first (unlocked) read. Lock just this lead and look again before telling anyone: someone
+        # may have logged a call or closed it this very moment (CR15). A lead being saved right now is skipped
+        # and checked fresh next minute.
+        fresh = await db.scalar(select(Lead).where(Lead.id == lead.id).with_for_update(skip_locked=True)
+                                .execution_options(populate_existing=True))
+        if fresh is None or fresh.status == "closed" or fresh.escalation_level >= level:
+            continue
+        t = sla(fresh, now, holidays)
+        still = (fresh.status == "new" and now > t["respond_due_at"] + grace) if level == 1 else now > t["resolve_due_at"] + grace
+        if not still:
+            continue
+        lead = fresh
         lead.escalation_level = level
         owner = await db.get(User, lead.assigned_to) if lead.assigned_to else None
         who = owner.name if owner else "nobody yet"

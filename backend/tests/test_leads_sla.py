@@ -164,3 +164,16 @@ async def test_weekly_counts_for_overview_trend(client):
         await _new_lead(client, ist(d, "10:00"))
     async with AsyncSessionLocal() as db:
         assert await lead_service.weekly_counts(db, now=now) == (2, 1)
+
+
+async def test_a_lead_being_saved_right_now_is_not_alerted_about(client, sla_20_60_10):  # CR15
+    await make_user("admin@kjsindia.com", role="admin")
+    lead_id = await _new_lead(client, ist("2026-10-26", "10:00"))
+    async with AsyncSessionLocal() as saving, AsyncSessionLocal() as job:
+        await saving.scalar(select(Lead).where(Lead.id == lead_id).with_for_update())  # someone is saving it
+        skipped = await lead_service.sla_check(job, now=ist("2026-10-26", "10:45"))
+        await job.commit()
+        await saving.rollback()  # done saving
+        later = await lead_service.sla_check(job, now=ist("2026-10-26", "10:46"))
+        await job.commit()
+    assert (skipped["escalated"], later["escalated"]) == (0, 1)
