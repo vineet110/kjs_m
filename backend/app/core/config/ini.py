@@ -53,7 +53,9 @@ class AppIni(BaseModel):
     # Admin approval still guards every new account, and an old account is never linked by email without
     # a verified email (that would let anyone take over e.g. the first admin).
     require_verified_email: bool = True
-    jobs_enabled: bool = True
+    # Off unless a file or KJS__APP__JOBS_ENABLED says on: a bad or missing app.ini falls back to the
+    # defaults, and that must never switch the background jobs (SLA alerts, emails) on by itself (R91)
+    jobs_enabled: bool = False
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat
     job_timeout_seconds: int = Field(300, ge=30, le=1800)  # a stuck job is cancelled after this
@@ -594,11 +596,19 @@ def env_problems() -> list[str]:
         raw = _read_raw()
     except Exception as e:  # never stop the start over this check
         return problems + [f"config files could not be read: {e}"]
+    file_only = raw.get(FILE_ONLY, {})
     for section in sorted(sections):
+        model = Config.model_fields[section].annotation
         try:
-            Config.model_fields[section].annotation.model_validate(raw.get(section, {}))
+            model.model_validate(raw.get(section, {}))
         except ValidationError as e:
-            problems.append(_reason(e, section) + " (check the KJS__ env value and the file)")
+            # Blame the env value only when the file on its own is fine (else the mistake is in the file)
+            try:
+                model.model_validate(file_only.get(section, {}))
+                where = "a KJS__ env value is out of range or misspelt"
+            except ValidationError:
+                where = "the file itself is bad, see config.invalid"
+            problems.append(f"{_reason(e, section)} ({where})")
     return problems
 
 
@@ -632,7 +642,7 @@ class _Store:
                 return  # nothing changed since the last good load
             # With no good config yet, a failed load is tried again (on defaults jobs_enabled is true: never
             # settle for them quietly), but its error is logged only once per set of files
-            repeat = mtimes == self.mtimes and self.tried
+            repeat = not force and mtimes == self.mtimes and self.tried
             self.mtimes, self.tried = mtimes, True
             try:
                 new = _validate(_read_raw(), self.config if self.loaded_from_files else None)

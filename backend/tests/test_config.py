@@ -260,3 +260,9 @@ def test_a_misspelt_module_env_key_does_not_switch_every_area_on(config_dir, mon
     monkeypatch.setenv("KJS__MODULES__CHAT", "off")
     monkeypatch.setenv("KJS__MODULES__CHATT", "off")  # misspelt: modules refuse unknown areas
     assert ini.reload_now().modules.chat == "off"
+
+
+def test_a_bad_app_ini_on_a_fresh_start_never_switches_jobs_on(config_dir):
+    # Last review of #113: the defaults are what a bad file falls back to on a first load
+    write(config_dir / "app.ini", "[app]\njobs_enabled = false\nlead_rate_per_hour = x\n")
+    assert ini.reload_now().app.jobs_enabled is False
