@@ -300,6 +300,10 @@ async def add_catalogue(db: AsyncSession) -> None:
 
     existing = set((await db.scalars(select(Product.slug))).all())
     added = 0
+    # Products put into a category that is switched off never show on the site (CR23): count them and say so
+    hidden_cats = {slug for slug, c in existing_cats.items() if not c.is_active}
+    new_in_hidden = [p for p in [*PRODUCTS, *BEVERAGES] if p["slug"] not in existing and p["cat"] in hidden_cats]
+    into_hidden, used_hidden = len(new_in_hidden), sorted({p["cat"] for p in new_in_hidden})
     for p in PRODUCTS:
         if p["slug"] in existing:
             continue
@@ -321,6 +325,9 @@ async def add_catalogue(db: AsyncSession) -> None:
     await db.commit()
     total = len(PRODUCTS) + len(BEVERAGES)
     print(f"catalogue products: {added} added, {total - added} already there")
+    if into_hidden:
+        print(f"WARNING: {into_hidden} of them are in a switched-off category ({', '.join(used_hidden)}) "
+              "and won't show on the website until it is switched on (Admin > Products > Categories)")
 
 
 async def main() -> None:

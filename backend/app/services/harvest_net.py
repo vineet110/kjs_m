@@ -132,14 +132,17 @@ def check_url(url: str) -> str:
         raise ValueError("Use an https:// address (plain http is only allowed for hosts in HARVEST_ALLOW_HTTP_HOSTS).")
     if parts.username or parts.password:
         raise ValueError("Don't put a user name or password in the address.")
-    if host == "localhost" or host.endswith(_INTERNAL_SUFFIXES) or "." not in host.strip("[]"):
-        raise ValueError("The address must be a public website, not an internal one.")
     try:
         ipaddress.ip_address(host.strip("[]"))
         is_ip = True
     except ValueError:
         is_ip = False
-    if is_ip and not is_public_ip(host.strip("[]")):
+    if is_ip:
+        # An address typed as numbers (IPv4, or IPv6 in [brackets], which has no dot): judged by the address
+        # itself. Before, the "needs a dot" rule refused every IPv6 address, public ones too (R57.ii)
+        if not is_public_ip(host.strip("[]")):
+            raise ValueError("The address must be a public website, not an internal one.")
+    elif host == "localhost" or host.endswith(_INTERNAL_SUFFIXES) or "." not in host:
         raise ValueError("The address must be a public website, not an internal one.")
     return url
 

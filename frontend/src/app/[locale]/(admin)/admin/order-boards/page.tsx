@@ -99,7 +99,7 @@ function NewBoard({ onDone }: { onDone: () => void }) {
   const h = (k: keyof typeof head) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setHead({ ...head, [k]: e.target.value });
 
   return (
-    <form onSubmit={save} className="card space-y-4 p-5">
+    <form method="post" onSubmit={save} className="card space-y-4 p-5">
       {staffErr != null && <LoadError error={staffErr} onRetry={loadStaff} />}
       <div className="grid gap-3 md:grid-cols-4">
         <div><label className="label">Board code</label><input value={head.code} onChange={h('code')} required placeholder="ABC117-3" className="input uppercase" /></div>

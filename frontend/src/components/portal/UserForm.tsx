@@ -146,7 +146,7 @@ export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <form onSubmit={submit} className="card space-y-4 p-6 shadow-lg">
+      <form method="post" onSubmit={submit} className="card space-y-4 p-6 shadow-lg">
         <h2 className="text-xl font-semibold">{user ? 'Edit User' : 'User Create Form'}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label" htmlFor="u-name">Name<Star /></label><input id="u-name" value={v.name} onChange={set('name')} required minLength={2} maxLength={100} placeholder="Enter Name" className="input" /></div>
@@ -195,7 +195,7 @@ export default function UserForm({ user, onSaved }: { user?: StaffUser; onSaved?
           </div>
           <div>
             <label className="label" htmlFor="u-photo">Profile Image</label>
-            <input id="u-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input py-1.5 text-sm" />
+            <input id="u-photo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="input py-1.5 text-base md:text-sm" />
           </div>
         </div>
         {me.role === 'admin' && user?.id !== me.id && (

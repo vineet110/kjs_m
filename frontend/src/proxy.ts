@@ -6,6 +6,9 @@ const intl = createIntlMiddleware({
   locales: ['en'],
   defaultLocale: 'en',
   localePrefix: 'never',
+  // One language: no NEXT_LOCALE cookie at all (ZAP SEC-05 flagged it without Secure). With more
+  // languages, turn it back on with { secure: true, sameSite: 'lax' }.
+  localeCookie: false,
 });
 
 const SESSION_COOKIE = 'kjs_session';
@@ -24,7 +27,8 @@ export default function proxy(req: NextRequest) {
   if (isPortal && !noLogin && !req.cookies.get(SESSION_COOKIE)) {
     const url = req.nextUrl.clone();
     url.pathname = '/employee/login';
-    url.searchParams.set('next', pathname);
+    url.search = ''; // the page's own query goes inside `next`, not onto the login page (CR28)
+    url.searchParams.set('next', pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
   return intl(req);

@@ -172,7 +172,7 @@ async def test_filter_and_save_accepted_records(db):
         name="IndiaMART Spices",
         source_type="api",
         url="https://api.indiamart.com/enquiries",
-        category="spices",
+        category="coffee",
     )
     db.add(source)
     await db.commit()
@@ -183,7 +183,7 @@ async def test_filter_and_save_accepted_records(db):
         "email": "ramesh@keralaspices.in",
         "phone": "+91 9876543210",
         "country": "India",
-        "product": "Bulk Malabar black pepper and green cardamom",
+        "product": "Bulk instant coffee in sachets",  # a real (active) category; spices has none (R57)
         "message": "Requirement: 2 metric tons for domestic distribution",
         "source_url": "https://api.indiamart.com/enquiries/101",
     }
@@ -191,7 +191,7 @@ async def test_filter_and_save_accepted_records(db):
     clean, drop = await filter_single_record(db, raw, source.category)
     assert drop is None
     assert clean is not None
-    assert clean["category"] == "spices"
+    assert clean["category"] == "coffee"
 
     saved = await save_accepted_records(db, source, [clean])
     assert saved == 1
@@ -200,7 +200,7 @@ async def test_filter_and_save_accepted_records(db):
     buyer = await db.scalar(select(BuyerRecord).where(BuyerRecord.email == "ramesh@keralaspices.in"))
     assert buyer is not None
     assert buyer.status == "new"
-    assert buyer.category == "spices"
+    assert buyer.category == "coffee"
     assert "DPDP Provenance: https://api.indiamart.com/enquiries/101" in buyer.notes
     assert "Source: IndiaMART Spices" in buyer.notes
 
@@ -334,6 +334,8 @@ async def test_scrape_connector_terms_and_robots():
 # ---------------- 3. Runner & Job Execution Tests ----------------
 
 async def test_run_harvest_source_full_flow(db):
+    from app.models.catalog import Category
+    db.add(Category(slug="tea", name="Tea", description="", sort_order=2, is_active=True))  # a real category
     source = HarvestSource(
         name="Tea Portal API",
         source_type="api",

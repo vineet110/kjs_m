@@ -79,7 +79,7 @@ export default function NewChat({ meId, onDone, onClose }: {
             </button>
           ))}
         </div>
-        <form onSubmit={create} className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+        <form method="post" onSubmit={create} className="flex min-h-0 flex-1 flex-col gap-2 p-3">
           {mode === 'channel' && (
             <>
               <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Channel name, e.g. sales" className="input" required />

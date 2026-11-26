@@ -13,8 +13,8 @@ constant, or a changed file won't apply.
 
 Order (highest wins): env var KJS__<SECTION>__<KEY>  ->  ini file  ->  default below.
 Every few seconds cfg() checks the files' modified-times. On a change it re-reads and
-validates everything; if the new values are invalid it keeps the old ones and logs an
-error naming the file and key.
+validates every file on its own: a file with an invalid value keeps its old values (logs an
+error naming the file and key) while the other files still apply.
 """
 import configparser
 import logging
@@ -53,7 +53,9 @@ class AppIni(BaseModel):
     # Admin approval still guards every new account, and an old account is never linked by email without
     # a verified email (that would let anyone take over e.g. the first admin).
     require_verified_email: bool = True
-    jobs_enabled: bool = True
+    # Off unless a file or KJS__APP__JOBS_ENABLED says on: a bad or missing app.ini falls back to the
+    # defaults, and that must never switch the background jobs (SLA alerts, emails) on by itself (R91)
+    jobs_enabled: bool = False
     jobs_interval_seconds: int = Field(60, ge=5)  # how often background checks run
     jobs_hours: str = Field("08:00-21:00", pattern=r"^\d{2}:\d{2}-\d{2}:\d{2}$")  # IST, Mon-Sat
     job_timeout_seconds: int = Field(300, ge=30, le=1800)  # a stuck job is cancelled after this
@@ -64,7 +66,12 @@ class AppIni(BaseModel):
     @field_validator("timezone")
     @classmethod
     def real_timezone(cls, v: str) -> str:
-        ZoneInfo(v)  # raises for a misspelt name, so the last good config is kept
+        # A misspelt name raises ZoneInfoNotFoundError (a KeyError, not a ValueError): turned into a
+        # ValueError, so pydantic reports it like any bad value and the last good config is kept
+        try:
+            ZoneInfo(v)
+        except Exception as e:
+            raise ValueError(f"unknown time zone '{v}'") from e
         return v
 
     @model_validator(mode="after")
@@ -191,6 +198,7 @@ class NotificationsIni(BaseModel):
 
 class HarvestIni(BaseModel):
     http_timeout_seconds: int = Field(30, ge=5, le=120)  # one request to a lead source
+    default_country_code: str = Field("91", pattern=r"^[1-9]\d{0,2}$")  # for local numbers found without one
 
 
 class BoardsIni(BaseModel):
@@ -387,6 +395,12 @@ class Config(BaseModel):
     site_insights: SiteInsightsIni = SiteInsightsIni()
     site_ui: SiteUiIni = SiteUiIni()
 
+    # The values the rules below read, per file (_validate puts these back to their last good values when a
+    # rule fails because one of these files is bad; a rule is never waived)
+    RULE_FIELDS: typing.ClassVar[dict[str, list[str]]] = {"app": ["job_timeout_seconds"],
+                                                           "notifications": ["email_time_budget_seconds"]}
+    RULE_SECTIONS: typing.ClassVar[set[str]] = set(RULE_FIELDS)
+
     @model_validator(mode="after")
     def job_timeout_covers_email_budget(self):
         # The jobs loop cancels a job at app.job_timeout_seconds; send_emails stops itself at its own budget.
@@ -420,48 +434,220 @@ LIST_FIELDS = _list_fields()
 
 
 # ---------- Loading ----------
+BROKEN = "__broken__"  # raw[BROKEN] = {section: reason}: files that could not even be read (syntax error)
+FROM_ENV = "__from_env__"  # raw[FROM_ENV] = {section: {key: value}}: what the KJS__ env values set
+FILE_ONLY = "__file_only__"  # raw[FILE_ONLY] = {section: {key: value}}: each file's own values, before env
+
+
 def _read_raw() -> dict:
-    """Read every ini file into {section: {key: value}} (strings), then apply env overrides."""
+    """Read every ini file into {section: {key: value}} (strings), then apply env overrides.
+    A file with a syntax error (a duplicate key, a line outside a [section]) is listed in raw[BROKEN]
+    instead of stopping the read, so the other files still apply (R91)."""
     raw: dict[str, dict] = {}
+    broken: dict[str, str] = {}
     for section, filename in FILES.items():
         path = CONFIG_DIR / filename
         values: dict = {}
         if path.exists():
             parser = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
             parser.optionxform = str  # keep key case (module names in [logging.levels])
+            # Values are read inside the try too: ConfigParser checks % (interpolation) only when a value is
+            # read, so "15%" would otherwise escape this handler and stop every file loading
+            # utf-8-sig: a file saved "UTF-8 with BOM" (Windows Notepad) reads like plain UTF-8. A file in
+            # another encoding (UnicodeDecodeError) is a broken file too, not a reason to drop every file.
             try:
-                parser.read(path, encoding="utf-8")
-            except configparser.Error as e:
-                raise ValueError(f"{filename}: {e}") from e
-            if parser.has_section(section):
-                values.update(parser[section])
-            if section == "logging" and parser.has_section("logging.levels"):
-                values["levels"] = dict(parser["logging.levels"])
+                parser.read(path, encoding="utf-8-sig")
+                if parser.has_section(section):
+                    values.update(parser[section])
+                if section == "logging" and parser.has_section("logging.levels"):
+                    values["levels"] = dict(parser["logging.levels"])
+            except (configparser.Error, UnicodeDecodeError) as e:
+                broken[section] = f"config/{filename}: {e}"
+                values = {}
         raw[section] = values
 
     # KJS__SLA__RESPOND_MINUTES=15 overrides [sla] respond_minutes
+    file_only = {s: dict(v) for s, v in raw.items()}  # each file's own values, before env (for _validate's fallback)
+    from_env: dict[str, dict] = {}
     for key, value in os.environ.items():
         if key.startswith(ENV_PREFIX):
             parts = key[len(ENV_PREFIX):].lower().split("__")
             if len(parts) == 2 and parts[0] in raw:
                 raw[parts[0]][parts[1]] = value
+                from_env.setdefault(parts[0], {})[parts[1]] = value
 
-    for section, k in LIST_FIELDS:
-        values = raw.get(section, {})
-        if isinstance(values.get(k), str):
-            values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
+    for layer in (raw, file_only, from_env):
+        for section, k in LIST_FIELDS:
+            values = layer.get(section, {})
+            if isinstance(values.get(k), str):
+                values[k] = [x.strip() for x in values[k].split(",") if x.strip()]
+    if broken:
+        raw[BROKEN] = broken
+    raw[FROM_ENV] = from_env
+    raw[FILE_ONLY] = file_only
     return raw
 
 
-def _validate(raw: dict) -> Config:
+def _reason(e: ValidationError, section: str | None = None) -> str:
+    """'config/sla.ini: 'respond_minutes' Input should be a valid integer' from the first error."""
+    first = e.errors()[0]
+    loc = list(first["loc"])
+    if section is None and not loc:  # a rule between files (Config-level): name the files it reads
+        return "config/" + " + ".join(FILES[s] for s in sorted(Config.RULE_SECTIONS)) + f": {first['msg']}"
+    if section is None:
+        section, loc = loc[0], loc[1:]
+    where = f" '{loc[0]}'" if loc else ""  # a rule between two keys has no single key
+    return f"config/{FILES.get(section, section)}:{where} {first['msg']}"
+
+
+def _apply_one_by_one(model: type[BaseModel], values: dict, new: dict) -> dict:
+    """Put each of `new` into `values` (in place) if the section stays valid with it; repeated until nothing
+    more fits, so two values that only work together both get in. Returns the ones left out."""
+    left = dict(new)
+    changed = True
+    while changed:
+        changed = False
+        for key, value in list(left.items()):
+            try:
+                model.model_validate({**values, key: value})
+            except ValidationError:
+                continue
+            values[key] = value
+            del left[key]
+            changed = True
+    return left
+
+
+# What _validate kept for each file it could not apply as written (for the admin Settings page)
+REFUSED: dict[str, str] = {}
+
+
+def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Config:
+    """Check every file. A bad file keeps its last good values (defaults on the first load) and is
+    logged; the good files still apply (backlog R91: one bad key used to throw away EVERY file, so e.g.
+    jobs_enabled went back on).
+    strict=True (CI's check of the repo's own files): raise on the first bad file instead."""
+    broken: dict[str, str] = raw.get(BROKEN, {})
+    from_env: dict[str, dict] = raw.get(FROM_ENV, {})
+    file_only: dict[str, dict] = raw.get(FILE_ONLY, {})
+    raw = {k: v for k, v in raw.items() if k not in (BROKEN, FROM_ENV, FILE_ONLY)}
+    if strict and broken:
+        raise ValueError(next(iter(broken.values())))
+    if not broken:
+        try:
+            return Config.model_validate(raw)
+        except ValidationError as e:
+            if strict:
+                raise ValueError(_reason(e)) from e
+    base = last or Config()
+    kept = "its last good values" if last is not None else "the built-in defaults"
+
+    def fallback(section: str) -> tuple[BaseModel, str]:
+        """A bad section, and what was kept (for the log). The file on its own (defaults + the file, so a
+        deleted key goes back to its default) if it is valid, else its last good values (defaults on the
+        first load); then the KJS__ env values on top: all together if they fit, else one at a time, repeated
+        until nothing more fits (so two values that only work together are not lost). A bad file is still all
+        or nothing (a misspelt switch never half-applies); one bad env value never takes the good env values or
+        a good file with it: a good file's jobs_enabled = false and KJS__APP__JOBS_ENABLED=false hold (R91)."""
+        model = type(getattr(base, section))
+        values, how = getattr(base, section).model_dump(), kept
+        if section not in broken:
+            try:
+                values, how = model.model_validate(file_only.get(section, {})).model_dump(), "the file"
+            except ValidationError:
+                if last is None:
+                    # First start: there are no last good values, and the defaults may switch on what the file
+                    # keeps off (modules: chat, batches...). Its valid keys apply one by one instead; only the
+                    # bad key keeps its default.
+                    left = _apply_one_by_one(model, values, file_only.get(section, {}))
+                    how = f"the file's valid keys (refused: {', '.join(sorted(left))})"
+                # else: the file itself is bad: its last good values (logged above)
+        env = dict(from_env.get(section, {}))
+        try:
+            return model.model_validate({**values, **env}), how + (" + its KJS__ env values" if env else "")
+        except ValidationError:
+            pass
+        ignored = _apply_one_by_one(model, values, env)
+        return model.model_validate(values), how + f"; ignored env: {', '.join(sorted(ignored))}"
+
+    sections, bad, bad_sections, hows = {}, [], set(), {}
+    for section, field in Config.model_fields.items():
+        if section in broken:
+            bad.append((broken[section], section))
+            bad_sections.add(section)
+            sections[section], how = fallback(section)
+            hows[section] = how
+            continue
+        try:
+            sections[section] = field.annotation.model_validate(raw.get(section, {}))
+        except ValidationError as e:
+            bad.append((_reason(e, section), section))
+            bad_sections.add(section)
+            sections[section], how = fallback(section)
+            hows[section] = how
+    for reason, section in bad:
+        log.error("config.invalid", extra={"reason": reason, "kept": hows.get(section, kept)})
+    REFUSED.clear()
+    REFUSED.update({s: hows.get(s, kept) for _, s in bad})
     try:
-        return Config.model_validate(raw)
+        return Config(**sections)
     except ValidationError as e:
-        first = e.errors()[0]
-        loc = list(first["loc"])
-        section = loc[0] if loc else "?"
-        where = f" '{loc[1]}'" if len(loc) > 1 else ""  # a rule between two keys has no single key
-        raise ValueError(f"config/{FILES.get(section, section)}:{where} {first['msg']}") from e
+        # A rule between two files fails. It is never waived (a too-short job timeout cuts an email batch
+        # mid-send), and the files are never all thrown away either (on the first load that would bring back
+        # every default, e.g. jobs_enabled = true: R91). Only the values the rule reads go back to their last
+        # good ones (or the defaults), which met it; every other setting still applies.
+        refused = [f"{FILES[s]} {k} = {getattr(sections[s], k)}" for s, keys in Config.RULE_FIELDS.items()
+                   for k in keys if getattr(sections[s], k) != getattr(getattr(base, s), k)]
+        safe = {s: sections[s].model_copy(update={k: getattr(getattr(base, s), k) for k in keys})
+                for s, keys in Config.RULE_FIELDS.items()}
+        try:
+            new = Config(**{**sections, **safe})
+        except ValidationError as e2:
+            raise ValueError(_reason(e2)) from e2  # can't happen with values that met the rule: keep the old config
+        log.error("config.invalid", extra={"reason": _reason(e), "refused": refused or "none",
+                                           "kept": f"{kept} for the job timeout and email budget"})
+        return new
+
+
+def env_problems() -> list[str]:
+    """KJS__* environment values that are misspelt or out of range (backlog R97.iii). Checked at start-up
+    and logged loudly; never stops the app (a bad value only keeps that file's last good values)."""
+    problems = []
+    sections: set[str] = set()
+    for key in os.environ:
+        if not key.startswith(ENV_PREFIX):
+            continue
+        parts = key[len(ENV_PREFIX):].lower().split("__")
+        model = Config.model_fields[parts[0]].annotation if parts[0] in Config.model_fields else None
+        if len(parts) != 2 or model is None or (parts[1] not in model.model_fields and parts[0] != "modules"):
+            problems.append(f"{key}: no such setting (misspelt?), ignored")
+        else:
+            sections.add(parts[0])
+    try:
+        raw = _read_raw()
+    except Exception as e:  # never stop the start over this check
+        return problems + [f"config files could not be read: {e}"]
+    file_only = raw.get(FILE_ONLY, {})
+    for section in sorted(sections):
+        model = Config.model_fields[section].annotation
+        try:
+            model.model_validate(raw.get(section, {}))
+        except ValidationError as e:
+            # Blame the env value only when the file on its own is fine (else the mistake is in the file)
+            try:
+                model.model_validate(file_only.get(section, {}))
+                where = "a KJS__ env value is out of range or misspelt"
+            except ValidationError:
+                where = "the file itself is bad, see config.invalid"
+            problems.append(f"{_reason(e, section)} ({where})")
+    # The rule between files, when a KJS__ value feeds it (e.g. KJS__APP__JOB_TIMEOUT_SECONDS=60)
+    if sections & Config.RULE_SECTIONS:
+        try:
+            Config.model_validate({k: v for k, v in raw.items() if not k.startswith("__")})
+        except ValidationError as e:
+            if not e.errors()[0]["loc"]:  # a Config-level rule, not one section's value
+                problems.append(f"{_reason(e)} (a KJS__ env value breaks this rule; the last good values are used)")
+    return problems
 
 
 def _flatten(c: Config) -> dict[str, object]:
@@ -476,6 +662,7 @@ class _Store:
         self.lock = threading.Lock()
         self.listeners: list[Callable[[Config], None]] = []
         self.loaded_from_files = False
+        self.tried = False  # the files were read at least once (even if that try failed)
 
     def _current_mtimes(self) -> dict[str, float]:
         out = {}
@@ -490,12 +677,16 @@ class _Store:
         with self.lock:
             mtimes = self._current_mtimes()
             if not force and mtimes == self.mtimes and self.loaded_from_files:
-                return
-            self.mtimes = mtimes
+                return  # nothing changed since the last good load
+            # With no good config yet, a failed load is tried again (on defaults jobs_enabled is true: never
+            # settle for them quietly), but its error is logged only once per set of files
+            repeat = not force and mtimes == self.mtimes and self.tried
+            self.mtimes, self.tried = mtimes, True
             try:
-                new = _validate(_read_raw())
+                new = _validate(_read_raw(), self.config if self.loaded_from_files else None)
             except ValueError as e:
-                log.error("config.invalid", extra={"reason": str(e)})
+                if not repeat:
+                    log.error("config.invalid", extra={"reason": str(e)})
                 return  # keep the last good config
             changed = {k: v for k, v in _flatten(new).items() if _flatten(self.config).get(k) != v}
             self.config, first = new, not self.loaded_from_files
@@ -560,8 +751,8 @@ def effective_with_sources() -> list[dict]:
             parser = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
             parser.optionxform = str
             try:
-                parser.read(path, encoding="utf-8")
-            except configparser.Error:
+                parser.read(path, encoding="utf-8-sig")  # same reading as _read_raw
+            except (configparser.Error, UnicodeDecodeError):
                 continue
             if parser.has_section(section):
                 in_files |= {f"{section}.{k}" for k in parser[section]}
@@ -572,6 +763,8 @@ def effective_with_sources() -> list[dict]:
         section, name = key.split(".", 1)
         env = f"{ENV_PREFIX}{section.upper()}__{name.upper()}"
         source = "env" if env in os.environ else "ini" if key in in_files else "default"
+        # The file (or an env value) of this section was refused at the last load: say what is used instead
+        note = f"config/{FILES[section]} was refused; using {REFUSED[section]}" if section in REFUSED else ""
         out.append({"key": key, "value": value, "default": defaults.get(key), "source": source,
-                    "file": f"config/{FILES[section]}", "env_var": env})
+                    "file": f"config/{FILES[section]}", "env_var": env, "note": note})
     return out

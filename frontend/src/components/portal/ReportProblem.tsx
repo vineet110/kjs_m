@@ -100,7 +100,7 @@ export default function ReportProblem() {
         }}
         className="w-[calc(100vw-2rem)] max-w-lg rounded-2xl p-0 shadow-2xl backdrop:bg-black/40"
       >
-        <form onSubmit={send} className="space-y-3 p-6">
+        <form method="post" onSubmit={send} className="space-y-3 p-6">
           <h2 id="report-title" className="text-lg font-bold">Report a problem</h2>
           <p className="text-xs text-slate-500">From page <span className="font-mono">{path}</span>. The date and time are added automatically.</p>
 

@@ -80,14 +80,17 @@ export default function HeroCarousel({ slides, slideSeconds = 6, line = false }:
         );
       })}
 
-      <div className="absolute bottom-4 left-6 z-20 flex gap-2 md:left-10">
+      <div className="absolute bottom-2 left-4 z-20 flex md:left-8">
+        {/* The dot is 8 px; the button around it is 24 px, the smallest easy tap target (WCAG 2.5.8, XB-20) */}
         {slides.map((s, n) => (
           <button
             key={n}
             onClick={() => setI(n)}
-            className={`h-2 rounded-full transition-all ${n === i ? 'w-8 bg-ink' : 'w-2 bg-ink/30 hover:bg-ink/50'}`}
+            className="group flex h-6 min-w-6 items-center justify-center px-1"
             aria-label={`Show slide ${n + 1}`}
-          />
+          >
+            <span className={`h-2 rounded-full transition-all ${n === i ? 'w-8 bg-ink' : 'w-2 bg-ink/30 group-hover:bg-ink/50'}`} />
+          </button>
         ))}
       </div>
 

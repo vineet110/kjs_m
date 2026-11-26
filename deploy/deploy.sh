@@ -15,7 +15,11 @@ MIGRATION_DATABASE_URL="$(grep -E '^MIGRATION_DATABASE_URL=' .env 2>/dev/null | 
 [ -n "$MIGRATION_DATABASE_URL" ] || { echo "MIGRATION_DATABASE_URL is missing in deploy/.env (needed for migrations)"; exit 1; }
 export MIGRATION_DATABASE_URL
 
-git pull --ff-only
+# The pull may change this very script: run the NEW one from here on, not the old copy bash is reading (CR35)
+if [ -z "${KJS_DEPLOY_PULLED:-}" ]; then
+  git pull --ff-only
+  KJS_DEPLOY_PULLED=1 exec bash "./$(basename "$0")" "$@"
+fi
 TAG="$(git rev-parse --short HEAD)"
 export TAG  # beats TAG in .env for this run, so each deploy gets its own image tag (kjs-api:<commit>)
 echo "deploying $TAG"
@@ -31,7 +35,9 @@ $COMPOSE up -d db
 $COMPOSE run --rm -e MIGRATION_DATABASE_URL backend alembic upgrade head
 $COMPOSE exec -T db psql -U kjs -d kjs -v ON_ERROR_STOP=1 -q < db/grants.sql
 $COMPOSE up -d --remove-orphans
-# The app containers are new and may have new addresses: make nginx look them up again now
+# The app containers are new and may have new addresses: make nginx look them up again now.
+# Empty the 10 s page cache first: a cached page names the OLD build's script files, which are gone.
+$COMPOSE exec -T nginx sh -c 'rm -rf /var/cache/nginx/pages/*' || true
 $COMPOSE exec -T nginx nginx -s reload || true
 
 # Wait until the API (with its database) and the website both answer through nginx
