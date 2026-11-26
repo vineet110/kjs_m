@@ -23,6 +23,7 @@ from app.jobs.runner import job
 from app.models.harvest import HarvestRun, HarvestSource
 from app.services.harvest_net import harvest_setting, safe_get
 from app.services.harvest_filter import (
+    active_category_slugs,
     EMAIL_REGEX,
     PHONE_DIGITS_REGEX,
     filter_single_record,
@@ -232,10 +233,12 @@ async def is_scraping_allowed(url: str, user_agent: str = BOT_USER_AGENT) -> boo
             log.warning("harvest.robots_txt_blocked", extra={"url": url, "error": e.message})
             return False
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": e.message})
-        return False  # robots.txt couldn't be read: when unsure, don't scrape (R57)
+        raise AppError(502, "robots_unreadable", "Could not read the site's robots.txt, so nothing was fetched.") from e
     except Exception as e:
+        # robots.txt couldn't be read: when unsure, don't scrape (R57). Its own error, so the run shows
+        # "failed" with the real reason, not "blocked by robots"
         log.warning("harvest.robots_txt_error", extra={"url": url, "error": str(e)})
-        return False  # same: unreadable means "not allowed", never "allowed" (R57)
+        raise AppError(502, "robots_unreadable", "Could not read the site's robots.txt, so nothing was fetched.") from e
 
 
 async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
@@ -278,7 +281,7 @@ async def fetch_scrape_source(source: HarvestSource) -> list[dict]:
 
     if not primary_phone:
         # Any grouping: "+91 98765 43210" (groups of 5) was missed before (R57)
-        ph = re.search(r"\+?[1-9][\d\s().-]{7,18}\d", text_clean)
+        ph = re.search(r"\+?[1-9]\d{0,3}(?:[\s.-]?\d{2,5}){2,4}(?!\d)", text_clean)
         if ph:
             primary_phone = ph.group(0)
 
@@ -356,9 +359,12 @@ async def run_harvest_source(db: AsyncSession, source_id: int) -> HarvestRun:
     drop_reasons: dict[str, int] = {}
 
     seen: set[str] = set()  # email / phone digits already taken in THIS fetch (R57: duplicates inside one fetch)
+    categories = await active_category_slugs(db)
     for item in raw_items:
         try:
-            clean, drop_reason = await filter_single_record(db, item, source.category)
+            # A savepoint per record: a database error on one record is undone alone, the run goes on (R57)
+            async with db.begin_nested():
+                clean, drop_reason = await filter_single_record(db, item, source.category, categories)
         except Exception:  # one odd record never stops the run (R57)
             log.exception("harvest.record_failed", extra={"source_id": source.id})
             clean, drop_reason = None, "unreadable"
@@ -426,16 +432,16 @@ async def harvest_due_sources_job(db: AsyncSession) -> dict[str, Any]:
     total_dropped = 0
     runs_executed = 0
 
-    for s in due_sources:
+    for source_id in [s.id for s in due_sources]:  # plain ids: after a rollback the loaded rows are stale
         try:
-            run = await run_harvest_source(db, s.id)
+            run = await run_harvest_source(db, source_id)
             total_accepted += run.accepted_count
             total_dropped += run.dropped_count
             runs_executed += 1
         except Exception as e:
             # The session may be half-written: start clean, so the next source still runs (R57)
             await db.rollback()
-            log.exception("harvest.job_source_error", extra={"source_id": s.id, "error": str(e)})
+            log.exception("harvest.job_source_error", extra={"source_id": source_id, "error": str(e)})
 
     return {
         "due_sources": len(due_sources),

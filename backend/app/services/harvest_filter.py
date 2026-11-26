@@ -145,10 +145,16 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
     return False
 
 
+async def active_category_slugs(db: AsyncSession) -> set[str]:
+    """Catalogue categories in use (switched-off ones, e.g. Tea, don't count)."""
+    return set((await db.scalars(select(Category.slug).where(Category.is_active.is_(True)))).all())
+
+
 async def filter_single_record(
     db: AsyncSession,
     raw: dict,
     source_category: str = "all",
+    categories: set[str] | None = None,
 ) -> tuple[dict | None, str | None]:
     """Apply the shared filter: contact check -> product check -> duplicate check.
 
@@ -174,13 +180,11 @@ async def filter_single_record(
     # 3. Duplicate check against existing leads and buyer_records
     if await is_duplicate(db, email, phone):
         return None, "duplicate"
-    # The record must land in a real catalogue category (auto-assign routes by it). "spices" and
-    # "private_label" are keyword groups, not categories: use the source's own category, else drop (R57)
-    real = set((await db.scalars(select(Category.slug))).all())
-    if category_slug not in real:
-        if source_category not in real:
-            return None, "unknown_category"
-        category_slug = source_category
+    # The record must land in a catalogue category that is in use: auto-assign routes by it, and a buyer
+    # filed under the wrong product would reach the wrong sales person. "spices" and "private_label" are
+    # keyword groups, not categories, so such records are dropped (R57). `categories`: loaded once per run.
+    if category_slug not in (categories if categories is not None else await active_category_slugs(db)):
+        return None, "unknown_category"
 
     clean_record = {
         "company": _text(raw.get("company") or raw.get("contact_name") or "External Buyer")[:200].strip(),

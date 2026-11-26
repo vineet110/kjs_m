@@ -168,8 +168,6 @@ async def test_filter_single_record_duplicate_buyer_record(db):
 
 
 async def test_filter_and_save_accepted_records(db):
-    # A spices enquiry from a coffee source: "spices" is a keyword group, not a catalogue category, so the
-    # record lands in the source's own real category (R57)
     source = HarvestSource(
         name="IndiaMART Spices",
         source_type="api",
@@ -185,7 +183,7 @@ async def test_filter_and_save_accepted_records(db):
         "email": "ramesh@keralaspices.in",
         "phone": "+91 9876543210",
         "country": "India",
-        "product": "Bulk Malabar black pepper and green cardamom",
+        "product": "Bulk instant coffee in sachets",  # a real (active) category; spices has none (R57)
         "message": "Requirement: 2 metric tons for domestic distribution",
         "source_url": "https://api.indiamart.com/enquiries/101",
     }

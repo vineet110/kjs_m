@@ -16,9 +16,21 @@ def public_dns(monkeypatch):
     monkeypatch.setattr("app.services.harvest_net.resolve", fake_resolve)
 
 
-async def test_unreadable_robots_txt_means_not_allowed():
+async def test_unreadable_robots_txt_means_nothing_is_fetched():
+    from app.core.errors import AppError
     with patch("app.services.harvest_service.safe_get", new_callable=AsyncMock, side_effect=RuntimeError("down")):
-        assert await is_scraping_allowed("https://example.com/list") is False
+        with pytest.raises(AppError) as e:
+            await is_scraping_allowed("https://example.com/list")
+    assert e.value.code == "robots_unreadable"  # a failed run with the real reason, not "blocked by robots"
+
+
+def test_the_scraper_takes_a_number_without_the_digits_around_it():
+    import re
+    from app.services import harvest_service
+    import inspect
+    pattern = re.search(r'ph = re.search\(r"(.+?)", text_clean\)', inspect.getsource(harvest_service)).group(1)
+    m = re.search(pattern, "Phone: +91 98765 43210 9am-6pm, since 1998")
+    assert m and re.sub(r"\D", "", m.group(0)) == "919876543210"
 
 
 async def test_a_number_in_a_text_field_does_not_crash_and_spices_without_a_category_is_dropped():
