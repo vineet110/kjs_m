@@ -21,8 +21,24 @@ chmod 700 "$BACKUP_DIR"
 
 db_file="$BACKUP_DIR/db-$stamp.dump"
 files_file="$BACKUP_DIR/files-$stamp.tgz"
-# If anything fails, don't leave half-written files behind
-trap 'rm -f "$db_file.tmp" "$files_file.tmp" "$db_file.enc" "$files_file.enc"' EXIT
+
+# 0. Tell an outside checker how the NIGHTLY backup went (R11.i, R50.iv): BACKUP_PING_URL in .env.backup,
+#    a free healthchecks.io check (README 5.6). It emails when a ping says /fail, or when no ping comes in
+#    time (cron didn't run, the server is off). Not for the backups restore.sh and deploy.sh take first.
+#    A ping that fails never fails the backup.
+ping_url=""
+if [ -z "${KJS_BACKUP_STAMP:-}" ] && [ -z "${KJS_SKIP_OFFSITE:-}" ] && [ -f .env.backup ]; then
+  ping_url="$(grep -E '^BACKUP_PING_URL=' .env.backup | tail -1 | cut -d= -f2- | tr -d '\r"'"' " || true)"
+fi
+ping_checker() { if [ -n "$ping_url" ]; then curl -fsS -m 10 --retry 3 -o /dev/null "$ping_url$1" || true; fi; }
+
+# If anything fails, don't leave half-written files behind, and say so to the checker
+on_exit() {
+  local code=$?
+  rm -f "$db_file.tmp" "$files_file.tmp" "$db_file.enc" "$files_file.enc"
+  if [ "$code" -ne 0 ]; then ping_checker /fail; else ping_checker ""; fi
+}
+trap on_exit EXIT
 
 storage_driver="$(grep -E '^STORAGE_DRIVER=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d "\"' \r")"
 
