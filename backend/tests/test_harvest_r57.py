@@ -143,3 +143,8 @@ async def test_other_countries_with_the_same_last_ten_digits_are_not_duplicates(
         clean, drop = await filter_single_record(db, {"company": "US", "phone": "+1 207 946 0958",
                                                       "country": "USA", "product": "instant coffee"}, "all")
         assert drop is None
+
+
+@pytest.mark.parametrize("country", ["IND", "91", "+91", "Republic of India", "india "])
+def test_every_way_of_writing_india_gets_the_default_code(country):
+    assert normalize_phone("98765 43210", country) == "+919876543210"

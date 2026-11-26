@@ -71,7 +71,9 @@ def normalize_phone(phone: str | None, country: str | None = None) -> str:
     # Strip spaces, dashes, parentheses
     compact = re.sub(r"[\s\-\(\)\.]", "", raw)
     country_code = cfg().harvest.default_country_code
-    local = (country or "").strip().lower() in ("", "india", "in", "bharat")
+    # India, however a source writes it: "India", "IN", "IND", "91", "+91", "Republic of India", "Bharat"
+    name = (country or "").strip().lower().lstrip("+")
+    local = name in ("", "in", "ind", "91", "bharat") or "india" in name
     if compact.startswith("00"):
         compact = "+" + compact[2:]
     elif local and compact.isdigit() and len(compact) == 10 and compact[0] in "6789":
@@ -175,7 +177,9 @@ async def filter_single_record(
     """Apply the shared filter: contact check -> product check -> duplicate check.
 
     Returns (clean_record, None) if accepted, or (None, drop_reason) if dropped.
-    Possible drop reasons: 'invalid_contact', 'product_mismatch', 'duplicate'.
+    Possible drop reasons: 'invalid_contact', 'product_mismatch', 'duplicate', 'unknown_category' (matched only
+    a keyword group with no catalogue category in use, e.g. spices, private label, a hidden category). The run
+    itself can also count 'unreadable' (one record that could not be filtered at all).
     """
     # 1. Contact check: needs at least a valid email or phone with country code
     email = normalize_email(raw.get("email"))
