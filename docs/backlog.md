@@ -1354,6 +1354,8 @@ R18. Quick view copies the enquiry modal's overlay  🟢
 
 R19. Product items stored as text in the description  🟠
 
+   27 Nov: fix in PR #138 (products.items + Admin Items box, migration 0036; design OK'd by Vineet). Not merged yet: mark ✅ when it is.
+
    i.    Item numbers and pack sizes are read with a strict pattern ("• Item 801: 25 g, 24 pieces per box,
          6 per case"). If an admin writes it differently, the items silently disappear from the site.
    ii.   Plan a proper items column or table (migration, admin form, API). Where: `lib/catalogue.ts`,
