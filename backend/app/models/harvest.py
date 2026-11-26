@@ -45,7 +45,7 @@ class HarvestRun(Base, TimestampMixin):
     found_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     accepted_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     dropped_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    drop_reasons: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)  # e.g. {"product_mismatch": 5, "invalid_contact": 2, "duplicate": 1}
+    drop_reasons: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)  # e.g. {"product_mismatch": 5, "invalid_contact": 2, "duplicate": 1, "unknown_category": 1, "unreadable": 0}
     error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

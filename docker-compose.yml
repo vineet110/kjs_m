@@ -4,6 +4,7 @@
 services:
   # Optional local database for development (we normally use Neon). Start: docker compose up -d db
   db:
+    # Still 16: an existing local data folder (pgdata) can't be opened by 17. Production and the tests use 17.
     image: pgvector/pgvector:pg16
     container_name: kjs_postgres
     environment:
@@ -17,14 +18,14 @@ services:
       - ./backend/alembic/init_roles.sql:/docker-entrypoint-initdb.d/init_roles.sql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kjs_admin} -d ${POSTGRES_DB:-kjs_db}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-kjs_admin} -d ${POSTGRES_DB:-kjs_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   # Throwaway database for automated tests (pytest). Start: docker compose --profile test up -d test-db
   test-db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17  # same major version as production (CR36); in memory, so nothing to migrate
     container_name: kjs_test_db
     profiles: ["test"]
     environment:

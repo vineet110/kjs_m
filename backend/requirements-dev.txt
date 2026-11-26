@@ -1,0 +1,8 @@
+# Everything the app needs, plus the test tools. For your PC and CI only; the production image installs
+# requirements.txt alone (CR24.v): test tools have no business on the live server.
+-r requirements.txt
+
+# Testing & Deterministic Clock Control
+pytest==8.2.2
+pytest-asyncio==0.23.7
+freezegun==1.5.1

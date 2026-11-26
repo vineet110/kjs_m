@@ -70,7 +70,10 @@ async def create(db: AsyncSession, user: User, title: str, notes: str, due_at: d
 
 async def update(db: AsyncSession, user: User, task_id: int, changes: dict) -> dict:
     t = await db.get(Task, task_id)
-    if t is None or not (user.id in (t.assignee_id, t.created_by) or _can_assign(user)):
+    # A board's tasks: being their (old) "creator" gives no right to edit them (CR16; tasks made before the fix
+    # still carry the person who clicked "step done")
+    creator = t.created_by if t is not None and t.source != "board" else None
+    if t is None or not (user.id in (t.assignee_id, creator) or _can_assign(user)):
         raise AppError(404, "not_found", "Task not found.")
     before = {k: getattr(t, k) for k in FIELDS if k in changes}
     for k in FIELDS:

@@ -435,7 +435,9 @@ Sections:
 ### requirements.txt
 
    What   The list of Python packages and versions the backend needs.
-   Where  `backend/requirements.txt`.
+   Where  `backend/requirements.txt`. The test tools (pytest...) are in `backend/requirements-dev.txt`, which
+          includes requirements.txt: install that one on your PC; the production image installs only
+          requirements.txt.
 
 
 ### Docker / image / container

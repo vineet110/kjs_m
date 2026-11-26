@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import MobileNav from './MobileNav';
 import NavigationProgress from './NavigationProgress';
 import ProgressBar from './ProgressBar';
 import ThemeToggle from './ThemeToggle';
@@ -45,6 +46,7 @@ export default function SiteHeader({ showPartners = true, showPrivateLabel = tru
           <Link href="/employee/login" className="rounded-md px-3 py-2 text-xs text-slate-400 hover:text-white">
             Staff login
           </Link>
+          <MobileNav items={nav.map(({ href, label }) => ({ href, label }))} />
         </div>
       </div>
       {/* The page-loading bar on the header's bottom edge. Shown by CSS (globals.css, .page-progress)

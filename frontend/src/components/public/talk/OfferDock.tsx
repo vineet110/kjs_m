@@ -139,7 +139,7 @@ export default function OfferDock({ texts, ui }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!phoneOk(phone)) return setError('Please enter a phone number with 10 to 15 digits.');
+    if (!phoneOk(phone)) return setError('Please enter a phone number with 6 to 15 digits.');
     setSending(true);
     setError('');
     try {
@@ -222,7 +222,7 @@ export default function OfferDock({ texts, ui }: Props) {
       </div>
 
       {open && (
-        <form
+        <form method="post"
           id="offer-form"
           ref={formRef}
           onSubmit={submit}

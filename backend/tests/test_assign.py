@@ -166,3 +166,21 @@ async def test_disabling_someone_gives_their_unfinished_buyers_back(client):
     assert batch.status == "returned"  # not "done": half of it was never worked on
     assert sorted(r.status for r in recs if r.id != first["id"] and r.category == "coffee") == ["new"]
     assert next(r for r in recs if r.id == first["id"]).status == "done"  # finished work stays finished
+
+
+async def test_with_batches_on_admin_only_admins_get_batches(client, monkeypatch):  # R55
+    from app.core.config import ini
+    monkeypatch.setenv("KJS__MODULES__BATCHES", "admin")
+    ini.reload_now()
+    await make_user("root@kjsindia.com", role="admin")
+    await login(client, "root@kjsindia.com")
+    await _import(client)
+    await make_user("a@kjsindia.com")
+    a, root = await _uid("a@kjsindia.com"), await _uid("root@kjsindia.com")
+    for uid in (a, root):
+        await client.post(f"/api/v1/assign/staff/{uid}/categories", json={"categories": ["coffee"]}, headers=HDR)
+    for who in ("a@kjsindia.com", "root@kjsindia.com"):
+        await login(client, who)
+        await client.post("/api/v1/attendance/check-in", headers=HDR)
+    plan = (await client.get("/api/v1/assign/preview")).json()
+    assert [p["user_id"] for p in plan] == [root]  # the employee can't open a batch, so gets none

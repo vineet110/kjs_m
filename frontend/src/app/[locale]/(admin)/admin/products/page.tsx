@@ -154,7 +154,7 @@ export default function AdminProducts() {
           );
         })}
       </div>
-      <form key={e?.id ?? 'new'} onSubmit={save} className="card grid gap-3 p-5 md:grid-cols-2">
+      <form method="post" key={e?.id ?? 'new'} onSubmit={save} className="card grid gap-3 p-5 md:grid-cols-2">
         <h2 className="font-semibold md:col-span-2">{e ? `Edit: ${e.name}` : 'Add a product'}</h2>
         <div><label className="label">Category</label>
           <select name="category_slug" defaultValue={e?.category_slug} className="input" required>{cats.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>

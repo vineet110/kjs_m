@@ -93,7 +93,7 @@ export function PartnerLogosAdmin() {
         {on === 0 ? 'None switched on: the sliding strip on the home page shows the built-in names.' : `${on} of at most ${data.max_partners} switched on.`}
         {' '}Logos: PNG with a transparent background looks best. They are made smaller automatically.
       </p>
-      <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
+      <form method="post" onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
         <div className="md:col-span-2"><label className="label" htmlFor="p-name">Name</label><input id="p-name" name="name" required minLength={2} maxLength={60} className="input" placeholder="Nestlé" /></div>
         <div className="md:col-span-2">
           <label className="label" htmlFor="p-logo">Logo (optional)</label>
@@ -182,7 +182,7 @@ export function ActivityAdmin() {
         worked out from the time you enter. Lines older than {data.max_age_days} days stop showing by themselves.
         No names or company details of buyers.
       </p>
-      <form onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
+      <form method="post" onSubmit={add} className="card grid gap-3 p-4 md:grid-cols-6">
         <div className="md:col-span-3"><label className="label" htmlFor="a-text">What happened</label><input id="a-text" name="text" required minLength={5} maxLength={120} className="input" placeholder="A brand in Dubai requested a sample" /></div>
         <div className="md:col-span-2"><label className="label" htmlFor="a-when">When (India time)</label><input id="a-when" type="datetime-local" name="happened_at" required defaultValue={nowIST()} className="input" /></div>
         <div className="flex items-end"><button disabled={adding} className="btn-dark w-full">Add</button></div>

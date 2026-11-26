@@ -3,6 +3,7 @@
 # Full guide: deploy/README.md. Secrets come from deploy/.env (copy .env.production.example).
 #
 #   Internet → Cloudflare → cloudflared (tunnel) → nginx → frontend (Next.js) / backend (FastAPI) → db
+#   (The live Hostinger VPS has a host nginx with HTTPS instead of Cloudflare: deploy/README.md section 1.)
 #
 # No port is open to the internet: cloudflared dials out to Cloudflare. nginx listens only on
 # 127.0.0.1:8080 so you can test on the server itself.
@@ -24,7 +25,9 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db/init-app-user.sh:/docker-entrypoint-initdb.d/10-app-user.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kjs -d kjs"]
+      # -h 127.0.0.1: over the network, which Postgres opens only once its first-start setup is done; the
+      # socket answers "ready" earlier, while init scripts still run (CR34)
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U kjs -d kjs"]
       interval: 5s
       timeout: 5s
       retries: 10

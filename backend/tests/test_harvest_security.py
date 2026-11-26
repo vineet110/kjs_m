@@ -264,3 +264,11 @@ def test_ipv4_hidden_inside_ipv6_is_judged_by_the_ipv4(monkeypatch):
         assert not is_public_ip(bad), bad
     for good in ("64:ff9b::808:808", "2002:808:808::1", "2606:4700::1111"):
         assert is_public_ip(good), good
+
+
+def test_a_public_ipv6_address_is_allowed_an_internal_one_is_not():  # R57.ii
+    from app.services.harvest_net import check_url
+    assert check_url("https://[2606:4700:4700::1111]/feed") == "https://[2606:4700:4700::1111]/feed"
+    for bad in ("https://[::1]/x", "https://[fd00::1]/x", "https://[64:ff9b::a9fe:a9fe]/x"):
+        with pytest.raises(ValueError):
+            check_url(bad)

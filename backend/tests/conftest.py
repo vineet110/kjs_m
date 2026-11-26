@@ -32,6 +32,15 @@ BACKEND = Path(__file__).parent.parent
 HDR = {"x-requested-with": "kjs"}
 
 
+def real_png(size: tuple[int, int] = (4, 4)) -> bytes:
+    """A real PNG (Pillow): website and profile pictures are opened and shrunk on upload (R43)."""
+    import io
+    from PIL import Image
+    b = io.BytesIO()
+    Image.new("RGB", size, (200, 150, 60)).save(b, "PNG")
+    return b.getvalue()
+
+
 def pytest_sessionstart(session):
     subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND, check=True, env=os.environ.copy())
 
