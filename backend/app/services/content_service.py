@@ -204,6 +204,15 @@ async def set_partner_status(db: AsyncSession, user: User, partner_id: int, stat
 
 
 # ---------- Koko transcripts ----------
+async def stored_chat(db: AsyncSession, chat_id: str, ip_hash: str | None) -> list[dict] | None:
+    """This visitor's saved transcript (same chat id AND same hashed IP), or None. What Koko really said
+    comes from here, never from the browser (R71)."""
+    if not chat_id:
+        return None
+    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
+    return list(row.messages) if row is not None and row.ip_hash == ip_hash else None
+
+
 async def save_chat(db: AsyncSession, chat_id: str, page: str, messages: list[dict], suggested: bool,
                     ip_hash: str | None) -> None:
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))

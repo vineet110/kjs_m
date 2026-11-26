@@ -213,13 +213,16 @@ def build_prompt(facts: str, questions: list[str], cat: CategoryOut | None, cats
     return prompt
 
 
-async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "") -> tuple[str, bool, KokoCatalogue | None]:
+async def reply(db: AsyncSession, messages: list[ChatMessage], page: str = "",
+                first: bool | None = None) -> tuple[str, bool, KokoCatalogue | None]:
     """Koko's answer, whether to offer the enquiry form, and the catalogue card (first reply on a
     product or category page only; also when the AI can't answer)."""
     history = [m.model_dump() for m in messages[-12:]]  # cap the context we send
     # Koko hasn't answered yet in this chat (the widget never sends its own error lines), so a first try
     # that failed still gets the card next time
-    first = not any(m.role == "assistant" for m in messages)
+    # (`first` can be given: the endpoint may send only the visitor's own lines, R71)
+    if first is None:
+        first = not any(m.role == "assistant" for m in messages)
     within_budget = _within_daily_budget()
     if not within_budget and not first:
         return FALLBACK, True, None  # nothing to show: no database work either
