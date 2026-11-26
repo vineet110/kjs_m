@@ -126,6 +126,17 @@ class KokoIni(BaseModel):
     prompt_limit: int = Field(8000, ge=2000, le=60000)  # characters of system prompt (about 2,000 tokens)
     timeout_seconds: int = Field(25, ge=5, le=55)  # whole AI call; nginx gives up at 60 s
     http_timeout_seconds: int = Field(20, ge=5, le=55)  # one HTTP request to the AI provider
+    message_max: int = Field(2000, ge=200, le=10000)  # characters of one chat line (visitor or Koko)
+    chat_max: int = Field(8000, ge=1000, le=60000)  # characters of the whole chat the AI may be sent
+    history_lines: int = Field(12, ge=2, le=40)  # chat lines (newest) the AI is sent with each question
+    transcript_lines: int = Field(40, ge=10, le=200)  # chat lines kept per conversation (Admin > Koko)
+    request_lines: int = Field(60, ge=2, le=400)  # chat lines the widget may send in one request
+
+    @model_validator(mode="after")
+    def message_fits_chat(self):
+        if self.message_max > self.chat_max:
+            raise ValueError("message_max must be at most chat_max (one line can't be longer than the whole chat)")
+        return self
 
     @model_validator(mode="after")
     def timeout_order(self):

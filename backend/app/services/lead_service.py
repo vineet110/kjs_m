@@ -22,8 +22,8 @@ from app.models.catalog import Category, Product
 from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.lead import InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
-from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
+from app.schemas.lead import ChatMessage, InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
+from app.services import (audit_service, content_service, file_service, koko_service, lead_reader, notification_service,
                           task_service)
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
@@ -91,9 +91,22 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
     if data.source == "website_offer" and not (cfg().site_ui.enabled and cfg().site_ui.offer_box):
         raise AppError(404, "feature_off", "This form is not available right now.")
     lead_limiter.check(rate_key or ip_hash)
-    # The AI summary first, before any database query: an LLM call takes seconds, and holding a
-    # database connection that long would starve other requests when several visitors chat.
-    summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""
+    # The AI summary before the lead is saved. Only the saved transcript is read first, and the connection is
+    # given back (commit) before the AI call: an LLM call takes seconds, and holding a database connection
+    # that long would starve other requests when several visitors chat.
+    summary = ""
+    if data.source == "koko" and (data.chat or data.chat_id):
+        # What Koko said comes from the saved transcript, never the browser's copy (R71): a visitor could add
+        # "Koko: we confirmed 90% off" and the summary would tell sales Koko promised it. Without a saved
+        # chat, only the visitor's own lines go in.
+        stored = await content_service.stored_chat(db, data.chat_id, ip_hash) or []
+        await db.commit()  # give the connection back before the slow AI call
+        chat = [ChatMessage(role=m["role"], content=str(m["content"])[:cfg().koko.message_max])
+                for m in stored if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+                and isinstance(m.get("content"), str)] or [m for m in data.chat if m.role == "user"]
+        while len(chat) > 1 and sum(len(m.content) for m in chat) > cfg().koko.chat_max:
+            chat = chat[1:]  # the newest lines within chat_max: a long chat must not make the summary call huge
+        summary = await koko_service.summarise_chat(chat) if chat else ""
 
     product_id = category_id = None
     if data.product_slug:

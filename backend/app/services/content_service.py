@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -204,10 +205,73 @@ async def set_partner_status(db: AsyncSession, user: User, partner_id: int, stat
 
 
 # ---------- Koko transcripts ----------
+# A chat id this long is a random secret the widget made (crypto.randomUUID): knowing it is the proof that the
+# chat is yours, so a phone that changes network keeps its chat. Shorter ids (the old widget made ~20 weak
+# characters) still need the same hashed IP as well. A security rule, not a tunable.
+STRONG_CHAT_ID = 32
+
+
+def _owns(row: KokoChat, chat_id: str, ip_hash: str | None) -> bool:
+    if len(chat_id) >= STRONG_CHAT_ID:
+        return True
+    return ip_hash is not None and row.ip_hash == ip_hash
+
+
+async def stored_chat(db: AsyncSession, chat_id: str, ip_hash: str | None) -> list[dict] | None:
+    """This visitor's saved transcript, or None. What Koko really said comes from here, never from the
+    browser (R71). Yours = a strong chat id, or a weak one from the same hashed IP (_owns)."""
+    if not chat_id:
+        return None
+    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
+    return list(row.messages) if row is not None and _owns(row, chat_id, ip_hash) else None
+
+
+def is_retry_of(messages: list[dict], turn: str) -> bool:
+    """The saved chat already ends with this turn's question and an answer: the same request sent again."""
+    return bool(turn) and len(messages) >= 2 and messages[-1].get("role") == "assistant" \
+        and messages[-2].get("role") == "user" and messages[-2].get("turn") == turn
+
+
+async def append_chat(db: AsyncSession, chat_id: str, page: str, question: dict, reply: dict, suggested: bool,
+                      ip_hash: str | None) -> None:
+    """Add one question and Koko's reply to the saved transcript. The row is locked and the pair appended to
+    what is there NOW, so two requests at the same moment both keep their turn. A repeated request of the same
+    turn (its answer never reached the browser) replaces its own earlier pair instead of being saved twice;
+    checked here under the lock, so a retry that overtakes the first request is caught too."""
+    exists = await db.scalar(select(KokoChat.id).where(KokoChat.chat_id == chat_id))
+    if exists is None:
+        if len(chat_id) < STRONG_CHAT_ID and ip_hash is None:
+            # A weak id with no IP: nobody could ever prove it is theirs, so it isn't saved (known: such a chat,
+            # from a very old browser behind an IP-hiding proxy, has no transcript and its lead summary uses the
+            # visitor's own lines only)
+            return
+        # Two first messages at the same moment: one creates the row, the other's insert is simply skipped
+        # (chat_id is unique), never an error after the AI answer was already made
+        await db.execute(pg_insert(KokoChat).values(chat_id=chat_id, page=page[:255], messages=[],
+                                                    suggested_enquiry=False, ip_hash=ip_hash)
+                         .on_conflict_do_nothing(index_elements=["chat_id"]))
+    # Locked and read fresh from the database (populate_existing): the copy this session loaded before the
+    # slow AI call may be out of date, and appending to it would drop a turn saved meanwhile
+    row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id).with_for_update()
+                          .execution_options(populate_existing=True))
+    if row is None or not _owns(row, chat_id, ip_hash):
+        await db.rollback()
+        return  # someone else's chat id: never touch another visitor's transcript
+    messages = [m for m in (row.messages or []) if isinstance(m, dict)]
+    if is_retry_of(messages, question.get("turn", "")):
+        messages = messages[:-2]
+    reply = {**reply, "content": str(reply.get("content", ""))[:cfg().koko.message_max]}  # saved within the limit
+    row.messages = (messages + [question, reply])[-cfg().koko.transcript_lines:]
+    row.suggested_enquiry = row.suggested_enquiry or suggested
+    await db.commit()
+
+
 async def save_chat(db: AsyncSession, chat_id: str, page: str, messages: list[dict], suggested: bool,
                     ip_hash: str | None) -> None:
+    """Replace a whole transcript (seeding and tests only). The chat endpoint uses append_chat, which locks
+    the row: replacing without the lock could drop a turn saved meanwhile."""
     row = await db.scalar(select(KokoChat).where(KokoChat.chat_id == chat_id))
-    if row is not None and row.ip_hash != ip_hash:
+    if row is not None and not _owns(row, chat_id, ip_hash):
         return  # someone else's chat id: never overwrite another visitor's transcript
     if row is None:
         row = KokoChat(chat_id=chat_id, page=page[:255], messages=[], suggested_enquiry=False, ip_hash=ip_hash)
