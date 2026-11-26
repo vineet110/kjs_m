@@ -12,7 +12,7 @@ import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, or_
+from sqlalchemy import and_, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.ini import cfg
@@ -63,21 +63,23 @@ def normalize_email(email: str | None) -> str:
     return cleaned if EMAIL_REGEX.match(cleaned) else ""
 
 
-def normalize_phone(phone: str | None) -> str:
+def normalize_phone(phone: str | None, country: str | None = None) -> str:
     """Normalize and validate a phone with country code (E.164), or return empty string."""
     if not phone:
         return ""
     raw = _text(phone).strip()
     # Strip spaces, dashes, parentheses
     compact = re.sub(r"[\s\-\(\)\.]", "", raw)
-    country = cfg().harvest.default_country_code
+    country_code = cfg().harvest.default_country_code
+    local = (country or "").strip().lower() in ("", "india", "in", "bharat")
     if compact.startswith("00"):
         compact = "+" + compact[2:]
-    elif compact.isdigit() and len(compact) == 10:
-        # A local number ("98765 43210") gets the default country code, or the record had no phone at all
-        compact = f"+{country}{compact}"
-    elif compact.isdigit() and len(compact) == 11 and compact.startswith("0"):
-        compact = f"+{country}{compact[1:]}"  # "040 2345 6789": the 0 is the trunk prefix
+    elif local and compact.isdigit() and len(compact) == 10 and compact[0] in "6789":
+        # An Indian mobile written without a code ("98765 43210") gets the default country code, else the
+        # record had no phone at all. Only for a buyer in India (or no country given): never a US number.
+        compact = f"+{country_code}{compact}"
+    elif local and compact.isdigit() and len(compact) == 11 and compact.startswith("0"):
+        compact = f"+{country_code}{compact[1:]}"  # "040 2345 6789": the 0 is the trunk prefix
     elif not compact.startswith("+") and len(compact) >= 11:
         # e.g. 919876543210 -> +919876543210
         compact = "+" + compact
@@ -130,10 +132,12 @@ async def is_duplicate(db: AsyncSession, email: str, phone: str) -> bool:
     if phone:
         # Compared by digits: "+91 98765 43210" and "+919876543210" are one number (R57)
         digits = re.sub(r"\D", "", phone)
-        # The last 10 digits: a lead typed as "98765 43210" is the same as "+91 98765 43210" (re-review of #136)
-        tail = digits[-10:]
-        clauses_leads.append(func.right(func.regexp_replace(Lead.phone, "[^0-9]", "", "g"), 10) == tail)
-        clauses_buyers.append(func.right(func.regexp_replace(BuyerRecord.phone, "[^0-9]", "", "g"), 10) == tail)
+        # The same digits; or a number stored WITHOUT a country code (10 digits, "98765 43210" typed in the
+        # enquiry form) matching our number's last 10. Never just "the last 10 match": +44 20 7946 0958 and
+        # +1 207 946 0958 are different people (re-review of #136)
+        for col, out in ((Lead.phone, clauses_leads), (BuyerRecord.phone, clauses_buyers)):
+            stored = func.regexp_replace(col, "[^0-9]", "", "g")
+            out.append(or_(stored == digits, and_(func.length(stored) == 10, stored == digits[-10:])))
 
     if not clauses_leads and not clauses_buyers:
         return False
@@ -175,7 +179,7 @@ async def filter_single_record(
     """
     # 1. Contact check: needs at least a valid email or phone with country code
     email = normalize_email(raw.get("email"))
-    phone = normalize_phone(raw.get("phone"))
+    phone = normalize_phone(raw.get("phone"), _text(raw.get("country")))
     if not email and not phone:
         return None, "invalid_contact"
 

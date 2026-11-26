@@ -111,3 +111,30 @@ async def test_a_lead_saved_without_country_code_is_a_duplicate_of_the_same_numb
         clean, drop = await filter_single_record(db, {"company": "B", "phone": "+91 98765 43210",
                                                       "product": "instant coffee"}, "all")
         assert drop == "duplicate"
+
+
+@pytest.mark.parametrize("text, digits", [
+    ("Call +86 138 0013 8000", "8613800138000"),  # 13 digits with + : the whole number, not a cut
+    ("Mumbai 400001 2261 2345", ""),  # a pin code plus a short number is not a 10-digit mobile
+])
+def test_more_phone_texts(text, digits):
+    import re
+    from app.services.harvest_service import find_phone
+    assert re.sub(r"\D", "", find_phone(text)) == digits
+
+
+def test_the_default_code_is_only_for_buyers_in_india():
+    assert normalize_phone("98765 43210", "India") == "+919876543210"
+    assert normalize_phone("212-555-1234", "USA") == ""  # never turned into an Indian number
+
+
+async def test_other_countries_with_the_same_last_ten_digits_are_not_duplicates():
+    from datetime import datetime, timezone
+    from app.models.lead import Lead
+    async with AsyncSessionLocal() as db:
+        db.add(Lead(source="enquiry_form", name="UK", phone="+44 20 7946 0958", consent=True,
+                    consent_at=datetime.now(timezone.utc), status="new"))
+        await db.commit()
+        clean, drop = await filter_single_record(db, {"company": "US", "phone": "+1 207 946 0958",
+                                                      "country": "USA", "product": "instant coffee"}, "all")
+        assert drop is None

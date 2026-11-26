@@ -45,8 +45,9 @@ _GROUP_JOIN = re.compile(r"[\s.()-]{1,2}")  # what may sit between the groups of
 def find_phone(text: str) -> str:
     """The first phone in a text, or "". Digit groups that touch (a space, dot, dash or bracket between) form
     a run. A number starts with "+" or a group of 3+ digits (not "12" of "Order 12"). Inside a run, every
-    start is tried: the first stretch shaped like a phone wins (10 digits; 11 with a trunk 0; 11-12 with "+"),
-    else the first of 9 to 13 digits. So "+91 98765 43210 10am" gives +91 98765 43210, "Since 1998 98765 43210" gives
+    start is tried: the first stretch shaped like a phone wins (10 digits from 6-9, an Indian mobile; 11 with a
+    trunk 0; 11 to 13 with "+"). Nothing else is guessed: free text has endless formats, and a wrong number is
+    worse than none, so this takes the common shapes and never glues a year, pin code or time onto them. So "+91 98765 43210 10am" gives +91 98765 43210, "Since 1998 98765 43210" gives
     98765 43210, and "Mumbai 400001" gives nothing. A "+" always starts a new number."""
     runs: list[list[re.Match]] = []
     for g in _DIGIT_GROUP.finditer(text or ""):
@@ -56,7 +57,6 @@ def find_phone(text: str) -> str:
         else:
             runs.append([g])
     for run in runs:
-        usual = possible = ""
         for i in range(len(run)):
             if not run[i].group().startswith("+") and len(run[i].group()) < 3:
                 continue
@@ -67,16 +67,9 @@ def find_phone(text: str) -> str:
                     break
                 stretch = text[run[i].start():run[j].end()]
                 first = stretch.lstrip("+")[:1]
-                shaped = ((digits == 10 and first != "0") or (digits == 11 and first == "0")
-                          or (11 <= digits <= 12 and stretch.startswith("+")))
-                if shaped and not usual:
-                    usual = stretch
-                elif digits >= PHONE_MIN_DIGITS and not possible:
-                    possible = stretch
-            if usual:
-                return usual
-        if possible:
-            return possible
+                if ((digits == 10 and first in "6789") or (digits == 11 and first == "0")
+                        or (11 <= digits <= 13 and stretch.startswith("+"))):
+                    return stretch  # the first stretch shaped like a phone; no guessing beyond that
     return ""
 # Every fetch goes through harvest_net.safe_get: https and public addresses only, redirects checked,
 # API keys only from HARVEST_ settings (security fix after the PR #53 review).
@@ -456,8 +449,10 @@ async def _record_failed_run(db: AsyncSession, source_id: int, error: Exception)
     run, so the Runs page shows why and the source waits its interval instead of retrying every tick."""
     try:
         now = datetime.now(timezone.utc)
+        # Only the error type: a database error's text can hold a buyer's email or phone (the full text is in
+        # the log above, which is not shown on the Runs page)
         db.add(HarvestRun(source_id=source_id, status="failed", started_at=now, finished_at=now, drop_reasons={},
-                          error_message=f"{type(error).__name__}: {error}"[:500]))
+                          error_message=f"{type(error).__name__} (details in the server log)"))
         source = await db.get(HarvestSource, source_id)
         if source is not None:
             source.last_run_at, source.last_status = now, "failed"
