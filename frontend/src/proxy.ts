@@ -27,7 +27,8 @@ export default function proxy(req: NextRequest) {
   if (isPortal && !noLogin && !req.cookies.get(SESSION_COOKIE)) {
     const url = req.nextUrl.clone();
     url.pathname = '/employee/login';
-    url.searchParams.set('next', pathname);
+    url.search = ''; // the page's own query goes inside `next`, not onto the login page (CR28)
+    url.searchParams.set('next', pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
   return intl(req);

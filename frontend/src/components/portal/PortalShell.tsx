@@ -90,7 +90,8 @@ export default function PortalShell({ children, requirePerm }: { children: React
         if (n !== latest.current) return;
         if (e instanceof ApiFailure && e.status === 401) {
           forgetAccount();
-          router.replace(`/employee/login?next=${encodeURIComponent(pathname)}`);
+          // With the query string, so /admin/leads?status=new comes back as it was (CR28)
+          router.replace(`/employee/login?next=${encodeURIComponent(pathname + window.location.search)}`);
         }
         // A page already showing keeps showing (one failed re-check); else say so, with the error code
         else setStatus((s) => (s.state === 'ready' ? s : { state: 'error', requestId: e instanceof ApiFailure ? e.body.request_id : null }));
