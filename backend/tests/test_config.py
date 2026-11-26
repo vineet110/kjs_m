@@ -204,7 +204,7 @@ def test_env_values_still_win_when_their_file_is_broken(config_dir, monkeypatch)
     assert ini.reload_now().app.jobs_enabled is False
 
 
-def test_a_failed_load_is_not_retried_until_a_file_changes(config_dir, monkeypatch):
+def test_a_failed_first_load_keeps_trying_but_logs_once(config_dir, monkeypatch, caplog):
     # A fresh store whose very first load fails: loaded_from_files stays False, so only `tried` stops the retry
     store = ini._Store()
     calls = []
@@ -214,13 +214,12 @@ def test_a_failed_load_is_not_retried_until_a_file_changes(config_dir, monkeypat
         raise ValueError("config/app.ini: broken")
 
     monkeypatch.setattr(ini, "_validate", failing)
-    store.load()
-    store.load()
-    store.load()
-    assert calls == [1]  # same files: no new read, no error line every 3 s
-    write(config_dir / "app.ini", "[app]\nlead_rate_per_hour = 6\n")
-    store.load()
-    assert calls == [1, 1]  # a changed file is read again
+    with caplog.at_level(logging.ERROR, logger="app.config"):
+        store.load()
+        store.load()
+        store.load()
+    assert len(calls) == 3  # with no good config yet it keeps trying (never settles for the defaults quietly)
+    assert len([r for r in caplog.records if r.msg == "config.invalid"]) == 1  # but says so once
 
 
 def test_a_deleted_key_goes_back_to_its_default_even_with_a_bad_env_value(config_dir, monkeypatch):

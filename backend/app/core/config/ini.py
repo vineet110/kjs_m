@@ -572,7 +572,7 @@ def _validate(raw: dict, last: Config | None = None, strict: bool = False) -> Co
         except ValidationError as e2:
             raise ValueError(_reason(e2)) from e2  # can't happen with values that met the rule: keep the old config
         log.error("config.invalid", extra={"reason": _reason(e), "refused": refused or "none",
-                                           "kept": "the last good job timeout and email budget"})
+                                           "kept": f"{kept} for the job timeout and email budget"})
         return new
 
 
@@ -628,13 +628,17 @@ class _Store:
     def load(self, force: bool = False) -> None:
         with self.lock:
             mtimes = self._current_mtimes()
-            if not force and mtimes == self.mtimes and (self.loaded_from_files or self.tried):
-                return  # nothing changed since the last try (a failed one is not logged again every 3 s)
+            if not force and mtimes == self.mtimes and self.loaded_from_files:
+                return  # nothing changed since the last good load
+            # With no good config yet, a failed load is tried again (on defaults jobs_enabled is true: never
+            # settle for them quietly), but its error is logged only once per set of files
+            repeat = mtimes == self.mtimes and self.tried
             self.mtimes, self.tried = mtimes, True
             try:
                 new = _validate(_read_raw(), self.config if self.loaded_from_files else None)
             except ValueError as e:
-                log.error("config.invalid", extra={"reason": str(e)})
+                if not repeat:
+                    log.error("config.invalid", extra={"reason": str(e)})
                 return  # keep the last good config
             changed = {k: v for k, v in _flatten(new).items() if _flatten(self.config).get(k) != v}
             self.config, first = new, not self.loaded_from_files
