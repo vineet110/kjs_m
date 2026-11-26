@@ -25,7 +25,7 @@ from app.core.security import hash_token, new_session_token
 from app.models.audit import AuditLog
 from app.models.user import User, UserSession
 from app.schemas.auth import UserOut, UserUpdateIn
-from app.services import assign_service, audit_service, chat_hub, file_service, job_title_service
+from app.services import assign_service, audit_service, chat_hub, file_service, job_title_service, lead_service
 
 log = logging.getLogger(__name__)
 
@@ -312,15 +312,18 @@ async def set_status(db: AsyncSession, admin: User, user_id: int, status: str) -
         raise AppError(403, "forbidden", "Only an admin can turn an account back on.")
     before = {"status": user.status}
     user.status = status
-    returned = 0
+    returned = leads_back = 0
     if status != "active":
         await db.execute(delete(UserSession).where(UserSession.user_id == user.id))  # log them out
         # Their open batch would be stuck for ever (only they can work on it) and hidden (CR9): its
         # unfinished buyers go back to "new" for the next person, and the batch is marked "returned".
         returned = await assign_service.return_open_batch(db, user.id)
+        # Their open leads would wait for ever on someone who can't log in (R98): back to unassigned
+        leads_back = await lead_service.return_open_leads(db, admin, user)
     audit_service.record(
         db, actor=admin, action=f"user.{status}", entity_type="user", entity_id=user.id,
-        before=before, after={"status": status} | ({"buyers_returned": returned} if returned else {}),
+        before=before, after={"status": status} | ({"buyers_returned": returned} if returned else {})
+        | ({"leads_unassigned": leads_back} if leads_back else {}),
     )
     await db.commit()
     if status != "active":

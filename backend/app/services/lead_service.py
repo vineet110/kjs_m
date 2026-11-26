@@ -518,6 +518,19 @@ async def list_notes(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
             for n, name in rows.all()]
 
 
+async def return_open_leads(db: AsyncSession, by: User, owner: User) -> int:
+    """The owner's account was disabled (R98, decided 18 Nov): their new and contacted leads go back to
+    unassigned so the team sees and picks them up; each gets a note saying why. Closed leads keep their owner
+    (the reports count them). Returns how many went back. The caller writes the one audit row and commits."""
+    leads = (await db.scalars(select(Lead).where(Lead.assigned_to == owner.id, Lead.status.in_(("new", "contacted")))
+                              .with_for_update())).all()
+    for lead in leads:
+        lead.assigned_to = None
+        db.add(LeadNote(lead_id=lead.id, user_id=by.id, kind="handover",
+                        text=f"Back to unassigned: {owner.name}'s account was switched off"))
+    return len(leads)
+
+
 async def assign(db: AsyncSession, user: User, lead_id: int, to_user_id: int) -> None:
     """Hand over (owner) or reassign (leads.view_all) a lead to a colleague."""
     lead = await _lead_for(db, user, lead_id, lock=True)
