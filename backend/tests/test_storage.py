@@ -50,3 +50,11 @@ def test_an_empty_key_never_addresses_the_whole_bucket(monkeypatch):
     for call in (lambda: s.get(""), lambda: s.delete(""), lambda: s.put("", b"x", "text/plain")):
         with pytest.raises(StorageError):
             call()
+
+
+def test_r2_link_opens_in_the_browser_only_when_asked(monkeypatch):  # CR22
+    from app.core import storage as st
+    monkeypatch.setattr(st.settings, "R2_ACCOUNT_ID", "acc")
+    s = st.R2Storage(bucket="b", access_key="k", secret_key="s")
+    assert "attachment%3B" in s.url("product/x/spec.pdf", "spec.pdf")
+    assert "inline%3B" in s.url("product/x/spec.pdf", "spec.pdf", inline=True)

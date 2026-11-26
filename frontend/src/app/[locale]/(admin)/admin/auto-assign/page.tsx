@@ -156,7 +156,7 @@ export default function AutoAssign() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Import buyer records</h2>
-        <form onSubmit={importFile} className="card flex flex-wrap items-end gap-3 p-4">
+        <form method="post" onSubmit={importFile} className="card flex flex-wrap items-end gap-3 p-4">
           <div><label className="label">Excel (.xlsx) or CSV</label><input type="file" name="file" accept=".xlsx,.csv" required className="input" /></div>
           <div><label className="label">Category if the file has none</label>
             <select name="default_category" className="input"><option value="">— use the file&apos;s column —</option>{cats.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>

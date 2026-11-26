@@ -31,6 +31,24 @@ How a visitor reaches us:
 
 No port on the server is open to the internet. cloudflared connects out to Cloudflare.
 
+**The live Hostinger VPS is set up differently (since 23 Nov, backlog R118):**
+
+   Internet -> host nginx on the VPS (HTTPS, ports 80 and 443) -> Docker nginx (127.0.0.1:8080) -> website / API
+
+   i.    No Cloudflare and no cloudflared. The host nginx (installed on the VPS itself, not in Docker,
+         version 1.26.3) holds the HTTPS certificate and sends http to https.
+   ii.   The security headers and CSP come from the Docker nginx (`nginx/security-headers.conf`) and pass
+         through the host nginx unchanged. Change them here, never on the server, or the next deploy undoes it.
+   iii.  The host nginx config is NOT in this repo yet. It must have:
+         - `server_tokens off;` in its `http { }` block (hides the version, ZAP SEC-04);
+         - `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` (the visitor's real IP; without it
+           every visitor shares one rate limit);
+         - `proxy_set_header X-Forwarded-Proto $scheme;`.
+         Check: `curl -sI https://twins.kjsindia.com | grep -i server` and
+         `curl -s https://twins.kjsindia.com/x.php | grep -i nginx` both show no version number.
+   iv.   `CF-Connecting-IP` is removed by the Docker nginx (no Cloudflare in front, so a visitor could fake it).
+         If Cloudflare is ever put in front again, remove that line in `nginx/default.conf` first.
+
 
 
 ## 2. First-time setup
@@ -251,6 +269,19 @@ No port on the server is open to the internet. cloudflared connects out to Cloud
 
 5. Backups are readable only by the user who runs `backup.sh` (folder 700, files 600).
    Run the cron job as that same user, never as a shared account.
+
+
+6. Being told when a backup fails or doesn't run (R11.i, R50.iv), and when the site is down (R45)
+
+   i.    Backups: make a free check at https://healthchecks.io (period 1 day, grace 2 hours, your email).
+         Put its ping address in `.env.backup` as `BACKUP_PING_URL=https://hc-ping.com/<id>`. Set up the
+         off-site copy (item 4) first: with `.env.backup` present, its R2 values and passphrase are required.
+         `backup.sh` pings it at the end of every nightly run, or `<address>/fail` when a step fails.
+         No ping in time (cron stopped, server off) also sends the email.
+   ii.   Check it once: `./backup.sh` by hand, then the check shows "up" with the time.
+   iii.  The site: a free uptime check (e.g. UptimeRobot) on `https://twins.kjsindia.com/api/health/ready`
+         every 5 minutes, alert by email on any answer that isn't 200 (503 when the background jobs have
+         stopped, 500 when the database is down).
 
 
 

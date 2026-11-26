@@ -1,7 +1,7 @@
-// Catalogue products keep their item list inside the description, one line per item:
-// "• Item 801 (variant): 25 g, 24 pieces per box, 6 per case" (written by backend/app/seed_catalogue.py).
-// These helpers read it back so cards can show variants and item numbers.
-import type { Category, Product } from './api';
+// Catalogue items. Since R19 a product has its own `items` list. Older API answers kept them inside the
+// description, one line per item: "• Item 801 (variant): 25 g, 24 pieces per box, 6 per case"; parseItems
+// still reads those, so a page never loses its items during a deploy.
+import type { Category, Product, ProductItem } from './api';
 import { asset } from './assets';
 
 export type CatalogueItem = { no: string; variant: string; weight: string; pieces: string; perCase: string };
@@ -15,6 +15,36 @@ export function parseItems(description: string): CatalogueItem[] {
     if (m) items.push({ no: m[1], variant: m[2] ?? '', weight: m[3], pieces: m[4], perCase: m[5] });
   }
   return items;
+}
+
+/** A product's items: its own list, or (an older API answer) the lines in its description. */
+export function itemsOf(p: Pick<Product, 'description'> & { items?: ProductItem[] }): CatalogueItem[] {
+  if (p.items !== undefined) // an emptied list stays empty: description lines only for an older API answer
+    return p.items.map((i) => ({ no: i.no, variant: i.variant, weight: i.weight, pieces: String(i.pieces), perCase: String(i.per_case) }));
+  return parseItems(p.description);
+}
+
+/** Admin > Products "Items" box: one item per line, "801 | Hazelnut | 25 g | 24 | 6" (variant may be empty). */
+export function itemsToLines(items: ProductItem[] | undefined): string {
+  return (items ?? []).map((i) => [i.no, i.variant, i.weight, i.pieces, i.per_case].join(' | ')).join('\n');
+}
+
+/** The "Items" box read back. A line that doesn't fit is reported with its number, never dropped (R19). */
+export function itemsFromLines(text: string): { items: ProductItem[] } | { error: string } {
+  const items: ProductItem[] = [];
+  const lines = text.split('\n');
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n].trim();
+    if (!line) continue;
+    const parts = line.split('|').map((x) => x.trim());
+    const [no, variant, weight, pieces, perCase] = parts;
+    const whole = (v: string | undefined) => (v && /^\d+$/.test(v) && Number(v) >= 1 ? Number(v) : null);
+    if (parts.length !== 5 || !no || /\s/.test(no) || !weight || whole(pieces) === null || whole(perCase) === null)
+      return { error: `Items, line ${n + 1}: write it as "item no | variant | weight | pieces per box | per case", e.g. "801 | Hazelnut | 25 g | 24 | 6" (variant may be empty).` };
+    if (items.some((i) => i.no === no)) return { error: `Items, line ${n + 1}: item ${no} is already in the list.` };
+    items.push({ no, variant: variant ?? '', weight, pieces: whole(pieces)!, per_case: whole(perCase)! });
+  }
+  return { items };
 }
 
 /** The first paragraph of the description, without the item list. */
@@ -48,7 +78,7 @@ export function focusText(t: Record<string, string>, key: string, coffee: boolea
 /** The range in words for the footer and Google: "coffee, health drinks and confectionery". */
 export function rangeText(cats: Category[] | null | undefined): string {
   const names = topLevel(cats).map((c) => c.name.toLowerCase());
-  if (names.length === 0) return 'coffee, tea, health drinks and confectionery';
+  if (names.length === 0) return 'coffee, health drinks and confectionery';
   return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
@@ -75,7 +105,7 @@ export function toHomeProduct(p: Product): HomeProduct {
   return {
     slug: p.slug, name: p.name, categorySlug: p.category_slug, categoryName: p.category_name, image: imageOf(p),
     summary: summary(p.description), packFormats: p.pack_formats, moq: p.moq, privateLabel: p.private_label,
-    items: parseItems(p.description), offerPercent: p.offer_percent ?? null,
+    items: itemsOf(p), offerPercent: p.offer_percent ?? null,
   };
 }
 

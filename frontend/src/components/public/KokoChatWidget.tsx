@@ -23,6 +23,17 @@ const HELLO: Msg = {
   content: 'Hi! I am Koko. Ask me about our stick packs, blending, packaging or private label. I reply in your language.',
 };
 
+/** 36 random characters (crypto.randomUUID, or 16 crypto random bytes where that is missing). */
+function newChatId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  // No secure random at all (a very old browser): a short id, which the server ties to the visitor's network
+  // as before, instead of a long guessable one it would trust on its own
+  if (!c?.getRandomValues) return `c-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`;
+  const hex = Array.from(c.getRandomValues(new Uint8Array(16)), (b: number) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /** glowSeconds: a soft pulsing ring around the "Ask Koko" button (site_ui.ini glow); null = no ring */
 export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: number | null }) {
   const [open, setOpen] = useState(false);
@@ -31,10 +42,18 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
+  const [formError, setFormError] = useState(''); // shown inside the form (was a blocking alert())
+  const [sending, setSending] = useState(false); // a double click must not send two leads (CR26.i)
   const t = useTranslations('koko');
   const endRef = useRef<HTMLDivElement>(null);
   // Random id for this conversation (no personal data), so staff can read the transcript in Admin > Koko.
-  const chatId = useRef(`c-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`);
+  // A long random id: knowing it is what makes the saved chat yours (the server trusts ids of 32+ characters
+  // even when the phone changes network); crypto, not Math.random, so nobody can guess it
+  const chatId = useRef('');
+  if (!chatId.current) chatId.current = newChatId(); // once per chat, not on every render
+  // The question whose answer never arrived (time-out, network): asking the same thing again right after the
+  // error line is the same turn, so the server answers it again in place instead of saving it twice
+  const failed = useRef<{ text: string; turn: string; at: number } | null>(null);
 
   // Braces matter: an effect may only return a cleanup function. Newer Chrome makes
   // scrollIntoView() return a Promise, which React then tries to call -> "destroy is not a function".
@@ -46,14 +65,20 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
     e.preventDefault();
     const text = input.trim();
     if (!text || busy) return;
-    const next = [...msgs, { role: 'user' as const, content: text }];
+    const f = failed.current;
+    const again = !!f && f.text === text && msgs.length === f.at + 2; // only the error line came after it
+    const turn = again && f ? f.turn : newChatId();
+    // asked again: the failed question and its error line go, so the chat shows the question once
+    const base = again && f ? msgs.slice(0, f.at) : msgs;
+    const next = [...base, { role: 'user' as const, content: text }];
+    failed.current = null;
     setMsgs(next);
     setInput('');
     setBusy(true);
     try {
       const res = await api<KokoReply>('/koko/chat', {
         method: 'POST',
-        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current },
+        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current, turn_id: turn },
         timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
         safeToRepeat: true, // asking again only gives another reply
       });
@@ -61,6 +86,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
       if (res.suggest_enquiry && !sent) setShowForm(true);
     } catch (err) {
       const msg = err instanceof ApiFailure ? err.message : 'Sorry, I could not reply.';
+      failed.current = { text, turn, at: next.length - 1 };
       setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.`, local: true }]);
     } finally {
       setBusy(false);
@@ -71,27 +97,32 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const email = String(f.get('email') || '').trim();
+    if (sending) return;
+    setSending(true);
+    setFormError('');
     try {
       await api('/public/leads', {
         method: 'POST',
         body: {
           source: 'koko', name: f.get('name'), email: email || null, phone: f.get('phone'),
           company: f.get('company'), consent: f.get('consent') === 'on',
-          chat: forServer(msgs), source_page: window.location.pathname,
+          chat: forServer(msgs), chat_id: chatId.current, source_page: window.location.pathname,
         },
       });
       setSent(true);
       setShowForm(false);
       setMsgs((m) => [...m, { role: 'assistant', content: 'Thank you! I have sent a summary to our sales team. They will contact you soon.', local: true }]);
     } catch (err) {
-      alert(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
+      setFormError(err instanceof ApiFailure ? err.message : 'Could not send. Please try WhatsApp.');
+    } finally {
+      setSending(false);
     }
   }
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {open ? (
-        <div className="flex h-[520px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl">
+        <div className="flex h-[min(520px,calc(100dvh-2.5rem))] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl">
           <div className="flex items-center justify-between border-b-2 border-gold bg-ink p-4 text-white">
             <div>
               <p className="text-sm font-bold">Koko · KJS assistant</p>
@@ -99,7 +130,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
             </div>
             <button onClick={() => setOpen(false)} aria-label="Close chat" className="text-white/80 hover:text-white">✕</button>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm" aria-live="polite">
             {msgs.map((m, i) => (
               <div key={i} className="space-y-2">
                 <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 ${m.role === 'user' ? 'ml-auto bg-ink text-white' : 'bg-slate-100 text-slate-800'}`}>
@@ -110,26 +141,27 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
             ))}
             {busy && <div className="w-16 rounded-xl bg-slate-100 px-3 py-2 text-slate-500">…</div>}
             {showForm && (
-              <form onSubmit={sendLead} className="space-y-2 rounded-xl border border-gold/50 bg-gold/5 p-3">
+              <form method="post" onSubmit={sendLead} className="space-y-2 rounded-xl border border-gold/50 bg-gold/5 p-3">
                 <p className="text-xs font-semibold">Share your details and our sales team will send a quote:</p>
                 <input name="name" required minLength={2} placeholder="Name *" className="input" />
                 <input name="company" placeholder="Company" className="input" />
                 <input name="email" type="email" placeholder="Email" className="input" />
                 <PhoneInput id="koko-phone" placeholder="Phone / WhatsApp *" />
                 <label className="flex items-start gap-2 text-[11px] text-slate-600">
-                  <input type="checkbox" name="consent" required className="mt-0.5" />
+                  <input type="checkbox" name="consent" required className="mt-0.5 h-6 w-6 shrink-0" />
                   I agree to be contacted about this request (DPDP Act 2023).
                 </label>
+                {formError && <p role="alert" className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-2">
-                  <button className="btn-gold flex-1">Send</button>
-                  <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Later</button>
+                  <button disabled={sending} className="btn-gold flex-1">{sending ? 'Sending…' : 'Send'}</button>
+                  <button type="button" onClick={() => { setShowForm(false); setFormError(''); }} className="btn-ghost">Later</button>
                 </div>
               </form>
             )}
             <div ref={endRef} />
           </div>
-          <form onSubmit={send} className="flex gap-2 border-t bg-slate-50 p-3">
-            <input value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} placeholder="Ask about our products…" className="input" />
+          <form method="post" onSubmit={send} className="flex gap-2 border-t bg-slate-50 p-3">
+            <input value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} placeholder="Ask about our products…" aria-label="Your question for Koko" className="input" />
             <button disabled={busy} className="btn-dark">Send</button>
           </form>
         </div>

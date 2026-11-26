@@ -3,10 +3,18 @@ import CategoryGrid from '@/components/public/CategoryGrid';
 import EnquiryButton from '@/components/public/EnquiryButton';
 import ProductCard from '@/components/public/ProductCard';
 import Reveal from '@/components/public/Reveal';
-import { serverGet, type Category, type Product } from '@/lib/api';
+import { serverGet, texts, type Category, type Product } from '@/lib/api';
 import { imageOf } from '@/lib/catalogue';
 
-export const metadata: Metadata = { title: 'Products' };
+// Admin > Website > Text & SEO "Products: page title / description" (R100.ii: saved but never read before).
+// absolute: the saved title is the whole title (it already says "| KJS India").
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await texts();
+  return {
+    title: t['seo.products.title'] ? { absolute: t['seo.products.title'] } : 'Products',
+    description: t['seo.products.description'] || undefined,
+  };
+}
 
 /** The first product picture of each category, for the category cards. */
 function firstImages(products: Product[]): Record<string, string> {

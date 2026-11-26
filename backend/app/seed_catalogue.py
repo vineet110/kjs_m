@@ -273,10 +273,12 @@ BEVERAGES = [
 
 
 def _description(p: dict) -> str:
-    lines = [p["text"], "", "Items in our catalogue:"]
-    for no, variant, weight, pcs, boxes in p["items"]:
-        lines.append(f"• Item {no}{f' ({variant})' if variant else ''}: {weight}, {pcs} pieces per box, {boxes} per case")
-    return "\n".join(lines)
+    return p["text"]  # the items have their own column since R19 (_items)
+
+
+def _items(p: dict) -> list[dict]:
+    return [{"no": str(no), "variant": variant or "", "weight": weight, "pieces": int(pcs), "per_case": int(boxes)}
+            for no, variant, weight, pcs, boxes in p["items"]]
 
 
 def _pack_formats(p: dict) -> str:
@@ -300,12 +302,16 @@ async def add_catalogue(db: AsyncSession) -> None:
 
     existing = set((await db.scalars(select(Product.slug))).all())
     added = 0
+    # Products put into a category that is switched off never show on the site (CR23): count them and say so
+    hidden_cats = {slug for slug, c in existing_cats.items() if not c.is_active}
+    new_in_hidden = [p for p in [*PRODUCTS, *BEVERAGES] if p["slug"] not in existing and p["cat"] in hidden_cats]
+    into_hidden, used_hidden = len(new_in_hidden), sorted({p["cat"] for p in new_in_hidden})
     for p in PRODUCTS:
         if p["slug"] in existing:
             continue
         db.add(Product(
             category_id=existing_cats[p["cat"]].id, slug=p["slug"], name=p["name"],
-            description=_description(p), pack_formats=_pack_formats(p), moq="",
+            description=_description(p), items=_items(p), pack_formats=_pack_formats(p), moq="",
             image_path=f"/images/products/{p['slug']}.jpg", private_label=True, is_best_seller=False, is_active=True,
         ))
         added += 1
@@ -321,6 +327,9 @@ async def add_catalogue(db: AsyncSession) -> None:
     await db.commit()
     total = len(PRODUCTS) + len(BEVERAGES)
     print(f"catalogue products: {added} added, {total - added} already there")
+    if into_hidden:
+        print(f"WARNING: {into_hidden} of them are in a switched-off category ({', '.join(used_hidden)}) "
+              "and won't show on the website until it is switched on (Admin > Products > Categories)")
 
 
 async def main() -> None:

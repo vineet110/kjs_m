@@ -1,5 +1,6 @@
 """Files: upload, list, download, request delete. Who may do what depends on the owner
 (order board, product); approving deletes needs `files.approve` or the owner's approvers (a board's owner)."""
+import asyncio
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pathlib import Path
 
@@ -30,13 +31,15 @@ async def list_files(owner_type: str, owner_id: str, user: User = Depends(curren
 def send_file(f, url: str | None, data: Path | bytes | None, inline: bool = False):
     if url:
         return RedirectResponse(url, status_code=302)
-    disposition = "inline" if inline else f'attachment; filename="{file_service.safe_name(f.name)}"'
+    # inline keeps the file name too, so "Save" in the browser's PDF viewer suggests spec.pdf, not the id
+    name = file_service.safe_name(f.name)
+    disposition = f'inline; filename="{name}"' if inline else f'attachment; filename="{name}"'
     # sandbox: even if an uploaded PDF carries scripts, they can't run as our website
     headers = {"content-disposition": disposition, "x-content-type-options": "nosniff",
                "content-security-policy": "sandbox"}
-    # Public website files (product photos) may be cached by browsers and Cloudflare for an hour;
-    # staff files never are.
-    headers["cache-control"] = "public, max-age=3600" if inline else "private, no-store"
+    # Public website files (product photos) may be kept by browsers for 10 minutes (a photo taken down
+    # disappears within that); staff files never are.
+    headers["cache-control"] = "public, max-age=600" if inline else "private, no-store"
     if isinstance(data, Path):  # local disk: streamed in chunks, never loaded whole into memory
         return FileResponse(data, media_type=f.content_type, headers=headers)
     return Response(data, media_type=f.content_type, headers=headers)
@@ -45,6 +48,16 @@ def send_file(f, url: str | None, data: Path | bytes | None, inline: bool = Fals
 @router.get("/{file_id}/download")
 async def download(file_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     return send_file(*await file_service.download(db, user, file_id))
+
+
+async def pdf_policy(f, data: Path | bytes) -> str:
+    """The Content-Security-Policy for showing a file inline. A real PDF goes without the sandbox (Chrome's PDF
+    viewer shows a blank page for a sandboxed one) and may be framed only by our own pages; everything else,
+    and a ".pdf" that isn't really a PDF, stays sandboxed. One rule for the staff preview and the public
+    spec sheets. The first 1 KB is read off the event loop."""
+    if f.content_type == "application/pdf" and await asyncio.to_thread(_looks_like_pdf, data):
+        return "frame-ancestors 'self'"
+    return "sandbox"
 
 
 def _looks_like_pdf(data: Path | bytes) -> bool:
@@ -67,10 +80,7 @@ async def view(file_id: int, user: User = Depends(current_user), db: AsyncSessio
     f, data = await file_service.view(db, user, file_id)
     headers = {"content-disposition": "inline", "x-content-type-options": "nosniff",
                "cache-control": "private, no-store"}
-    if f.content_type == "application/pdf" and _looks_like_pdf(data):
-        headers["content-security-policy"] = "frame-ancestors 'self'"  # only our own pages may frame it
-    else:  # everything else, and a ".pdf" that isn't really a PDF, stays sandboxed
-        headers["content-security-policy"] = "sandbox"
+    headers["content-security-policy"] = await pdf_policy(f, data)
     if isinstance(data, Path):
         return FileResponse(data, media_type=f.content_type, headers=headers)
     return Response(data, media_type=f.content_type, headers=headers)

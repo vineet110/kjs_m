@@ -25,7 +25,7 @@ def range_text(cats: list[CategoryOut]) -> str:
     rangeText in frontend/src/lib/catalogue.ts. No categories: the full range."""
     names = [c.name.lower() for c in cats if c.slug not in PARENT_OF]
     if not names:
-        return "coffee, tea, health drinks and confectionery"
+        return "coffee, health drinks and confectionery"
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
@@ -51,7 +51,7 @@ def _product_out(p: Product, c: Category, photo_url: str | None = None) -> Produ
         id=p.id, slug=p.slug, name=p.name, description=p.description, pack_formats=p.pack_formats,
         moq=p.moq, image_path=p.image_path, private_label=p.private_label,
         is_best_seller=p.is_best_seller, offer_percent=p.offer_percent, category_slug=c.slug, category_name=c.name,
-        is_active=p.is_active, photo_url=photo_url,
+        is_active=p.is_active, items=p.items or [], photo_url=photo_url,
     )
 
 
@@ -171,13 +171,15 @@ async def get_product(db: AsyncSession, slug: str) -> ProductOut:
 async def create_product(db: AsyncSession, actor: User, data: ProductIn) -> ProductOut:
     category = await get_category(db, data.category_slug, include_hidden=True)
     slug = slugify(data.name)
+    if not slug:  # e.g. a name only in Hindi: its page address would be empty (CR21)
+        raise AppError(422, "bad_name", "The product name needs at least one English letter or number.")
     if await db.scalar(select(func.count()).select_from(Product).where(Product.slug == slug)):
         raise AppError(409, "duplicate", "A product with this name already exists.")
     p = Product(
         category_id=category.id, slug=slug, name=data.name.strip(), description=data.description,
         pack_formats=data.pack_formats, moq=data.moq, image_path=data.image_path,
         private_label=data.private_label, is_best_seller=data.is_best_seller, offer_percent=data.offer_percent,
-        is_active=True,
+        is_active=True, items=[i.model_dump() for i in data.items],
     )
     db.add(p)
     await db.flush()
@@ -223,4 +225,6 @@ async def _product_is_live(db: AsyncSession, slug: str) -> bool:
                                        Category.slug.not_in(await hidden_slugs(db)))))
 
 
-file_service.register_owner("product", _product_files_access, public=_product_is_live)
+# shrink "public": photos shown on the website are made at most site_ui image_max_px and lose their GPS /
+# camera data (R43); private pictures (e.g. print-ready label artwork) and other files are stored as they are
+file_service.register_owner("product", _product_files_access, public=_product_is_live, shrink="public")

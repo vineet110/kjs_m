@@ -22,8 +22,8 @@ from app.models.catalog import Category, Product
 from app.models.lead import Lead, LeadNote
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.lead import InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
-from app.services import (audit_service, file_service, koko_service, lead_reader, notification_service,
+from app.schemas.lead import ChatMessage, InternalLeadFormIn, InternalLeadIn, LeadIn, LeadOut
+from app.services import (audit_service, content_service, file_service, koko_service, lead_reader, notification_service,
                           task_service)
 from app.services.attendance_service import local_day, to_utc
 from app.services.calendar_service import CalendarService, holiday_set
@@ -56,7 +56,7 @@ def add_work_minutes(start: datetime, minutes: int, holidays: set[date]) -> date
 def sla(lead: Lead, now: datetime, holidays: set[date]) -> dict:
     s = cfg().sla
     respond_due = add_work_minutes(lead.created_at, s.respond_minutes, holidays)
-    resolve_due = add_work_minutes(lead.created_at, s.resolve_minutes, holidays)
+    resolve_due = add_work_minutes(lead.reopened_at or lead.created_at, s.resolve_minutes, holidays)
     if lead.status == "closed":
         return {"sla_state": "done", "sla_label": "Closed", "respond_due_at": respond_due, "resolve_due_at": resolve_due}
     stage, due = ("Respond", respond_due) if lead.status == "new" else ("Resolve", resolve_due)
@@ -91,9 +91,22 @@ async def create(db: AsyncSession, data: LeadIn, ip_hash: str | None, rate_key: 
     if data.source == "website_offer" and not (cfg().site_ui.enabled and cfg().site_ui.offer_box):
         raise AppError(404, "feature_off", "This form is not available right now.")
     lead_limiter.check(rate_key or ip_hash)
-    # The AI summary first, before any database query: an LLM call takes seconds, and holding a
-    # database connection that long would starve other requests when several visitors chat.
-    summary = await koko_service.summarise_chat(data.chat) if data.source == "koko" and data.chat else ""
+    # The AI summary before the lead is saved. Only the saved transcript is read first, and the connection is
+    # given back (commit) before the AI call: an LLM call takes seconds, and holding a database connection
+    # that long would starve other requests when several visitors chat.
+    summary = ""
+    if data.source == "koko" and (data.chat or data.chat_id):
+        # What Koko said comes from the saved transcript, never the browser's copy (R71): a visitor could add
+        # "Koko: we confirmed 90% off" and the summary would tell sales Koko promised it. Without a saved
+        # chat, only the visitor's own lines go in.
+        stored = await content_service.stored_chat(db, data.chat_id, ip_hash) or []
+        await db.commit()  # give the connection back before the slow AI call
+        chat = [ChatMessage(role=m["role"], content=str(m["content"])[:cfg().koko.message_max])
+                for m in stored if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+                and isinstance(m.get("content"), str)] or [m for m in data.chat if m.role == "user"]
+        while len(chat) > 1 and sum(len(m.content) for m in chat) > cfg().koko.chat_max:
+            chat = chat[1:]  # the newest lines within chat_max: a long chat must not make the summary call huge
+        summary = await koko_service.summarise_chat(chat) if chat else ""
 
     product_id = category_id = None
     if data.product_slug:
@@ -481,6 +494,10 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         raise AppError(409, "unchanged", f"This lead is already '{status}'.")
     if status == "new" and lead.responded_at is not None:
         raise AppError(409, "already_answered", "This lead was already answered; set it to 'contacted' instead.")
+    outcome = outcome.strip()  # " Won " and "Won" are one outcome in the reports
+    if status == "closed" and not outcome:
+        # The screen always asks; a script or an old tab must not close a lead the outcome reports can't count
+        raise AppError(422, "outcome_required", "Choose an outcome to close this lead.")
     before = {"status": lead.status, "assigned_to": lead.assigned_to}
     now = datetime.now(timezone.utc)
     lead.status = status
@@ -490,7 +507,12 @@ async def set_status(db: AsyncSession, user: User, lead_id: int, status: str, ou
         lead.resolved_at = now  # stops the "resolve" timer
         lead.outcome = outcome or lead.outcome
     else:
-        lead.resolved_at = None  # re-opened: the "resolve" timer runs again
+        if before["status"] == "closed":
+            # Re-opened (CR12, R4): a new resolve timer from now, and it may be reported again if that runs out
+            # (level 2 = "not closed" already reported would otherwise keep it quiet for ever)
+            lead.reopened_at = now
+            lead.escalation_level = min(lead.escalation_level, 1)
+        lead.resolved_at = None  # the "resolve" timer runs again
     if lead.assigned_to is None:
         lead.assigned_to = user.id  # whoever acts on an unassigned lead takes it
     audit_service.record(db, actor=user, action="lead.status_changed", entity_type="lead",
@@ -518,10 +540,29 @@ async def list_notes(db: AsyncSession, user: User, lead_id: int) -> list[dict]:
             for n, name in rows.all()]
 
 
+async def return_open_leads(db: AsyncSession, by: User, owner: User) -> int:
+    """The owner's account was disabled (R98, decided 18 Nov): their open (not closed) leads go back to
+    unassigned so the team sees and picks them up; each gets a note and an audit row saying why. Closed leads
+    keep their owner (the reports count them). Returns how many went back. The caller commits.
+    Not moved (known gap, backlog): open tasks on those leads stay with the person."""
+    leads = (await db.scalars(select(Lead).where(Lead.assigned_to == owner.id, Lead.status != "closed")
+                              .with_for_update())).all()
+    for lead in leads:
+        lead.assigned_to = None
+        db.add(LeadNote(lead_id=lead.id, user_id=by.id, kind="handover",
+                        text=f"Back to unassigned: {owner.name}'s account was switched off"))
+        audit_service.record(db, actor=by, action="lead.unassigned", entity_type="lead", entity_id=lead.id,
+                             before={"assigned_to": owner.id}, after={"assigned_to": None, "why": "owner switched off"})
+    return len(leads)
+
+
 async def assign(db: AsyncSession, user: User, lead_id: int, to_user_id: int) -> None:
     """Hand over (owner) or reassign (leads.view_all) a lead to a colleague."""
+    # The colleague first (shared lock), then the lead: switching that colleague off (auth_service.set_status)
+    # waits for this handover, or this waits for it, so a lead never lands on a just-disabled account (R98).
+    # Same order as set_status (person, then leads): no deadlock.
+    target = await db.get(User, to_user_id, with_for_update={"read": True}, populate_existing=True)
     lead = await _lead_for(db, user, lead_id, lock=True)
-    target = await db.get(User, to_user_id)
     if target is None or target.status != "active":
         raise AppError(422, "bad_user", "Pick an active colleague.")
     if "leads.view" not in effective_permissions(target.role, target.permissions):
@@ -575,12 +616,30 @@ async def sla_check(db: AsyncSession, now: datetime | None = None) -> dict:
             level, what = 2, "not closed"
         if not level:
             continue
+        # Late on the first (unlocked) read. Lock just this lead and look again before telling anyone: someone
+        # may have logged a call or closed it this very moment (CR15). A lead being saved right now is skipped
+        # and checked fresh next minute.
+        fresh = await db.scalar(select(Lead).where(Lead.id == lead.id).with_for_update(skip_locked=True)
+                                .execution_options(populate_existing=True))
+        if fresh is None or fresh.status == "closed":
+            continue
+        # The same rules again, on the fresh row (a call logged meanwhile can turn "not answered" into "not closed")
+        t = sla(fresh, now, holidays)
+        level, what = 0, ""
+        if fresh.status == "new" and fresh.escalation_level < 1 and now > t["respond_due_at"] + grace:
+            level, what = 1, "not answered"
+        elif fresh.escalation_level < 2 and now > t["resolve_due_at"] + grace:
+            level, what = 2, "not closed"
+        if not level:
+            continue
+        lead = fresh
         lead.escalation_level = level
         owner = await db.get(User, lead.assigned_to) if lead.assigned_to else None
         who = owner.name if owner else "nobody yet"
-        notification_service.notify(
-            db, set(managers) | ({owner.id} if owner else set()), "lead.sla_breach",
-            f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}.", "/admin/leads")
+        title, body = f"Lead {what} in time: {lead.name}", f"{t['sla_label']}. Owner: {who}."
+        notification_service.notify(db, set(managers), "lead.sla_breach", title, body, "/admin/leads")
+        if owner and owner.id not in managers:  # the owner can't open All Enquiries: their own lead page instead
+            notification_service.notify(db, {owner.id}, "lead.sla_breach", title, body, f"/employee/contacts/{lead.id}")
         log.warning("lead.sla_breach", extra={"lead_id": lead.id, "level": level})
         reported += 1
     return {"open_leads": len(leads), "escalated": reported}

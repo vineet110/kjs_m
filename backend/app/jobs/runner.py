@@ -4,7 +4,8 @@ Every `jobs_interval_seconds` (config/app.ini), during `jobs_hours` on working d
 it runs each registered job once. Each job:
 - gets its own DB session and a short job_run_id that appears on its log lines;
 - runs under a Postgres advisory lock, so if we ever start two API processes the job
-  still runs only once per tick;
+  doesn't start twice at once. The lock ends at the job's first commit(), so a job that commits as it
+  goes (send_emails) must also be safe on its own (it is: SKIP LOCKED) (CR24.iv);
 - must be safe to run again (idempotent): it checks what's already done before acting.
 
 Add a job:  @job("sla_check")  async def sla_check(db): ...  and import its module in

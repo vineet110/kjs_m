@@ -427,7 +427,7 @@ export default function ClientSchedulersPage() {
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+            <form method="post" onSubmit={handleSubmit} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase">Source Name</label>
                 <input

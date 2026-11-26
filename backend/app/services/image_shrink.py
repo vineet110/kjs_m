@@ -1,7 +1,8 @@
 """Shrinks website pictures on upload (Pillow): the longest side at most site_ui.ini image_max_px, saved again
 at image_quality. Also turns the picture upright (phone photos) and drops hidden data such as GPS position.
 
-Used for file owners registered with shrink=True (file_service.register_owner), e.g. the home page hero.
+Used for file owners registered with shrink=True (every picture: the home page hero, profile photos) or
+shrink="public" (only pictures shown on the website: product photos) in file_service.register_owner.
 """
 import io
 
@@ -35,15 +36,22 @@ def shrink(ext: str, data: bytes) -> bytes:
         # An animated WebP or PNG would lose its animation (only the first frame is saved): refused instead
         if getattr(img, "n_frames", 1) > 1:
             raise NotAPicture("animated pictures are not supported")
+        # The colour profile (an iPhone's Display P3, a camera's Adobe RGB) is kept: without it the browser reads
+        # the colours as plain sRGB and the photo looks dull. GPS lives in EXIF, which is dropped; a profile can
+        # still name the device model in its description, which we accept for correct colours.
+        icc = img.info.get("icc_profile")
         img = ImageOps.exif_transpose(img)  # upright, as the phone showed it
         img.thumbnail((s.image_max_px, s.image_max_px))  # only ever makes it smaller
         if fmt == "JPEG" and img.mode not in ("RGB", "L"):
+            if img.mode == "CMYK":
+                icc = None  # a CMYK profile would be wrong on the RGB copy; an RGB/gray one (P, LA...) still fits
             img = img.convert("RGB")  # JPEG has no transparency
+        extra = {"icc_profile": icc} if icc else {}
         out = io.BytesIO()
         if fmt == "PNG":
-            img.save(out, fmt, optimize=True)
+            img.save(out, fmt, optimize=True, **extra)
         else:
-            img.save(out, fmt, quality=s.image_quality, optimize=fmt == "JPEG")
+            img.save(out, fmt, quality=s.image_quality, optimize=fmt == "JPEG", **extra)
     except NotAPicture:
         raise
     except Exception as e:  # noqa: BLE001 - Pillow raises many kinds (incl. DecompressionBombError); all mean "can't use it"

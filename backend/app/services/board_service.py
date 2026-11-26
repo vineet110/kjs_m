@@ -236,7 +236,9 @@ async def create(db: AsyncSession, user: User, data) -> dict:
     await _start_step(db, board, first, user)
     audit_service.record(db, actor=user, action="board.created", entity_type="board", entity_id=code,
                          after={"steps": len(plan), "deadline": data.deadline.isoformat(), "plan_late": plan_late})
-    notification_service.notify(db, member_ids - {user.id}, "board.added", f"You are on order board {code}",
+    # Step 1's people already got "step started" for this same moment: one message, not two (CR24.ii)
+    first_step_people = set(data.steps[0].member_ids) if data.steps else set()
+    notification_service.notify(db, member_ids - {user.id} - first_step_people, "board.added", f"You are on order board {code}",
                                 f"{board.name} for {board.client}.", f"/employee/order-boards/{code}")
     await db.commit()
     return await detail(db, user, code)
@@ -248,9 +250,12 @@ async def _start_step(db: AsyncSession, board: OrderBoard, step: BoardStep, acto
     for uid in await _member_ids(db, board.id, step.id):
         for title in step.task_templates:
             task_service.add(db, assignee_id=uid, title=f"{board.code} · {step.name}: {title}", source="board",
-                             source_ref=f"board:{board.code}:step:{step.position}", due_at=due, created_by=actor.id)
+                             source_ref=f"board:{board.code}:step:{step.position}", due_at=due,
+                             created_by=None)  # made by the board: nobody may edit them as "creator" (CR16)
+        # The order and client too: for step-1 people this is the only message about a new board (CR24.ii)
         notification_service.notify(db, [uid], "board.step_started", f"{board.code}: step '{step.name}' started",
-                                    f"Planned until {step.planned_end:%d %b}.", f"/employee/order-boards/{board.code}")
+                                    f"{board.name} for {board.client}. Planned until {step.planned_end:%d %b}.",
+                                    f"/employee/order-boards/{board.code}")
 
 
 # ---------- Read ----------
@@ -352,10 +357,13 @@ async def complete_step(db: AsyncSession, user: User, code: str, step_id: int) -
     nxt = await db.scalar(select(BoardStep).where(BoardStep.board_id == b.id, BoardStep.position == step.position + 1))
     if nxt:
         await _start_step(db, b, nxt, user)
-    managers = await notification_service.users_with(db, "boards.manage")
-    notification_service.notify(db, (set(managers) | {b.created_by}) - {user.id, None}, "board.step_done", f"{b.code}: '{step.name}' done",
-                                f"By {user.name}." + (f" Next: {nxt.name}." if nxt else " All steps done."),
-                                f"/admin/order-boards/{b.code}")
+    managers = set(await notification_service.users_with(db, "boards.manage"))
+    title = f"{b.code}: '{step.name}' done"
+    body = f"By {user.name}." + (f" Next: {nxt.name}." if nxt else " All steps done.")
+    # Managers open the admin page; a creator without boards.manage can't (PR 3), so they get the employee page
+    notification_service.notify(db, managers - {user.id, None}, "board.step_done", title, body, f"/admin/order-boards/{b.code}")
+    if b.created_by and b.created_by not in managers and b.created_by != user.id:
+        notification_service.notify(db, {b.created_by}, "board.step_done", title, body, f"/employee/order-boards/{b.code}")
     audit_service.record(db, actor=user, action="board.step_done", entity_type="board", entity_id=b.code,
                          after={"step": step.position, "name": step.name})
     await db.commit()
@@ -484,7 +492,7 @@ async def set_assignees(db: AsyncSession, user: User, code: str, step_id: int, m
         for uid in new - old:
             for title in step.task_templates:
                 task_service.add(db, assignee_id=uid, title=f"{b.code} · {step.name}: {title}", source="board",
-                                 source_ref=f"board:{b.code}:step:{step.position}", due_at=due, created_by=user.id)
+                                 source_ref=f"board:{b.code}:step:{step.position}", due_at=due, created_by=None)  # CR16
         for uid in old - new:
             closed += await _close_tasks(db, b.code, f"taken off step '{step.name}'", user_id=uid,
                                          step_position=step.position)
@@ -770,6 +778,18 @@ async def board_alerts(db: AsyncSession, today: date | None = None) -> dict:
     sent = 0
     for step, board in rows:
         pct = used_pct(step, today, holidays)
+        crossed = max((t for t in thresholds if pct >= t), default=0)
+        if crossed <= step.alerted_pct:
+            continue
+        # Lock just this step and look again before alerting: it may have been marked done this very moment
+        # (CR15). A step being saved right now is skipped and checked fresh next run.
+        step = await db.scalar(select(BoardStep).where(BoardStep.id == step.id).with_for_update(skip_locked=True)
+                               .execution_options(populate_existing=True))
+        board = await db.scalar(select(OrderBoard).where(OrderBoard.id == board.id)
+                                .execution_options(populate_existing=True))  # finished meanwhile? (its own lock)
+        if step is None or step.status != "active" or board.status != "active":
+            continue
+        pct = used_pct(step, today, holidays)  # from the fresh plan: a re-plan may have just moved its dates
         crossed = max((t for t in thresholds if pct >= t), default=0)
         if crossed <= step.alerted_pct:
             continue

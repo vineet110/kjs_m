@@ -7,8 +7,8 @@ import { JsonLd } from '@/components/public/JsonLd';
 import GatedActions from '@/components/public/GatedActions';
 import OfferBadge from '@/components/public/OfferBadge';
 import TrackView from '@/components/public/TrackView';
-import { features, serverGet, type Product, type PublicFile } from '@/lib/api';
-import { imageOf, isUploaded, summary } from '@/lib/catalogue';
+import { features, serverGetFresh, type Product, type PublicFile } from '@/lib/api';
+import { imageOf, isUploaded, itemsOf, summary } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 
 // Next 15+: params arrive as a Promise.
@@ -16,15 +16,15 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
+  const p = await serverGetFresh<Product>(`/public/products/${encodeURIComponent(slug)}`);
   return p ? { title: p.name, description: summary(p.description).slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  const p = await serverGet<Product>(`/public/products/${encodeURIComponent(slug)}`);
+  const p = await serverGetFresh<Product>(`/public/products/${encodeURIComponent(slug)}`);
   if (!p) notFound();
-  const [files, f] = await Promise.all([serverGet<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
+  const [files, f] = await Promise.all([serverGetFresh<PublicFile[]>(`/public/products/${p.slug}/files`).catch(() => null), features()]);
   const photos = (files ?? []).filter((x) => x.content_type.startsWith('image/'));
   const docs = (files ?? []).filter((x) => !x.content_type.startsWith('image/'));
   const ownImage = imageOf(p);
@@ -72,6 +72,19 @@ export default async function ProductPage({ params }: Props) {
           <h1 className="text-3xl font-bold">{p.name}</h1>
           <p className="text-sm text-slate-500">Made in Hyderabad, India</p>
           {p.description && <p className="whitespace-pre-line text-slate-700">{p.description}</p>}
+          {itemsOf(p).length > 0 && (
+            // The catalogue items (R19): their own list now, no longer lines inside the description
+            <div>
+              <p className="mb-2 text-sm font-semibold">Items in our catalogue</p>
+              <ul className="space-y-1 text-sm text-slate-700">
+                {itemsOf(p).map((i, n) => (
+                  <li key={`${i.no}-${n}`}>
+                    <span className="font-medium">Item {i.no}</span>{i.variant && ` (${i.variant})`}: {i.weight}, {i.pieces} pieces per box, {i.perCase} per case
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-slate-200">
             {facts.map(([k, v]) => (
               <div key={k} className="bg-white p-3">

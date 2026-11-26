@@ -243,7 +243,7 @@ test('rangeText: the visible top-level categories in words, or the full range wi
   assert.equal(rangeText([cat('coffee', 'Coffee')]), 'coffee');
   assert.equal(rangeText([cat('coffee', 'Coffee'), cat('health-drinks', 'Health drinks'), cat('wafers', 'Wafers')]), 'coffee and health drinks');
   assert.equal(rangeText([cat('coffee', 'Coffee'), cat('tea', 'Tea'), cat('confectionery', 'Confectionery')]), 'coffee, tea and confectionery');
-  assert.equal(rangeText(null), 'coffee, tea, health drinks and confectionery');
+  assert.equal(rangeText(null), 'coffee, health drinks and confectionery');
 });
 
 test('imageOf: own site paths only (served from public/ when no R2 address is set)', () => {
@@ -800,6 +800,28 @@ test('talk: the offer form takes only phone numbers the server takes', () => {
   assert.ok(talk.phoneOk('+91 98765 43210'));
   assert.ok(talk.phoneOk('(040) 2345-6789'));
   assert.ok(!talk.phoneOk('12345'));
+  assert.ok(talk.phoneOk('123456')); // 6 digits: the enquiry forms and the server take it too
   assert.ok(!talk.phoneOk('98765 43210 ext'));
   assert.ok(!talk.phoneOk('1234567890123456'));
+});
+
+// ---------- Product items (R19) ----------
+test('items: the Admin box reads and writes one item per line, and names a wrong line instead of dropping it', () => {
+  const { itemsFromLines, itemsToLines, itemsOf } = catalogueLib;
+  const items = [{ no: '801', variant: 'Hazelnut', weight: '25 g', pieces: 24, per_case: 6 }, { no: '802', variant: '', weight: '40 g', pieces: 12, per_case: 8 }];
+  const text = itemsToLines(items);
+  assert.equal(text, '801 | Hazelnut | 25 g | 24 | 6\n802 |  | 40 g | 12 | 8');
+  assert.deepEqual(itemsFromLines(text + '\n\n'), { items });
+  assert.match(itemsFromLines('801 | Hazelnut | 25 g | 24\n').error, /line 1/);
+  assert.match(itemsFromLines('ok | | 1 g | 1 | 1\n80 1 | | 25 g | 24 | 6').error, /line 2/);
+  assert.match(itemsFromLines('801 | | 25 g | 0 | 6').error, /line 1/);
+  // its own list first; an older answer's description lines still work
+  assert.equal(itemsOf({ description: '', items })[0].perCase, '6');
+  assert.equal(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case' })[0].no, '9');
+});
+
+test('items: an emptied list stays empty, and the same number twice is named', () => {
+  const { itemsFromLines, itemsOf } = catalogueLib;
+  assert.deepEqual(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case', items: [] }), []);
+  assert.match(itemsFromLines('801 | | 25 g | 24 | 6\n801 | x | 30 g | 24 | 6').error, /line 2: item 801/);
 });

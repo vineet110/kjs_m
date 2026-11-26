@@ -155,7 +155,7 @@ function AddLead({ onSaved }: { onSaved: () => void }) {
           )}
         </div>
       )}
-      <form key={fillKey} ref={form} onSubmit={save} className="space-y-4">
+      <form method="post" key={fillKey} ref={form} onSubmit={save} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label" htmlFor="il-name">Name *</label><input id="il-name" name="name" required minLength={2} maxLength={120} className="input" defaultValue={v('name')} placeholder={ph('name')} /></div>
           <div><label className="label" htmlFor="il-company">Company</label><input id="il-company" name="company" maxLength={200} className="input" defaultValue={v('company')} placeholder={ph('company')} /></div>
