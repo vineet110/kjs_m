@@ -22,6 +22,7 @@ from openpyxl import load_workbook
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import modules
 from app.core.config.ini import cfg
 from app.core.errors import AppError
 from app.jobs.runner import job
@@ -177,7 +178,10 @@ async def _eligible(db: AsyncSession, now: datetime) -> list[tuple[User, int]]:
     counts = dict((await db.execute(select(Batch.user_id, func.count()).where(Batch.day == today)
                                     .group_by(Batch.user_id))).all())
     limit = cfg().assign.max_batches_per_day
-    out = [(u, counts.get(u.id, 0)) for u in users if u.categories and counts.get(u.id, 0) < limit]
+    # batches = admin (testing): only admins get batches; an employee couldn't open one, and their open batch
+    # would then block new ones (R55)
+    out = [(u, counts.get(u.id, 0)) for u in users
+           if u.categories and counts.get(u.id, 0) < limit and modules.visible(u, "batches")]
     return sorted(out, key=lambda x: (x[1], x[0].id))  # fewest batches today first
 
 
