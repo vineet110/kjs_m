@@ -169,7 +169,7 @@ export default function EnquiryForm({ source = 'enquiry_form', extraMessage = ''
       {/* Honeypot: hidden from people, bots fill it in */}
       <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <label className="flex items-start gap-2 text-xs text-slate-600">
-        <input type="checkbox" name="consent" required defaultChecked={!!saved} className="mt-0.5" />
+        <input type="checkbox" name="consent" required defaultChecked={!!saved} className="mt-0.5 h-6 w-6 shrink-0" />
         <span>I agree that KJS India may contact me about this request and store my details for that purpose (DPDP Act 2023).</span>
       </label>
       <label className="flex items-start gap-2 text-xs text-slate-600">
