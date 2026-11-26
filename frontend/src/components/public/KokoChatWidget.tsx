@@ -51,6 +51,9 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
   // even when the phone changes network); crypto, not Math.random, so nobody can guess it
   const chatId = useRef('');
   if (!chatId.current) chatId.current = newChatId(); // once per chat, not on every render
+  // The question whose answer never arrived (time-out, network): asking the same thing again right after the
+  // error line is the same turn, so the server answers it again in place instead of saving it twice
+  const failed = useRef<{ text: string; turn: string; at: number } | null>(null);
 
   // Braces matter: an effect may only return a cleanup function. Newer Chrome makes
   // scrollIntoView() return a Promise, which React then tries to call -> "destroy is not a function".
@@ -62,15 +65,20 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
     e.preventDefault();
     const text = input.trim();
     if (!text || busy) return;
-    const next = [...msgs, { role: 'user' as const, content: text }];
+    const f = failed.current;
+    const again = !!f && f.text === text && msgs.length === f.at + 2; // only the error line came after it
+    const turn = again && f ? f.turn : newChatId();
+    // asked again: the failed question and its error line go, so the chat shows the question once
+    const base = again && f ? msgs.slice(0, f.at) : msgs;
+    const next = [...base, { role: 'user' as const, content: text }];
+    failed.current = null;
     setMsgs(next);
     setInput('');
     setBusy(true);
     try {
       const res = await api<KokoReply>('/koko/chat', {
         method: 'POST',
-        // turn_id: new for each question, the same if the request is repeated, so the server saves it once
-        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current, turn_id: newChatId() },
+        body: { messages: forServer(next), page: window.location.pathname, chat_id: chatId.current, turn_id: turn },
         timeoutMs: 35_000, // the server may wait up to 25 s for the AI, so more than the usual 20 s
         safeToRepeat: true, // asking again only gives another reply
       });
@@ -78,6 +86,7 @@ export default function KokoChatWidget({ glowSeconds = null }: { glowSeconds?: n
       if (res.suggest_enquiry && !sent) setShowForm(true);
     } catch (err) {
       const msg = err instanceof ApiFailure ? err.message : 'Sorry, I could not reply.';
+      failed.current = { text, turn, at: next.length - 1 };
       setMsgs([...next, { role: 'assistant', content: `${msg} You can also WhatsApp ${SITE.phone}.`, local: true }]);
     } finally {
       setBusy(false);

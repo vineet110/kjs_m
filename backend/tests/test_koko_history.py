@@ -302,7 +302,14 @@ def test_the_line_ceiling_matches_the_config_range():
     assert (CHAT_LINES_CEILING, CHAT_LINE_CEILING) == (top("request_lines"), top("message_max"))
 
 
-async def test_a_chat_line_far_over_any_limit_is_refused(client, sent):
+async def test_a_koko_answer_far_over_any_limit_is_cut_and_the_chat_goes_on(client, sent):
     body = {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "x" * 20000},
                          {"role": "user", "content": "and?"}]}
+    assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 200
+    lead = {"source": "koko", "name": "Omar", "phone": "+91 98765 43210", "consent": True, "chat": body["messages"]}
+    assert (await client.post("/api/v1/public/leads", json=lead, headers=HDR)).status_code == 201
+
+
+async def test_a_new_question_over_the_limit_is_still_refused(client, sent):
+    body = {"messages": [{"role": "user", "content": "q" * 20000}]}
     assert (await client.post(CHAT, json=body, headers=HDR)).status_code == 422

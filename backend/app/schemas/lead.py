@@ -3,29 +3,35 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
-from app.core.config.ini import cfg
+from app.core.config.ini import KokoIni, cfg
 from app.schemas.common import Email, OneLine, RequiredPhone
 
 
-# Most chat lines one request may carry before anything is parsed: the top of koko.ini request_lines' range.
-# A security limit (a body of tens of thousands of tiny lines is cut, not validated line by line).
-CHAT_LINES_CEILING = 400
-# Longest chat line accepted at all (the top of message_max's range); longer ones are refused before parsing
-CHAT_LINE_CEILING = 10000
+def _top(name: str) -> int:
+    """The upper bound of a koko.ini setting's allowed range (its `le`), so the ceilings below follow ini.py."""
+    return next(m.le for m in KokoIni.model_fields[name].metadata if getattr(m, "le", None) is not None)
+
+
+# Before anything is parsed, a request is cut to the most lines and the longest line koko.ini could ever
+# allow (the tops of request_lines' and message_max's ranges): a body of tens of thousands of lines, or of
+# huge lines, is cut, not validated line by line. The real limits (cfg) are applied after.
+CHAT_LINES_CEILING = _top("request_lines")
+CHAT_LINE_CEILING = _top("message_max")
 
 
 def _newest_lines(v):
     """The newest CHAT_LINES_CEILING lines; a Koko line this cut leaves first goes too (a chat starts with
     the visitor). Only cuts a list that was longer: a request that itself starts with Koko is still refused."""
-    if isinstance(v, list) and any(isinstance(m, dict) and len(str(m.get("content", ""))) > CHAT_LINE_CEILING
-                                   for m in v):
-        raise ValueError("A chat line is far too long.")
-    if not isinstance(v, list) or len(v) <= CHAT_LINES_CEILING:
+    if not isinstance(v, list):
         return v
-    v = v[-CHAT_LINES_CEILING:]
-    while v and isinstance(v[0], dict) and v[0].get("role") == "assistant":
-        v = v[1:]
-    return v
+    if len(v) > CHAT_LINES_CEILING:
+        v = v[-CHAT_LINES_CEILING:]
+        while v and isinstance(v[0], dict) and v[0].get("role") == "assistant":
+            v = v[1:]
+    # cut, never refused: a long Koko answer the browser sends back must not lock the visitor out
+    return [{**m, "content": m["content"][:CHAT_LINE_CEILING]}
+            if isinstance(m, dict) and isinstance(m.get("content"), str) and len(m["content"]) > CHAT_LINE_CEILING
+            else m for m in v]
 
 
 class ChatMessage(BaseModel):
