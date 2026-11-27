@@ -2443,3 +2443,51 @@ R123. Harvester leftovers (#136)  🟢 later (harvester is off)
    ii.   The duplicate check scans by phone: add a digits column or index when the tables grow.
    iii.  A US-style number without "+" on an Indian page would be read as an Indian mobile.
 
+
+R124. CodeRabbit leftovers, low (#142 fixed the important ones)  🟢 later
+
+   i.    #114: a Koko enquiry failure is hidden if the chat is closed; the "list full" notice sits behind quick
+         view / over the list bar on phones and isn't announced; the offer form's 6–15 phone digits are typed
+         into the frontend.
+   ii.   #120: a backslash in a login redirect's query is refused (goes to the dashboard instead).
+   iii.  #121: a failed permission recheck leaves the admin page on screen (the server still refuses its
+         data); the phone reveal loses keyboard focus.
+   iv.   #123: a duplicate email is possible after a stalled mail server; same-name employees can't be told
+         apart in task counts.
+   v.    #113: the start-up check doesn't list an unreadable ini file (the loader logs it).
+   vi.   #134: the Koko history is cut twice (a few older lines lost).
+   vii.  #136 (harvester off): numbers over 13 digits, a stray digit after a number.
+   viii. #138: migration 0036 edge cases (over 100 items, duplicates' order on rollback, line breaks); item
+         lines shown twice only during a deploy.
+   ix.   #139: a too-large chat WebSocket request gets HTML, not JSON.
+
+
+R125. Decided 27–28 Nov (Vineet)
+
+   i.    R4: yes, a reopened lead gets a new resolve timer (already in #124).
+   ii.   R119: the site address is https://twins.kjsindia.com for now. On a domain change: `PUBLIC_BASE_URL`
+         in `deploy/.env` (feeds robots.txt, the sitemap and email links), rebuild the frontend, Firebase
+         authorized domain, host nginx `server_name`, the certificate.
+   iii.  R122.i: empty `koko_chats.messages` once, right after the deploy.
+   iv.   CR38: keep the unused `superset/` folder (2 KB, nothing builds or runs it).
+   v.    #136: private-label-only harvested leads stay dropped. When the harvester is switched on, add a
+         "Private label" catalogue category so they get routed.
+
+
+R126. After go-live (decided 27–28 Nov)  🟠
+
+   i.    CR37: the AI review workflow: run only for PRs from this repo (`if:` on the job), pin
+         `plugin_marketplaces` to a commit.
+   ii.   Photos uploaded before #135: a one-off script re-saves them shrunk, without GPS and other hidden data.
+         After the test-data clean-up.
+   iii.  Tooling (PR 16), yes to all four: Dependabot, migration up/down check in CI, lint in CI, error
+         tracking (a new dependency: ask first). Start with the first two.
+   iv.   Email: send Firebase's and our own emails through a Google Workspace mailbox (smtp.gmail.com, 587,
+         STARTTLS, an app password), then `require_verified_email = true`. Never move kjsindia.com's MX.
+   v.    cdn.kjsindia.com: the DNS must move to Cloudflare first; until then `ASSET_BASE_URL` stays empty.
+   vi.   Test uploads in R2 (R50.iii), backups + monitoring + restore drill (R50.i, R120.i): set up after
+         go-live. Until then there's no automatic backup: run `./backup.sh` by hand.
+   vii.  Open: staff attendance (`modules.ini attendance = admin` today, so staff can't check in); a check-in
+         after the shift end is accepted (block or flag?); a "+91" phone with fewer than 10 digits is
+         accepted; "My leads" also lists unassigned leads; "Respond Overdue By 1 H 20 Min" wording.
+
