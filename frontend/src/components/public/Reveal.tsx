@@ -77,17 +77,31 @@ function comesFromAbove(rect: DOMRectReadOnly): boolean {
 const waiting = new Map<Element, () => void>();
 let onceObserver: IntersectionObserver | null = null;
 
+let scrollFrame = 0; // a check already waiting for the next frame (CR32)
+
+function stopScrollChecks() {
+  window.removeEventListener('scroll', onScrollOnce);
+  if (scrollFrame) cancelAnimationFrame(scrollFrame);
+  scrollFrame = 0;
+}
+
 function show(el: Element) {
   const reveal = waiting.get(el);
   if (!reveal) return;
   waiting.delete(el);
   onceObserver?.unobserve(el);
   reveal();
-  if (!waiting.size) window.removeEventListener('scroll', onScrollOnce);
+  if (!waiting.size) stopScrollChecks();
 }
 
+// A fast scroll or a jump can pass blocks the observer never sees, so a scroll also checks the waiting
+// blocks: at most once per frame (one measuring pass however many scroll events arrive), never per event.
 function onScrollOnce() {
-  for (const el of waiting.keys()) if (el.getBoundingClientRect().top < window.innerHeight) show(el);
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    for (const el of waiting.keys()) if (el.getBoundingClientRect().top < window.innerHeight) show(el);
+  });
 }
 
 function watchOnce(el: Element, reveal: () => void) {
@@ -101,7 +115,7 @@ function watchOnce(el: Element, reveal: () => void) {
 
 function unwatchOnce(el: Element) {
   if (waiting.delete(el)) onceObserver?.unobserve(el);
-  if (!waiting.size) window.removeEventListener('scroll', onScrollOnce);
+  if (!waiting.size) stopScrollChecks();
 }
 
 // ---------- repeat ----------

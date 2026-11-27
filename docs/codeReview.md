@@ -635,7 +635,8 @@ CR31. Home page: the only `h1` is hidden  🟢
 
 CR32. `Reveal.tsx` measures every waiting block on every scroll  🟢
 
-   27 Nov: already fixed (checked 27 Nov: Reveal uses one shared IntersectionObserver). Merged into main 27 Nov (#116/#119 via #139, #118 via #140); anything this line calls open or a Vineet step still is.
+   27 Nov: fixed in `fix/coderabbit-leftovers`: the scroll check runs at most once per animation frame. (The 27 Nov
+   "already fixed" was wrong: the shared IntersectionObserver didn't change the per-scroll measuring; CodeRabbit on #131.)
 
    Where: `frontend/src/components/public/Reveal.tsx:88` (`onScrollOnce`)
 
