@@ -547,7 +547,7 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    iii.  Test data left on UAT for a manual clean-up: about 20k AUTOTEST leads, about 1,000 AUTOTEST staff (each
          with a Firebase login), test slides, logos, offers, 72 extra products, the ZAP admin (id 49).
          `lead_rate_per_hour` is still 200: set it back to 5, then run TC-ENQ-19.
-   iv.   Go-live moved to 1 Dec (decision 63). Plan and progress in Vineet's local, git-ignored `goLive.md`.
+   iv.   Go-live moved to 1 Dec (decision 63).
    v.    PRs: security headers and real visitor IP (#112), config safety (#113), website fixes (#114),
          backup alerts (#115), mobile polish (#117), CSP for cdn + COOP/CORP + JSON errors (#139), page cache
          (#140), portal/admin (#121), leads of a disabled employee (#122), code-review items (#120, #123–#130,
