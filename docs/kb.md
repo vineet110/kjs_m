@@ -848,6 +848,12 @@ Sections:
 
 
 
+### Traceback
+
+   What   Python's report of the chain of function calls that led to an error. Read it from the bottom up.
+   Where  The uvicorn terminal, or `docker compose ... logs backend` on the VPS. See `debugging.md`.
+
+
 ===================================================================================================
 
 ## 5. Frontend (Next.js, React)
@@ -1250,6 +1256,12 @@ Sections:
 
 
 
+
+
+### Stack trace
+
+   What   The JavaScript version of a traceback: the list of functions that were running when the error happened.
+   Where  The browser Console tab and the `npm run dev` terminal. See `debugging.md`.
 
 
 ===================================================================================================
@@ -2155,6 +2167,12 @@ Sections:
 
 
 
+
+
+### Breakpoint
+
+   What   A marker on a line that pauses the program there, so you can look at the values and step forward.
+   Where  VS Code: click left of a line number, then press F5. See `debugging.md`.
 
 
 ===================================================================================================
