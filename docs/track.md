@@ -8,7 +8,7 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 ---------------------------------------------------------------------------------------------------
 
-## 1. Status today (23 Nov 2026)
+## 1. Status today (27 Nov 2026)
 
 1. Phase 1 (all features): DONE
 
@@ -209,6 +209,15 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
          Decision: `memory.md` 62. Still to do on the server: `backlog.md` section 29.
 
 
+4z. Go-live prep (26–27 Nov): code DONE, merged into `main` (PRs #112–#140, 27 Nov)
+
+   i.    Full UAT test on 26 Nov (E2E, cross-browser, load, 20k-lead data volume, OWASP ZAP). Results and
+         report locations: `memory.md` session log, 26–27 Nov.
+   ii.   Go-live moved to Tue 1 Dec 2026 (decision 63, backlog D8).
+   iii.  Every fix reviewed with `/code-review` and CI green before merging. Migrations up to 0036.
+   iv.   Still to do on the server before go-live: `backlog.md` section 30 (R121), then R120.
+
+
 5. Waiting on
 
    i.    Vineet: review the assumptions in `backlog.md` section 3 (A1–A66). Decide D20. B12, B13 closed; Next.js 16 merged (PR #4).
@@ -328,6 +337,9 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 16. 23 Nov: production is live on a Hostinger VPS at https://twins.kjsindia.com (decision 62). Testing with
     KJS started. Server follow-ups: backlog section 29.
+
+17. 26–27 Nov: full UAT test, go-live moved to 1 Dec (decision 63). Go-live fixes #112–#140 reviewed and merged
+    on 27 Nov (migrations 0034–0036). Server steps before go-live: backlog section 30.
 
 15. 18 Nov: coffee-only switch: photo upload when adding a product (#93), Show/Hide per category (#97,
     migration 0030, Neon migrated), the site follows the switches (#99). Coffee-only = hide Confectionery,

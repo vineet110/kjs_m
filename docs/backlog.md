@@ -2409,3 +2409,37 @@ R120. Still to confirm on the server  🔴 before go-live
    iii.  Jobs really on: "jobs ok" in `/api/health/ready` is also shown when the jobs loop never started
          (`jobs/runner.py:40`). Check `KJS__APP__JOBS_ENABLED` and that SLA alerts arrive (R97.ii).
    iv.   HSTS (R70), uptime check and backup-failure alert (R82, R50.iv), SMTP for email (R68).
+
+
+
+---------------------------------------------------------------------------------------------------
+
+## 30. Go-live PRs follow-ups (27 Nov, PRs #112–#140)
+
+
+R121. Server steps before deploying the 27 Nov `main`  🔴 before go-live (Vineet)
+
+   i.    Host nginx (the HTTPS one): `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. Without it a
+         visitor can fake their IP and dodge the login and enquiry rate limits (#112, decision 63).
+   ii.   Clean the UAT test data first (`memory.md` session log, 26–27 Nov). With jobs on, the old test leads
+         would send about 20k SLA alerts.
+   iii.  Back up, then `alembic upgrade head` (0034–0036) with BOTH `DATABASE_URL` and `MIGRATION_DATABASE_URL`
+         set to the server database. 0036 moves product descriptions into the new items field.
+   iv.   Deploy backend and frontend together (`deploy.sh`, which also empties the page cache).
+
+
+R122. Koko saved-chat leftovers (#134)  🟢 later
+
+   i.    Chats saved before 27 Nov may hold Koko lines the browser faked. Empty `koko_chats.messages` once, or
+         accept it.
+   ii.   The widget's input allows 1000 characters; keep `koko.ini message_max` at 1000 or more.
+   iii.  `summarise_chat` keeps a fixed 20 lines; `history_lines` vs `transcript_lines` aren't cross-checked.
+   iv.   A very old browser behind an IP-hiding proxy gets no saved transcript.
+
+
+R123. Harvester leftovers (#136)  🟢 later (harvester is off)
+
+   i.    The job lock lasts one transaction: fine with one API process (the VPS runs one).
+   ii.   The duplicate check scans by phone: add a digits column or index when the tables grow.
+   iii.  A US-style number without "+" on an Indian page would be read as an Indian mobile.
+

@@ -479,6 +479,13 @@ Sections:
 
 
 
+### Worktree (git)
+
+   What   A second folder for the same repo, on another branch: `git worktree add <folder> -b <branch>`.
+          Lets you work on many PRs at once without switching branches in the main folder.
+   Watch  Turbopack can't build through a linked `node_modules` in a worktree; build in the main checkout.
+
+
 ===================================================================================================
 
 ## 4. Backend (Python, FastAPI, database)
@@ -852,6 +859,18 @@ Sections:
 
    What   Python's report of the chain of function calls that led to an error. Read it from the bottom up.
    Where  The uvicorn terminal, or `docker compose ... logs backend` on the VPS. See `debugging.md`.
+
+
+### Deadlock
+
+   What   Two transactions each hold a row lock the other is waiting for, so neither can go on. Postgres
+          stops one with an error. Avoid it by always locking in the same order (e.g. person, then lead).
+
+
+### Savepoint
+
+   What   A mark inside a transaction you can roll back to without losing the whole transaction
+          (`async with db.begin_nested()`). Used so one bad harvested record doesn't undo the others.
 
 
 ===================================================================================================
@@ -1624,6 +1643,13 @@ Sections:
 
 
 
+### COOP / CORP
+
+   What   Two browser security headers. COOP (`Cross-Origin-Opener-Policy`) keeps other sites' windows from
+          reaching ours; CORP (`Cross-Origin-Resource-Policy`) stops other sites embedding our files.
+   Where  `deploy/nginx/security-headers.conf` (PR #139).
+
+
 ===================================================================================================
 
 ## 7. AI and Koko
@@ -1760,6 +1786,18 @@ Sections:
           because the window is small.
    Where  `scripts/e2e/browser_e2e.mjs` (home page checks).
 
+
+
+### OWASP ZAP
+
+   What   A free security scanner. It attacks your site like a hacker would (injections, missing headers)
+          and lists findings as High / Medium / Low. Our 26 Nov scan: 0 High, 2 Medium, 5 Low.
+
+
+### k6
+
+   What   A load-testing tool: it pretends to be many visitors at once (virtual users) and measures speed.
+          Ours: fine at 300 users, slow at 600, failing at 1000 before the page cache.
 
 
 ===================================================================================================
@@ -2120,6 +2158,19 @@ Sections:
 
 
 
+### Page cache (nginx proxy_cache)
+
+   What   nginx keeps a copy of a public page for a few seconds (ours: 10 s) and serves it to everyone,
+          so Next.js renders it once instead of for every visitor. The portal and API are never cached.
+   Where  `deploy/nginx/` (PR #140). `deploy.sh` empties it on each deploy.
+
+
+### Dead man's switch (backup ping)
+
+   What   A check that alerts when an expected "I'm alive" ping does NOT arrive. `backup.sh` pings
+          healthchecks.io after each backup; a missed night alerts too (PR #115).
+
+
 ===================================================================================================
 
 ## 10. Ideas and habits
@@ -2163,6 +2214,8 @@ Sections:
    Watch  GitHub's "conflicting" flag can be out of date: merge `main` into the first branch locally to check.
    Watch  Before merging the next PR, change its base to `main` (Edit next to the title). Merged into its old
           base, it never reaches `main` (19 Nov: #104, fixed by #107).
+   Watch  Change the later PRs' base to `main` BEFORE merging the first one, and don't delete its branch on
+          merge: deleting it made GitHub close #116 and #118 (27 Nov, re-raised as #139, #140).
 
 
 

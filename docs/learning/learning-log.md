@@ -10,6 +10,55 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 26–27 Nov 2026 (UAT testing, go-live PRs #112–#140, merge night, Vineet)
+
+1. (V) A "be forgiving" change can quietly turn off a CI guard that relied on the strict behaviour. Check who
+   calls the function you loosen.
+
+2. (V) Next's data cache (`next: { revalidate }`) kept hidden pages up although the page itself was dynamic.
+
+3. (V) Turbopack can't build through a junctioned `node_modules` (a worktree). Build in the main checkout.
+
+4. (V) Under `set -euo pipefail`, a `grep` that finds nothing kills the script. Add `|| true` inside `$( )`.
+
+5. (V) Writing shell or Python from heredocs mangles backslashes. Use the Edit tool or a script file.
+
+6. (V) A Tailwind utility like `text-xs` on an element beats `.input`'s `@apply`, so a global fix also needs
+   the overrides changed.
+
+7. (V) nginx: `proxy_set_header` inside a location drops all the server-level ones, so repeat them.
+
+8. (V) A fence like `<chat>` only works if the inside can't contain `<` or `>` in any spelling. Escape them, and
+   JSON-quote each message so a typed newline can't fake a turn.
+
+9. (V) Two code paths that lock rows must lock in the same order (person, then lead), or Postgres can deadlock.
+
+10. (V) When a status code changes (403 → 404), grep the tests for the old code first.
+
+11. (V) One shared test database across branches: a branch with a newer migration leaves the DB at a revision
+    other branches don't know. Run `alembic downgrade` back before testing another branch.
+
+12. (V) After locking a row to re-check it, work every value out again from the fresh row. Checking only the
+    old decision misses changes made in between.
+
+13. (V) After `db.rollback()`, loaded ORM objects are stale: loop over plain ids, not objects.
+
+14. (V) Borrowing a "nearby" category to keep a record sends it to the wrong person. Drop it instead.
+
+15. (V) Greedy phone regexes glue neighbouring digits on.
+
+16. (V) Before merging a PR that others are stacked on, point those at main first (`gh pr edit N --base main`).
+    Deleting the base branch on merge made GitHub close #116 and #118.
+
+17. (V) `safeToRepeat` in `api.ts` never resends a request; it only changes the time-out.
+
+18. (V) A broad `except Exception` hid a NameError and made every saved chat line disappear. Catch only the
+    errors you expect.
+
+
+
+---------------------------------------------------------------------------------------------------
+
 ## 18 Nov 2026 (coffee-only switch, Nishita)
 
 1. (T) Hide, don't delete: a switch in Admin lets the business change the site without a PR or a deploy.
