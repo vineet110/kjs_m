@@ -215,7 +215,7 @@ D8. Timeline  ✅ 23 Oct (updated 24 Oct)
 
    i.    Go-live Fri 11 Dec 2026. Latest acceptable Fri 18 Dec.
    ii.   24 Oct: new plan, Phase 1 in 2 weeks (26 Oct to 7 Nov), then production. List: `checklist.md`.
-   iii.  26 Nov: go-live moved to **Tue 1 Dec 2026** (Vineet). Plan and progress: Vineet's goLive.md (local).
+   iii.  26 Nov: go-live moved to **Tue 1 Dec 2026** (Vineet).
 
 
 D9. What is a "record" in an auto-assign batch?  🟠
