@@ -435,6 +435,11 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
     allows the Firebase hosts (R97.i). What is still open on the server: backlog section 29.
 
 
+63. 26 Nov. Go-live is Tue 1 Dec 2026 (D8; was 11 Dec), Vineet alone. The live server has two nginx: a host
+    nginx 1.26.3 does HTTPS and passes requests to our Docker nginx (no Cloudflare in front). Visitor IPs come
+    from `X-Forwarded-For`, so the host nginx must set it (R121).
+
+
 
 ---------------------------------------------------------------------------------------------------
 
@@ -530,6 +535,29 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
 ---------------------------------------------------------------------------------------------------
 
 ## 9. Session log (newest first)
+
+1. 26–27 Nov 2026 (UAT testing, go-live PRs #112–#140, Vineet, all merged 27 Nov)
+
+   i.    UAT test on twins.kjsindia.com, 26 Nov. E2E (Playwright): 313 pass, 12 fail, 11 blocked, 23 manual
+         (359). Cross-browser: 231 pass, 21 fail. Load (k6): fine at 300 users, slow at 600, fails at 1000
+         (pages were never cached, now fixed by the 10 s page cache, #140). 20k leads: pass. OWASP ZAP:
+         0 High, 2 Medium, 5 Low, all fixed in #112, #114, #139. 9 extra bugs found outside the test cases.
+   ii.   Reports: `C:\VINEET_WORK\kjs_KT and testing\testing\` (`KJS_E2E_Master_Report.xlsx`,
+         `KJS_Extra_Bugs.xlsx`, `bug-screenshots\`).
+   iii.  Test data left on UAT for a manual clean-up: about 20k AUTOTEST leads, about 1,000 AUTOTEST staff (each
+         with a Firebase login), test slides, logos, offers, 72 extra products, the ZAP admin (id 49).
+         `lead_rate_per_hour` is still 200: set it back to 5, then run TC-ENQ-19.
+   iv.   Go-live moved to 1 Dec (decision 63). Plan and progress in Vineet's local, git-ignored `goLive.md`.
+   v.    PRs: security headers and real visitor IP (#112), config safety (#113), website fixes (#114),
+         backup alerts (#115), mobile polish (#117), CSP for cdn + COOP/CORP + JSON errors (#139), page cache
+         (#140), portal/admin (#121), leads of a disabled employee (#122), code-review items (#120, #123–#130,
+         #132), Koko budget in the DB (#133), Koko uses its saved chat (#134), photos shrunk (#135),
+         harvester (#136, #137), catalogue items (#138). Backlog and codeReview lines updated (#131).
+   vi.   Migrations 0034, 0035, 0036: run on the server with both database URLs set (backlog R121).
+   vii.  #116 and #118 were closed by GitHub when #112's branch was deleted on merge; re-raised as #139, #140.
+   viii. Jewellery-store test cases are ready but not run (separate project, Nishita's repo):
+         `C:\VINEET_WORK\kjs_KT and testing\e-comm-testing\Jewellery_Store_Full_Test_Cases.xlsx`.
+
 
 1. 19 Nov 2026 (Home page refresh, Vineet, PRs #103, #107, #105, #106 merged 19 Nov)
 
