@@ -135,10 +135,18 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
     # so re-uploading a list never makes two people call the same company.
     companies = {r["company"].strip().lower() for r in rows if r["company"]}
     seen = set()
+    # The phones of buyers saved WITH an email: a row with no email and one of these phones is that buyer
+    # again. Only for rows with no email: another person at the same company (another email) on the same
+    # office line is a new buyer.
+    phones_of_email_buyers = set()
     for chunk in [sorted(companies)[i:i + 1000] for i in range(0, len(companies), 1000)]:
-        seen |= {_buyer_keys(c, e, p)[0] for c, e, p in (await db.execute(
-            select(BuyerRecord.company, BuyerRecord.email, BuyerRecord.phone)
-            .where(func.lower(BuyerRecord.company).in_(chunk)))).all()}
+        for c, e, p in (await db.execute(
+                select(BuyerRecord.company, BuyerRecord.email, BuyerRecord.phone)
+                .where(func.lower(BuyerRecord.company).in_(chunk)))).all():
+            key, by_phone = _buyer_keys(c, e, p)
+            seen.add(key)
+            if (e or "").strip() and by_phone is not None:
+                phones_of_email_buyers.add(by_phone)
     added, skipped = 0, []
     for n, r in enumerate(rows, start=2):  # row 1 = headers
         cat = cats.get((r["category"] or default_category).strip().lower())
@@ -150,10 +158,13 @@ async def import_records(db: AsyncSession, user: User, filename: str, data: byte
             continue
         key, by_phone = _buyer_keys(r["company"], r["email"], r["phone"])
         # Also already imported: the same company and phone saved earlier with no email (this file adds one)
-        if key in seen or (by_phone is not None and by_phone in seen):
+        no_email = not (r["email"] or "").strip()
+        if key in seen or (by_phone is not None and by_phone in seen) or (no_email and key in phones_of_email_buyers):
             skipped.append({"row": n, "reason": "already imported"})
             continue
         seen.add(key)
+        if not no_email and by_phone is not None:
+            phones_of_email_buyers.add(by_phone)  # a later row of this file without an email is this buyer too
         db.add(BuyerRecord(list_id=lst.id, category=cat, company=r["company"], contact_name=r["contact_name"],
                            email=r["email"], phone=r["phone"], country=r["country"], website=r["website"],
                            notes=r["notes"], status="new", outcome=""))

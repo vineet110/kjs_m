@@ -1,6 +1,10 @@
+import re
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, model_validator
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator, model_validator
+
+
+COUNT_MAX = 100000  # most pieces per box / boxes per case (a sanity limit, not a business number)
 
 
 class ProductItem(BaseModel):
@@ -9,8 +13,17 @@ class ProductItem(BaseModel):
     no: str = Field(min_length=1, max_length=20, pattern=r"^\S+$")  # "801", "B-12": no spaces
     variant: str = Field(default="", max_length=60)
     weight: str = Field(min_length=1, max_length=30)  # "25 g", "1 kg"
-    pieces: int = Field(ge=1, le=100000)  # pieces per box
-    per_case: int = Field(ge=1, le=100000)  # boxes per case
+    pieces: int = Field(ge=1, le=COUNT_MAX)  # pieces per box
+    per_case: int = Field(ge=1, le=COUNT_MAX)  # boxes per case
+
+    @field_validator("no", "variant", "weight")
+    @classmethod
+    def no_separators(cls, v: str) -> str:
+        # Admin > Products writes each item as one line, "801 | Hazelnut | 25 g | 24 | 6": a "|", a line break
+        # or a tab inside a value would split it, and that product could never be saved in Admin again
+        if any(ch in v for ch in "|\r\n\t"):
+            raise ValueError('may not contain "|", a line break or a tab')
+        return v
 
 
 def _unique_numbers(items: list[ProductItem]) -> list[ProductItem]:
@@ -23,8 +36,37 @@ def _unique_numbers(items: list[ProductItem]) -> list[ProductItem]:
 Items = Annotated[list[ProductItem], Field(max_length=100), AfterValidator(_unique_numbers)]
 
 
+def _whole(v) -> int:
+    """A count as stored: 24, 24.0 and "24" are all 24 (as before). Real junk (None, "x", 2.5, True, "²") and
+    anything outside what a save allows (1 to COUNT_MAX) is 0."""
+    n = 0
+    if isinstance(v, int) and not isinstance(v, bool):
+        n = v
+    elif isinstance(v, float) and v.is_integer():
+        n = int(v)
+    # only 0-9: str.isdigit() also says yes to "²" or "٣", which int() can't read
+    elif isinstance(v, str) and re.fullmatch(r"[0-9]{1,9}", v.strip()):
+        n = int(v.strip())
+    return n if 1 <= n <= COUNT_MAX else 0
+
+
+def _stored_items(v) -> list[dict]:
+    """Stored items made safe to show: anything that isn't an item, or has no item number, is skipped; a
+    missing or odd value gets a default. One bad row (a hand edit, an old migration) never breaks the list.
+    (Known: a count shown as 0 makes Admin ask for that line to be fixed before the next save; Admin names
+    the line, so it is found at once. Only a hand edit of the database can cause it.)"""
+    out = []
+    for m in v if isinstance(v, list) else []:
+        if not isinstance(m, dict) or m.get("no") is None or not str(m["no"]).strip():
+            continue
+        out.append({"no": str(m["no"]), "variant": str(m.get("variant") or ""), "weight": str(m.get("weight") or ""),
+                    "pieces": _whole(m.get("pieces")), "per_case": _whole(m.get("per_case"))})
+    return out
+
+
 class ProductItemOut(BaseModel):
-    """An item as stored (answers): not checked again, so one odd stored item can never break a product list."""
+    """An item as stored (answers): not checked again, so one odd stored item can never break a product list
+    (made safe by _stored_items first)."""
     no: str
     variant: str = ""
     weight: str = ""
@@ -70,7 +112,7 @@ class ProductOut(BaseModel):
     category_slug: str
     category_name: str
     is_active: bool = True
-    items: list[ProductItemOut] = []
+    items: Annotated[list[ProductItemOut], BeforeValidator(_stored_items)] = []
     photo_url: str | None = None  # first photo uploaded with "Show on website"; cards use it without an image_path
 
 
