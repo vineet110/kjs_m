@@ -90,3 +90,19 @@ async def test_error_answers_are_never_cached(client):
 async def test_a_successful_public_answer_keeps_its_own_cache_policy(client):
     r = await client.get("/api/v1/public/products")
     assert r.status_code == 200 and r.headers.get("cache-control") != "no-store"
+
+
+async def test_counts_stored_as_24_0_or_text_still_show(client):
+    p = (await _product(client)).json()
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(Product).where(Product.id == p["id"]).values(
+            items=[{"no": "801", "weight": "25 g", "pieces": 24.0, "per_case": "6"},
+                   {"no": "802", "weight": "1 kg", "pieces": 2.5, "per_case": True}]))
+        await db.commit()
+    items = (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["items"]
+    assert [(i["pieces"], i["per_case"]) for i in items] == [(24, 6), (0, 0)]
+
+
+async def test_a_wrong_method_keeps_its_allow_header(client):
+    r = await client.delete("/api/v1/public/products")
+    assert r.status_code == 405 and "GET" in r.headers.get("allow", "") and r.headers["cache-control"] == "no-store"

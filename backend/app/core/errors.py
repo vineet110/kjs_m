@@ -43,8 +43,9 @@ def install_error_handlers(app: FastAPI) -> None:
     # Starlette's base class also covers 404s for unknown URLs and bad JSON bodies.
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
+        # its own headers kept (Allow on a 405, WWW-Authenticate on a 401)
         return JSONResponse(_body(request, f"http_{exc.status_code}", str(exc.detail)), status_code=exc.status_code,
-                            headers=NO_STORE)
+                            headers={**(exc.headers or {}), **NO_STORE})
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

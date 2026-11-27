@@ -33,12 +33,23 @@ Items = Annotated[list[ProductItem], Field(max_length=100), AfterValidator(_uniq
 
 
 def _whole(v) -> int:
-    return v if isinstance(v, int) and not isinstance(v, bool) else 0
+    """A count as stored: 24, 24.0 and "24" are all 24 (as before); real junk (None, "x", 2.5, True) is 0."""
+    if isinstance(v, bool):
+        return 0
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    if isinstance(v, str) and v.strip().isdigit():
+        return int(v.strip())
+    return 0
 
 
 def _stored_items(v) -> list[dict]:
     """Stored items made safe to show: anything that isn't an item, or has no item number, is skipped; a
-    missing or odd value gets a default. One bad row (a hand edit, an old migration) never breaks the list."""
+    missing or odd value gets a default. One bad row (a hand edit, an old migration) never breaks the list.
+    (Known: a count shown as 0 makes Admin ask for that line to be fixed before the next save; Admin names
+    the line, so it is found at once. Only a hand edit of the database can cause it.)"""
     out = []
     for m in v if isinstance(v, list) else []:
         if not isinstance(m, dict) or m.get("no") is None or not str(m["no"]).strip():
