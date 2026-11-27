@@ -97,10 +97,12 @@ async def test_counts_stored_as_24_0_or_text_still_show(client):
     async with AsyncSessionLocal() as db:
         await db.execute(update(Product).where(Product.id == p["id"]).values(
             items=[{"no": "801", "weight": "25 g", "pieces": 24.0, "per_case": "6"},
-                   {"no": "802", "weight": "1 kg", "pieces": 2.5, "per_case": True}]))
+                   {"no": "802", "weight": "1 kg", "pieces": 2.5, "per_case": True},
+                   {"no": "803", "weight": "1 kg", "pieces": "²", "per_case": "٣"},  # superscript 2, Arabic 3
+                   {"no": "804", "weight": "1 kg", "pieces": 1e300, "per_case": "9" * 40}]))
         await db.commit()
     items = (await client.get(f"/api/v1/public/products/{p['slug']}")).json()["items"]
-    assert [(i["pieces"], i["per_case"]) for i in items] == [(24, 6), (0, 0)]
+    assert [(i["pieces"], i["per_case"]) for i in items] == [(24, 6), (0, 0), (0, 0), (0, 0)]
 
 
 async def test_a_wrong_method_keeps_its_allow_header(client):

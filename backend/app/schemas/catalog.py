@@ -1,6 +1,10 @@
+import re
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator, model_validator
+
+
+COUNT_MAX = 100000  # most pieces per box / boxes per case (a sanity limit, not a business number)
 
 
 class ProductItem(BaseModel):
@@ -9,8 +13,8 @@ class ProductItem(BaseModel):
     no: str = Field(min_length=1, max_length=20, pattern=r"^\S+$")  # "801", "B-12": no spaces
     variant: str = Field(default="", max_length=60)
     weight: str = Field(min_length=1, max_length=30)  # "25 g", "1 kg"
-    pieces: int = Field(ge=1, le=100000)  # pieces per box
-    per_case: int = Field(ge=1, le=100000)  # boxes per case
+    pieces: int = Field(ge=1, le=COUNT_MAX)  # pieces per box
+    per_case: int = Field(ge=1, le=COUNT_MAX)  # boxes per case
 
     @field_validator("no", "variant", "weight")
     @classmethod
@@ -33,16 +37,17 @@ Items = Annotated[list[ProductItem], Field(max_length=100), AfterValidator(_uniq
 
 
 def _whole(v) -> int:
-    """A count as stored: 24, 24.0 and "24" are all 24 (as before); real junk (None, "x", 2.5, True) is 0."""
-    if isinstance(v, bool):
-        return 0
-    if isinstance(v, int):
-        return v
-    if isinstance(v, float) and v.is_integer():
-        return int(v)
-    if isinstance(v, str) and v.strip().isdigit():
-        return int(v.strip())
-    return 0
+    """A count as stored: 24, 24.0 and "24" are all 24 (as before). Real junk (None, "x", 2.5, True, "²") and
+    anything outside what a save allows (1 to COUNT_MAX) is 0."""
+    n = 0
+    if isinstance(v, int) and not isinstance(v, bool):
+        n = v
+    elif isinstance(v, float) and v.is_integer():
+        n = int(v)
+    # only 0-9: str.isdigit() also says yes to "²" or "٣", which int() can't read
+    elif isinstance(v, str) and re.fullmatch(r"[0-9]{1,9}", v.strip()):
+        n = int(v.strip())
+    return n if 1 <= n <= COUNT_MAX else 0
 
 
 def _stored_items(v) -> list[dict]:
