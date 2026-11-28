@@ -112,7 +112,9 @@ async def test_staff_without_the_permission_are_refused(client, mon):
         assert (await client.get(path)).status_code == 403, path
     r = await client.post("/api/v1/monitoring/unlock-requests/1/decision", headers=HDR, json={"decision": "approved"})
     assert r.status_code == 403
-    assert mon.calls == []  # refused before the monitoring server was asked anything
+    # refused before the monitoring server was asked anything (background employee pushes from creating the users
+    # are not page calls)
+    assert [c.url.path for c in mon.calls if not c.url.path.endswith("/push")] == []
 
 
 async def test_area_off_is_404(client, mon, monkeypatch):
