@@ -36,6 +36,7 @@ AREA_PAGES = {
     "chat": ("/employee/chat",),
     "lead_harvester": ("/admin/client-schedulers",),
     "site_insights": (),  # no page of its own: a tab on Reports (/admin/analytics)
+    "monitoring": (),  # the feed only for now; its pages come in Phase 3
 }
 # Who owns a stored file -> its area (user photos have no area: always on)
 AREA_OF_FILE_OWNER = {"board": "order_boards", "product": "website_admin", "website": "website_admin"}

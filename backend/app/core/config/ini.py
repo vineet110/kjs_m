@@ -190,6 +190,16 @@ class AttendanceIni(BaseModel):
     max_export_days: int = Field(366, ge=7, le=1100)  # longest date range for the Excel export
 
 
+class MonitoringLinkIni(BaseModel):
+    """The link to the laptop-monitoring server (services/monitoring_link_service.py)."""
+    feed_overlap_seconds: int = Field(60, ge=10, le=600)  # each poll reads this far back (repeats are fine)
+    feed_max_rows: int = Field(2000, ge=100, le=10000)  # events per poll; the rest come on the next poll
+    auto_out_grace_minutes: int = Field(60, ge=15, le=480)  # forgotten check-out: monitoring stops at shift end + this
+    overtime_auto_out_hours: int = Field(4, ge=1, le=12)  # a check-in after shift end: monitoring stops this much later
+    push_timeout_seconds: float = Field(3, ge=0.5, le=30)  # one push to the monitoring server (then the poll catches up)
+    keep_events_days: int = Field(90, ge=31, le=730)  # the monitoring server reads at most 31 days back
+
+
 class NotificationsIni(BaseModel):
     email_attempts: int = Field(3, ge=1, le=10)  # tries before an email is marked failed
     email_time_budget_seconds: int = Field(120, ge=10, le=280)  # per run, so SLA and alert jobs aren't held up
@@ -337,7 +347,8 @@ class SiteUiIni(BaseModel):
 MODULE_LEVELS = {"off": 0, "admin": 1, "on": 2}  # on = everyone, admin = admins only, off = nobody
 ModuleLevel = Literal["on", "admin", "off"]
 # area -> areas it needs, switched on at least as far (batches go only to staff who checked in)
-MODULE_NEEDS = {"batches": ("attendance",), "site_insights": ("analytics",)}  # insights: a tab on Reports
+# monitoring: the laptop agent runs only while someone is checked in, so it needs attendance
+MODULE_NEEDS = {"batches": ("attendance",), "site_insights": ("analytics",), "monitoring": ("attendance",)}  # insights: a tab on Reports
 
 
 class ModulesIni(BaseModel):
@@ -357,6 +368,8 @@ class ModulesIni(BaseModel):
     # Website insights tab on Reports; off = visitors are not recorded. Off when the line is missing, so a
     # modules.ini with analytics = off and no site_insights line stays valid (it needs analytics).
     site_insights: ModuleLevel = "off"
+    # Laptop monitoring: the attendance feed for its server (and, later, its pages). Off when the line is missing.
+    monitoring: ModuleLevel = "off"
 
     @field_validator("*", mode="before")
     @classmethod
@@ -394,6 +407,7 @@ class Config(BaseModel):
     analytics: AnalyticsIni = AnalyticsIni()
     site_insights: SiteInsightsIni = SiteInsightsIni()
     site_ui: SiteUiIni = SiteUiIni()
+    monitoring_link: MonitoringLinkIni = MonitoringLinkIni()
 
     # The values the rules below read, per file (_validate puts these back to their last good values when a
     # rule fails because one of these files is bad; a rule is never waived)

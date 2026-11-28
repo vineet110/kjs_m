@@ -5,7 +5,7 @@
 import type { Me } from './api';
 
 export type Area =
-  | 'batches' | 'order_boards' | 'attendance' | 'website_admin' | 'analytics' | 'alerts' | 'audit' | 'chat' | 'lead_harvester' | 'site_insights';
+  | 'batches' | 'order_boards' | 'attendance' | 'website_admin' | 'analytics' | 'alerts' | 'audit' | 'chat' | 'lead_harvester' | 'site_insights' | 'monitoring';
 
 // Portal pages of each area (the start of the path). Keep in step with AREA_PAGES in app/core/modules.py.
 const AREA_PAGES: Record<Area, string[]> = {
@@ -19,6 +19,7 @@ const AREA_PAGES: Record<Area, string[]> = {
   chat: ['/employee/chat'],
   lead_harvester: ['/admin/client-schedulers'],
   site_insights: [], // no page of its own: the Website insights tab on Reports (/admin/analytics)
+  monitoring: [], // the feed for the laptop-monitoring server; its pages come later
 };
 
 /** Can this person use the area? Not in the answer (an older server) = yes. */

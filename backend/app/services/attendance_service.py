@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.models.attendance import Attendance, AttendancePunch, Regularization
 from app.models.shift import Shift
 from app.models.user import AvailabilityLog, User
-from app.services import audit_service
+from app.services import audit_service, monitoring_link_service
 from app.services.calendar_service import CalendarService, holiday_set
 
 
@@ -121,6 +121,7 @@ async def check_in(db: AsyncSession, user: User, now: datetime | None = None) ->
     )
     db.add(punch)
     await db.flush()
+    await monitoring_link_service.on_check_in(db, user.id, now)  # same transaction: no punch without its event
 
     audit_service.record(
         db,
@@ -172,6 +173,7 @@ async def check_out(db: AsyncSession, user: User, now: datetime | None = None, n
     )
     db.add(punch)
     await db.flush()
+    await monitoring_link_service.on_check_out(db, user.id, now)
 
     audit_service.record(
         db,
@@ -422,6 +424,8 @@ async def decide(db: AsyncSession, approver: User, reg_id: int, approve: bool) -
         row.status, row.source = punch_status(row.check_in_at), "regularized"
         row.total_seconds = _worked_seconds(punches)
         await db.flush()
+        # Only "close a day still open for monitoring" is sent; moved times are not (monitoring_link_service)
+        await monitoring_link_service.on_regularization(db, reg.user_id, reg.day, reg.check_out_at, reg.id)
         audit_service.record(db, actor=approver, action="attendance.regularized", entity_type="attendance",
                              entity_id=f"{reg.user_id}:{reg.day.isoformat()}", before=before,
                              after={"in": hm(row.check_in_at), "out": hm(row.check_out_at),

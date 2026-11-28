@@ -53,9 +53,10 @@ def write(path, text):
 
 # ---------- The file ----------
 def test_all_on_by_default(config_dir):
-    # site_insights is off when its line is missing: it needs analytics, which a file may switch off
-    assert all(getattr(ini.cfg().modules, a) == "on" for a in AREAS if a != "site_insights")
-    assert ini.cfg().modules.site_insights == "off"
+    # site_insights is off when its line is missing: it needs analytics, which a file may switch off.
+    # monitoring too: a missing line must never open the feed for the laptop-monitoring server.
+    assert all(getattr(ini.cfg().modules, a) == "on" for a in AREAS if a not in ("site_insights", "monitoring"))
+    assert ini.cfg().modules.site_insights == "off" and ini.cfg().modules.monitoring == "off"
 
 
 def test_values_any_case(config_dir):
