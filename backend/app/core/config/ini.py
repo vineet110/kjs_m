@@ -197,6 +197,9 @@ class MonitoringLinkIni(BaseModel):
     auto_out_grace_minutes: int = Field(60, ge=15, le=480)  # forgotten check-out: monitoring stops at shift end + this
     overtime_auto_out_hours: int = Field(4, ge=1, le=12)  # a check-in after shift end: monitoring stops this much later
     push_timeout_seconds: float = Field(3, ge=0.5, le=30)  # one push to the monitoring server (then the poll catches up)
+    call_timeout_seconds: float = Field(5, ge=1, le=30)  # a monitoring page asking the monitoring server
+    page_refresh_seconds: int = Field(60, ge=10, le=600)  # pages also reload this often (pushes reload them at once)
+    stream_ping_seconds: int = Field(20, ge=5, le=60)  # keep-alive on the live stream (proxies close quiet ones)
     keep_events_days: int = Field(90, ge=31, le=730)  # the monitoring server reads at most 31 days back
 
 

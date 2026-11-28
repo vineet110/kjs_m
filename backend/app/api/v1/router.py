@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, hero, koko, monitoring_link, public, showcase, site_insights, tasks
+from app.api.v1.endpoints import admin, assign, attendance, auth, boards, chat, complaints, content, employee, files, harvest, hero, koko, monitoring, monitoring_link, public, showcase, site_insights, tasks
 from app.core.modules import area
 
 api_router = APIRouter()
@@ -36,3 +36,6 @@ api_router.include_router(chat.ws_router, prefix="/chat", tags=["Chat"])
 # Server to server (X-Api-Key, no login): the laptop-monitoring server polls it. The router checks the key and
 # the `monitoring` area itself. Nginx refuses /api/v1/integrations/ from outside.
 api_router.include_router(monitoring_link.router, prefix="/integrations/monitoring", tags=["Monitoring feed"])
+api_router.include_router(monitoring.router, prefix="/monitoring", tags=["Laptop monitoring"], dependencies=area("monitoring"))
+# The live stream checks login and the area itself, with a short DB session (a route dependency would hold one)
+api_router.include_router(monitoring.stream_router, prefix="/monitoring", tags=["Laptop monitoring"])

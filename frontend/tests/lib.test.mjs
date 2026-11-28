@@ -825,3 +825,53 @@ test('items: an emptied list stays empty, and the same number twice is named', (
   assert.deepEqual(itemsOf({ description: '• Item 9: 5 g, 2 pieces per box, 3 per case', items: [] }), []);
   assert.match(itemsFromLines('801 | | 25 g | 24 | 6\n801 | x | 30 g | 24 | 6').error, /line 2: item 801/);
 });
+
+// ---------- monitoring: the one live connection per tab ----------
+const { createMonitorStream, stateLabel, minutes, FALLBACK_REFRESH_SECONDS } = await load('monitoring', '',
+  'const useEffect = () => {}, useRef = () => ({});');
+
+function fakeSources() {
+  const opened = [];
+  return {
+    opened,
+    open(url) {
+      const s = { url, handlers: {}, closed: false, close() { this.closed = true; }, addEventListener(t, fn) { this.handlers[t] = fn; } };
+      opened.push(s);
+      return s;
+    },
+  };
+}
+
+test('monitoring stream: opens once for many listeners and closes with the last one', () => {
+  const env = fakeSources();
+  const s = createMonitorStream(env);
+  const offA = s.subscribe(() => {});
+  const offB = s.subscribe(() => {});
+  assert.equal(env.opened.length, 1);
+  assert.equal(env.opened[0].url, '/api/v1/monitoring/stream');
+  offA();
+  assert.equal(env.opened[0].closed, false);
+  offB();
+  assert.equal(env.opened[0].closed, true);
+});
+
+test('monitoring stream: passes each change on and takes the refresh time from hello', () => {
+  const env = fakeSources();
+  const s = createMonitorStream(env);
+  const heard = [];
+  s.subscribe((c) => heard.push(c));
+  assert.equal(s.refreshSeconds(), FALLBACK_REFRESH_SECONDS);
+  env.opened[0].handlers.hello({ data: '{"refresh_seconds": 30}' });
+  assert.equal(s.refreshSeconds(), 30);
+  env.opened[0].handlers.changed({ data: '{"what": "unlock"}' });
+  env.opened[0].handlers.changed({ data: 'not json' }); // ignored, never thrown
+  assert.deepEqual(heard, ['unlock']);
+});
+
+test('monitoring labels', () => {
+  assert.equal(stateLabel('LOCKED'), 'Locked');
+  assert.equal(stateLabel('SOMETHING_NEW'), 'SOMETHING_NEW');
+  assert.equal(minutes(45), '45 min');
+  assert.equal(minutes(125.4), '2 h 5 min');
+  assert.equal(minutes(null), '0 min');
+});
