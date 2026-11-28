@@ -2171,6 +2171,43 @@ Sections:
           healthchecks.io after each backup; a missed night alerts too (PR #115).
 
 
+### CodeRabbit
+
+   What   An automatic reviewer that comments on every GitHub PR. "CodeRabbit = pass" in CI only means it
+          ran, not that it found nothing.
+   Read   `gh api repos/vineet110/kjs_m/pulls/N/comments` (line comments) and `.../issues/N/comments`.
+   Watch  It finds different things than our own review (accessibility, nginx defaults). Read both on every PR.
+
+
+### Email enumeration protection (Firebase)
+
+   What   Firebase answers "sent" for every reset or verify request, even for an email with no account, so
+          nobody can probe which emails exist.
+   Watch  "Email sent" on our page doesn't mean a mail went out: only an email listed in Firebase >
+          Authentication > Users gets one.
+
+
+### Authorized domains (Firebase)
+
+   What   The websites Firebase trusts for sign-in and for the links in its emails. A site not on the list
+          gets "unauthorized domain". Where: Firebase > Authentication > Settings.
+   Watch  Add the new domain here whenever the site address changes.
+
+
+### MX record / nameservers
+
+   What   MX records say which server receives a domain's email (kjsindia.com: Google Workspace).
+          Nameservers say which company runs the domain's DNS (kjsindia.com: Hostinger).
+   Watch  Pointing MX at another provider moves ALL incoming email there. An R2 custom domain
+          (cdn.kjsindia.com) needs the DNS on Cloudflare.
+
+
+### App password (Google)
+
+   What   A 16-letter password Google makes for one app (e.g. an SMTP sender), so the real password is never
+          used. Needs 2-Step Verification on the mailbox. A secret: only in `.env` or the Firebase console.
+
+
 ===================================================================================================
 
 ## 10. Ideas and habits

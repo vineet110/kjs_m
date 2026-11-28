@@ -340,6 +340,8 @@ The simple version for KJS is `trackEXP.md`. Keep both in step.
 
 17. 26–27 Nov: full UAT test, go-live moved to 1 Dec (decision 63). Go-live fixes #112–#140 reviewed and merged
     on 27 Nov (migrations 0034–0036). Server steps before go-live: backlog section 30.
+    27–28 Nov: CodeRabbit leftovers fixed (#142). Latest main tested: backend 826 pass, frontend 80 pass and
+    build. Neon migrated to 0036. Decisions and after-go-live list: backlog R124–R126.
 
 15. 18 Nov: coffee-only switch: photo upload when adding a product (#93), Show/Hide per category (#97,
     migration 0030, Neon migrated), the site follows the switches (#99). Coffee-only = hide Confectionery,

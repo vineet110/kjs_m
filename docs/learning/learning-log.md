@@ -10,6 +10,25 @@ A word you don't know? Look it up in `../kb.md` (Ctrl + F).
 
 ---------------------------------------------------------------------------------------------------
 
+## 27–28 Nov 2026 (CodeRabbit leftovers, go-live checklist, Vineet)
+
+1. (V) A test can pass for the wrong reason. The import test passed because the WRONG row was skipped. Assert
+   which row, not only how many.
+
+2. (V) "CodeRabbit = pass" in CI only means it ran. Read its comments on every PR, next to our own review.
+
+3. (V) Before calling something a bug, `git fetch` and check `origin/main`. The local checkout and the live
+   site can both be behind (a "68-character title" was already fixed on main, just not deployed).
+
+4. (V) New code on an old database fails with "column does not exist". Run the migrations first.
+
+5. (V) Firebase says "email sent" even for an email with no account. Check Firebase > Users before
+   blaming the mail.
+
+6. (V) Never point a domain's MX at a new mail provider just to send mail: all incoming email moves with it.
+
+---------------------------------------------------------------------------------------------------
+
 ## 26–27 Nov 2026 (UAT testing, go-live PRs #112–#140, merge night, Vineet)
 
 1. (V) A "be forgiving" change can quietly turn off a CI guard that relied on the strict behaviour. Check who
