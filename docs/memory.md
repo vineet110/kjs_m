@@ -541,7 +541,8 @@ Don't know a word in here? Search for it in `kb.md` (Ctrl + F).
    i.    CodeRabbit's 57 comments on #112–#140 read: about 30 already addressed, 5 already fixed on main, the
          important ones fixed in #142 (item text can't hold "|" or line breaks, bad stored items skipped, a
          phone-only import row matches a saved buyer, API errors are `no-store`, nginx cache lock 15 s,
-         Reveal checks once per frame). The rest: backlog R124.
+         Reveal checks once per frame). Tests written first: 9 of 16 failed on the old code. The rest:
+         backlog R124.
    ii.   Latest main (a61a530) tested: backend 826 pass, frontend type check, 80 tests and build pass.
    iii.  Neon migrated 0033 -> 0036 (the local backend failed on `leads.reopened_at`).
    iv.   Firebase authorized domain twins.kjsindia.com added. Firebase reset/verify emails: Firebase answers

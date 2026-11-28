@@ -60,3 +60,6 @@ backend/storage-e2e/
 .claude/skills/neon/
 .claude/skills/neon-postgres/
 skills-lock.json
+
+# Live-test output (Playwright reports, saved logins). Never commit.
+e2e-output/
