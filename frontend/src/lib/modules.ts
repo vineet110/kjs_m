@@ -19,7 +19,7 @@ const AREA_PAGES: Record<Area, string[]> = {
   chat: ['/employee/chat'],
   lead_harvester: ['/admin/client-schedulers'],
   site_insights: [], // no page of its own: the Website insights tab on Reports (/admin/analytics)
-  monitoring: [], // the feed for the laptop-monitoring server; its pages come later
+  monitoring: ['/employee/monitoring', '/admin/monitoring'],
 };
 
 /** Can this person use the area? Not in the answer (an older server) = yes. */

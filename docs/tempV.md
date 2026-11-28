@@ -66,3 +66,26 @@ One subheading per task. Moved into the shared docs after the PR merges (see `do
    through monitoring's real endpoints) passed; DB-free checks of the CRM side passed; compose files parse.
    NOT run here: the CRM DB tests (no Postgres on this PC) -> run tests/test_monitoring_link.py first.
 
+
+## Monitoring Phase 3: pages, approvals, bell, live (28 Nov, branch `feat/monitoring-pages`, stacked on #147)
+
+1. Pages: `/admin/monitoring` (unlock requests with Approve/Reject, live status, open alerts) and
+   `/employee/monitoring` "My activity" (own day). Sidebar: "Laptop monitoring" needs monitoring.view or
+   monitoring.approve; "My activity" is for everyone (area `monitoring`).
+2. Who sees whom (`services/monitoring_service.py`): admins everyone; others only people with
+   `reporting_to == me`. Unlock decisions: checked here (my team) AND on the monitoring server; X-Actor is always
+   the logged-in person. Every decision is in the audit log. The API key never reaches a browser.
+3. No delay: the monitoring server pushes alerts, laptop states and unlock requests the moment they change
+   (`POST .../integrations/monitoring/api/monitoring/push`, same key as the feed). We ring the bell
+   (lock.requested -> the person's manager if they can approve, else every approver; lock.escalated and
+   agent.tampered -> every approver; offline / sync alerts: page only) and tell open tabs over a live stream
+   (`GET /api/v1/monitoring/stream`, Server-Sent Events; nginx passes it unbuffered). The tab reloads only what
+   changed; the bell asks /employee/updates at once (MonitorBell).
+4. Safety nets: job `monitoring_alerts_catchup` (rings an alert a lost push missed; `monitoring_alerts_seen`,
+   migration 0038, keeps it to one bell) and pages reload every `page_refresh_seconds` anyway.
+5. The stream uses its own short DB session (a route dependency would hold a pool connection for 30 min).
+   It ends after 30 min and the browser reconnects (re-checks the login).
+6. Monitoring repo: branch `feat/crm-live-push` (stacked on its #1): `app/services/crm_push.py`.
+7. Local note: an unpinned FastAPI (0.165) registers included routers lazily, so the route-area test found
+   no routes and passed vacuously on this PC; with the pinned 0.129.2 it checks all 187 routes (passes).
+

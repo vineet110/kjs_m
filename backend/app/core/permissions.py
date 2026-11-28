@@ -20,6 +20,8 @@ PERMISSIONS: dict[str, str] = {
     "tasks.assign": "Give tasks to other staff and see everyone's tasks",
     "files.approve": "Approve requests to delete files",
     "insights.view": "See Website insights (what visitors view, search and click)",
+    "monitoring.view": "See laptop monitoring (live status, alerts, reports) of the people who report to them",
+    "monitoring.approve": "Approve or reject laptop unlock requests of the people who report to them",
 }
 
 EMPLOYEE_DEFAULTS: list[str] = ["leads.view"]

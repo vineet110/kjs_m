@@ -21,4 +21,4 @@ from app.models.site_event import SiteEvent  # noqa: F401
 from app.models.hero import HeroSlide, HeroStat  # noqa: F401
 from app.models.showcase import ActivityLine, BrandPartner  # noqa: F401
 from app.models.koko_usage import KokoUsage  # noqa: F401
-from app.models.monitoring_link import AttendanceEvent, MonitoringLinkState  # noqa: F401
+from app.models.monitoring_link import AttendanceEvent, MonitoringAlertSeen, MonitoringLinkState  # noqa: F401

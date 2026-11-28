@@ -30,6 +30,15 @@ class AttendanceEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.clock_timestamp())
 
 
+class MonitoringAlertSeen(Base):
+    """A monitoring alert whose bell has rung (a push and the catch-up job may both bring the same one)."""
+
+    __tablename__ = "monitoring_alerts_seen"
+
+    alert_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class MonitoringLinkState(Base):
     """Small values the link keeps between runs (e.g. the alerts cursor, Phase 3)."""
 

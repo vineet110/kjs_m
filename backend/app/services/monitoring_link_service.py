@@ -308,7 +308,7 @@ def push_configured() -> bool:
     return bool(settings.MONITORING_BASE_URL and settings.MONITORING_API_KEY) and running("monitoring")
 
 
-def _http() -> httpx.AsyncClient:
+def http() -> httpx.AsyncClient:
     """One client for the whole process: its connection stays open, so a push doesn't pay for a new one."""
     global _client
     if _client is None:
@@ -371,7 +371,7 @@ async def push(people_events: set[int], people: set[int]) -> None:
 
 
 async def _post(path: str, body: dict) -> None:
-    r = await _http().post(path, json=body, timeout=cfg().monitoring_link.push_timeout_seconds)
+    r = await http().post(path, json=body, timeout=cfg().monitoring_link.push_timeout_seconds)
     if r.status_code >= 400:
         log.warning("monitoring.push_refused", extra={"path": path, "status": r.status_code})
 

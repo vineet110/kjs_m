@@ -16,7 +16,7 @@ from app.core.errors import install_error_handlers
 from app.core.logs import RequestContextMiddleware, setup_logging
 from app.jobs import runner
 from app.services import (  # noqa: F401  (importing them registers their background jobs)
-    assign_service, board_service, file_service, harvest_service, lead_service, monitoring_link_service,
+    assign_service, board_service, file_service, harvest_service, lead_service, monitoring_link_service, monitoring_service,
     notification_service, site_insights_service,
 )
 
