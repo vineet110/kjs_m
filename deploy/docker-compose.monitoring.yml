@@ -1,0 +1,21 @@
+# Laptop monitoring link: puts the CRM backend on the private network it shares with the monitoring server.
+# Only the two API containers join it (no database, no nginx), so nothing else is reachable either way.
+#
+# Not part of docker-compose.prod.yml on purpose: the network must exist first, or every deploy would fail.
+# Once, on the VPS:      docker network create kjs_mon
+# Then deploy with:      COMPOSE="docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml" ./deploy.sh
+#
+# On this network:
+#   kjs-backend:8000  this CRM API. Monitoring polls http://kjs-backend:8000/api/v1/integrations/monitoring
+#                     (nginx refuses that path from outside; this network is the only way in).
+#   mon-api:8000      the monitoring API. We push every change to it at once (MONITORING_BASE_URL).
+services:
+  backend:
+    networks:
+      default: {}
+      kjs_mon:
+        aliases: [kjs-backend]
+
+networks:
+  kjs_mon:
+    external: true

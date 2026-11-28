@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     R2_BACKUP_ACCESS_KEY_ID: str = ""
     R2_BACKUP_SECRET_ACCESS_KEY: str = ""
 
+    # Laptop monitoring: the key its server sends us in X-Api-Key (32+ characters; empty = feed closed)
+    MONITORING_FEED_KEY: str = ""
+    # Where we push changes the moment they are saved (the monitoring API on the shared Docker network) and the
+    # key we send in X-Api-Key (= CRM_INBOUND_API_KEY there). Either empty = no push; the 30 s poll still works.
+    MONITORING_BASE_URL: str = ""
+    MONITORING_API_KEY: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
